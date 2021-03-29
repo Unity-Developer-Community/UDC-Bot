@@ -8,6 +8,7 @@ using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using DiscordBot.Extensions;
+using DiscordBot.Modules;
 using DiscordBot.Services;
 using DiscordBot.Settings.Deserialized;
 using Microsoft.Extensions.DependencyInjection;
@@ -168,6 +169,8 @@ namespace DiscordBot
             }
 
             CommandList = commandList.ToString();
+
+            ReactionRoleModule.GenerateCommandList(_commandService);
         }
 
         private async Task MessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)

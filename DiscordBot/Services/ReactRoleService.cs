@@ -5,6 +5,7 @@ using DiscordBot.Settings.Deserialized;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -13,34 +14,42 @@ using System.Timers;
 
 namespace DiscordBot.Services
 {
-    class ReactRoleService
+    public class ReactRoleService
     {
-        private ReactRoleSettings _reactSettings;
-        private bool isRunning = false;
+        private const string ReactionSettingsPath = @"Settings/ReactionRoles.json";
+
+        public ReactRoleSettings ReactSettings;
+
+        private bool _isRunning = false;
 
         private readonly Settings.Deserialized.Settings _settings;
         private readonly DiscordSocketClient _client;
         private readonly ILoggingService _loggingService;
 
-        private IMessageChannel _messageChannel;
         // Dictionaries to simplify lookup
-        private Dictionary<ulong, IUserMessage> ReactMessages = new Dictionary<ulong, IUserMessage>();
+        private readonly Dictionary<ulong, IUserMessage> _reactMessages = new Dictionary<ulong, IUserMessage>();
         // GuildRoles uses EmojiID as Key
-        private Dictionary<ulong, IRole> GuildRoles = new Dictionary<ulong, IRole>();
-        private Dictionary<ulong, GuildEmote> GuildEmotes = new Dictionary<ulong, GuildEmote>();
+        private readonly Dictionary<ulong, IRole> _guildRoles = new Dictionary<ulong, IRole>();
+        private readonly Dictionary<ulong, GuildEmote> _guildEmotes = new Dictionary<ulong, GuildEmote>();
 
-        private Dictionary<IGuildUser, ReactRoleUserData> _pendingUserUpdate = new Dictionary<IGuildUser, ReactRoleUserData>();
-        class ReactRoleUserData
+        private readonly Dictionary<IGuildUser, ReactRoleUserData> _pendingUserUpdate = new Dictionary<IGuildUser, ReactRoleUserData>();
+
+        public class ReactRoleUserData
         {
-            public IGuildUser user;
-            public DateTime lastChange = DateTime.Now;
-            public List<IRole> addRole = new List<IRole>();
-            public List<IRole> removeRole = new List<IRole>();
+            public IGuildUser User;
+            public DateTime LastChange = DateTime.Now;
+            public List<IRole> RolesToAdd = new List<IRole>();
+            public List<IRole> RolesToRemove = new List<IRole>();
             public ReactRoleUserData(IGuildUser id)
             {
-                user = id;
+                User = id;
             }
         }
+
+        // These are for the Modules to reference if/when setting up new message roles.
+        public bool IsPreparingMessage => NewMessage != null;
+
+        public UserReactMessage NewMessage;
 
         public ReactRoleService(DiscordSocketClient client, ILoggingService logging, Settings.Deserialized.Settings settings)
         {
@@ -61,73 +70,109 @@ namespace DiscordBot.Services
         {
             try
             {
-                using (var file = File.OpenText(@"Settings/ReactionRoles.json"))
+                // If file doesn't exist, we make an empty file with the default values.
+                if (!File.Exists(ReactionSettingsPath))
                 {
-                    _reactSettings = JsonConvert.DeserializeObject<ReactRoleSettings>(file.ReadToEnd());
+                    var reactSettings = new ReactRoleSettings();
+                    var settingsContent = JsonConvert.SerializeObject(value: reactSettings, formatting: Formatting.Indented);
+                    File.WriteAllText(path: ReactionSettingsPath, contents: settingsContent);
+                }
+                else
+                {
+                    using var file = File.OpenText(ReactionSettingsPath);
+                    ReactSettings = JsonConvert.DeserializeObject<ReactRoleSettings>(file.ReadToEnd());
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Failed to Deserialize 'ReactionRoles.Json' err: {ex.Message}");
-                isRunning = false;
+                _isRunning = false;
             }
+        }
+
+        private bool SaveSettings()
+        {
+            try
+            {
+                string settingsContent = JsonConvert.SerializeObject(value: ReactSettings, formatting: Formatting.Indented);
+                File.WriteAllText(path: ReactionSettingsPath, contents: settingsContent);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to Serialize 'ReactionRoles.Json' err: {ex.Message}");
+                _isRunning = false;
+            }
+
+            return false;
+        }
+
+        private async Task<bool> StartService()
+        {
+            LoadSettings();
+
+            if (ReactSettings.UserReactRoleList == null)
+            {
+                _isRunning = true;
+                return true;
+            }
+
+            // Get our Emotes
+            var serverGuild = _client.GetGuild(_settings.guildId);
+            foreach (var reactMessage in ReactSettings.UserReactRoleList)
+            {
+                // Channel used for message
+                var messageChannel = _client.GetChannel(reactMessage.ChannelId) as IMessageChannel;
+                // Get The Message for this group of reactions
+                if (!_reactMessages.ContainsKey(reactMessage.MessageId))
+                { 
+                    _reactMessages.Add(reactMessage.MessageId, await messageChannel.GetMessageAsync(reactMessage.MessageId) as IUserMessage);
+                }
+                for (int i = 0; i < reactMessage.RoleCount(); i++)
+                {
+                    // Add a Reference to our Roles to simplify lookup
+                    if (!_guildRoles.ContainsKey(reactMessage.Reactions[i].EmojiId))
+                    {
+                        _guildRoles.Add(reactMessage.Reactions[i].EmojiId, serverGuild.GetRole(reactMessage.Reactions[i].RoleId));
+                    }
+                    // Same for the Emojis, saves look-arounds
+                    if (!_guildEmotes.ContainsKey(reactMessage.Reactions[i].EmojiId))
+                    {
+                        _guildEmotes.Add(reactMessage.Reactions[i].EmojiId, await serverGuild.GetEmoteAsync(reactMessage.Reactions[i].EmojiId));
+                    }
+                    // If our message doesn't have the emote, we add it.
+                    if (!_reactMessages[reactMessage.MessageId].Reactions.ContainsKey(_guildEmotes[reactMessage.Reactions[i].EmojiId]))
+                    {
+                        // We could add these in bulk, but that'd require a bit more setup
+                        await _reactMessages[reactMessage.MessageId].AddReactionAsync(_guildEmotes[reactMessage.Reactions[i].EmojiId]);
+                    }
+                }
+            }
+            _isRunning = true;
+            return true;
         }
 
         private async Task ClientIsReady()
         {
-            // This could be with all the others loading, but self-managed seems cleaner.
-            LoadSettings();
-            // Get the main channel we use
-            _messageChannel = _client.GetChannel(_reactSettings.ChannelIndex) as IMessageChannel;
-            // Get our Emotes
-            //TODO Should probably make this work with global emotes as well?
-            var ServerGuild = _client.GetGuild(_settings.guildId);
-            foreach (var ReactList in _reactSettings.UserReactRoleList)
-            {
-                // Get The Message for this group of reactions
-                if (!ReactMessages.ContainsKey(ReactList.MessageIndex))
-                {
-                    ReactMessages.Add(ReactList.MessageIndex, await _messageChannel.GetMessageAsync(ReactList.MessageIndex) as IUserMessage);
-                }
-                for (int i = 0; i < ReactList.RoleCount(); i++)
-                {
-                    // Add a Reference to our Roles to simplify lookup
-                    if (!GuildRoles.ContainsKey(ReactList.Reactions[i].EmojiID))
-                    {
-                        GuildRoles.Add(ReactList.Reactions[i].EmojiID, ServerGuild.GetRole(ReactList.Reactions[i].RoleID));
-                    }
-                    // Same for the Emojis, saves constant look-arounds
-                    if (!GuildEmotes.ContainsKey(ReactList.Reactions[i].EmojiID))
-                    {
-                        GuildEmotes.Add(ReactList.Reactions[i].EmojiID, await ServerGuild.GetEmoteAsync(ReactList.Reactions[i].EmojiID));
-                    }
-                    // If our message doesn't have the emote, we add it.
-                    if (!ReactMessages[ReactList.MessageIndex].Reactions.ContainsKey(GuildEmotes[ReactList.Reactions[i].EmojiID]))
-                    {
-                        // We could add these in bulk, but that'd require a bit more setup
-                        await ReactMessages[ReactList.MessageIndex].AddReactionAsync(GuildEmotes[ReactList.Reactions[i].EmojiID]);
-                    }
-                }
-            }
-            isRunning = true;
+            _isRunning = await StartService();
         }
 
         private async Task ReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
         {
-            if (!isRunning)
+            if (!_isRunning)
                 return;
-            if (ReactMessages.ContainsKey(message.Id))
+            if (_reactMessages.ContainsKey(message.Id))
             {
                 ReactionChanged(reaction.User.Value as IGuildUser, reaction.Emote as Emote, true);
             }
         }
         private async Task ReactionRemoved(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
         {
-            if (!isRunning)
+            if (!_isRunning)
                 return;
-            if (ReactMessages.ContainsKey(message.Id))
+            if (_reactMessages.ContainsKey(message.Id))
             {
-                if (ReactMessages.ContainsKey(message.Id))
+                if (_reactMessages.ContainsKey(message.Id))
                 {
                     ReactionChanged(reaction.User.Value as IGuildUser, reaction.Emote as Emote, false);
                 }
@@ -135,60 +180,59 @@ namespace DiscordBot.Services
         }
         private void ReactionChanged(IGuildUser user, Emote emote, bool state)
         {
-            if (IsUserValid(user))
+            if (!IsUserValid(user)) return;
+
+            if (_guildRoles.TryGetValue(emote.Id, out var targetRole))
             {
-                IRole targetRole;
-                if (GuildRoles.TryGetValue(emote.Id, out targetRole))
-                {
-                    UpdatePendingRoles(user, targetRole, state);
-                }
+                UpdatePendingRoles(user, targetRole, state);
             }
         }
 
         /// <summary>
         /// Updates users roles in bulk, this prevents discord from crying.
+        /// We check the last time they tried to change the role (if they've clicked multiple) to save API calls, Discord will quickly complain if we hit them with to many requests.
         /// </summary>
         private async void UpdateUserRoles(IGuildUser user)
         {
-            ReactRoleUserData userData;
-            if (_pendingUserUpdate.TryGetValue(user, out userData))
-            {
-                // Wait for a bit to give user to choose all their roles.
-                // we add a bit more to the end just so we don't always hit a second delay if they only selected 1 emote.
-                await Task.Delay(_reactSettings.RoleAddDelay + 250);
-                while (((DateTime.Now - userData.lastChange).TotalMilliseconds < _reactSettings.RoleAddDelay))
-                {
-                    await Task.Delay(2000);
-                }
-                // Strip out any changes we don't need to prevent additional calls
-                // If changes were made to either add or remove, we make those changes.
-                if (userData.addRole.Count > 0)
-                {
-                    for (int i = userData.addRole.Count - 1; i >= 0; i--)
-                    {
-                        if (user.RoleIds.Contains(userData.addRole[i].Id))
-                        {
-                            userData.addRole.RemoveAt(i);
-                        }
-                    }
-                    await user.AddRolesAsync(userData.addRole);
-                }
-                if (userData.removeRole.Count > 0)
-                {
-                    for (int i = userData.removeRole.Count - 1; i >= 0; i--)
-                    {
-                        if (user.RoleIds.Contains(userData.removeRole[i].Id))
-                        {
-                            userData.removeRole.RemoveAt(i);
-                        }
-                    }
-                    await user.RemoveRolesAsync(userData.removeRole);
-                }
-                if (_reactSettings.LogUpdates)
-                    await _loggingService.LogAction($"{user.Username} Updated Roles.", false, true);
+            //TODO Implement a watcher, prevent people from changing their roles every few minutes. Not super important.
+            if (!_pendingUserUpdate.TryGetValue(user, out var userData)) return;
 
-                _pendingUserUpdate.Remove(user);
+            // Wait for a bit to give user to choose all their roles.
+            // we add a bit more to the end just so we don't always hit a second delay if they only selected 1 emote.
+            await Task.Delay((int)ReactSettings.RoleAddDelay + 250);
+            while (((DateTime.Now - userData.LastChange).TotalMilliseconds < ReactSettings.RoleAddDelay))
+            {
+                await Task.Delay(2000);
             }
+
+            // Strip out any changes we don't need to prevent additional calls
+            // If changes were made to either add or remove, we make those changes.
+            if (userData.RolesToAdd.Count > 0)
+            {
+                for (int i = userData.RolesToAdd.Count - 1; i >= 0; i--)
+                {
+                    if (user.RoleIds.Contains(userData.RolesToAdd[i].Id))
+                    {
+                        userData.RolesToAdd.RemoveAt(i);
+                    }
+                }
+                await user.AddRolesAsync(userData.RolesToAdd);
+            }
+            if (userData.RolesToRemove.Count > 0)
+            {
+                for (int i = userData.RolesToRemove.Count - 1; i >= 0; i--)
+                {
+                    if (user.RoleIds.Contains(userData.RolesToRemove[i].Id))
+                    {
+                        userData.RolesToRemove.RemoveAt(i);
+                    }
+                }
+                await user.RemoveRolesAsync(userData.RolesToRemove);
+            }
+            if (ReactSettings.LogUpdates)
+                await _loggingService.LogAction($"{user.Username} Updated Roles.", false, true);
+
+            _pendingUserUpdate.Remove(user);
         }
 
         /// <summary>
@@ -203,49 +247,70 @@ namespace DiscordBot.Services
                 UpdateUserRoles(user);
             }
             var userData = _pendingUserUpdate[user];
-            // Update Change to prevent spamming
-            userData.lastChange = DateTime.Now;
+            userData.LastChange = DateTime.Now;
             // Add our change, make sure it isn't in our RemoveList
             if (state == true) 
             { 
-                userData.addRole.Add(role);
-                userData.removeRole.Remove(role);
+                userData.RolesToAdd.Add(role);
+                userData.RolesToRemove.Remove(role);
             } 
             else
             {
-                userData.addRole.Remove(role);
-                userData.removeRole.Add(role);
+                userData.RolesToAdd.Remove(role);
+                userData.RolesToRemove.Add(role);
             }
         }
 
         private bool IsUserValid(IGuildUser user)
         {
-            if (user.IsBot)
-                return false;
+            return !user.IsBot;
+        }
+
+        #region ModuleCommands
+        public bool SetReactRoleDelay(uint delay)
+        {
+            if (ReactSettings == null) return false;
+            ReactSettings.RoleAddDelay = delay;
+            SaveSettings();
             return true;
         }
-    }
+        public bool SetReactLogState(bool state)
+        {
+            ReactSettings.LogUpdates = state;
+            SaveSettings();
+            return true;
+        }
 
-    #region ReactRole Containers
-    public class ReactRoleSettings
-    {
-        public ulong ChannelIndex;
-        public int RoleAddDelay = 5000;
-        public bool LogUpdates;
-        public List<UserReactRoles> UserReactRoleList;
-    }
-    public class UserReactRoles
-    {
-        public ulong MessageIndex;
-        public string Desc { get; set; }
-        public List<ReactRole> Reactions;
+        /// <summary> Saves the prepared message if one is being prepared. </summary>
+        public bool StoreNewMessage()
+        {
+            if (!IsPreparingMessage)
+                return false;
 
-        public int RoleCount() { return Reactions.Count; }
+            // Make sure it isn't null (New config)
+            ReactSettings.UserReactRoleList ??= new List<UserReactMessage>();
+
+            ReactSettings.UserReactRoleList.Add(NewMessage);
+            SaveSettings();
+
+            NewMessage = null;
+
+            return true;
+        }
+
+        /// <summary> Restarts the Service by clearing all containers and restoring them from the configuration file. </summary>
+        public async Task<bool> Restart()
+        {
+            _isRunning = false;
+            _reactMessages.Clear();
+            _guildRoles.Clear();
+            _guildEmotes.Clear();
+            //TODO Maybe add a warning? or check the new changes to make sure emotes still exist?
+            _pendingUserUpdate.Clear();
+
+            await StartService();
+            return _isRunning;
+        }
+        #endregion
     }
-    public class ReactRole
-    {
-        public ulong RoleID { get; set; }
-        public ulong EmojiID { get; set; }
-    }
-    #endregion
 }
