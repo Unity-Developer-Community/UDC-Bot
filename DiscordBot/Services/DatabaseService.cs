@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Discord;
 using Discord.WebSocket;
 using MySql.Data.MySqlClient;
 
@@ -19,6 +20,27 @@ namespace DiscordBot.Services
             _settings = settings;
             _connection = _settings.DbConnectionString;
             _logging = logging;
+
+            using (var connection = new MySqlConnection(_connection))
+            {
+                try
+                {
+                    connection.Open();
+                    ConsoleLogger.Log(message: "Connected to Database.", severity: Severity.Pass );
+                    var command = new MySqlCommand($"SELECT COUNT(*) FROM `users`", connection);
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read()) 
+                        {
+                            ConsoleLogger.Log(message: $"Database Test Pass: {reader} users stored.", severity: Severity.Pass );
+                        }
+                    }
+                }
+                catch (MySqlException ex)
+                {
+                    ConsoleLogger.Log(message: $"Error:\t{ex.Message}\nStack:\n{ex.StackTrace}", severity: Severity.Error );
+                }
+            }
         }
 
         /*
