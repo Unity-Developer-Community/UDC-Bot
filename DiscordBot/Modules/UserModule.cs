@@ -460,40 +460,65 @@ namespace DiscordBot.Modules
                 return;
             }
 
-            Random rand = new Random();
-            var coin = new[] {"Heads", "Tails"};
-
             await ReplyAsync($"\n" +
                              "**Publisher - BOT COMMANDS : ** ``these commands are not case-sensitive.``\n" +
-                             "``!pkg ID`` - To add your package to Publisher everyday Advertising , ID means the digits on your package link.\n" +
-                             "``!verify packageId verifCode`` - Verify your package with the code send to your email.");
+                             "``!publisher ID`` - Your Publisher ID, assetstore.unity.com/publishers/yourID.\n" +
+                             "``!verify publisherID verifCode`` - Verify your ID with the code sent to your email.");
+
+            //x await ReplyAsync($"\n" +
+            //x                  "**Publisher - BOT COMMANDS : ** ``these commands are not case-sensitive.``\n" +
+            //x                  "``!pkg ID`` - To add your package to Publisher everyday Advertising , ID means the digits on your package link.\n" +
+            //x                  "``!verify packageId verifCode`` - Verify your package with the code send to your email.");
 
             await Task.Delay(10000);
             await Context.Message.DeleteAsync();
         }
 
-        [Command("pkg"), Summary("Add your published package to the daily advertising. Syntax : !pkg packageId")]
-        [Alias("package")]
-        public async Task Package(uint packageId)
+        [Command("publisher"),
+         Summary("Get the Asset-Publisher role by verifying who you are. Syntax: !publisher publisherID")]
+        public async Task Publisher(uint publisherId)
         {
             if (Context.Channel.Id != _settings.BotCommandsChannel.Id)
             {
-                await Task.Delay(1000);
-                await Context.Message.DeleteAsync();
+
+                await ReplyAsync($"Please use the <#{_settings.BotCommandsChannel.Id}> channel!")
+                    .DeleteAfterSeconds(2.0f);
+                await Context.Message.DeleteAfterSeconds(1.0f);
                 return;
             }
-            
             if (_settings.Gmail == string.Empty)
             {
                 await ReplyAsync("Asset Publisher role is currently disabled.").DeleteAfterSeconds(5f);
                 return;
             }
-            
-            (bool, string) verif = await _publisherService.VerifyPackage(packageId);
-            await ReplyAsync(verif.Item2);
+
+            (bool, string) verify = await _publisherService.VerifyPublisher(publisherId, Context.User.Username);
+            if (verify.Item1)
+                await ReplyAsync(verify.Item2);
+            else
+            {
+                await ReplyAsync(verify.Item2).DeleteAfterSeconds(2.0f);
+                await Context.Message.DeleteAfterSeconds(1.0f);
+            }
         }
 
-        [Command("verify"), Summary("Verify a package with the code received by email. Syntax : !verify packageId code")]
+        // No longer works due to change in Unity Store API
+        //x [Command("pkg"), Summary("Add your published package to the daily advertising. Syntax : !pkg packageId")]
+        //x [Alias("package")]
+        //x private async Task Package(uint packageId)
+        //x {
+        //x     if (Context.Channel.Id != _settings.BotCommandsChannel.Id)
+        //x     {
+        //x         await Task.Delay(1000);
+        //x         await Context.Message.DeleteAsync();
+        //x         return;
+        //x     }
+        //x 
+        //x     (bool, string) verif = await _publisherService.VerifyPackage(packageId);
+        //x     await ReplyAsync(verif.Item2);
+        //x }
+
+        [Command("verify"), Summary("Verify a publisher with the code received by email. Syntax : !verify publisherId code")]
         public async Task VerifyPackage(uint packageId, string code)
         {
             if (Context.Channel.Id != _settings.BotCommandsChannel.Id)

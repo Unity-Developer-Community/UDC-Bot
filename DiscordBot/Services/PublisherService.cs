@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
@@ -131,6 +132,35 @@ namespace DiscordBot.Services
             return (sb.ToString(), image);
         }
 
+        public async Task<(bool, string)> VerifyPublisher(uint publisherId, string name)
+        {
+            // Unity is 1, we probably don't want to email them.
+            if (publisherId < 2)
+                return (false, "Invalid publisher ID.");
+
+            using (var webClient = new WebClient())
+            {
+                // For the record, this is a terrible way of pulling this information.
+                string content = await webClient.DownloadStringTaskAsync($"https://assetstore.unity.com/publishers/{ publisherId }");
+                if (!content.Contains("Error 404"))
+                {
+                    string email = "";
+                    Match emailMatch = new Regex("mailto:([^\"]+)").Match(content);
+                    if (emailMatch.Success)
+                        email = emailMatch.Groups[1].Value;
+
+                    if (email.Length > 2)
+                    {
+                        // No easy way to take their name, so we pass their discord name in.
+                        await SendVerificationCode(name, email, publisherId);
+                        return (true, "An email with a validation code was sent. Please type !verify *publisherID* *code* to validate your package.\nThis code will be valid for 30 minutes.");
+                    }
+                }
+                return (false, "We failed to confirm this Publisher ID, double check and try again in a few minutes.");
+            }
+        }
+
+
         public async Task<(bool, string)> VerifyPackage(uint packageId)
         {
             Console.WriteLine("enters verify package");
@@ -160,11 +190,11 @@ namespace DiscordBot.Services
 
             string code = Convert.ToBase64String(random);
 
-            _verificationCodes.Add(packageId, code);
+            _verificationCodes[packageId] = code;
             var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("Unity Developer Hub", _settings.Gmail));
+            message.From.Add(new MailboxAddress("Unity Developer Community", _settings.Gmail));
             message.To.Add(new MailboxAddress(name, email));
-            message.Subject = "Unity Developer Hub Package Validation";
+            message.Subject = "Unity Developer Community Package Validation";
             message.Body = new TextPart("plain")
             {
                 Text = @"Here's your validation code : " + code
