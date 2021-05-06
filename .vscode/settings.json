@@ -1,0 +1,6 @@
+{
+    "sonarlint.connectedMode.project": {
+        "connectionId": "unity-developer-community",
+        "projectKey": "Unity-Developer-Community_UDC-Bot"
+    }
+}
