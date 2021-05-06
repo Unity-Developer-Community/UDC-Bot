@@ -84,6 +84,7 @@ namespace DiscordBot
                 .AddSingleton<UpdateService>()
                 .AddSingleton<AudioService>()
                 .AddSingleton<CurrencyService>()
+                .AddSingleton<BotAnnouncementService>()
                 .BuildServiceProvider();
         }
 
@@ -119,7 +120,6 @@ namespace DiscordBot
             _payWork = SerializeUtil.DeserializeFile<PayWork>(@"Settings/PayWork.json");
             _rules = SerializeUtil.DeserializeFile<Rules>(@"Settings/Rules.json");
             _userSettings = SerializeUtil.DeserializeFile<UserSettings>(@"Settings/UserSettings.json");
-            _raidSettings = SerializeUtil.DeserializeFile<RaidProtection>(@"Settings/RaidProtection.json");
         }
     }
 }
