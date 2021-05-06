@@ -13,13 +13,13 @@ public class SerializeUtil
         {
             if (newFileIfNotExists)
             {
-                Console.WriteLine($@"Deserialized File at '{path}' does not exist, attempting to generate new file.");
+                ConsoleLogger.Log($@"Deserialized File at '{path}' does not exist, attempting to generate new file.", Severity.Warning);
                 deserializedItem = new T();
                 SaveContents(path, JsonConvert.SerializeObject(deserializedItem));
             }
             else
             {
-                Console.WriteLine($@"Deserialized File at '{path}' does not exist.");
+                ConsoleLogger.Log($@"Deserialized File at '{path}' does not exist.", Severity.Error);
             }
         }
 
@@ -48,6 +48,7 @@ public class SerializeUtil
         try
         {
             File.WriteAllText(path, contents);
+            ConsoleLogger.Log($"Saved contents of {path}.", Severity.Info);
         }
         catch (Exception ex)
         {
