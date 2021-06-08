@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -13,6 +14,7 @@ using DiscordBot.Services;
 using DiscordBot.Settings.Deserialized;
 using HtmlAgilityPack;
 using Microsoft.Extensions.DependencyInjection;
+using Newtonsoft.Json;
 
 namespace DiscordBot.Modules
 {
@@ -1117,6 +1119,62 @@ namespace DiscordBot.Modules
             return true;
         }
 
+        #endregion
+
+        #region IsItDown
+
+        [Command("IsItDown")]
+        [Summary("Checks if a website is down. usage: \"isitdown google.com\"")]
+        [Alias("Down")]
+        public async Task IsItDown(string website)
+        {
+            if (website.Contains("http"))
+                website = website.Replace("https://", "").Replace("http://", "");
+            // If they passed a word with no domain, we just add .com since that is most likely.
+            if (!website.Contains("."))
+                website += ".com";
+            
+            IsItDownResult results = JsonConvert.DeserializeObject<IsItDownResult>(await GetHttpContents($"https://isitdown.site/api/v3/{website}"));
+
+            EmbedBuilder builder = new EmbedBuilder()
+                .WithAuthor($"{results.host} is {(results.isitdown ? "offline" : "online")}",
+                    iconUrl: $"https://{website}/favicon.ico")
+                .WithColor(results.isitdown ? Color.Red : Color.Green);
+            //.WithFooter(text: "Ping: ...");
+
+            var message = await ReplyAsync(embed: builder.Build());
+            // After we have sent message we ping the website to provide some additional information.
+            // var pingResult = await new Ping().SendPingAsync($"{website}");
+            // builder.WithFooter($"Ping: {(pingResult.Status == IPStatus.Success ? $"{pingResult.RoundtripTime.ToString()}ms" : "Failed")}");
+            // Create a new embed for our ping
+            // await message.ModifyAsync(x => x.Embed = builder.Build());
+            // Cleanup
+            await Context.Message.DeleteAfterSeconds(seconds: 1);
+            await message.DeleteAfterSeconds(seconds: 10);
+        }
+
+        private async Task<string> GetHttpContents(string uri)
+        {
+            try
+            {
+                var request = (HttpWebRequest) WebRequest.Create(uri);
+                request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+
+                using var response = (HttpWebResponse) await request.GetResponseAsync();
+                await using var stream = response.GetResponseStream();
+                using var reader = new StreamReader(stream);
+                return await reader.ReadToEndAsync();
+            }
+            catch (Exception e)
+            {
+                return "";
+            }
+        }
+        private struct IsItDownResult
+        {
+            public string host;
+            public bool isitdown;
+        }
         #endregion
     }
 }
