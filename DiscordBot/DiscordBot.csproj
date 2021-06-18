@@ -8,7 +8,7 @@
     <PackageReference Include="Discord.Net" Version="2.4.0" />
     <PackageReference Include="HtmlAgilityPack" Version="1.11.34" />
     <PackageReference Include="Insight.Database" Version="6.3.6" />
-    <PackageReference Include="Magick.NET-Q8-x64" Version="7.5.0.1" />
+    <PackageReference Include="Magick.NET-Q8-x64" Version="7.24.1" />
     <PackageReference Include="MySql.Data" Version="8.0.25" />
     <PackageReference Include="NETCore.MailKit" Version="2.0.3" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
