@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -38,7 +38,6 @@ namespace DiscordBot.Services
         private readonly int _thanksMinJoinTime;
 
         private readonly string _thanksRegex;
-        private readonly int _thanksReminderCooldownTime;
         private readonly UpdateService _updateService;
 
         private readonly Dictionary<ulong, DateTime> _xpCooldown;
@@ -51,7 +50,7 @@ namespace DiscordBot.Services
         private readonly Random _rand;
 
         public Dictionary<ulong, DateTime> MutedUsers { get; private set; }
-        
+
         public UserService(DiscordSocketClient client, DatabaseService databaseService, ILoggingService loggingService, UpdateService updateService,
                            Settings.Deserialized.Settings settings, UserSettings userSettings)
         {
@@ -61,12 +60,10 @@ namespace DiscordBot.Services
             _loggingService = loggingService;
             _updateService = updateService;
             _settings = settings;
-            var userSettings1 = userSettings;
             MutedUsers = new Dictionary<ulong, DateTime>();
             _xpCooldown = new Dictionary<ulong, DateTime>();
             _canEditThanks = new HashSet<ulong>(32);
             _thanksCooldown = new Dictionary<ulong, DateTime>();
-            ThanksReminderCooldown = new Dictionary<ulong, DateTime>();
             CodeReminderCooldown = new Dictionary<ulong, DateTime>();
 
             //TODO We should make this into a config file that we can confiure during runtime.
@@ -78,35 +75,40 @@ namespace DiscordBot.Services
             /*
             Init XP
             */
-            _xpMinPerMessage = userSettings1.XpMinPerMessage;
-            _xpMaxPerMessage = userSettings1.XpMaxPerMessage;
-            _xpMinCooldown = userSettings1.XpMinCooldown;
-            _xpMaxCooldown = userSettings1.XpMaxCooldown;
+            _xpMinPerMessage = userSettings.XpMinPerMessage;
+            _xpMaxPerMessage = userSettings.XpMaxPerMessage;
+            _xpMinCooldown = userSettings.XpMinCooldown;
+            _xpMaxCooldown = userSettings.XpMaxCooldown;
 
             /*
             Init thanks
             */
             var sbThanks = new StringBuilder();
-            var thx = userSettings1.Thanks;
+            var thx = userSettings.Thanks;
             sbThanks.Append("(?i)\\b(");
             foreach (var t in thx) sbThanks.Append(t).Append("|");
 
             sbThanks.Length--; //Efficiently remove the final pipe that gets added in final loop, simplifying loop
             sbThanks.Append(")\\b");
             _thanksRegex = sbThanks.ToString();
-            _thanksCooldownTime = userSettings1.ThanksCooldown;
-            _thanksReminderCooldownTime = userSettings1.ThanksReminderCooldown;
-            _thanksMinJoinTime = userSettings1.ThanksMinJoinTime;
+            _thanksCooldownTime = userSettings.ThanksCooldown;
+            _thanksMinJoinTime = userSettings.ThanksMinJoinTime;
 
             /*
              Init Code analysis
             */
-            _codeReminderCooldownTime = userSettings1.CodeReminderCooldown;
+            _codeReminderCooldownTime = userSettings.CodeReminderCooldown;
             CodeFormattingExample = @"\`\`\`cs" + Environment.NewLine +
                                      "Write your code on new line here." + Environment.NewLine +
                                      @"\`\`\`" + Environment.NewLine;
             CodeReminderFormattingExample = CodeFormattingExample + Environment.NewLine +
                                              "Simple as that! If you'd like me to stop reminding you about this, simply type \"!disablecodetips\"";
+
+            /* Make sure folders we require exist */
+            if (!Directory.Exists($"{_settings.ServerRootPath}/images/profiles/"))
+            {
+                Directory.CreateDirectory($"{_settings.ServerRootPath}/images/profiles/");
+            }
 
             /*
              Event subscriptions
@@ -124,8 +126,6 @@ namespace DiscordBot.Services
             UpdateLoop();
         }
 
-        public Dictionary<ulong, DateTime> ThanksReminderCooldown { get; private set; }
-
         public Dictionary<ulong, DateTime> CodeReminderCooldown { get; private set; }
 
         private async void UpdateLoop()
@@ -142,7 +142,6 @@ namespace DiscordBot.Services
         {
             var data = _updateService.GetUserData();
             MutedUsers = data.MutedUsers ?? new Dictionary<ulong, DateTime>();
-            ThanksReminderCooldown = data.ThanksReminderCooldown ?? new Dictionary<ulong, DateTime>();
             CodeReminderCooldown = data.CodeReminderCooldown ?? new Dictionary<ulong, DateTime>();
         }
 
@@ -151,7 +150,6 @@ namespace DiscordBot.Services
             var data = new UserData
             {
                 MutedUsers = MutedUsers,
-                ThanksReminderCooldown = ThanksReminderCooldown,
                 CodeReminderCooldown = CodeReminderCooldown
             };
             _updateService.SetUserData(data);
@@ -176,31 +174,30 @@ namespace DiscordBot.Services
             var user = await _databaseService.Query().GetUser(userId.ToString());
             if (user == null)
             {
-                await _databaseService.AddNewUser((SocketGuildUser) messageParam.Author);
+                await _databaseService.AddNewUser((SocketGuildUser)messageParam.Author);
                 user = await _databaseService.Query().GetUser(userId.ToString());
             }
 
-            if (messageParam.Author.Activity != null)
-                if (Regex.Match(messageParam.Author.Activity.Name, "(Unity.+)").Length > 0)
-                    bonusXp += baseXp / 4;
+            if (messageParam.Author.Activities.Any(a => Regex.Match(a.Name, "(Unity.+)").Length > 0))
+                bonusXp += baseXp / 4;
 
             bonusXp += baseXp * (1f + user.Karma / 100f);
 
             //Reduce XP for members with no role
-            if (((IGuildUser) messageParam.Author).RoleIds.Count < 2)
+            if (((IGuildUser)messageParam.Author).RoleIds.Count < 2)
                 baseXp *= .9f;
 
             //Lower xp for difference between level and karma
             var reduceXp = 1f;
             if (user.Karma < user.Level) reduceXp = 1 - Math.Min(.9f, (user.Level - user.Karma) * .05f);
 
-            var xpGain = (int) Math.Round((baseXp + bonusXp) * reduceXp);
+            var xpGain = (int)Math.Round((baseXp + bonusXp) * reduceXp);
             //Console.WriteLine($"basexp {baseXp} karma {karma}  bonus {bonusXp}");
             _xpCooldown.AddCooldown(userId, waitTime);
             //Console.WriteLine($"{_xpCooldown[id].Minute}  {_xpCooldown[id].Second}");
 
-            await _databaseService.Query().UpdateXp(userId.ToString(), user.Exp + (uint) xpGain);
-            
+            await _databaseService.Query().UpdateXp(userId.ToString(), user.Exp + (uint)xpGain);
+
             _loggingService.LogXp(messageParam.Channel.Name, messageParam.Author.Username, baseXp, bonusXp, reduceXp, xpGain);
 
             await LevelUp(messageParam, userId);
@@ -223,7 +220,7 @@ namespace DiscordBot.Services
                 return;
 
             await _databaseService.Query().UpdateLevel(userId.ToString(), level + 1);
-            
+
             await messageParam.Channel.SendMessageAsync($"**{messageParam.Author}** has leveled up !").DeleteAfterTime(60);
             //TODO Add level up card
         }
@@ -244,19 +241,19 @@ namespace DiscordBot.Services
         public async Task<string> GenerateProfileCard(IUser user)
         {
             var userData = await _databaseService.Query().GetUser(user.Id.ToString());
-            
+
             var xpTotal = userData.Exp;
-            var xpRank = await _databaseService.Query().GetKarmaRank(userData.UserID, userData.Karma);
+            var xpRank = await _databaseService.Query().GetLevelRank(userData.UserID, userData.Level);
+            var karmaRank = await _databaseService.Query().GetKarmaRank(userData.UserID, userData.Karma);
             var karma = userData.Karma;
             var level = userData.Level;
-            var karmaRank = await  _databaseService.Query().GetLevelRank(userData.UserID, userData.Level);
             var xpLow = GetXpLow(level);
             var xpHigh = GetXpHigh(level);
 
-            var xpShown = (uint) (xpTotal - xpLow);
-            var maxXpShown = (uint) (xpHigh - xpLow);
+            var xpShown = (uint)(xpTotal - xpLow);
+            var maxXpShown = (uint)(xpHigh - xpLow);
 
-            var percentage = (float) xpShown / maxXpShown;
+            var percentage = (float)xpShown / maxXpShown;
 
             var u = (IGuildUser)user;
             IRole mainRole = null;
@@ -278,7 +275,7 @@ namespace DiscordBot.Services
                 Level = (uint)level,
                 MainRoleColor = mainRole.Color,
                 MaxXpShown = maxXpShown,
-                Nickname = ((IGuildUser) user).Nickname,
+                Nickname = ((IGuildUser)user).Nickname,
                 UserId = ulong.Parse(userData.UserID),
                 Username = user.Username,
                 XpHigh = xpHigh,
@@ -323,13 +320,13 @@ namespace DiscordBot.Services
                         ? profile.Picture
                         : new MagickImage($"{_settings.ServerRootPath}/skins/{layer.Image}");
 
-                    background.Composite(image, (int) layer.StartX, (int) layer.StartY, CompositeOperator.Over);
+                    background.Composite(image, (int)layer.StartX, (int)layer.StartY, CompositeOperator.Over);
                 }
 
-                var l = new MagickImage(MagickColors.Transparent, (int) layer.Width, (int) layer.Height);
+                var l = new MagickImage(MagickColors.Transparent, (int)layer.Width, (int)layer.Height);
                 foreach (var module in layer.Modules) module.GetDrawables(profile).Draw(l);
 
-                background.Composite(l, (int) layer.StartX, (int) layer.StartY, CompositeOperator.Over);
+                background.Composite(l, (int)layer.StartX, (int)layer.StartY, CompositeOperator.Over);
             }
 
             using (var result = profileCard.Mosaic())
@@ -346,7 +343,7 @@ namespace DiscordBot.Services
             icon = string.IsNullOrEmpty(icon) ? "https://cdn.discordapp.com/embed/avatars/0.png" : icon;
 
             var builder = new EmbedBuilder()
-                          .WithDescription($"Welcome to Unity Developer Community **{user.Mention}**!")
+                          .WithDescription($"Welcome to Unity Developer Community **{user.Username}#{user.Discriminator}**!")
                           .WithColor(new Color(0x12D687))
                           .WithAuthor(author =>
                           {
@@ -400,7 +397,7 @@ namespace DiscordBot.Services
                     return;
                 }
 
-                var joinDate = ((IGuildUser) messageParam.Author).JoinedAt;
+                var joinDate = ((IGuildUser)messageParam.Author).JoinedAt;
                 var j = joinDate + TimeSpan.FromSeconds(_thanksMinJoinTime);
                 if (j > DateTime.Now)
                 {
@@ -425,11 +422,10 @@ namespace DiscordBot.Services
                         continue;
                     }
 
-                    var userKarma = await _databaseService.Query().GetKarma(user.Id.ToString());
-                    await _databaseService.Query().UpdateKarma(user.Id.ToString(), userKarma + 1);
+                    await _databaseService.Query().IncrementKarma(user.Id.ToString());
                     sb.Append(user.Username).Append(" , ");
                 }
-                
+
                 // Even if a user gives multiple karma in one message, we only add one.
                 var authorKarmaGiven = await _databaseService.Query().GetKarmaGiven(messageParam.Author.Id.ToString());
                 await _databaseService.Query().UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
@@ -440,36 +436,19 @@ namespace DiscordBot.Services
                     await messageParam.Channel.SendMessageAsync(
                         $"{messageParam.Author.Mention} you can't give karma to yourself.").DeleteAfterTime(defaultDelTime);
 
-                if (mentionedBot)
-                    await messageParam.Channel.SendMessageAsync(
-                        $"Very cute of you {messageParam.Author.Mention} but I don't need karma :blush:{Environment.NewLine}" +
-                        "If you'd like to know what Karma is about, type !karma").DeleteAfterTime(defaultDelTime);
-
                 _canEditThanks.Remove(messageParam.Id);
 
                 //Don't give karma cooldown if user only mentioned himself or the bot or both
                 if ((mentionedSelf || mentionedBot) && mentions.Count == 1 || mentionedBot && mentionedSelf && mentions.Count == 2)
                     return;
                 _thanksCooldown.AddCooldown(userId, _thanksCooldownTime);
-                //Add thanks reminder cooldown after thanking to avoid casual thanks triggering remind afterwards
-                ThanksReminderCooldown.AddCooldown(userId, _thanksReminderCooldownTime);
                 await messageParam.Channel.SendMessageAsync(sb.ToString());
                 await _loggingService.LogAction(sb + " in channel " + messageParam.Channel.Name);
-            }
-            else if (messageParam.Channel.Name != "general-chat" && !ThanksReminderCooldown.IsPermanent(userId) &&
-                     !ThanksReminderCooldown.HasUser(userId) && !_thanksCooldown.HasUser(userId))
-            {
-                ThanksReminderCooldown.AddCooldown(userId, _thanksReminderCooldownTime);
-                await messageParam.Channel.SendMessageAsync(
-                                      $"{messageParam.Author.Mention} , if you are thanking someone, please @mention them when you say \"thanks\" so they may receive karma for their help." +
-                                      Environment.NewLine +
-                                      "If you want me to stop reminding you about this, please type \"!disablethanksreminder\".")
-                                  .DeleteAfterTime(defaultDelTime);
             }
 
             if (mentions.Count == 0 && _canEditThanks.Add(messageParam.Id))
             {
-                await _canEditThanks.RemoveAfterSeconds(messageParam.Id, 240);
+                var _ = _canEditThanks.RemoveAfterSeconds(messageParam.Id, 240);
             }
         }
 
@@ -512,7 +491,7 @@ namespace DiscordBot.Services
 
         private async Task ScoldForAtEveryoneUsage(SocketMessage messageParam)
         {
-            if (messageParam.Author.IsBot || ((IGuildUser) messageParam.Author).GuildPermissions.MentionEveryone)
+            if (messageParam.Author.IsBot || ((IGuildUser)messageParam.Author).GuildPermissions.MentionEveryone)
                 return;
             var content = messageParam.Content;
             if (content.Contains("@everyone") || content.Contains("@here"))
@@ -524,36 +503,49 @@ namespace DiscordBot.Services
 
         private async Task UserJoined(SocketGuildUser user)
         {
-            var socketTextChannel = _client.GetChannel(_settings.GeneralChannel.Id) as SocketTextChannel;
+            // Send them the Welcome DM first.
+            await DMFormattedWelcome(user);
 
+            var socketTextChannel = _client.GetChannel(_settings.GeneralChannel.Id) as SocketTextChannel;
             await _databaseService.AddNewUser(user);
 
-            //Check for existing mute
-            if (MutedUsers.HasUser(user.Id))
+            // Check if moderator commands are enabled, and if so we check if they were previously muted.
+            if (_settings.ModeratorCommandsEnabled)
             {
-                await user.AddRoleAsync(socketTextChannel?.Guild.GetRole(_settings.MutedRoleId));
-                await _loggingService.LogAction(
-                    $"Currently muted user rejoined - {user.Mention} - `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}`");
-                if (socketTextChannel != null)
-                    await socketTextChannel.SendMessageAsync(
-                        $"{user.Mention} tried to rejoin the server to avoid their mute. Mute time increased by 72 hours.");
-                MutedUsers.AddCooldown(user.Id, hours: 72);
-                return;
+                if (MutedUsers.HasUser(user.Id))
+                {
+                    await user.AddRoleAsync(socketTextChannel?.Guild.GetRole(_settings.MutedRoleId));
+                    await _loggingService.LogAction(
+                        $"Currently muted user rejoined - {user.Mention} - `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}`");
+                    if (socketTextChannel != null)
+                        await socketTextChannel.SendMessageAsync(
+                            $"{user.Mention} tried to rejoin the server to avoid their mute. Mute time increased by 72 hours.");
+                    MutedUsers.AddCooldown(user.Id, hours: 72);
+                    return;
+                }
             }
 
             await _loggingService.LogAction(
                 $"User Joined - {user.Mention} - `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}`");
 
-            var em = WelcomeMessage(user);
-
-            if (socketTextChannel != null) await socketTextChannel.SendMessageAsync(string.Empty, false, em);
-
-            await DMFormattedWelcome(user);
+            // We push into new Task to avoid blocking gateway
+            Task.Run(async () =>
+            {
+                // We wait X amount of seconds before posting a welcome message in chat.
+                await Task.Delay(_settings.WelcomeMessageDelaySeconds * 1000);
+                var userTest = _client.GetGuild(_settings.GuildId).GetUser(user.Id);
+                if (userTest != null)
+                {
+                    var em = WelcomeMessage(user);
+                    if (socketTextChannel != null)
+                        await socketTextChannel.SendMessageAsync(string.Empty, false, em);
+                }
+            });
         }
 
         public async Task<bool> DMFormattedWelcome(SocketGuildUser user)
         {
-            var dm = await user.GetOrCreateDMChannelAsync();
+            var dm = await user.CreateDMChannelAsync();
             return await dm.TrySendMessage(embed: GetWelcomeEmbed(user.Username));
         }
 
@@ -563,20 +555,19 @@ namespace DiscordBot.Services
             var em = new EmbedBuilder()
                 .WithColor(new Color(0x12D687))
                 .AddField("Hello " + username,
-                    "Welcome to Unity Developer Community!\nPlease read and respect the rules to keep the community friendly!")
+                    "Welcome to Unity Developer Community!\nPlease read and respect the rules to keep the community friendly!\n*When asking questions, remember to ask your question, [don't ask to ask](https://dontasktoask.com/).*")
                 .AddField("__RULES__",
                     ":white_small_square: Be polite and respectful.\n" +
                     ":white_small_square: No Direct Messages to users without permission.\n" +
                     ":white_small_square: Do not post the same question in multiple channels.\n" +
                     ":white_small_square: Only post links to your games in the appropriate channels.\n" +
                     ":white_small_square: Some channels have additional rules, please check pinned messages.\n" +
-                    $":white_small_square: A more inclusive list of rules can be found in <#{_settings.RulesChannel.Id.ToString()}>"
+                    $":white_small_square: A more inclusive list of rules can be found in {(_settings.RulesChannel is null || _settings.RulesChannel.Id == 0 ? "#rules" : $"<#{_settings.RulesChannel.Id.ToString()}>")}"
                 )
                 .AddField("__PROGRAMMING RESOURCES__",
-                    ":white_small_square: Good for New Devs [Official Unity Tutorials](https://unity3d.com/learn/tutorials)\n" +
                     ":white_small_square: Official Unity [Manual](https://docs.unity3d.com/Manual/index.html)\n" +
                     ":white_small_square: Official Unity [Script API](https://docs.unity3d.com/ScriptReference/index.html)\n" +
-                    ":white_small_square: Introductory Tutorials [Brackeys](https://brackeys.com/)\n" +
+                    ":white_small_square: Introductory Tutorials: [Official Unity Tutorials](https://unity3d.com/learn/tutorials)\n" +
                     ":white_small_square: Intermediate Tutorials: [CatLikeCoding](https://catlikecoding.com/unity/tutorials/)\n"
                 )
                 .AddField("__ART RESOURCES__",
@@ -585,13 +576,16 @@ namespace DiscordBot.Services
                     ":white_small_square: Game Assets [itch.io](https://itch.io/game-assets/free)"
                 )
                 .AddField("__GAME DESIGN RESOURCES__",
-                    ":white_small_square: How to write a Game Design Document (GDD) [Gamasutra](https://www.gamasutra.com/blogs/LeandroGonzalez/20160726/277928/How_to_Write_a_Game_Design_Document.php)"
+                    ":white_small_square: How to write a Game Design Document (GDD) [Gamasutra](https://www.gamasutra.com/blogs/LeandroGonzalez/20160726/277928/How_to_Write_a_Game_Design_Document.php)\n" +
+                    ":white_small_square: How to start building video games [CGSpectrum](https://www.cgspectrum.com/blog/game-design-basics-how-to-start-building-video-games)\n" +
+                    ":white_small_square: Keep Things Clear: Don't Confuse Your Players [TutsPlus](https://gamedevelopment.tutsplus.com/articles/keep-things-clear-dont-confuse-your-players--cms-22780)"
                 );
             return (em.Build());
         }
 
-        private async Task UserUpdated(SocketGuildUser oldUser, SocketGuildUser user)
+        private async Task UserUpdated(Cacheable<SocketGuildUser, ulong> oldUserCached, SocketGuildUser user)
         {
+            var oldUser = await oldUserCached.GetOrDownloadAsync();
             if (oldUser.Nickname != user.Nickname)
             {
                 await _loggingService.LogAction(
@@ -603,11 +597,11 @@ namespace DiscordBot.Services
         private async Task UserLeft(SocketGuildUser user)
         {
             DateTime joinDate = user.JoinedAt.Value.Date;
-            
+
             var timeStayed = DateTime.Now - joinDate;
             await _loggingService.LogAction(
-                $"User Left - After {(timeStayed.Days > 1 ? Math.Floor((double) timeStayed.Days) + " days" : " ")}" +
-                $" {Math.Floor((double) timeStayed.Hours).ToString(CultureInfo.InvariantCulture)} hours {user.Mention} - `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}`");
+                $"User Left - After {(timeStayed.Days > 1 ? Math.Floor((double)timeStayed.Days) + " days" : " ")}" +
+                $" {Math.Floor((double)timeStayed.Hours).ToString(CultureInfo.InvariantCulture)} hours {user.Mention} - `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}`");
             await _databaseService.DeleteUser(user.Id);
         }
 

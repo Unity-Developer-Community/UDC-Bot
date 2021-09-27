@@ -2,27 +2,21 @@
   /* Auth Info requires creating a Bot which can be done through https://discordapp.com/developers/applications/ (Make sure to give it Administrator Perms)*/
   /* Auth info */
   "token": "Y O U R _ B O T _ T O K E N",
-  
   "invite": "InviteLink", // Currently Unused
-  
   /* Gmail information for Asset Publisher Role to work. */
   "gmail": "",
   "gmailUsername": "YourGmailUsername",
   "gmailPassword": "YourGmailPassword",
-  
   /* 'SSL MODE' and 'Allow User Variables' are only required when running on a local machine with XAMPP. This can often be removed. */
   /* DB Info*/
   "DbConnectionString": "server=localhost;port=3306;database=test;user id=USER;Password=USERPASSWORD;SSL Mode=None;Allow User Variables=True",
-  
   /*Server Info*/
   "serverRootPath": "./SERVER",
-  
   /* Base info */
   "prefix": "!",
   "Administrator": "0",
   "ModeratorRoleId": "0",
   "guildId": "0", // Replace with your servers guild ID
-  
   /* All assignable roles as of 29/04/21 */
   "UserAssignableRoles": {
     "desc": "All normal user assignable roles available",
@@ -41,7 +35,6 @@
       "Students"
     ]
   },
-  
   /* Channel IDs for certain channels. */
   "generalChannel": { // Off-topic
     "desc": "General-Chat Channel",
@@ -75,13 +68,11 @@
     "desc": "Collaboration Channel",
     "id": "0" // Currently Unused 29/04/21
   },
-  
   /* Role Ids */
   "mutedRoleID": "0",
   "publisherRoleID": "0",
   "SubsNewsRoleId": "0",
   "SubsReleasesRoleId": "0",
-  
   /*Publisher Stuff*/
   "assetStoreFrontPage": "https://www.assetstore.unity3d.com/en/",
   /*Complaints Channels Stuff*/
@@ -90,5 +81,7 @@
   "closedComplaintChannelPrefix": "Closed-",
   "closedComplaintCategoryId": "662084543662129175",
   /*Commands Configuration*/
-  "wikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch="
+  "wikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
+  /*API Keys*/
+  "WeatherAPIKey": "" // Key for openweathermap.org
 }

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Discord;
@@ -12,13 +12,13 @@ namespace DiscordBot.Modules
     public class TicketModule : ModuleBase
     {
         private List<string> _commandList = new List<string>();
-        
+
         private Settings.Deserialized.Settings _settings;
 
         public TicketModule(Settings.Deserialized.Settings settings, CommandHandlingService commandHandlingService)
         {
             _settings = settings;
-            
+
             Task.Run(async () =>
             {
                 var commands = await commandHandlingService.GetCommandList("TicketModule", true, true, false);
@@ -42,7 +42,7 @@ namespace DiscordBot.Modules
 
             var channels = await Context.Guild.GetChannelsAsync();
             // Check if channel with same name already exist in the Complaint Category (if it exists).
-            if (channels.Any(channel => channel.Name == channelName && (!categoryExist || ((INestedChannel) channel).CategoryId == _settings.ComplaintCategoryId)))
+            if (channels.Any(channel => channel.Name == channelName && (!categoryExist || ((INestedChannel)channel).CategoryId == _settings.ComplaintCategoryId)))
             {
                 await ReplyAsync($"{Context.User.Mention}, you already have an open complaint! Please use that channel!")
                     .DeleteAfterSeconds(15);
@@ -55,19 +55,17 @@ namespace DiscordBot.Modules
             });
 
             var userPerms = new OverwritePermissions(viewChannel: PermValue.Allow);
+            var modRole = Context.Guild.Roles.First(r => r.Id == _settings.ModeratorRoleId);
             await newChannel.AddPermissionOverwriteAsync(Context.Guild.EveryoneRole, new OverwritePermissions(viewChannel: PermValue.Deny));
             await newChannel.AddPermissionOverwriteAsync(Context.User, userPerms);
-            await newChannel.AddPermissionOverwriteAsync(Context.Guild.Roles.First(r => r.Id == _settings.ModeratorRoleId), userPerms);
+            await newChannel.AddPermissionOverwriteAsync(modRole, userPerms);
             await newChannel.AddPermissionOverwriteAsync(Context.Client.CurrentUser, userPerms);
 
             await newChannel.SendMessageAsync(
-                $"The content of this conversation will stay strictly between you {Context.User.Mention} and the staff.\n" +
+                $"The content of this conversation will stay strictly between you {Context.User.Mention} and the {modRole.Mention}.\n" +
                 "Please stay civil, any insults or offensive language could see you punished.\n" +
                 "Do not ping anyone and wait until a staff member is free to examine your complaint.");
             await newChannel.SendMessageAsync($"A staff member will be able to close this chat by doing !close.");
-
-            /*await newChannel.SendMessageAsync(
-                $"{Context.User.Mention}, this is your chat to voice your complaint to the staff members. When everything is finished between you and the staff, please do !close!");*/
         }
 
         /// <summary>
@@ -94,10 +92,11 @@ namespace DiscordBot.Modules
                 await currentChannel.RemovePermissionOverwriteAsync(user);
             }
 
+            var newName = _settings.ClosedComplaintChannelPrefix + currentChannel.Name;
             await currentChannel.ModifyAsync(x =>
             {
                 if (categoryExist) x.CategoryId = _settings.ClosedComplaintCategoryId;
-                x.Name = _settings.ClosedComplaintChannelPrefix + x.Name;
+                x.Name = newName;
             });
         }
 
@@ -118,7 +117,7 @@ namespace DiscordBot.Modules
         }
 
         private string ParseToDiscordChannel(string channelName) => channelName.ToLower().Replace(" ", "-");
-        
+
         #region CommandList
         [RequireModerator]
         [Summary("Does what you see now.")]

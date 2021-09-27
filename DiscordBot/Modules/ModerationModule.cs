@@ -16,7 +16,7 @@ namespace DiscordBot.Modules
     public class ModerationModule : ModuleBase
     {
         private static List<string> _commandList = new List<string>();
-        
+
         private readonly DatabaseService _database;
         private readonly ILoggingService _logging;
         private readonly Rules _rules;
@@ -45,9 +45,9 @@ namespace DiscordBot.Modules
         {
             if (_settings.ModeratorCommandsEnabled) return true;
 
-            if (botAnnouncementChannel == null) 
-                botAnnouncementChannel = (IMessageChannel) await Context.Client.GetChannelAsync(_settings.BotAnnouncementChannel.Id);
-            
+            if (botAnnouncementChannel == null)
+                botAnnouncementChannel = (IMessageChannel)await Context.Client.GetChannelAsync(_settings.BotAnnouncementChannel.Id);
+
             var sentMessage = await botAnnouncementChannel.SendMessageAsync($"{Context.User.Mention} some moderation commands are disabled, try using Wick.");
             await Context.Message.DeleteAsync();
             await sentMessage.DeleteAfterSeconds(seconds: 60);
@@ -61,7 +61,7 @@ namespace DiscordBot.Modules
         public async Task MuteUser(IUser user, uint arg)
         {
             if (!await IsModerationEnabled()) return;
-            
+
             await Context.Message.DeleteAsync();
 
             var u = user as IGuildUser;
@@ -73,7 +73,7 @@ namespace DiscordBot.Modules
             await _logging.LogAction(
                 $"{Context.User.Username} has muted {u.Username} ({u.Id}) for {Utils.Utils.FormatTime(arg)} ({arg} seconds).");
 
-            MutedUsers.AddCooldown(u.Id, (int) arg, ignoreExisting: true);
+            MutedUsers.AddCooldown(u.Id, (int)arg, ignoreExisting: true);
 
             await MutedUsers.AwaitCooldown(u.Id);
             await reply.DeleteAsync();
@@ -96,7 +96,7 @@ namespace DiscordBot.Modules
                     return;
                 }
 
-                await MuteUser(user, (uint) Math.Round((dt - DateTime.Now).TotalSeconds), messages);
+                await MuteUser(user, (uint)Math.Round((dt - DateTime.Now).TotalSeconds), messages);
             }
             catch (Exception)
             {
@@ -125,8 +125,8 @@ namespace DiscordBot.Modules
                 await ReplyAsync($"User {user} has been muted for {Utils.Utils.FormatTime(seconds)} ({seconds} seconds). Reason : {message}");
             await _logging.LogAction(
                 $"{Context.User.Username} has muted {u.Username} ({u.Id}) for {Utils.Utils.FormatTime(seconds)} ({seconds} seconds). Reason : {message}");
-            
-            var dm = await user.GetOrCreateDMChannelAsync(new RequestOptions());
+
+            var dm = await user.CreateDMChannelAsync(new RequestOptions());
             if (!await dm.TrySendMessage(
                 $"You have been muted from UDC for **{Utils.Utils.FormatTime(seconds)}** for the following reason : **{message}**. " +
                 "This is not appealable and any tentative to avoid it will result in your permanent ban."))
@@ -138,8 +138,8 @@ namespace DiscordBot.Modules
                         "This is not appealable and any tentative to avoid it will result in your permanent ban.");
                 await _logging.LogAction($"User {user.Username} has DM blocked and the mute reason couldn't be sent.", true, false);
             }
-            
-            MutedUsers.AddCooldown(u.Id, (int) seconds, ignoreExisting: true);
+
+            MutedUsers.AddCooldown(u.Id, (int)seconds, ignoreExisting: true);
             await MutedUsers.AwaitCooldown(u.Id);
 
             await UnmuteUser(user, true);
@@ -248,7 +248,7 @@ namespace DiscordBot.Modules
         internal async Task KickUser(IUser user)
         {
             if (!await IsModerationEnabled()) return;
-            
+
             var u = user as IGuildUser;
 
             await u.KickAsync();
@@ -261,7 +261,7 @@ namespace DiscordBot.Modules
         public async Task BanUser(IUser user, params string[] reasons)
         {
             if (!await IsModerationEnabled()) return;
-            
+
             var reason = string.Join(' ', reasons);
             await Context.Guild.AddBanAsync(user, 7, reason, RequestOptions.Default);
             await _logging.LogAction($"{Context.User.Username} has banned {user.Username} with the reason \"{reasons}\"");
@@ -377,7 +377,7 @@ namespace DiscordBot.Modules
         [RequireUserPermission(GuildPermission.Administrator)]
         public async Task React(ulong msgId, params string[] emojis)
         {
-            var msg = (IUserMessage) await Context.Channel.GetMessageAsync(msgId);
+            var msg = (IUserMessage)await Context.Channel.GetMessageAsync(msgId);
             await Context.Message.DeleteAsync();
             foreach (var emoji in emojis)
                 if (Emote.TryParse(emoji, out var emote))
@@ -392,7 +392,7 @@ namespace DiscordBot.Modules
         [RequireUserPermission(GuildPermission.Administrator)]
         public async Task React(params string[] emojis)
         {
-            var msg = (IUserMessage) (await Context.Channel.GetMessagesAsync(2).FlattenAsync()).Last();
+            var msg = (IUserMessage)(await Context.Channel.GetMessagesAsync(2).FlattenAsync()).Last();
 
             await Context.Message.DeleteAsync();
             foreach (var emoji in emojis)
@@ -409,7 +409,7 @@ namespace DiscordBot.Modules
         public async Task ClosePoll(IMessageChannel channel, ulong messageId, params string[] additionalNotes)
         {
             var additionalNote = string.Join(' ', additionalNotes);
-            var message = (IUserMessage) await channel.GetMessageAsync(messageId);
+            var message = (IUserMessage)await channel.GetMessageAsync(messageId);
             var reactions = message.Reactions;
 
             var reactionCount = string.Empty;
@@ -428,9 +428,9 @@ namespace DiscordBot.Modules
         [RequireUserPermission(GuildPermission.Administrator)]
         public async Task DbSync(IUser user)
         {
-            await _database.AddNewUser((SocketGuildUser) user);
+            await _database.AddNewUser((SocketGuildUser)user);
         }
-        
+
         [Command("DBFullSync")]
         [Summary("Inserts all missing users, and updates any tracked data.")]
         [RequireUserPermission(GuildPermission.Administrator)]
@@ -440,7 +440,7 @@ namespace DiscordBot.Modules
             var tracker = await ReplyAsync("Updating user data: ");
             await _database.FullDbSync(Context.Guild, tracker);
         }
-        
+
         #region CommandList
         [RequireModerator]
         [Summary("Does what you see now.")]

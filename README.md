@@ -24,9 +24,9 @@ Once the above has been done, you'll need to setup a few additional things to ge
 - Make another copy of the "**Settings.example.json**" and rename it to "**Settings.json**"
 - Walk through the new "**Settings.json**" file and ensure the Bot Token and "**DbConnectionString**" have been set.
 
-*Several comments have been placed throughout the settings file to indicate what needs changing as well as the settings which aren't currently used.*
+_Several comments have been placed throughout the settings file to indicate what needs changing as well as the settings which aren't currently used._
 
-*If you plan on running the bot outside of the IDE, you will want to give [Discord Net Deployment](https://discord.foxbot.me/docs/guides/deployment/deployment.html) a read.*
+_If you plan on running the bot outside of the IDE, you will want to give [Discord Net Deployment](https://discord.foxbot.me/docs/guides/deployment/deployment.html) a read._
 
 ### Runtime Dependencies
 
@@ -39,7 +39,7 @@ If you run the bot now, it will attempt to generate the table for the database. 
 - ~~**Emptyusers.sql** An empty table that only creates the database structure.~~ (Not yet)
 - ~~**Mockusers.sql** A table that creates the database structure, but contains some mock user data as well.~~ (Not yet)
 
-*Once you have imported the database, be sure to create a user in phpmyadmin which can access the database, and the details match your **DbConnectionString**.*
+_Once you have imported the database, be sure to create a user in phpmyadmin which can access the database, and the details match your **DbConnectionString**._
 
 On Linux you might need `sudo apt install ttf-mscorefonts-installer` for ImageMagick.
 
@@ -47,8 +47,8 @@ On Linux you might need `sudo apt install ttf-mscorefonts-installer` for ImageMa
 
 I'll re-introduce some of this later.
 ~~When you hit run, you'll probably see some warnings and errors if you've sped through this without much thought.~~
-~~- ***Yellow*** : Warnings *(The bot will continue to run, but may disable some features)*~~
-~~- ***Red*** : Errors *(Usually a pending exception/crash is moments away)*~~
+~~- **_Yellow_** : Warnings _(The bot will continue to run, but may disable some features)_~~
+~~- **_Red_** : Errors _(Usually a pending exception/crash is moments away)_~~
 
 I strongly suggest giving [Discord.Net API Documention](https://discord.foxbot.me/stable/api/index.html) a read when interacting with systems you haven't seen before. Discord Net uses Tasks, Asynchronous Patterns and heavy use of Polymorphism, some systems might not always be straight forward.
 

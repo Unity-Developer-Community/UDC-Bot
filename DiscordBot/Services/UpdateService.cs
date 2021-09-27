@@ -24,12 +24,10 @@ namespace DiscordBot.Services
         public UserData()
         {
             MutedUsers = new Dictionary<ulong, DateTime>();
-            ThanksReminderCooldown = new Dictionary<ulong, DateTime>();
             CodeReminderCooldown = new Dictionary<ulong, DateTime>();
         }
 
         public Dictionary<ulong, DateTime> MutedUsers { get; set; }
-        public Dictionary<ulong, DateTime> ThanksReminderCooldown { get; set; }
         public Dictionary<ulong, DateTime> CodeReminderCooldown { get; set; }
     }
 
@@ -94,15 +92,15 @@ namespace DiscordBot.Services
         private void ReadDataFromFile()
         {
             _botData = SerializeUtil.DeserializeFile<BotData>($"{_settings.ServerRootPath}/botdata.json");
-            
-            _userData = SerializeUtil.DeserializeFile<UserData>($"{_settings.ServerRootPath}/botdata.json");
+
+            _userData = SerializeUtil.DeserializeFile<UserData>($"{_settings.ServerRootPath}/userdata.json");
             Task.Run(
                 async () =>
                 {
                     while (_client.ConnectionState != ConnectionState.Connected ||
                            _client.LoginState != LoginState.LoggedIn)
                         await Task.Delay(100, _token);
-                    
+
                     await Task.Delay(10000, _token);
                     //Check if there are users still muted
                     foreach (var userId in _userData.MutedUsers)
@@ -127,7 +125,7 @@ namespace DiscordBot.Services
                         }, _token);
                     }
                 }, _token);
-            
+
             _faqData = SerializeUtil.DeserializeFile<List<FaqData>>($"{_settings.ServerRootPath}/FAQs.json");
             _feedData = SerializeUtil.DeserializeFile<FeedData>($"{_settings.ServerRootPath}/feeds.json");
         }
@@ -137,30 +135,13 @@ namespace DiscordBot.Services
         {
             while (true)
             {
-                var json = JsonConvert.SerializeObject(_botData);
-                await File.WriteAllTextAsync($"{_settings.ServerRootPath}/botdata.json", json, _token);
-
-                json = JsonConvert.SerializeObject(_userData);
-                await File.WriteAllTextAsync($"{_settings.ServerRootPath}/userdata.json", json, _token);
-
-                json = JsonConvert.SerializeObject(_feedData);
-                await File.WriteAllTextAsync($"{_settings.ServerRootPath}/feeds.json", json, _token);
-                //await _logging.LogAction("Data successfully saved to file", true, false);
+                await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/botdata.json", _botData);
+                await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/userdata.json", _userData);
+                await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/feeds.json", _feedData);
                 await Task.Delay(TimeSpan.FromSeconds(20d), _token);
             }
             // ReSharper disable once FunctionNeverReturns
         }
-
-        // private async Task UpdateUserRanks()
-        // {
-        //     await Task.Delay(TimeSpan.FromSeconds(30d), _token);
-        //     while (true)
-        //     {
-        //         _databaseService.UpdateUserRanks();
-        //         await Task.Delay(TimeSpan.FromMinutes(1d), _token);
-        //     }
-        //     // ReSharper disable once FunctionNeverReturns
-        // }
 
         public async Task<string[][]> GetManualDatabase()
         {
@@ -207,12 +188,10 @@ namespace DiscordBot.Services
 
                 _manualDatabase = ConvertJsToArray(manualInput, true);
                 _apiDatabase = ConvertJsToArray(apiInput, false);
-                
-                if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unitymanual.json",
-                    JsonConvert.SerializeObject(_manualDatabase)))
+
+                if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unitymanual.json", _manualDatabase))
                     ConsoleLogger.Log("Failed to save unitymanual.json", Severity.Warning);
-                if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unityapi.json",
-                    JsonConvert.SerializeObject(_apiDatabase)))
+                if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unityapi.json", _apiDatabase))
                     ConsoleLogger.Log("Failed to save unityapi.json", Severity.Warning);
 
                 string[][] ConvertJsToArray(string data, bool isManual)
@@ -233,7 +212,7 @@ namespace DiscordBot.Services
                     foreach (var s in pagesInput.Split("],["))
                     {
                         var ps = s.Split(",");
-                        list.Add(new[] {ps[0].Replace("\"", ""), ps[1].Replace("\"", "")});
+                        list.Add(new[] { ps[0].Replace("\"", ""), ps[1].Replace("\"", "") });
                         //Console.WriteLine(ps[0].Replace("\"", "") + "," + ps[1].Replace("\"", ""));
                     }
 
@@ -289,7 +268,7 @@ namespace DiscordBot.Services
         public async Task<(string name, string extract, string url)> DownloadWikipediaArticle(string searchQuery)
         {
             var wikiSearchUri = Uri.EscapeUriString(_settings.WikipediaSearchPage + searchQuery);
-            var htmlWeb = new HtmlWeb {CaptureRedirect = true};
+            var htmlWeb = new HtmlWeb { CaptureRedirect = true };
             HtmlDocument wikiSearchResponse;
 
             try
@@ -308,7 +287,7 @@ namespace DiscordBot.Services
 
                 if (job.TryGetValue("query", out var query))
                 {
-                    var pages = JsonConvert.DeserializeObject<List<WikiPage>>(job[query.Path]["pages"].ToString(), new JsonSerializerSettings {NullValueHandling = NullValueHandling.Ignore});
+                    var pages = JsonConvert.DeserializeObject<List<WikiPage>>(job[query.Path]["pages"].ToString(), new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
                     if (pages != null && pages.Count > 0)
                     {

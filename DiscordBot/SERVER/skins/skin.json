@@ -18,8 +18,8 @@
                     "StartY": 0,
                     "Width": 640,
                     "Height": 209,
-                    "WhiteFix" : true,
-                    "DefaultColor" : "#1B2631FF"
+                    "WhiteFix": true,
+                    "DefaultColor": "#1B2631FF"
                 },
                 {
                     "Type": "Username",
@@ -87,7 +87,7 @@
                     "StartY": 162,
                     "FontPointSize": 15,
                     "FillColor": "#FFFF",
-                    "TextAlignmnent" : "Right"
+                    "TextAlignmnent": "Right"
                 },
                 {
                     "Type": "CustomText",
@@ -103,7 +103,7 @@
                     "StartY": 183,
                     "FontPointSize": 15,
                     "FillColor": "#FFF",
-                    "TextAlignmnent" : "Right"
+                    "TextAlignmnent": "Right"
                 }
             ]
         },

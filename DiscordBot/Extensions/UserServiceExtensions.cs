@@ -17,7 +17,7 @@ namespace DiscordBot.Extensions
 
             if (val < int.MinValue) return int.MinValue;
 
-            return (int) val;
+            return (int)val;
         }
 
         #region Cooldown related

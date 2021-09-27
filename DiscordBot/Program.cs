@@ -32,7 +32,8 @@ namespace DiscordBot
             {
                 LogLevel = LogSeverity.Verbose,
                 AlwaysDownloadUsers = true,
-                MessageCacheSize = 50
+                MessageCacheSize = 50,
+                GatewayIntents = GatewayIntents.All,
             });
 
             _commandService = new CommandService(new CommandServiceConfig
@@ -59,7 +60,7 @@ namespace DiscordBot
                 _client.GetGuild(_settings.GuildId)
                     ?.GetTextChannel(_settings.BotAnnouncementChannel.Id)
                     ?.SendMessageAsync($"Bot Started.");
-                
+
                 //_audio.Music();
                 return Task.CompletedTask;
             };

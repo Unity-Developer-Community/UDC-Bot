@@ -44,7 +44,7 @@ namespace DiscordBot.Services
 
             var rate = new Rate
             {
-                Value = (double) JObject.Parse(rateJson)[$"USD_{currency}"],
+                Value = (double)JObject.Parse(rateJson)[$"USD_{currency}"],
                 LastUpdated = DateTime.Today
             };
 

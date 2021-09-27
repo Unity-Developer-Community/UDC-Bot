@@ -126,7 +126,7 @@ namespace DiscordBot.Services
                 {
                     // We check if emote exists
                     var emote = serverGuild.Emotes.First(guildEmote => guildEmote.Id == reactMessage.Reactions[i].EmojiId);
-                    
+
                     // Add a Reference to our Roles to simplify lookup
                     if (!_guildRoles.ContainsKey(reactMessage.Reactions[i].EmojiId)) _guildRoles.Add(reactMessage.Reactions[i].EmojiId, serverGuild.GetRole(reactMessage.Reactions[i].RoleId));
                     // Same for the Emojis, saves look-arounds
@@ -150,14 +150,14 @@ namespace DiscordBot.Services
             _isRunning = await StartService();
         }
 
-        private async Task ReactionAdded(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
+        private async Task ReactionAdded(Cacheable<IUserMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction)
         {
             if (!_isRunning)
                 return;
             if (_reactMessages.ContainsKey(message.Id)) await ReactionChangedAsync(reaction.User.Value as IGuildUser, reaction.Emote as Emote, true);
         }
 
-        private async Task ReactionRemoved(Cacheable<IUserMessage, ulong> message, ISocketMessageChannel channel, SocketReaction reaction)
+        private async Task ReactionRemoved(Cacheable<IUserMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel, SocketReaction reaction)
         {
             if (!_isRunning)
                 return;
@@ -185,7 +185,7 @@ namespace DiscordBot.Services
 
             // Wait for a bit to give user to choose all their roles.
             // we add a bit more to the end just so we don't always hit a second delay if they only selected 1 emote.
-            await Task.Delay((int) ReactSettings.RoleAddDelay + 250);
+            await Task.Delay((int)ReactSettings.RoleAddDelay + 250);
             while ((DateTime.Now - userData.LastChange).TotalMilliseconds < ReactSettings.RoleAddDelay) await Task.Delay(2000);
 
             // Strip out any changes we don't need to prevent additional calls

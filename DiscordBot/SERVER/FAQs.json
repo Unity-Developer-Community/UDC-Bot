@@ -2,6 +2,9 @@
 	{
 		"question": "What is karma ?",
 		"answer": "Karma is tracked on your !profile, helping indicate how much you've helped others. You also earn slightly more EXP from things the higher your Karma level is. Karma may be used for more features in the future.",
-		"keywords": [ "karma", "xp" ]
+		"keywords": [
+			"karma",
+			"xp"
+		]
 	}
 ]

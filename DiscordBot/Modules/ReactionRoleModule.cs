@@ -24,7 +24,7 @@ namespace DiscordBot.Modules
         {
             _logging = loggingService;
             _reactRoleService = reactRoleService;
-            
+
             // Generates an individual command list for the Reaction Roles
             Task.Run(async () => _commandList = await commandService.GetCommandList("ReactRole"));
         }

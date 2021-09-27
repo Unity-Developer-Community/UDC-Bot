@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -30,7 +30,7 @@ namespace DiscordBot.Services
             _verificationCodes = new Dictionary<uint, string>();
             _settings = settings;
         }
-        
+
         /*
         (No longer works) DailyObject => https://www.assetstore.unity3d.com/api/en-US/sale/results/10.json
         (No longer works) PackageOBject => https://www.assetstore.unity3d.com/api/en-US/content/overview/[PACKAGEID].json
@@ -132,7 +132,7 @@ namespace DiscordBot.Services
                     {
                         // No easy way to take their name, so we pass their discord name in.
                         await SendVerificationCode(name, email, publisherId);
-                        return (true, "An email with a validation code was sent. Please type !verify *publisherID* *code* to validate your package.\nThis code will be valid for 30 minutes.");
+                        return (true, "An email with a validation code was sent.\nPlease type `!verify <ID> <code>` to verify your publisher account.\nThis code will be valid for 30 minutes.");
                     }
                 }
 
@@ -162,7 +162,6 @@ namespace DiscordBot.Services
 
         public async Task SendVerificationCode(string name, string email, uint packageId)
         {
-            Console.WriteLine("mail");
             var random = new byte[9];
             var rand = RandomNumberGenerator.Create();
             rand.GetBytes(random);
@@ -171,7 +170,7 @@ namespace DiscordBot.Services
 
             _verificationCodes[packageId] = code;
             var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("Unity Developer Community", _settings.Gmail));
+            message.From.Add(new MailboxAddress("Unity Developer Community", _settings.Email));
             message.To.Add(new MailboxAddress(name, email));
             message.Subject = "Unity Developer Community Package Validation";
             message.Body = new TextPart("plain")
@@ -181,10 +180,11 @@ namespace DiscordBot.Services
 
             using (var client = new SmtpClient())
             {
-                await client.ConnectAsync("smtp.gmail.com", 587);
+                client.CheckCertificateRevocation = false;
+                await client.ConnectAsync(_settings.EmailSMTPServer, _settings.EmailSMTPPort, MailKit.Security.SecureSocketOptions.SslOnConnect);
 
                 client.AuthenticationMechanisms.Remove("XOAUTH2");
-                await client.AuthenticateAsync(_settings.GmailUsername, _settings.GmailPassword);
+                await client.AuthenticateAsync(_settings.EmailUsername, _settings.EmailPassword);
 
                 await client.SendAsync(message);
                 await client.DisconnectAsync(true);
@@ -197,15 +197,15 @@ namespace DiscordBot.Services
         {
             string c;
             if (!_verificationCodes.TryGetValue(packageId, out c))
-                return "An error occured while trying to validate your package. Please verify your packageId is valid";
+                return "An error occured while trying to veriry your publisher account. Please check your ID is valid.";
             if (c != code)
-                return "The verification code is not valid. Please verify it and try again.";
+                return "The verification code is not valid. Please check and try again.";
 
             var u = (SocketGuildUser)user;
             IRole publisher = u.Guild.GetRole(_settings.PublisherRoleId);
             await u.AddRoleAsync(publisher);
-            
-            return "Your package has been verified and added to the daily advertisement list.";
+
+            return "Your publisher account has been verified and you know have the `Asset-Publisher` role!";
         }
     }
 }

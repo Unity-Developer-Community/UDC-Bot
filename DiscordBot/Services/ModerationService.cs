@@ -17,7 +17,7 @@ namespace DiscordBot.Services
             client.MessageDeleted += MessageDeleted;
         }
 
-        private async Task MessageDeleted(Cacheable<IMessage, ulong> message, ISocketMessageChannel channel)
+        private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
         {
             if (message.Value.Author.IsBot || channel.Id == _settings.BotAnnouncementChannel.Id)
                 return;
@@ -44,7 +44,7 @@ namespace DiscordBot.Services
 
             await _loggingService.LogAction(
                 $"User {message.Value.Author.Username}#{message.Value.Author.DiscriminatorValue} has " +
-                $"deleted the message\n{content}\n from channel #{channel.Name}", true, false);
+                $"deleted the message\n{content}\n from channel #{(await channel.GetOrDownloadAsync()).Name}", true, false);
             await _loggingService.LogAction(" ", false, true, embed);
         }
     }

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.ServiceModel.Syndication;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
 using Discord.WebSocket;
@@ -27,12 +28,12 @@ namespace DiscordBot.Services
             _client = client;
         }
 
-        public async Task HandleFeed(FeedData feedData, string url, ulong channelId, ulong? roleId, string message)
+        public async Task HandleFeed(FeedData feedData, string url, ulong channelId, ulong? roleId, string message, bool createThread = false)
         {
             try
             {
-                var webRequest = (HttpWebRequest) WebRequest.Create(url);
-                var webResponse = (HttpWebResponse) webRequest.GetResponse();
+                var webRequest = (HttpWebRequest)WebRequest.Create(url);
+                var webResponse = (HttpWebResponse)webRequest.GetResponse();
                 var dataStream = webResponse.GetResponseStream();
                 var streamReader = new StreamReader(dataStream, Encoding.UTF8);
                 var response = streamReader.ReadToEnd();
@@ -62,6 +63,24 @@ namespace DiscordBot.Services
                         if (channel is SocketNewsChannel) await postedMessage.CrosspostAsync();
 
                         if (role != null) await role.ModifyAsync(properties => { properties.Mentionable = wasRoleMentionable; });
+
+                        if (createThread)
+                        {
+                            var threadTitle = $"{item.Title.Text} - Discussion";
+                            SocketThreadChannel thread = null;
+                            try
+                            {
+                                // This will fail is the server is not boost level 1
+                                thread = await (channel as SocketTextChannel).CreateThreadAsync(threadTitle, Discord.ThreadType.NewsThread, Discord.ThreadArchiveDuration.ThreeDays, postedMessage);
+                            }
+                            catch (Exception)
+                            {
+                                thread = await (channel as SocketTextChannel).CreateThreadAsync(threadTitle, Discord.ThreadType.NewsThread, Discord.ThreadArchiveDuration.OneDay, postedMessage);
+                            }
+                            var summary = Regex.Replace(item.Summary.Text, "<.*?>", String.Empty);
+                            var firstThreadPost = string.Format("Summary: \n>>> {0}", summary);
+                            await thread.SendMessageAsync(firstThreadPost);
+                        }
                     }
             }
             catch (Exception e)
@@ -82,7 +101,7 @@ namespace DiscordBot.Services
 
         public async Task CheckUnityBlogAsync(FeedData feedData)
         {
-            await HandleFeed(feedData, BlogUrl, _settings.UnityNewsChannel.Id, _settings.SubsNewsRoleId, "New unity blog post ! **{0}**\n{1}");
+            await HandleFeed(feedData, BlogUrl, _settings.UnityNewsChannel.Id, _settings.SubsNewsRoleId, "New unity blog post ! **{0}**\n{1}", true);
         }
     }
 }

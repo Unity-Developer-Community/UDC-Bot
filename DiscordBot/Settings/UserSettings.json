@@ -22,18 +22,14 @@
         "谢谢"
     ],
     "thanksCooldown": 60, //In seconds
-    "thanksReminderCooldown": 86400, //24 hours in seconds
     "thanksMinJoinTime": 600,
-
     /*Xp parameters*/
     "xpMinPerMessage": 10,
     "xpMaxPerMessage": 30,
     "xpMinCooldown": 60,
     "xpMaxCooldown": 180,
-
     /*Code parameters*/
     "codeReminderCooldown": 86400,
-
     "isSomeoneThere": [
         "is anyone around?",
         "can someone help?",
