@@ -5,7 +5,7 @@
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Discord.Net.Labs" Version="3.2.0" />
+    <PackageReference Include="Discord.Net.Labs" Version="3.3.2" />
     <PackageReference Include="HtmlAgilityPack" Version="1.11.38" />
     <PackageReference Include="Insight.Database" Version="6.3.9" />
     <PackageReference Include="Magick.NET-Q8-x64" Version="7.5.0.1" />
