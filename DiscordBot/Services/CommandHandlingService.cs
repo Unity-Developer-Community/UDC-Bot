@@ -47,7 +47,7 @@ namespace DiscordBot.Services
             */
             _client.MessageReceived += HandleCommand;
             _client.InteractionCreated += HandleInteraction;
-            
+
             Task.Run(Initialize);
         }
 
@@ -79,7 +79,7 @@ namespace DiscordBot.Services
             IsInitialized = true;
         }
 
-        /// <summary> Generates a command list that can provide users with information. Commands require [Command][Summary] and [Priority](If not ordering by name)</summary>
+        /// <summary> Generates a command list that can provide users with information as one large string. Commands require [Command][Summary] and [Priority](If not ordering by name)</summary>
         public async Task<string> GetCommandList(string moduleName, bool orderByName = false, bool includeArgs = true, bool includeModuleName = true)
         {
             // Simple wait.
@@ -100,6 +100,26 @@ namespace DiscordBot.Services
                 commandList.Append($"**{(includeModuleName ? moduleName + " " : string.Empty)}{c.Name}** : {c.Summary} {GetArguments(includeArgs, c.Parameters)}\n");
             }
             return commandList.ToString();
+        }
+
+        public async Task<List<string>> GetCommandsAsList(string moduleName, bool orderByName = false,
+            bool includeArgs = true, bool includeModuleName = true)
+        {
+            // Simple wait.
+            while (!IsInitialized)
+                await Task.Delay(1000);
+            
+            // Generates a list of commands that doesn't include any that have the ``HideFromHelp`` attribute.
+            var commands = _commandService.Commands.Where(x => x.Module.Name == moduleName && !x.Attributes.Contains(new HideFromHelpAttribute()));
+            // Orders the list either by name or by priority, if no priority is given we push it to the end.
+            commands = orderByName ? commands.OrderBy(c => c.Name) : commands.OrderBy(c => (c.Priority > 0 ? c.Priority : 1000));
+
+            List<string> commandList = new List<string>();
+            foreach (var c in commands)
+            {
+                commandList.Add($"**{(includeModuleName ? moduleName + " " : string.Empty)}{c.Name}** : {c.Summary} {GetArguments(includeArgs, c.Parameters)}\n");
+            }
+            return commandList;
         }
 
         private string GetArguments(bool getArgs, IReadOnlyList<ParameterInfo> arguments)

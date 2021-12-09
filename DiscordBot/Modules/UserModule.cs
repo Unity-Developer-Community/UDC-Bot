@@ -56,7 +56,7 @@ namespace DiscordBot.Modules
                 _commandList = commands.MessageSplitToSize();
             });
         }
-
+        
         [Command("Help"), Priority(100)]
         [Summary("Does what you see now.")]
         [Alias("command", "commands")]
