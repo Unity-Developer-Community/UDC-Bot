@@ -2,12 +2,14 @@
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
+using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Services;
 using DiscordBot.Services.Logging;
 using DiscordBot.Settings.Deserialized;
 using DiscordBot.Utils;
 using Microsoft.Extensions.DependencyInjection;
+using RunMode = Discord.Commands.RunMode;
 
 namespace DiscordBot
 {
@@ -20,6 +22,7 @@ namespace DiscordBot
         private CommandHandlingService _commandHandlingService;
 
         private CommandService _commandService;
+        private InteractionService _interactionService;
         private IServiceProvider _services;
 
         public static void Main(string[] args) =>
@@ -36,19 +39,7 @@ namespace DiscordBot
                 MessageCacheSize = 50,
                 GatewayIntents = GatewayIntents.All,
             });
-
-            _commandService = new CommandService(new CommandServiceConfig
-            {
-                CaseSensitiveCommands = false,
-                DefaultRunMode = RunMode.Async
-            });
-
-            _services = ConfigureServices();
-            _commandHandlingService = _services.GetRequiredService<CommandHandlingService>();
-            _services.GetRequiredService<ModerationService>();
-
-            await _commandHandlingService.Initialize();
-
+            // Logging Service explicitly for Gateway events
             _client.Log += LoggingService.DiscordNetLogger;
 
             await _client.LoginAsync(TokenType.Bot, _settings.Token);
@@ -56,13 +47,21 @@ namespace DiscordBot
 
             _client.Ready += () =>
             {
-                LoggingService.LogToConsole($"Bot is connected.", LogSeverity.Info);
+                _interactionService = new InteractionService(_client);
+                _commandService = new CommandService(new CommandServiceConfig
+                {
+                    CaseSensitiveCommands = false,
+                    DefaultRunMode = RunMode.Async
+                });
 
+                _services = ConfigureServices();
+                _commandHandlingService = _services.GetRequiredService<CommandHandlingService>();
+                
                 _client.GetGuild(_settings.GuildId)
                     ?.GetTextChannel(_settings.BotAnnouncementChannel.Id)
                     ?.SendMessageAsync($"Bot Started.");
-
-                //_audio.Music();
+                
+                LoggingService.LogToConsole($"Bot is connected.", LogSeverity.Info);
                 return Task.CompletedTask;
             };
 
@@ -76,6 +75,7 @@ namespace DiscordBot
                 .AddSingleton(_userSettings)
                 .AddSingleton(_client)
                 .AddSingleton(_commandService)
+                .AddSingleton(_interactionService)
                 .AddSingleton<CommandHandlingService>()
                 .AddSingleton<ILoggingService, LoggingService>()
                 .AddSingleton<DatabaseService>()
