@@ -4,11 +4,17 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Discord;
 using Discord.Commands;
+using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Extensions;
+using DiscordBot.Modules;
+using DiscordBot.Services.Logging;
 using DiscordBot.Utils.Attributes;
+using IResult = Discord.Interactions.IResult;
 using ParameterInfo = Discord.Commands.ParameterInfo;
+using PreconditionGroupResult = Discord.Commands.PreconditionGroupResult;
 
 namespace DiscordBot.Services
 {
@@ -18,18 +24,21 @@ namespace DiscordBot.Services
 
         private readonly DiscordSocketClient _client;
         private readonly CommandService _commandService;
+        private readonly InteractionService _interactionService;
         private readonly IServiceProvider _services;
         private readonly Settings.Deserialized.Settings _settings;
 
         public CommandHandlingService(
             DiscordSocketClient client,
             CommandService commandService,
+            InteractionService interactionService,
             IServiceProvider services,
             Settings.Deserialized.Settings settings
         )
         {
             _client = client;
             _commandService = commandService;
+            _interactionService = interactionService;
             _services = services;
             _settings = settings;
 
@@ -37,12 +46,36 @@ namespace DiscordBot.Services
              Event subscriptions
             */
             _client.MessageReceived += HandleCommand;
+            _client.InteractionCreated += HandleInteraction;
+            
+            Task.Run(Initialize);
+        }
+
+        private async Task HandleInteraction(SocketInteraction arg)
+        {
+            try
+            {
+                // Execute the command by creating a context for the command to execute on.
+                var ctx = new SocketInteractionContext(_client, arg);
+                // Execute the command and retrieve the result.
+                IResult result = await _interactionService.ExecuteCommandAsync(ctx, _services);
+                //TODO maybe do something if result is anything but success
+            }
+            catch (Exception ex)
+            {
+                LoggingService.LogToConsole(ex.ToString(), LogSeverity.Error);
+            }
         }
 
         public async Task Initialize()
         {
             // Discover all of the commands in this assembly and load them.
             await _commandService.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+            
+            await _interactionService.AddModulesAsync(Assembly.GetEntryAssembly(),_services);
+            //TODO Consider global commands? Maybe an attribute?
+            await _interactionService.RegisterCommandsToGuildAsync(_settings.GuildId);
+
             IsInitialized = true;
         }
 
