@@ -6,14 +6,14 @@ public class BotSettings
 
     public string Token { get; set; }
     public string Invite { get; set; }
-    
+
     public string DbConnectionString { get; set; }
     public string ServerRootPath { get; set; }
     public char Prefix { get; set; }
     public ulong GuildId { get; set; }
 
-    #endregion // Important 
-    
+    #endregion // Important
+
     #region Configuration
 
     public int WelcomeMessageDelaySeconds { get; set; } = 300;
@@ -40,9 +40,9 @@ public class BotSettings
     public int EmailSMTPPort { get; set; }
 
     #endregion // Asset Publisher
-    
+
     #region Channels
-    
+
     public GeneralChannel GeneralChannel { get; set; }
     public BotAnnouncementChannel BotAnnouncementChannel { get; set; }
     public AnnouncementsChannel AnnouncementsChannel { get; set; }
@@ -55,9 +55,10 @@ public class BotSettings
     public WorkForHireChannel LookingToHire { get; set; }
     public WorkForHireChannel LookingForWork { get; set; }
     public CollaborationChannel CollaborationChannel { get; set; }
-    
+
     public ChannelInfo ReportedMessageChannel { get; set; }
-    
+    public List<ulong> ShoutAngrilyChannels { get; set; } = new List<ulong>();
+
     #region Complaint Channel
 
     public ulong ComplaintCategoryId { get; set; }
@@ -73,7 +74,7 @@ public class BotSettings
     public List<string> AutoThreadExclusionPrefixes { get; set; } = new List<string>();
 
     #endregion // Auto-Threads
-    
+
     #endregion // Channels
 
     #region User Roles
@@ -91,7 +92,7 @@ public class BotSettings
 
     public string WeatherAPIKey { get; set; }
     public string IPGeolocationAPIKey { get; set; }
-    
+
     public string FlightAPIKey { get; set; }
     public string FlightAPISecret { get; set; }
     public string FlightAPIId { get; set; }
@@ -105,7 +106,7 @@ public class BotSettings
     public string WikipediaSearchPage { get; set; }
 
     #endregion // Other
-    
+
 }
 
 #region Role Group Collections

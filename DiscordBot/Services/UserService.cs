@@ -140,6 +140,7 @@ public class UserService
         _client.MessageReceived += CodeCheck;
         _client.MessageReceived += ScoldForAtEveryoneUsage;
         _client.MessageReceived += AutoCreateThread;
+        _client.MessageReceived += ShoutAngrily;
         _client.UserJoined += UserJoined;
         _client.GuildMemberUpdated += UserUpdated;
         _client.UserLeft += UserLeft;
@@ -148,7 +149,7 @@ public class UserService
 
         LoadData();
         UpdateLoop();
-      
+
         Task.Run(DelayedWelcomeService);
     }
 
@@ -379,7 +380,7 @@ public class UserService
         }
 
         var path = $"{_settings.ServerRootPath}/images/profiles/{user.Username}-profile.png";
-        
+
         using (var result = profileCard.Mosaic())
         {
             result.Write(path);
@@ -514,7 +515,7 @@ public class UserService
         // We just ignore anything if it is under 200 characters
         if (messageParam.Content.Length < 200)
             return;
-        
+
         var userId = messageParam.Author.Id;
 
         //Simple check to cover most large code posting cases without being an issue for most non-code messages
@@ -778,6 +779,18 @@ public class UserService
                 }
             }
         }
+
+    }
+
+    private async Task ShoutAngrily(SocketMessage messageParam)
+    {
+        if (messageParam.Author.IsBot) return;
+        if (((IGuildUser)messageParam.Author).JoinedAt.Value.Subtract(DateTimeOffset.Now).Days < 7) return;
+        if (messageParam.MentionedUsers.Count > 0) return;
+
+        if (!_settings.ShoutAngrilyChannels.Contains(messageParam.Channel.Id)) return;
+
+        await (messageParam as SocketUserMessage).ReplyAsync($"OH YEAH??? \"{messageParam.CleanContent}\"???");
 
     }
 
