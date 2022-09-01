@@ -1,7 +1,6 @@
-namespace DiscordBot
+namespace DiscordBot;
+
+public static class Constants
 {
-    public static class Constants
-    {
-        public const int MaxLengthChannelMessage = 2000;
-    }
+    public const int MaxLengthChannelMessage = 2000;
 }

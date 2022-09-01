@@ -1,51 +1,49 @@
-﻿using System.Threading.Tasks;
-using Discord;
-using Discord.WebSocket;
+﻿using Discord.WebSocket;
+using DiscordBot.Settings;
 
-namespace DiscordBot.Services
+namespace DiscordBot.Services;
+
+public class ModerationService
 {
-    public class ModerationService
+    private readonly ILoggingService _loggingService;
+    private readonly BotSettings _settings;
+
+    public ModerationService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService)
     {
-        private readonly ILoggingService _loggingService;
-        private readonly Settings.Deserialized.Settings _settings;
+        _settings = settings;
+        _loggingService = loggingService;
 
-        public ModerationService(DiscordSocketClient client, Settings.Deserialized.Settings settings, ILoggingService loggingService)
-        {
-            _settings = settings;
-            _loggingService = loggingService;
+        client.MessageDeleted += MessageDeleted;
+    }
 
-            client.MessageDeleted += MessageDeleted;
-        }
+    private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
+    {
+        if (message.Value.Author.IsBot || channel.Id == _settings.BotAnnouncementChannel.Id)
+            return;
 
-        private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
-        {
-            if (message.Value.Author.IsBot || channel.Id == _settings.BotAnnouncementChannel.Id)
-                return;
+        var content = message.Value.Content;
+        if (content.Length > 800)
+            content = content.Substring(0, 800);
 
-            var content = message.Value.Content;
-            if (content.Length > 800)
-                content = content.Substring(0, 800);
+        var builder = new EmbedBuilder()
+            .WithColor(new Color(200, 128, 128))
+            .WithTimestamp(message.Value.Timestamp)
+            .WithFooter(footer =>
+            {
+                footer
+                    .WithText($"In channel {message.Value.Channel.Name}");
+            })
+            .WithAuthor(author =>
+            {
+                author
+                    .WithName($"{message.Value.Author.Username}");
+            })
+            .AddField("Deleted message", content);
+        var embed = builder.Build();
 
-            var builder = new EmbedBuilder()
-                          .WithColor(new Color(200, 128, 128))
-                          .WithTimestamp(message.Value.Timestamp)
-                          .WithFooter(footer =>
-                          {
-                              footer
-                                  .WithText($"In channel {message.Value.Channel.Name}");
-                          })
-                          .WithAuthor(author =>
-                          {
-                              author
-                                  .WithName($"{message.Value.Author.Username}");
-                          })
-                          .AddField("Deleted message", content);
-            var embed = builder.Build();
-
-            await _loggingService.LogAction(
-                $"User {message.Value.Author.Username}#{message.Value.Author.DiscriminatorValue} has " +
-                $"deleted the message\n{content}\n from channel #{(await channel.GetOrDownloadAsync()).Name}", true, false);
-            await _loggingService.LogAction(" ", false, true, embed);
-        }
+        await _loggingService.LogAction(
+            $"User {message.Value.Author.Username}#{message.Value.Author.DiscriminatorValue} has " +
+            $"deleted the message\n{content}\n from channel #{(await channel.GetOrDownloadAsync()).Name}", true, false);
+        await _loggingService.LogAction(" ", false, true, embed);
     }
 }

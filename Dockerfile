@@ -1,5 +1,5 @@
 # Builds application using dotnet's sdk
-FROM mcr.microsoft.com/dotnet/sdk:5.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
 
 WORKDIR /
 COPY ./DiscordBot/ ./app/
@@ -10,11 +10,11 @@ RUN dotnet build --configuration Release --no-restore
 
 
 # Build finale image
-FROM mcr.microsoft.com/dotnet/runtime:5.0
+FROM mcr.microsoft.com/dotnet/runtime:6.0
 
 WORKDIR /app/
 
-COPY --from=build /app/bin/Release/netcoreapp5.0/ ./
+COPY --from=build /app/bin/Release/net6.0/ ./
 
 RUN echo "deb http://httpredir.debian.org/debian buster main contrib" > /etc/apt/sources.list
 RUN echo "deb http://security.debian.org/ buster/updates main contrib" >> /etc/apt/sources.list

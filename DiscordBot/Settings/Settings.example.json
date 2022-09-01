@@ -68,6 +68,10 @@
     "desc": "Collaboration Channel",
     "id": "0" // Currently Unused 29/04/21
   },
+  "ReportedMessageChannel": {
+    "desc": "Reported Message Channel",
+    "id": "0"
+  },
   /* Role Ids */
   "mutedRoleID": "0",
   "publisherRoleID": "0",
@@ -84,5 +88,8 @@
   "wikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
   "EveryoneScoldPeriodSeconds": "21600",
   /*API Keys*/
-  "WeatherAPIKey": "" // Key for openweathermap.org
+  "WeatherAPIKey": "", // Key for openweathermap.org
+  "FlightAPIKey": "",
+  "FlightAPISecret": "",
+  "AirLabAPIKey": ""
 }

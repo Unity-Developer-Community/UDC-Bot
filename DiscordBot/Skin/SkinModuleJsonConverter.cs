@@ -1,35 +1,33 @@
-using System;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace DiscordBot.Skin
+namespace DiscordBot.Skin;
+
+public class SkinModuleJsonConverter : JsonConverter
 {
-    public class SkinModuleJsonConverter : JsonConverter
+    public override bool CanWrite => false;
+
+    public override bool CanConvert(Type objectType) => objectType == typeof(ISkinModule);
+
+    public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
     {
-        public override bool CanWrite => false;
-
-        public override bool CanConvert(Type objectType) => objectType == typeof(ISkinModule);
-
-        public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+        var jo = JObject.Load(reader);
+        Type type;
+        try
         {
-            var jo = JObject.Load(reader);
-            Type type;
-            try
-            {
-                var t = $"DiscordBot.Skin.{jo["Type"].Value<string>()}SkinModule";
-                type = Type.GetType(t);
-                return jo.ToObject(type);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                throw;
-            }
+            var t = $"DiscordBot.Skin.{jo["Type"].Value<string>()}SkinModule";
+            type = Type.GetType(t);
+            return jo.ToObject(type);
         }
-
-        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+        catch (Exception e)
         {
-            throw new NotImplementedException();
+            LoggingService.LogToConsole($"{e.ToString()}", LogSeverity.Error);
+            throw;
         }
+    }
+
+    public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+    {
+        throw new NotImplementedException();
     }
 }

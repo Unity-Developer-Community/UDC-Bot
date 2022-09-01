@@ -1,12 +1,11 @@
 using DiscordBot.Domain;
 using ImageMagick;
 
-namespace DiscordBot.Skin
-{
-    public interface ISkinModule
-    {
-        string Type { get; set; }
+namespace DiscordBot.Skin;
 
-        Drawables GetDrawables(ProfileData data);
-    }
+public interface ISkinModule
+{
+    string Type { get; set; }
+
+    Drawables GetDrawables(ProfileData data);
 }
