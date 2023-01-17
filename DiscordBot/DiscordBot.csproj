@@ -9,7 +9,7 @@
     <PackageReference Include="HtmlAgilityPack" Version="1.11.46" />
     <PackageReference Include="Insight.Database" Version="6.3.10" />
     <PackageReference Include="Magick.NET-Q8-x64" Version="7.5.0.1" />
-    <PackageReference Include="MySql.Data" Version="8.0.31" />
+    <PackageReference Include="MySql.Data" Version="8.0.32" />
     <PackageReference Include="NETCore.MailKit" Version="2.1.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
     <PackageReference Include="Pathoschild.NaturalTimeParser" Version="0.2.0-alpha" />
