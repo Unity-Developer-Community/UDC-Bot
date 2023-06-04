@@ -294,6 +294,27 @@ public class WeatherModule : ModuleBase
 
         await ReplyAsync(embed: builder.Build());
     }
+    
+    // Time
+    [Command("Time"), Alias("timezone"), Priority(22)]
+    [Summary("Attempts to provide the time of the city/location provided.")]
+    public async Task Time(params string[] city)
+    {
+        WeatherContainer.Result res = await WeatherService.GetWeather(city: string.Join(" ", city));
+        if (!await IsResultsValid(res))
+            return;
+
+        var timezone = res.timezone / 3600;
+        EmbedBuilder builder = new EmbedBuilder()
+            .WithTitle($"{res.name} Time ({res.sys.country})")
+            // Timestamp is UTC, so we need to add the timezone offset to get the local time in format "Sunday, June 04, 2023 11:01:09"
+            .WithDescription($"{DateTime.UtcNow.AddSeconds(res.timezone):dddd, MMMM dd, yyyy hh:mm:ss}")
+            .AddField("Timezone", $"UTC {(timezone > 0 ? "+" : "")}{timezone}:00");
+
+        await ReplyAsync(embed: builder.Build());
+    }
+    
+    #region Utility Methods
 
     private async Task<bool> IsResultsValid<T>(T res)
     {
@@ -319,4 +340,6 @@ public class WeatherModule : ModuleBase
             _ => new Color(255, 0, 0)
         };
     }
+    
+    #endregion Utility Methods
 }
