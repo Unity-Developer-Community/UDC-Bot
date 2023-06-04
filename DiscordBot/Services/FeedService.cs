@@ -48,6 +48,10 @@ public class FeedService
     
     #endregion // News Feed Config
     
+    // We store the title of the last 40 posts, and check against them to prevent duplicate posts
+    private const int MaxHistoryCheck = 40;
+    private readonly List<string> _postedFeeds = new( MaxHistoryCheck );
+    
     private const int MaximumCheck = 3;
     private const ThreadArchiveDuration ForumArchiveDuration = ThreadArchiveDuration.OneWeek;
 
@@ -107,6 +111,14 @@ public class FeedService
                 var newsTitle = string.Format(newsFeed.TitleFormat, item.Title.Text);
                 if (newsTitle.Length > 90)
                     newsTitle = newsTitle.Substring(0, 95) + "...";
+                
+                // Confirm we haven't posted this title before
+                if (_postedFeeds.Contains(newsTitle))
+                    continue;
+                _postedFeeds.Add(newsTitle);
+                if (_postedFeeds.Count > MaxHistoryCheck)
+                    _postedFeeds.RemoveAt(0);
+
                 // Message
                 string newsContent = string.Empty;
                 if (newsFeed.IncludeSummary)
