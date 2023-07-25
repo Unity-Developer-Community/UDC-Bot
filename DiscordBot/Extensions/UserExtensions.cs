@@ -17,4 +17,29 @@ public static class UserExtensions
     {
         return user is SocketGuildUser guildUser && guildUser.Roles.Any(x => x.Id == roleId);
     }
+    
+    public static bool IsNickAndNameEqual(this IUser user)
+    {
+        return user is SocketGuildUser guildUser && string.Equals(guildUser.Nickname, guildUser.Username, StringComparison.CurrentCultureIgnoreCase);
+    }
+    
+    // Returns a simple string formatted as: "**user.Username** (aka **user.Nickname**)"
+    // Nickname is only included if it's different from the username
+    public static string UserNameReferenceForEmbed(this IUser user)
+    {
+        var reference = $"**{user.Username}**";
+        if (!user.IsNickAndNameEqual())
+            reference += $" (aka **{user}**)";
+        return reference;
+    }
+    
+    // Returns a simple string formatted as: "user.Username (aka user.Nickname)"
+    // Nickname is only included if it's different from the username
+    public static string UserNameReference(this IUser user)
+    {
+        var reference = $"{user.Username}";
+        if (!user.IsNickAndNameEqual())
+            reference += $" (aka {user})";
+        return reference;
+    }
 }

@@ -25,6 +25,7 @@ public class ModerationService
         if (content.Length > 800)
             content = content.Substring(0, 800);
 
+        var user = message.Value.Author;
         var builder = new EmbedBuilder()
             .WithColor(new Color(200, 128, 128))
             .WithTimestamp(message.Value.Timestamp)
@@ -36,13 +37,13 @@ public class ModerationService
             .WithAuthor(author =>
             {
                 author
-                    .WithName($"{message.Value.Author.Username}");
+                    .WithName($"{user.Username}");
             })
             .AddField("Deleted message", content);
         var embed = builder.Build();
-
+        
         await _loggingService.LogAction(
-            $"User {message.Value.Author.Username}#{message.Value.Author.DiscriminatorValue} has " +
+            $"User {user.UserNameReference()} has " +
             $"deleted the message\n{content}\n from channel #{(await channel.GetOrDownloadAsync()).Name}", true, false);
         await _loggingService.LogAction(" ", false, true, embed);
     }

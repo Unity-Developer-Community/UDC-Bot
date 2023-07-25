@@ -134,7 +134,7 @@ public class DatabaseService
             await Query().InsertUser(user);
 
             await _logging.LogAction(
-                $"User {socketUser.Username}#{socketUser.DiscriminatorValue.ToString()} successfully added to the database.",
+                $"User {socketUser.UserNameReference()} successfully added to the database.",
                 true,
                 false);
         }

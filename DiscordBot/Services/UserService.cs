@@ -165,13 +165,13 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var timeStayed = DateTime.Now - joinDate;
             await _loggingService.LogAction(
                 $"User Left - After {(timeStayed.Days > 1 ? Math.Floor((double)timeStayed.Days) + " days" : " ")}" +
-                $" {Math.Floor((double)timeStayed.Hours).ToString(CultureInfo.InvariantCulture)} hours {user.Mention} - `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}`");
+                $" {Math.Floor((double)timeStayed.Hours).ToString(CultureInfo.InvariantCulture)} hours {user.Mention} - `{guildUser.UserNameReference()}` - ID : `{user.Id}`");
         }
         // If bot is to slow to get user info, we just say they left at current time.
         else
         {
             await _loggingService.LogAction(
-                $"User `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}` - Left at {DateTime.Now}");
+                $"User `{guildUser.UserNameReference()}` - ID : `{user.Id}` - Left at {DateTime.Now}");
         }
     }
 
@@ -336,7 +336,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 MaxXpShown = maxXpShown,
                 Nickname = ((IGuildUser)user).Nickname,
                 UserId = ulong.Parse(userData.UserID),
-                Username = user.Username,
+                Username = user.UserNameReference(),
                 XpHigh = xpHigh,
                 XpLow = xpLow,
                 XpPercentage = percentage,
@@ -412,9 +412,10 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         string icon = user.GetAvatarUrl();
         icon = string.IsNullOrEmpty(icon) ? "https://cdn.discordapp.com/embed/avatars/0.png" : icon;
-
+        
+        string welcomeString = $"Welcome to Unity Developer Community {user.UserNameReferenceForEmbed()}!";
         var builder = new EmbedBuilder()
-            .WithDescription($"Welcome to Unity Developer Community **{user.Username}#{user.Discriminator}**!")
+            .WithDescription(welcomeString)
             .WithColor(_welcomeColour)
             .WithAuthor(author =>
             {
@@ -652,7 +653,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             {
                 await user.AddRoleAsync(socketTextChannel?.Guild.GetRole(_settings.MutedRoleId));
                 await _loggingService.LogAction(
-                    $"Currently muted user rejoined - {user.Mention} - `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}`");
+                    $"Currently muted user rejoined - {user.Mention} - `{user.UserNameReference()}` - ID : `{user.Id}`");
                 if (socketTextChannel != null)
                     await socketTextChannel.SendMessageAsync(
                         $"{user.Mention} tried to rejoin the server to avoid their mute. Mute time increased by 72 hours.");
@@ -662,7 +663,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         }
 
         await _loggingService.LogAction(
-            $"User Joined - {user.Mention} - `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}`");
+            $"User Joined - {user.Mention} - `{user.UserNameReference()}` - ID : `{user.Id}`");
 
         // We check if they're already in the welcome list, if they are we don't add them again to avoid double posts
         if (_welcomeNoticeUsers.Count == 0 || !_welcomeNoticeUsers.Exists(u => u.id == user.Id))
@@ -767,8 +768,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (oldUser.Nickname != user.Nickname)
         {
             await _loggingService.LogAction(
-                $"User {oldUser.Nickname ?? oldUser.Username}#{oldUser.DiscriminatorValue} changed his " +
-                $"username to {user.Nickname ?? user.Username}#{user.DiscriminatorValue}");
+                $"User {oldUser.UserNameReference()} changed his " +
+                $"username to {user.UserNameReference()}");
         }
     }
 

@@ -131,7 +131,7 @@ public class UserModule : ModuleBase
             .WithFooter(footer =>
             {
                 footer
-                    .WithText($"Quoted by {Context.User.Username}#{Context.User.Discriminator} • From channel {message.Channel.Name}")
+                    .WithText($"Quoted by {Context.User.UserNameReference()} • From channel {message.Channel.Name}")
                     .WithIconUrl(Context.User.GetAvatarUrl());
             })
             .WithAuthor(author =>
