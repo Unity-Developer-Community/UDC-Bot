@@ -20,16 +20,19 @@ public static class UserExtensions
     
     public static bool IsNickAndNameEqual(this IUser user)
     {
-        return user is SocketGuildUser guildUser && string.Equals(guildUser.Nickname, guildUser.Username, StringComparison.CurrentCultureIgnoreCase);
+        var guildUser = user as SocketGuildUser;
+        if (guildUser == null)
+            return true;
+        return string.Equals(guildUser.Nickname, guildUser.Username, StringComparison.CurrentCultureIgnoreCase);
     }
     
     // Returns a simple string formatted as: "**user.Username** (aka **user.Nickname**)"
     // Nickname is only included if it's different from the username
     public static string UserNameReferenceForEmbed(this IUser user)
     {
-        var reference = $"**{user.Username}**";
+        var reference = $"**{user.GetNickName()}**!";
         if (!user.IsNickAndNameEqual())
-            reference += $" (aka **{user}**)";
+            reference += $" (aka **{user.Username}**)";
         return reference;
     }
     
@@ -37,9 +40,15 @@ public static class UserExtensions
     // Nickname is only included if it's different from the username
     public static string UserNameReference(this IUser user)
     {
-        var reference = $"{user.Username}";
+        var reference = $"{user.GetNickName()}!";
         if (!user.IsNickAndNameEqual())
-            reference += $" (aka {user})";
+            reference += $" (aka {user.Username})";
         return reference;
+    }
+    
+    // Returns the nickname of the user if the IUser can be cast to it exists, otherwise returns the username
+    public static string GetNickName(this IUser user)
+    {
+        return (user as SocketGuildUser)?.Nickname ?? user.Username;
     }
 }
