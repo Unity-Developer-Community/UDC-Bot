@@ -89,6 +89,7 @@ public class LoggingService : ILoggingService
                 break;
             case LogSeverity.Verbose:
             case LogSeverity.Debug:
+            default:
                 Console.ForegroundColor = ConsoleColor.DarkGray;
                 break;
         }

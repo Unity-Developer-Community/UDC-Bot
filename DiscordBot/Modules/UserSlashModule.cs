@@ -170,7 +170,7 @@ public class UserSlashModule : InteractionModuleBase
         .WithFooter(footer =>
         {
             footer
-                .WithText($"Reported by {Context.User.UserNameReference()} • From channel {reportedMessage.Channel.Name}")
+                .WithText($"Reported by {Context.User.GetPreferredAndUsername()} • From channel {reportedMessage.Channel.Name}")
                 .WithIconUrl(Context.User.GetAvatarUrl());
         })
         .WithAuthor(author =>

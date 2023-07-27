@@ -17,38 +17,21 @@ public static class UserExtensions
     {
         return user is SocketGuildUser guildUser && guildUser.Roles.Any(x => x.Id == roleId);
     }
+
+    // Returns the users DisplayName (nickname) if it exists, otherwise returns the username
+    public static string GetUserPreferredName(this IUser user)
+    {
+        var guildUser = user as SocketGuildUser;
+        return guildUser?.DisplayName ?? user.Username;
+    }
     
-    public static bool IsNickAndNameEqual(this IUser user)
+    public static string GetPreferredAndUsername(this IUser user)
     {
         var guildUser = user as SocketGuildUser;
         if (guildUser == null)
-            return true;
-        return string.Equals(guildUser.Nickname, guildUser.Username, StringComparison.CurrentCultureIgnoreCase);
-    }
-    
-    // Returns a simple string formatted as: "**user.Username** (aka **user.Nickname**)"
-    // Nickname is only included if it's different from the username
-    public static string UserNameReferenceForEmbed(this IUser user)
-    {
-        var reference = $"**{user.GetNickName()}**!";
-        if (!user.IsNickAndNameEqual())
-            reference += $" (aka **{user.Username}**)";
-        return reference;
-    }
-    
-    // Returns a simple string formatted as: "user.Username (aka user.Nickname)"
-    // Nickname is only included if it's different from the username
-    public static string UserNameReference(this IUser user)
-    {
-        var reference = $"{user.GetNickName()}!";
-        if (!user.IsNickAndNameEqual())
-            reference += $" (aka {user.Username})";
-        return reference;
-    }
-    
-    // Returns the nickname of the user if the IUser can be cast to it exists, otherwise returns the username
-    public static string GetNickName(this IUser user)
-    {
-        return (user as SocketGuildUser)?.Nickname ?? user.Username;
+            return user.Username;
+        if (guildUser.DisplayName == user.Username)
+            return guildUser.DisplayName;
+        return $"{guildUser.DisplayName} (aka {user.Username})";
     }
 }

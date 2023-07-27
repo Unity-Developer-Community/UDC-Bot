@@ -165,13 +165,13 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var timeStayed = DateTime.Now - joinDate;
             await _loggingService.LogAction(
                 $"User Left - After {(timeStayed.Days > 1 ? Math.Floor((double)timeStayed.Days) + " days" : " ")}" +
-                $" {Math.Floor((double)timeStayed.Hours).ToString(CultureInfo.InvariantCulture)} hours {user.Mention} - `{guildUser.UserNameReference()}` - ID : `{user.Id}`");
+                $" {Math.Floor((double)timeStayed.Hours).ToString(CultureInfo.InvariantCulture)} hours {user.Mention} - `{guildUser.GetPreferredAndUsername()}` - ID : `{user.Id}`");
         }
         // If bot is to slow to get user info, we just say they left at current time.
         else
         {
             await _loggingService.LogAction(
-                $"User `{guildUser.UserNameReference()}` - ID : `{user.Id}` - Left at {DateTime.Now}");
+                $"User `{guildUser.GetPreferredAndUsername()}` - ID : `{user.Id}` - Left at {DateTime.Now}");
         }
     }
 
@@ -336,7 +336,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 MaxXpShown = maxXpShown,
                 Nickname = ((IGuildUser)user).Nickname,
                 UserId = ulong.Parse(userData.UserID),
-                Username = user.UserNameReference(),
+                Username = user.GetPreferredAndUsername(),
                 XpHigh = xpHigh,
                 XpLow = xpLow,
                 XpPercentage = percentage,
@@ -413,14 +413,14 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         string icon = user.GetAvatarUrl();
         icon = string.IsNullOrEmpty(icon) ? "https://cdn.discordapp.com/embed/avatars/0.png" : icon;
         
-        string welcomeString = $"Welcome to Unity Developer Community {user.UserNameReferenceForEmbed()}!";
+        string welcomeString = $"Welcome to Unity Developer Community {user.GetPreferredAndUsername()}!";
         var builder = new EmbedBuilder()
             .WithDescription(welcomeString)
             .WithColor(_welcomeColour)
             .WithAuthor(author =>
             {
                 author
-                    .WithName(user.Username)
+                    .WithName(user.Nickname)
                     .WithIconUrl(icon);
             });
 
@@ -653,7 +653,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             {
                 await user.AddRoleAsync(socketTextChannel?.Guild.GetRole(_settings.MutedRoleId));
                 await _loggingService.LogAction(
-                    $"Currently muted user rejoined - {user.Mention} - `{user.UserNameReference()}` - ID : `{user.Id}`");
+                    $"Currently muted user rejoined - {user.Mention} - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}`");
                 if (socketTextChannel != null)
                     await socketTextChannel.SendMessageAsync(
                         $"{user.Mention} tried to rejoin the server to avoid their mute. Mute time increased by 72 hours.");
@@ -663,7 +663,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         }
 
         await _loggingService.LogAction(
-            $"User Joined - {user.Mention} - `{user.UserNameReference()}` - ID : `{user.Id}`");
+            $"User Joined - {user.Mention} - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}`");
 
         // We check if they're already in the welcome list, if they are we don't add them again to avoid double posts
         if (_welcomeNoticeUsers.Count == 0 || !_welcomeNoticeUsers.Exists(u => u.id == user.Id))
@@ -768,8 +768,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (oldUser.Nickname != user.Nickname)
         {
             await _loggingService.LogAction(
-                $"User {oldUser.UserNameReference()} changed his " +
-                $"username to {user.UserNameReference()}");
+                $"User {oldUser.GetUserPreferredName()} changed his " +
+                $"username to {user.GetUserPreferredName()}");
         }
     }
 
