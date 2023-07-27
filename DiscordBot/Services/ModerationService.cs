@@ -91,7 +91,7 @@ public class ModerationService
                     .WithName($"{user.GetPreferredAndUsername()} updated a message");
             });
         if (isCached)
-            builder.AddField($"Message Content {(isTruncated ? "(truncated)" : "")}", content);
+            builder.AddField($"Previous message content {(isTruncated ? "(truncated)" : "")}", content);
         builder.WithDescription($"Message: [{after.Id}]({after.GetJumpUrl()})");
             var embed = builder.Build();
         
