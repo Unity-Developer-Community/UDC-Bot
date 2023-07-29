@@ -103,6 +103,8 @@ public class BotSettings
     public string TagLookingForWork { get; set; }
     public string TagUnpaidCollab { get; set; }
     public string TagPositionFilled { get; set; }
+    
+    public int EditPermissionAccessTimeMin { get; set; } = 3;
 
     #endregion // Recruitment Thread Tags
 

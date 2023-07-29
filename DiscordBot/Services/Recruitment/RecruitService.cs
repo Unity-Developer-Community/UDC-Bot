@@ -1,7 +1,8 @@
 using Discord.WebSocket;
-using DiscordBot.Services.UnityHelp;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
+
+namespace DiscordBot.Services;
 
 public class RecruitService
 {
@@ -24,22 +25,27 @@ public class RecruitService
     
     #region Configuration
 
-    private Color DeletedMessageColor => new Color(255, 50, 50);
-    private Color WarningMessageColor => new Color(255, 255, 100);
+    private Color DeletedMessageColor => new (255, 50, 50);
+    private Color WarningMessageColor => new (255, 255, 100);
+    private Color EditedMessageColor => new (100, 255, 100);
 
     private const int TimeBeforeDeletingForumInSec = 30;
+    private const string _messageToBeDeleted = "Your thread will be deleted in %s because it did not follow the expected guidelines. Try again after the slow mode period has passed.";
+    
     private const int MinimumLengthMessage = 120;
+    private const int ShortMessageNoticeDurationInSec = 30 * 4;
 
-    private string _messageToBeDeleted =
-        "Your thread will be deleted in %s because it did not follow the expected guidelines. Try again after the slow mode period has passed.";
+    private int _editTimePermissionInMin = 30;
+    private const string _messageToBeEdited = "This post will remain editable until %s, make any desired changes to your thread. After that the thread will be locked.";
+
+
     private Embed _userHiringButNoPrice;
     private Embed _userWantsWorkButNoPrice;
 
     private Embed _userDidntUseTags;
     private Embed _userRevShareMentioned;
     private Embed _userMoreThanOneTagUsed;
-    private Embed _userShortMessage;
-    
+
     Dictionary<ulong, bool> _botSanityCheck = new Dictionary<ulong, bool>();
 
     #endregion // Configuration
@@ -55,6 +61,7 @@ public class RecruitService
             LoggingService.LogServiceDisabled(ServiceName, nameof(settings.RecruitmentServiceEnabled));
             return;
         }
+        _editTimePermissionInMin = settings.EditPermissionAccessTimeMin;
         
         // Get target channel
         _recruitChannel = _client.GetChannel(settings.RecruitmentChannel.Id) as IForumChannel;
@@ -133,13 +140,13 @@ public class RecruitService
         {
             if (thread.AppliedTags.Count == 0)
             {
-                await ThreadHandleNoTags(thread, message);
+                await ThreadHandleNoTags(thread);
                 return;
             }
 
             if (IsThreadUsingMoreThanOneTag(thread))
             {
-                await ThreadHandleMoreThanOneTag(thread, message);
+                await ThreadHandleMoreThanOneTag(thread);
                 return;
             }
 
@@ -150,13 +157,41 @@ public class RecruitService
             {
                 if (!message.Content.ContainsCurrencySymbol())
                 {
-                    await ThreadHandleExpectedCurrency(thread, message);
+                    await ThreadHandleExpectedCurrency(thread);
                     return;
                 }
                 await ThreadHandleRevShare(thread, message);
             }
             
-            await ThreadHandleShortMessage(thread, message);
+            // Any Notices that we can recommend the user for improvement
+            if (message.Content.Length < MinimumLengthMessage)
+            {
+                Task.Run(() => ThreadHandleShortMessage(thread, message));
+            }
+
+            await Task.Delay(millisecondsDelay: 200);
+
+            // If they got this far, they have a valid thread.
+            await GrantEditPermissions(thread);
+            // The above method will await for 30~ minutes, so we need to check if the thread is still valid.
+
+            // Confirm user hasn't deleted the thread
+            var channel = await _client.GetChannelAsync(thread.Id) as SocketThreadChannel;
+            if (channel == null)
+                return;
+            // Confirm the message still exists
+            var threadMessage = await (channel.GetMessageAsync(thread.Id));
+            if (threadMessage == null)
+                return;
+            
+            // We do one last check to make sure the thread is still valid
+            if (isPaidWork)
+            {
+                if (!threadMessage.Content.ContainsCurrencySymbol())
+                {
+                    await ThreadHandleExpectedCurrency(channel);
+                }
+            }
         });
     }
 
@@ -164,7 +199,7 @@ public class RecruitService
 
     #region Basic Handlers for posts
 
-    private async Task ThreadHandleExpectedCurrency(SocketThreadChannel thread, IMessage message)
+    private async Task ThreadHandleExpectedCurrency(SocketThreadChannel thread)
     {
         var embedToUse = thread.AppliedTags.Contains(_tagWantsWork.Id)
             ? _userWantsWorkButNoPrice
@@ -181,13 +216,13 @@ public class RecruitService
         }
     }
     
-    private async Task ThreadHandleMoreThanOneTag(SocketThreadChannel thread, IMessage message)
+    private async Task ThreadHandleMoreThanOneTag(SocketThreadChannel thread)
     {
         await thread.SendMessageAsync(embed: _userMoreThanOneTagUsed);
         await DeleteThread(thread);
     }
     
-    private async Task ThreadHandleNoTags(SocketThreadChannel thread, IMessage message)
+    private async Task ThreadHandleNoTags(SocketThreadChannel thread)
     {
         await thread.SendMessageAsync(embed: _userDidntUseTags);
         await DeleteThread(thread);
@@ -197,9 +232,20 @@ public class RecruitService
     {
         if (message.Content.Length < MinimumLengthMessage)
         {
-            var ourResponse = await thread.SendMessageAsync(embed: _userShortMessage);
-            await ourResponse.DeleteAfterSeconds(TimeBeforeDeletingForumInSec * 5);
+            var ourResponse = await thread.SendMessageAsync(embed: GetShortMessageEmbed());
+            await ourResponse.DeleteAfterSeconds(ShortMessageNoticeDurationInSec);
         }
+    }
+    
+    private async Task GrantEditPermissions(SocketThreadChannel thread)
+    {
+        var parentChannel = thread.ParentChannel;
+        var message = await thread.SendMessageAsync(embed: GetEditPermMessageEmbed());
+        await parentChannel.AddPermissionOverwriteAsync(thread.Owner, new OverwritePermissions(sendMessages: PermValue.Allow));
+        
+        // We give them a bit of time to edit their post, then remove the permission
+        await message.DeleteAfterSeconds((_editTimePermissionInMin * 60) + 5);
+        await parentChannel.RemovePermissionOverwriteAsync(thread.Owner);
     }
     
     #endregion // Basic Handlers for posts
@@ -218,21 +264,21 @@ public class RecruitService
     private void ConstructEmbeds()
     {
         _userHiringButNoPrice = new EmbedBuilder()
-            .WithTitle($"No payment price detected")
+            .WithTitle("No payment price detected")
             .WithDescription(
                 $"You have used the `{_tagIsHiring.Name}` tag but have not specified a price of any kind.\n\nPost **must** include a currency symbol or word, e.g. $, dollars, USD, £, pounds, €, EUR, euro, euros, GBP.")
             .WithColor(DeletedMessageColor)
             .Build();
         
         _userWantsWorkButNoPrice = new EmbedBuilder()
-            .WithTitle($"No payment price detected")
+            .WithTitle("No payment price detected")
             .WithDescription(
                 $"You have used the `{_tagWantsWork.Name}` tag but have not specified a price of any kind.\n\nPost **must** include a currency symbol or word, e.g. $, dollars, USD, £, pounds, €, EUR, euro, euros, GBP.")
             .WithColor(DeletedMessageColor)
             .Build();
         
         _userRevShareMentioned = new EmbedBuilder()
-            .WithTitle($"Notice: Rev-Share mentioned")
+            .WithTitle("Notice: Rev-Share mentioned")
             .WithDescription(
                 $"Rev-share isn't considered a valid form of payment for `{_tagIsHiring.Name}` or `{_tagWantsWork.Name}` as it's not guaranteed. " +
                 $"Consider using the `{_tagUnpaidCollab.Name}` tag instead if you intend to use rev-share as a source of payment.")
@@ -240,41 +286,52 @@ public class RecruitService
             .Build();
         
         _userMoreThanOneTagUsed = new EmbedBuilder()
-            .WithTitle($"Broken Guideline: Colliding tags used")
+            .WithTitle("Broken Guideline: Colliding tags used")
             .WithDescription(
                 $"You may only use one of the following tags: `{_tagIsHiring.Name}`, `{_tagWantsWork.Name}` or `{_tagUnpaidCollab.Name}`\n\n" +
-                $"Be sure to read the guidelines before posting.")
+                "Be sure to read the guidelines before posting.")
             .WithColor(DeletedMessageColor)
             .Build();
         
         _userDidntUseTags = new EmbedBuilder()
-            .WithTitle($"Broken Guideline: No tags used")
+            .WithTitle("Broken Guideline: No tags used")
             .WithDescription(
                 $"You must use one of the following tags: `{_tagIsHiring.Name}`, `{_tagWantsWork.Name}` or `{_tagUnpaidCollab.Name}`\n\n" +
-                $"Be sure to read the guidelines before posting.")
+                "Be sure to read the guidelines before posting.")
             .WithColor(DeletedMessageColor)
-            .Build();
-        
-        _userShortMessage = new EmbedBuilder()
-            .WithTitle($"Warning: Post is short")
-            .WithDescription(
-                $"Your post should contain enough information to convince others to work with you, we recommend at least {MinimumLengthMessage} characters, " +
-                $"which is still very short.\n\nPlease edit your post to contain more information otherwise it may be deleted by staff.")
-            .WithColor(WarningMessageColor)
             .Build();
     }
     
     private Embed GetDeletedMessageEmbed()
     {
-        // Create a dynamic timestamp for now + TimeBeforeDeletingForumInSec
-        var timestamp = DateTimeOffset.Now.AddSeconds(TimeBeforeDeletingForumInSec);
-        var timestampString = $"<t:{timestamp.ToUnixTimeSeconds()}:R>";
-        var message = _messageToBeDeleted.Replace("%s", timestampString);
-        
+        var message = _messageToBeDeleted.Replace("%s", GetDynamicTimeStampString(TimeBeforeDeletingForumInSec));
         return new EmbedBuilder()
-            .WithTitle($"Post does not follow guidelines")
+            .WithTitle("Post does not follow guidelines")
             .WithDescription(message)
             .WithColor(DeletedMessageColor)
+            .Build();
+    }
+
+    private Embed GetEditPermMessageEmbed()
+    {
+        var message = _messageToBeEdited.Replace("%s", GetDynamicTimeStampString(_editTimePermissionInMin * 60));
+        return new EmbedBuilder()
+            .WithTitle("Edit permissions granted")
+            .WithDescription(message)
+            .WithColor(EditedMessageColor)
+            .Build();
+    }
+
+    private Embed GetShortMessageEmbed()
+    {
+        var timestamp = GetDynamicTimeStampString(ShortMessageNoticeDurationInSec);
+        return new EmbedBuilder()
+            .WithTitle("Notice: Post is short")
+            .WithDescription(
+                $"Your post should provide more information to convince others, we recommend at least {MinimumLengthMessage} characters, " +
+                "which is still very short.\n\nYou should consider editing your post to contain more info otherwise it may be deleted by staff.\n\n" +
+                $"*This is only a notice and will be removed {timestamp}, can be ignored.*")
+            .WithColor(WarningMessageColor)
             .Build();
     }
 
@@ -298,6 +355,12 @@ public class RecruitService
     {
         await thread.SendMessageAsync(embed: GetDeletedMessageEmbed());
         await thread.DeleteAfterSeconds(TimeBeforeDeletingForumInSec);
+    }
+
+    private string GetDynamicTimeStampString(int addSeconds)
+    {
+        var timestamp = DateTimeOffset.Now.AddSeconds(addSeconds);
+        return $"<t:{timestamp.ToUnixTimeSeconds()}:R>";
     }
 
     #endregion // Basic Utility
