@@ -68,6 +68,7 @@ public class Program
                 _isInitialized = true;
                 
                 _unityHelpService = _services.GetRequiredService<UnityHelpService>();
+                _services.GetRequiredService<RecruitService>();
             }
             return Task.CompletedTask;
         };
@@ -91,6 +92,7 @@ public class Program
             .AddSingleton<PublisherService>()
             .AddSingleton<FeedService>()
             .AddSingleton<UnityHelpService>()
+            .AddSingleton<RecruitService>()
             .AddSingleton<UpdateService>()
             .AddSingleton<CurrencyService>()
             .AddSingleton<ReactRoleService>()

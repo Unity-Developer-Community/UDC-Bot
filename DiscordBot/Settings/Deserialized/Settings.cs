@@ -29,6 +29,9 @@ public class BotSettings
 
     #region Service Enabling
     // Used for enabling/disabling services in the bot
+    
+    public bool RecruitmentServiceEnabled { get; set; } = false;
+
     public bool UnityHelpBabySitterEnabled { get; set; } = false;
 
     #endregion // Service Enabling
@@ -61,6 +64,8 @@ public class BotSettings
 
     // Recruitment Channels
     
+    public RecruitmentChannel RecruitmentChannel { get; set; }
+
     public ChannelInfo ReportedMessageChannel { get; set; }
     
     #region Complaint Channel
@@ -91,6 +96,15 @@ public class BotSettings
     public ulong ModeratorRoleId { get; set; }
 
     #endregion // User Roles
+
+    #region Recruitment Thread Tags
+    
+    public string TagLookingToHire { get; set; }
+    public string TagLookingForWork { get; set; }
+    public string TagUnpaidCollab { get; set; }
+    public string TagPositionFilled { get; set; }
+
+    #endregion // Recruitment Thread Tags
 
     #region API Keys
 
@@ -196,6 +210,7 @@ public class UnityReleasesChannel : ChannelInfo
 {
 }
 
+public class RecruitmentChannel : ChannelInfo
 {
 }
 
