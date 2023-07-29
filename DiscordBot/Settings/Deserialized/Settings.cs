@@ -27,6 +27,12 @@ public class BotSettings
 
     #endregion // Fun Commands
 
+    #region Service Enabling
+    // Used for enabling/disabling services in the bot
+    public bool UnityHelpBabySitterEnabled { get; set; } = false;
+
+    #endregion // Service Enabling
+
     #endregion // Configuration
 
     #region Asset Publisher
@@ -54,9 +60,6 @@ public class BotSettings
     public RulesChannel RulesChannel { get; set; }
 
     // Recruitment Channels
-    public WorkForHireChannel LookingToHire { get; set; }
-    public WorkForHireChannel LookingForWork { get; set; }
-    public CollaborationChannel CollaborationChannel { get; set; }
     
     public ChannelInfo ReportedMessageChannel { get; set; }
     
@@ -193,11 +196,6 @@ public class UnityReleasesChannel : ChannelInfo
 {
 }
 
-public class WorkForHireChannel : ChannelInfo
-{
-}
-
-public class CollaborationChannel : ChannelInfo
 {
 }
 

@@ -8,6 +8,8 @@ namespace DiscordBot.Services;
 
 public class UnityHelpService
 {
+    private static readonly string ServiceName = "UnityHelpService";
+
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _logging;
     private SocketRole ModeratorRole { get; set; }
@@ -83,6 +85,12 @@ public class UnityHelpService
         
         ModeratorRole = _client.GetGuild(settings.GuildId).GetRole(settings.ModeratorRoleId);
 
+        if (!settings.UnityHelpBabySitterEnabled)
+        {
+            LoggingService.LogServiceDisabled(ServiceName, nameof(settings.UnityHelpBabySitterEnabled));
+            return;
+        }
+        
         // get the help channel settings.GenericHelpChannel
         _helpChannel = _client.GetChannel(settings.GenericHelpChannel.Id) as IForumChannel;
         if (_helpChannel == null)
@@ -106,6 +114,8 @@ public class UnityHelpService
         _client.MessageUpdated += GatewayOnMessageUpdated;
 
         Task.Run(LoadActiveThreads);
+        
+        LoggingService.LogServiceEnabled(ServiceName);
     }
 
     private async Task LoadActiveThreads()

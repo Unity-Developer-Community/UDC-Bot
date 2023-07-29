@@ -63,6 +63,16 @@ public class LoggingService : ILoggingService
         Console.ForegroundColor = restoreColour;
     }
     
+    public static void LogServiceDisabled(string service, string varName)
+    {
+        LogToConsole($"Service \"{service}\" is Disabled, {varName} is false in settings.json", LogSeverity.Warning);
+    }
+    
+    public static void LogServiceEnabled(string service)
+    {
+        LogToConsole($"Service \"{service}\" is Enabled", LogSeverity.Info);
+    }
+
     /// <summary>
     /// Same behaviour as LogToConsole, however this method is not included in the release build.
     /// Good if you need more verbose but obvious logging, but don't want it included in release.
