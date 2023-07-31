@@ -97,7 +97,7 @@ public class BotSettings
 
     #endregion // User Roles
 
-    #region Recruitment Thread Tags
+    #region Recruitment Thread
     
     public string TagLookingToHire { get; set; }
     public string TagLookingForWork { get; set; }
