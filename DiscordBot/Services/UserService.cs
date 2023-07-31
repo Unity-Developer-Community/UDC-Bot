@@ -33,9 +33,9 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
     private readonly BotSettings _settings;
     private readonly Dictionary<ulong, DateTime> _thanksCooldown;
-    private readonly Dictionary<ulong, DateTime> _everyoneScoldCooldown = new Dictionary<ulong, DateTime>();
+    private readonly Dictionary<ulong, DateTime> _everyoneScoldCooldown = new();
 
-    private readonly List<(ulong id, DateTime time)> _welcomeNoticeUsers = new List<(ulong id, DateTime time)>();
+    private readonly List<(ulong id, DateTime time)> _welcomeNoticeUsers = new();
 
     private readonly int _thanksCooldownTime;
     private readonly int _thanksMinJoinTime;
@@ -420,7 +420,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             .WithAuthor(author =>
             {
                 author
-                    .WithName(user.Nickname)
+                    .WithName(user.GetUserPreferredName())
                     .WithIconUrl(icon);
             });
 
@@ -675,6 +675,9 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     // Welcomes users to the server after they've been connected for over x number of seconds.
     private async Task DelayedWelcomeService()
     {
+        ulong currentlyProcessedUserId = 0;
+        bool firstRun = true;
+        await Task.Delay(10000);
         try
         {
             while (true)
@@ -684,18 +687,35 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 // We loop through our list, anyone that has been in the list for more than x seconds is welcomed.
                 foreach (var userData in _welcomeNoticeUsers.Where(u => u.time < now))
                 {
+                    currentlyProcessedUserId = userData.id;
                     await ProcessWelcomeUser(userData.id, null);
                 }
-
+                
+                if (firstRun)
+                    firstRun = false;
                 await Task.Delay(10000);
             }
         }
         catch (Exception e)
         {
             // Catch and show exception
-            LoggingService.LogToConsole($"UserService Exception during welcome message.\n{e.Message}",
+            LoggingService.LogToConsole($"UserService Exception during welcome message `{currentlyProcessedUserId}`.\n{e.Message}",
                 LogSeverity.Error);
-            await _loggingService.LogAction($"UserService Exception during welcome message.\n{e.Message}.", false, true);
+            await _loggingService.LogAction($"UserService Exception during welcome message `{currentlyProcessedUserId}`.\n{e.Message}.", true, true);
+            
+            // Remove the offending user from the dictionary and run the service again.
+            _welcomeNoticeUsers.RemoveAll(u => u.id == currentlyProcessedUserId);
+            if (_welcomeNoticeUsers.Count > 200)
+            {
+                _welcomeNoticeUsers.Clear();
+                await _loggingService.LogAction($"UserService: Welcome list cleared due to size (+200), this should not happen.", true, true);
+            }
+
+            if (firstRun)
+                await _loggingService.LogAction($"UserService: Welcome service failed on first run!? This should not happen.", true, true);
+
+            // Run the service again.
+            Task.Run(DelayedWelcomeService);
         }
     }
 
@@ -705,17 +725,19 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         {
             // Remove the user from the welcome list.
             _welcomeNoticeUsers.RemoveAll(u => u.id == userID);
-            
+
             // If we didn't get the user passed in, we try grab it
             user ??= await _client.GetUserAsync(userID);
             // if they're null, they've likely left, so we just remove them from the list.
-            if (user != null)
-            {
-                var offTopic = await _client.GetChannelAsync(_settings.GeneralChannel.Id) as SocketTextChannel;
-                var em = WelcomeMessage(user as SocketGuildUser);
-                if (offTopic != null)
-                    await offTopic.SendMessageAsync(string.Empty, false, em);
-            }
+            if (user == null)
+                return;
+            
+            var offTopic = await _client.GetChannelAsync(_settings.GeneralChannel.Id) as SocketTextChannel;
+            if (user is not SocketGuildUser guildUser)
+                return;
+            var em = WelcomeMessage(guildUser);
+            if (offTopic != null && em != null)
+                await offTopic.SendMessageAsync(string.Empty, false, em);
         }
     }
 
