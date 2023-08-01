@@ -18,4 +18,10 @@ public static class StringUtil
     {
         return !string.IsNullOrWhiteSpace(str) && RevShareRegex.IsMatch(str);
     }
+
+    public static string MessageSelfDestructIn(int secondsFromNow)
+    {
+        var time = DateTime.Now.ToUnixTimestamp() + secondsFromNow;
+        return $"Self-delete: **<t:{time}:R>**";
+    }
 }
