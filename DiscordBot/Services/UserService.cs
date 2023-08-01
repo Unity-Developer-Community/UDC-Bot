@@ -392,10 +392,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
             profileCardPath = $"{_settings.ServerRootPath}/images/profiles/{user.Username}-profile.png";
 
-            using (var result = profileCard.Mosaic())
-            {
-                result.Write(profileCardPath);
-            }
+            using var result = profileCard.Mosaic();
+            result.Write(profileCardPath);
         }
         catch (Exception e)
         {

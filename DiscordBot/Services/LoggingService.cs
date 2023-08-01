@@ -144,15 +144,15 @@ public class LoggingService : ILoggingService
             case ExtendedLogSeverity.LowWarning:
                 Console.ForegroundColor = ConsoleColor.DarkYellow;
                 break;
-            case ExtendedLogSeverity.Verbose:
-            case ExtendedLogSeverity.Debug:
+            // case ExtendedLogSeverity.Verbose:
+            // case ExtendedLogSeverity.Debug:
             default:
                 Console.ForegroundColor = ConsoleColor.DarkGray;
                 break;
         }
     }
     #endregion
-}
+} 
 
 public interface ILoggingService
 {

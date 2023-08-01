@@ -264,13 +264,8 @@ public class ModerationModule : ModuleBase
     {
         //Display rules of this channel for x seconds
         var rule = Rules.Channel.First(x => x.Id == 0);
-        IUserMessage m;
-        if (rule == null)
-            m = await ReplyAsync(
-                "There is no special rule for this channel.\nPlease follow global rules (you can get them by typing `!globalrules`)");
-        else
-            m = await ReplyAsync(
-                $"{rule.Header}{(rule.Content.Length > 0 ? rule.Content : "There is no special rule for this channel.\nPlease follow global rules (you can get them by typing `!globalrules`)")}");
+        var m = await ReplyAsync(
+            $"{rule.Header}{(rule.Content.Length > 0 ? rule.Content : "There is no special rule for this channel.\nPlease follow global rules (you can get them by typing `!globalrules`)")}");
 
         var deleteAsync = Context.Message?.DeleteAsync();
         if (deleteAsync != null) await deleteAsync;

@@ -44,7 +44,7 @@ public class DatabaseService
                 await _logging.LogAction($"{ServiceName}: Connected to database successfully. {userCount} users in database.");
                 LoggingService.LogToConsole($"{ServiceName}: Connected to database successfully. {userCount} users in database.", ExtendedLogSeverity.Positive);
             }
-            catch (Exception ex)
+            catch
             {
                 LoggingService.LogToConsole(
                     "DatabaseService: Table 'users' does not exist, attempting to generate table.",
