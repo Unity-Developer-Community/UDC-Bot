@@ -9,7 +9,7 @@ namespace DiscordBot.Services;
 
 public class DatabaseService
 {
-    private static readonly string ServiceName = "DatabaseService"; 
+    private const string ServiceName = "DatabaseService"; 
     
     private readonly ILoggingService _logging;
     private string ConnectionString { get; }
@@ -44,7 +44,7 @@ public class DatabaseService
                 await _logging.LogAction($"{ServiceName}: Connected to database successfully. {userCount} users in database.");
                 LoggingService.LogToConsole($"{ServiceName}: Connected to database successfully. {userCount} users in database.", ExtendedLogSeverity.Positive);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 LoggingService.LogToConsole(
                     "DatabaseService: Table 'users' does not exist, attempting to generate table.",

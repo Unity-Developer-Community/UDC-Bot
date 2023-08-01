@@ -708,11 +708,11 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             if (_welcomeNoticeUsers.Count > 200)
             {
                 _welcomeNoticeUsers.Clear();
-                await _loggingService.LogAction($"UserService: Welcome list cleared due to size (+200), this should not happen.", true, true);
+                await _loggingService.LogAction("UserService: Welcome list cleared due to size (+200), this should not happen.", true, true);
             }
 
             if (firstRun)
-                await _loggingService.LogAction($"UserService: Welcome service failed on first run!? This should not happen.", true, true);
+                await _loggingService.LogAction("UserService: Welcome service failed on first run!? This should not happen.", true, true);
 
             // Run the service again.
             Task.Run(DelayedWelcomeService);

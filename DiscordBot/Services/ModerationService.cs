@@ -8,9 +8,9 @@ public class ModerationService
     private readonly ILoggingService _loggingService;
     private readonly BotSettings _settings;
     
-    private static readonly int MaxMessageLength = 800;
-    private static readonly Color DeletedMessageColor = new Color(200, 128, 128);
-    private static readonly Color EditedMessageColor = new Color(255, 255, 128);
+    private const int MaxMessageLength = 800;
+    private static readonly Color DeletedMessageColor = new (200, 128, 128);
+    private static readonly Color EditedMessageColor = new (255, 255, 128);
 
     public ModerationService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService)
     {

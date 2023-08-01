@@ -8,7 +8,7 @@ namespace DiscordBot.Services;
 
 public class UnityHelpService
 {
-    private static readonly string ServiceName = "UnityHelpService";
+    private const string ServiceName = "UnityHelpService";
 
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _logging;

@@ -6,7 +6,7 @@ namespace DiscordBot.Services;
 
 public class RecruitService
 {
-    private static readonly string ServiceName = "RecruitmentService";
+    private const string ServiceName = "RecruitmentService";
     
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _logging;
@@ -185,12 +185,9 @@ public class RecruitService
                 return;
             
             // We do one last check to make sure the thread is still valid
-            if (isPaidWork)
+            if (isPaidWork && !threadMessage.Content.ContainsCurrencySymbol())
             {
-                if (!threadMessage.Content.ContainsCurrencySymbol())
-                {
-                    await ThreadHandleExpectedCurrency(channel);
-                }
+                await ThreadHandleExpectedCurrency(channel);
             }
         });
     }
