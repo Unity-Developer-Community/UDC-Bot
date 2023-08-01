@@ -95,7 +95,7 @@ public class UnityHelpService
         _helpChannel = _client.GetChannel(settings.GenericHelpChannel.Id) as IForumChannel;
         if (_helpChannel == null)
         {
-            LoggingService.LogToConsole("[UnityHelpService] Help channel not found", LogSeverity.Error);
+            LoggingService.LogToConsole($"[{ServiceName}] Help channel not found", LogSeverity.Error);
         }
         var resolvedTag = _helpChannel!.Tags.FirstOrDefault(x => x.Name == ResolvedTag);
         _resolvedForumTag = resolvedTag;
@@ -217,7 +217,7 @@ public class UnityHelpService
         if (_activeThreads.ContainsKey(thread.Id))
             return Task.CompletedTask;
         
-        LoggingService.DebugLog($"[UnityHelpService] New Thread Created: {thread.Id} - {thread.Name}", LogSeverity.Debug);
+        LoggingService.DebugLog($"[{ServiceName}] New Thread Created: {thread.Id} - {thread.Name}", LogSeverity.Debug);
         Task.Run(() => OnThreadCreated(thread));
         
         return Task.CompletedTask;
@@ -291,7 +291,7 @@ public class UnityHelpService
             return;
         }
 
-        LoggingService.DebugLog($"[UnityHelpService] Thread Updated: {after.Id} - {after.Name}", LogSeverity.Debug);
+        LoggingService.DebugLog($"[{ServiceName}] Thread Updated: {after.Id} - {after.Name}", LogSeverity.Debug);
         
 #pragma warning disable CS4014
         Task.Run(() => OnThreadUpdated(beforeThread, afterThread));
@@ -312,7 +312,7 @@ public class UnityHelpService
         if (!_activeThreads.ContainsKey(threadId.Id))
             return;
         
-        LoggingService.DebugLog($"[UnityHelpService] Thread Deleted: {threadId.Id}", LogSeverity.Debug);
+        LoggingService.DebugLog($"[{ServiceName}] Thread Deleted: {threadId.Id}", LogSeverity.Debug);
         var thread = await threadId.GetOrDownloadAsync();
 
 #pragma warning disable CS4014
@@ -388,7 +388,7 @@ public class UnityHelpService
         if (!_activeThreads.TryGetValue(message.Channel.Id, out var thread))
             return Task.CompletedTask;
         
-        LoggingService.DebugLog($"[UnityHelpService] Help Message Received: {message.Id} - {message.Content}", LogSeverity.Debug);
+        LoggingService.DebugLog($"[{ServiceName}] Help Message Received: {message.Id} - {message.Content}", LogSeverity.Debug);
         Task.Run(() => OnMessageReceived(message));
         return Task.CompletedTask;
     }
@@ -429,7 +429,7 @@ public class UnityHelpService
         if (beforeMsg == null)
             return;
 
-        LoggingService.DebugLog($"[UnityHelpService] Help Message Updated: {after.Id} - {after.Content}", LogSeverity.Debug);
+        LoggingService.DebugLog($"[{ServiceName}] Help Message Updated: {after.Id} - {after.Content}", LogSeverity.Debug);
 #pragma warning disable CS4014
         Task.Run(() => OnMessageUpdated(beforeMsg, after, channel as SocketThreadChannel));
 #pragma warning restore CS4014
@@ -718,7 +718,7 @@ public class UnityHelpService
             return Task.FromResult(false);
         if (thread.CancellationToken.IsCancellationRequested)
         {
-            LoggingService.DebugLog($"[UnityHelpService] Task cancelled for Channel {thread.ThreadId}");
+            LoggingService.DebugLog($"[{ServiceName}] Task cancelled for Channel {thread.ThreadId}");
             return Task.FromResult(true);
         }
         return Task.FromResult(false);
