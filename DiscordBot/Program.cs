@@ -64,7 +64,7 @@ public class Program
                     ?.GetTextChannel(_settings.BotAnnouncementChannel.Id)
                     ?.SendMessageAsync("Bot Started.");
 
-                LoggingService.LogToConsole("Bot is connected.", LogSeverity.Info);
+                LoggingService.LogToConsole("Bot is connected.", ExtendedLogSeverity.Positive);
                 _isInitialized = true;
                 
                 _unityHelpService = _services.GetRequiredService<UnityHelpService>();

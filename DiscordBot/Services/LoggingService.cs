@@ -5,6 +5,43 @@ using DiscordBot.Settings;
 
 namespace DiscordBot.Services.Logging;
 
+#region Extended Log Severity
+
+// We use DNets built in severity levels, but we add a few more for internal logging.
+public enum ExtendedLogSeverity
+{
+    Critical = LogSeverity.Critical,
+    Error = LogSeverity.Error,
+    Warning = LogSeverity.Warning,
+    Info = LogSeverity.Info,
+    Verbose = LogSeverity.Verbose,
+    Debug = LogSeverity.Debug,
+    // Extended levels
+    Positive = 10, // Positive(info) is green in the console
+    LowWarning = 11, // LowWarning(warning) is yellow in the console
+}
+
+public static class ExtendedLogSeverityExtensions
+{
+    public static LogSeverity ToLogSeverity(this ExtendedLogSeverity severity)
+    {
+        return severity switch
+        {
+            ExtendedLogSeverity.Positive => LogSeverity.Info,
+            ExtendedLogSeverity.LowWarning => LogSeverity.Warning,
+            _ => (LogSeverity)severity
+        };
+    }
+    
+    public static ExtendedLogSeverity ToExtended(this LogSeverity severity)
+    {
+        return (ExtendedLogSeverity)severity;
+    }
+    
+}
+
+#endregion // Extended Log Severity
+
 public class LoggingService : ILoggingService
 {
     private readonly DiscordSocketClient _client;
@@ -45,7 +82,7 @@ public class LoggingService : ILoggingService
     // Logs DiscordNet specific messages, this shouldn't be used for normal logging
     public static Task DiscordNetLogger(LogMessage message)
     {
-        LoggingService.LogToConsole($"{message.Source} | {message.Message}", message.Severity);
+        LoggingService.LogToConsole($"{message.Source} | {message.Message}", message.Severity.ToExtended());
         return Task.CompletedTask;
     }
     #region Console Messages
@@ -53,7 +90,8 @@ public class LoggingService : ILoggingService
     public static void LogConsole(string message) {
         Console.WriteLine($"[{ConsistentDateTimeFormat()}] {message}");
     }
-    public static void LogToConsole(string message, LogSeverity severity = LogSeverity.Info) 
+
+    public static void LogToConsole(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info) 
     {
         ConsoleColor restoreColour = Console.ForegroundColor;
         SetConsoleColour(severity);
@@ -62,15 +100,16 @@ public class LoggingService : ILoggingService
 
         Console.ForegroundColor = restoreColour;
     }
+    public static void LogToConsole(string message, LogSeverity severity) => LogToConsole(message, severity.ToExtended());
     
     public static void LogServiceDisabled(string service, string varName)
     {
-        LogToConsole($"Service \"{service}\" is Disabled, {varName} is false in settings.json", LogSeverity.Warning);
+        LogToConsole($"Service \"{service}\" is Disabled, {varName} is false in settings.json", ExtendedLogSeverity.Warning);
     }
     
     public static void LogServiceEnabled(string service)
     {
-        LogToConsole($"Service \"{service}\" is Enabled", LogSeverity.Info);
+        LogToConsole($"Service \"{service}\" is Enabled", ExtendedLogSeverity.Info);
     }
 
     /// <summary>
@@ -78,27 +117,35 @@ public class LoggingService : ILoggingService
     /// Good if you need more verbose but obvious logging, but don't want it included in release.
     /// </summary>
     [Conditional("DEBUG")]
-    public static void DebugLog(string message, LogSeverity severity = LogSeverity.Info)
+    public static void DebugLog(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info)
     {
         LogToConsole(message, severity);
     }
-    
-    private static void SetConsoleColour(LogSeverity severity)
+    [Conditional("DEBUG")]
+    public static void DebugLog(string message, LogSeverity severity) => DebugLog(message, severity.ToExtended());
+
+    private static void SetConsoleColour(ExtendedLogSeverity severity)
     {
         switch (severity)
         {
-            case LogSeverity.Critical:
-            case LogSeverity.Error:
+            case ExtendedLogSeverity.Critical:
+            case ExtendedLogSeverity.Error:
                 Console.ForegroundColor = ConsoleColor.Red;
                 break;
-            case LogSeverity.Warning:
+            case ExtendedLogSeverity.Warning:
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 break;
-            case LogSeverity.Info:
+            case ExtendedLogSeverity.Info:
                 Console.ForegroundColor = ConsoleColor.White;
                 break;
-            case LogSeverity.Verbose:
-            case LogSeverity.Debug:
+            case ExtendedLogSeverity.Positive:
+                Console.ForegroundColor = ConsoleColor.Green;
+                break;
+            case ExtendedLogSeverity.LowWarning:
+                Console.ForegroundColor = ConsoleColor.DarkYellow;
+                break;
+            case ExtendedLogSeverity.Verbose:
+            case ExtendedLogSeverity.Debug:
             default:
                 Console.ForegroundColor = ConsoleColor.DarkGray;
                 break;
