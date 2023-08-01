@@ -35,7 +35,7 @@ public class RecruitService
     private const int MinimumLengthMessage = 120;
     private const int ShortMessageNoticeDurationInSec = 30 * 4;
 
-    private int _editTimePermissionInMin = 30;
+    private readonly int _editTimePermissionInMin;
     private const string _messageToBeEdited = "This post will remain editable until %s, make any desired changes to your thread. After that the thread will be locked.";
 
 
