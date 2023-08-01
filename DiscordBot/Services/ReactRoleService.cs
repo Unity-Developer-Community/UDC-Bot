@@ -33,6 +33,10 @@ public class ReactRoleService
         _settings = settings;
 
         _client = client;
+
+        if (!_settings.ReactRoleServiceEnabled)
+            return;
+        
         _client.ReactionAdded += ReactionAdded;
         _client.ReactionRemoved += ReactionRemoved;
         

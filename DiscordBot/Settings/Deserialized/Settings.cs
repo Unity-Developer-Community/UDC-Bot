@@ -34,6 +34,8 @@ public class BotSettings
 
     public bool UnityHelpBabySitterEnabled { get; set; } = false;
 
+    public bool ReactRoleServiceEnabled { get; set; } = false;
+
     #endregion // Service Enabling
 
     #endregion // Configuration

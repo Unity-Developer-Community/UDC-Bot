@@ -93,8 +93,11 @@
   "EditPermissionAccessTimeMin": 3,
   /* Unity Help Service */
   "UnityHelpBabySitterEnabled": false,
-  "genericHelpChannel": { // Unity-help
+  "genericHelpChannel": {
+    // Unity-help
     "desc": "Unity-Help Channel",
     "id": "0"
-  }
+  },
+  /* React Role Service */
+  "ReactRoleServiceEnabled": false
 }
