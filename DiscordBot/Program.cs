@@ -24,6 +24,7 @@ public class Program
     private IServiceProvider _services;
 
     private UnityHelpService _unityHelpService;
+    private RecruitService _recruitService;
 
     public static void Main(string[] args) =>
         new Program().MainAsync().GetAwaiter().GetResult();
@@ -68,7 +69,7 @@ public class Program
                 _isInitialized = true;
                 
                 _unityHelpService = _services.GetRequiredService<UnityHelpService>();
-                _services.GetRequiredService<RecruitService>();
+                _recruitService = _services.GetRequiredService<RecruitService>();
             }
             return Task.CompletedTask;
         };
