@@ -27,6 +27,17 @@ public class BotSettings
 
     #endregion // Fun Commands
 
+    #region Service Enabling
+    // Used for enabling/disabling services in the bot
+    
+    public bool RecruitmentServiceEnabled { get; set; } = false;
+
+    public bool UnityHelpBabySitterEnabled { get; set; } = false;
+
+    public bool ReactRoleServiceEnabled { get; set; } = false;
+
+    #endregion // Service Enabling
+
     #endregion // Configuration
 
     #region Asset Publisher
@@ -54,10 +65,9 @@ public class BotSettings
     public RulesChannel RulesChannel { get; set; }
 
     // Recruitment Channels
-    public WorkForHireChannel LookingToHire { get; set; }
-    public WorkForHireChannel LookingForWork { get; set; }
-    public CollaborationChannel CollaborationChannel { get; set; }
     
+    public RecruitmentChannel RecruitmentChannel { get; set; }
+
     public ChannelInfo ReportedMessageChannel { get; set; }
     
     #region Complaint Channel
@@ -88,6 +98,17 @@ public class BotSettings
     public ulong ModeratorRoleId { get; set; }
 
     #endregion // User Roles
+
+    #region Recruitment Thread
+    
+    public string TagLookingToHire { get; set; }
+    public string TagLookingForWork { get; set; }
+    public string TagUnpaidCollab { get; set; }
+    public string TagPositionFilled { get; set; }
+    
+    public int EditPermissionAccessTimeMin { get; set; } = 3;
+
+    #endregion // Recruitment Thread Tags
 
     #region API Keys
 
@@ -193,11 +214,7 @@ public class UnityReleasesChannel : ChannelInfo
 {
 }
 
-public class WorkForHireChannel : ChannelInfo
-{
-}
-
-public class CollaborationChannel : ChannelInfo
+public class RecruitmentChannel : ChannelInfo
 {
 }
 

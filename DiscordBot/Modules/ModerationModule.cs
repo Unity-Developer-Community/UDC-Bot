@@ -5,6 +5,8 @@ using DiscordBot.Services;
 using DiscordBot.Settings;
 using Pathoschild.NaturalTimeParser.Parser;
 using DiscordBot.Attributes;
+using DiscordBot.Utils;
+using Org.BouncyCastle.Asn1.Cms;
 
 namespace DiscordBot.Modules;
 
@@ -262,13 +264,8 @@ public class ModerationModule : ModuleBase
     {
         //Display rules of this channel for x seconds
         var rule = Rules.Channel.First(x => x.Id == 0);
-        IUserMessage m;
-        if (rule == null)
-            m = await ReplyAsync(
-                "There is no special rule for this channel.\nPlease follow global rules (you can get them by typing `!globalrules`)");
-        else
-            m = await ReplyAsync(
-                $"{rule.Header}{(rule.Content.Length > 0 ? rule.Content : "There is no special rule for this channel.\nPlease follow global rules (you can get them by typing `!globalrules`)")}");
+        var m = await ReplyAsync(
+            $"{rule.Header}{(rule.Content.Length > 0 ? rule.Content : "There is no special rule for this channel.\nPlease follow global rules (you can get them by typing `!globalrules`)")}");
 
         var deleteAsync = Context.Message?.DeleteAsync();
         if (deleteAsync != null) await deleteAsync;
@@ -421,6 +418,7 @@ public class ModerationModule : ModuleBase
     }
 
     #region General Utility Commands
+    
     [Command("WelcomeMessageCount")]
     [Summary("Returns a count of pending welcome messages.")]
     [RequireModerator, HideFromHelp]
@@ -439,6 +437,41 @@ public class ModerationModule : ModuleBase
             await ReplyAsync("There are no pending welcome messages.").DeleteAfterSeconds(seconds: 10);
         }
         await Context.Message.DeleteAsync();
+    }
+    
+    // Command to show the tags available for a specific channel, so the command needs to be run in a channel with tags or specific a channel id to check
+    [Command("ChannelTags")]
+    [Summary("Returns a list of tags for the current channel.")]
+    [RequireModerator, HideFromHelp]
+    public async Task ChannelTags(ulong channelId)
+    {
+        // Get the channel
+        var channel = await Context.Guild.GetChannelAsync(channelId);
+
+        if (channel is not IForumChannel forumChannel)
+        {
+            await ReplyAsync($"<#{channelId}> is not a forum channel and has no tags.").DeleteAfterSeconds(seconds: 10);
+            return;
+        }
+
+        var tags = forumChannel.Tags;
+        // If there are no tags, say so
+        if (tags.Count == 0)
+        {
+            await ReplyAsync($"<#{channelId}> has no tags.").DeleteAfterSeconds(seconds: 10);
+            return;
+        }
+
+        // If there are tags, list them in an embed in format of (ID: `id` - Name: `name`)
+        var embed = new EmbedBuilder()
+            .WithTitle($"Tags for <#{channelId}>")
+            .WithDescription(string.Join("\n", tags.Select(tag => $"ID: `{tag.Id}` - Name: `{tag.Name}`")) +
+                             $"\n\n{StringUtil.MessageSelfDestructIn(60)}")
+            .WithColor(Color.Blue)
+            .Build();
+
+        Context.Message.DeleteAsync();
+        await ReplyAsync(embed: embed).DeleteAfterSeconds(seconds: 60);
     }
 
     #endregion

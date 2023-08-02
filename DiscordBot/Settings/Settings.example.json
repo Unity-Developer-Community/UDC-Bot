@@ -56,18 +56,6 @@
     "desc": "Unity News Channel",
     "id": "0"
   },
-  "LookingToHire": {
-    "desc": "Looking To Hire Channel",
-    "id": "0" // Currently Unused 29/04/21
-  },
-  "LookingForWork": {
-    "desc": "Looking For Work Channel",
-    "id": "0" // Currently Unused 29/04/21
-  },
-  "CollaborationChannel": {
-    "desc": "Collaboration Channel",
-    "id": "0" // Currently Unused 29/04/21
-  },
   "ReportedMessageChannel": {
     "desc": "Reported Message Channel",
     "id": "0"
@@ -91,5 +79,25 @@
   "WeatherAPIKey": "", // Key for openweathermap.org
   "FlightAPIKey": "",
   "FlightAPISecret": "",
-  "AirLabAPIKey": ""
+  "AirLabAPIKey": "",
+  /* Recruitment Service */
+  "RecruitmentServiceEnabled": false,
+  "RecruitmentChannel": { // Recruitment
+    "desc": "Channel for job postings",
+    "id": "0"
+  },
+  "TagLookingToHire": "0",
+  "TagLookingForWork": "0",
+  "TagUnpaidCollab": "0",
+  "TagPositionFilled": "0",
+  "EditPermissionAccessTimeMin": 3,
+  /* Unity Help Service */
+  "UnityHelpBabySitterEnabled": false,
+  "genericHelpChannel": {
+    // Unity-help
+    "desc": "Unity-Help Channel",
+    "id": "0"
+  },
+  /* React Role Service */
+  "ReactRoleServiceEnabled": false
 }
