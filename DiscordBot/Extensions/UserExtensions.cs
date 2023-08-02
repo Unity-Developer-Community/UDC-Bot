@@ -15,7 +15,10 @@ public static class UserExtensions
     }
     public static bool HasRoleGroup(this IUser user, ulong roleId)
     {
-        return user is SocketGuildUser guildUser && guildUser.Roles.Any(x => x.Id == roleId);
+        var guildUser = user as IGuildUser;
+        if (guildUser == null)
+            return false;
+        return guildUser.RoleIds.Any(x => x == roleId);
     }
 
     // Returns the users DisplayName (nickname) if it exists, otherwise returns the username
