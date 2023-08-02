@@ -33,9 +33,9 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
     private readonly BotSettings _settings;
     private readonly Dictionary<ulong, DateTime> _thanksCooldown;
-    private readonly Dictionary<ulong, DateTime> _everyoneScoldCooldown = new Dictionary<ulong, DateTime>();
+    private readonly Dictionary<ulong, DateTime> _everyoneScoldCooldown = new();
 
-    private readonly List<(ulong id, DateTime time)> _welcomeNoticeUsers = new List<(ulong id, DateTime time)>();
+    private readonly List<(ulong id, DateTime time)> _welcomeNoticeUsers = new();
 
     private readonly int _thanksCooldownTime;
     private readonly int _thanksMinJoinTime;
@@ -165,13 +165,13 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var timeStayed = DateTime.Now - joinDate;
             await _loggingService.LogAction(
                 $"User Left - After {(timeStayed.Days > 1 ? Math.Floor((double)timeStayed.Days) + " days" : " ")}" +
-                $" {Math.Floor((double)timeStayed.Hours).ToString(CultureInfo.InvariantCulture)} hours {user.Mention} - `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}`");
+                $" {Math.Floor((double)timeStayed.Hours).ToString(CultureInfo.InvariantCulture)} hours {user.Mention} - `{guildUser.GetPreferredAndUsername()}` - ID : `{user.Id}`");
         }
         // If bot is to slow to get user info, we just say they left at current time.
         else
         {
             await _loggingService.LogAction(
-                $"User `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}` - Left at {DateTime.Now}");
+                $"User `{guildUser.GetPreferredAndUsername()}` - ID : `{user.Id}` - Left at {DateTime.Now}");
         }
     }
 
@@ -336,7 +336,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 MaxXpShown = maxXpShown,
                 Nickname = ((IGuildUser)user).Nickname,
                 UserId = ulong.Parse(userData.UserID),
-                Username = user.Username,
+                Username = user.GetPreferredAndUsername(),
                 XpHigh = xpHigh,
                 XpLow = xpLow,
                 XpPercentage = percentage,
@@ -392,10 +392,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
             profileCardPath = $"{_settings.ServerRootPath}/images/profiles/{user.Username}-profile.png";
 
-            using (var result = profileCard.Mosaic())
-            {
-                result.Write(profileCardPath);
-            }
+            using var result = profileCard.Mosaic();
+            result.Write(profileCardPath);
         }
         catch (Exception e)
         {
@@ -412,14 +410,15 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         string icon = user.GetAvatarUrl();
         icon = string.IsNullOrEmpty(icon) ? "https://cdn.discordapp.com/embed/avatars/0.png" : icon;
-
+        
+        string welcomeString = $"Welcome to Unity Developer Community {user.GetPreferredAndUsername()}!";
         var builder = new EmbedBuilder()
-            .WithDescription($"Welcome to Unity Developer Community **{user.Username}#{user.Discriminator}**!")
+            .WithDescription(welcomeString)
             .WithColor(_welcomeColour)
             .WithAuthor(author =>
             {
                 author
-                    .WithName(user.Username)
+                    .WithName(user.GetUserPreferredName())
                     .WithIconUrl(icon);
             });
 
@@ -652,7 +651,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             {
                 await user.AddRoleAsync(socketTextChannel?.Guild.GetRole(_settings.MutedRoleId));
                 await _loggingService.LogAction(
-                    $"Currently muted user rejoined - {user.Mention} - `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}`");
+                    $"Currently muted user rejoined - {user.Mention} - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}`");
                 if (socketTextChannel != null)
                     await socketTextChannel.SendMessageAsync(
                         $"{user.Mention} tried to rejoin the server to avoid their mute. Mute time increased by 72 hours.");
@@ -662,7 +661,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         }
 
         await _loggingService.LogAction(
-            $"User Joined - {user.Mention} - `{user.Username}#{user.DiscriminatorValue}` - ID : `{user.Id}`");
+            $"User Joined - {user.Mention} - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}`");
 
         // We check if they're already in the welcome list, if they are we don't add them again to avoid double posts
         if (_welcomeNoticeUsers.Count == 0 || !_welcomeNoticeUsers.Exists(u => u.id == user.Id))
@@ -674,6 +673,9 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     // Welcomes users to the server after they've been connected for over x number of seconds.
     private async Task DelayedWelcomeService()
     {
+        ulong currentlyProcessedUserId = 0;
+        bool firstRun = true;
+        await Task.Delay(10000);
         try
         {
             while (true)
@@ -683,18 +685,35 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 // We loop through our list, anyone that has been in the list for more than x seconds is welcomed.
                 foreach (var userData in _welcomeNoticeUsers.Where(u => u.time < now))
                 {
+                    currentlyProcessedUserId = userData.id;
                     await ProcessWelcomeUser(userData.id, null);
                 }
-
+                
+                if (firstRun)
+                    firstRun = false;
                 await Task.Delay(10000);
             }
         }
         catch (Exception e)
         {
             // Catch and show exception
-            LoggingService.LogToConsole($"UserService Exception during welcome message.\n{e.Message}",
+            LoggingService.LogToConsole($"UserService Exception during welcome message `{currentlyProcessedUserId}`.\n{e.Message}",
                 LogSeverity.Error);
-            await _loggingService.LogAction($"UserService Exception during welcome message.\n{e.Message}.", false, true);
+            await _loggingService.LogAction($"UserService Exception during welcome message `{currentlyProcessedUserId}`.\n{e.Message}.", true, true);
+            
+            // Remove the offending user from the dictionary and run the service again.
+            _welcomeNoticeUsers.RemoveAll(u => u.id == currentlyProcessedUserId);
+            if (_welcomeNoticeUsers.Count > 200)
+            {
+                _welcomeNoticeUsers.Clear();
+                await _loggingService.LogAction("UserService: Welcome list cleared due to size (+200), this should not happen.", true, true);
+            }
+
+            if (firstRun)
+                await _loggingService.LogAction("UserService: Welcome service failed on first run!? This should not happen.", true, true);
+
+            // Run the service again.
+            Task.Run(DelayedWelcomeService);
         }
     }
 
@@ -704,17 +723,19 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         {
             // Remove the user from the welcome list.
             _welcomeNoticeUsers.RemoveAll(u => u.id == userID);
-            
+
             // If we didn't get the user passed in, we try grab it
             user ??= await _client.GetUserAsync(userID);
             // if they're null, they've likely left, so we just remove them from the list.
-            if (user != null)
-            {
-                var offTopic = await _client.GetChannelAsync(_settings.GeneralChannel.Id) as SocketTextChannel;
-                var em = WelcomeMessage(user as SocketGuildUser);
-                if (offTopic != null)
-                    await offTopic.SendMessageAsync(string.Empty, false, em);
-            }
+            if (user == null)
+                return;
+            
+            var offTopic = await _client.GetChannelAsync(_settings.GeneralChannel.Id) as SocketTextChannel;
+            if (user is not SocketGuildUser guildUser)
+                return;
+            var em = WelcomeMessage(guildUser);
+            if (offTopic != null && em != null)
+                await offTopic.SendMessageAsync(string.Empty, false, em);
         }
     }
 
@@ -767,8 +788,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (oldUser.Nickname != user.Nickname)
         {
             await _loggingService.LogAction(
-                $"User {oldUser.Nickname ?? oldUser.Username}#{oldUser.DiscriminatorValue} changed his " +
-                $"username to {user.Nickname ?? user.Username}#{user.DiscriminatorValue}");
+                $"User {oldUser.GetUserPreferredName()} changed his " +
+                $"username to {user.GetUserPreferredName()}");
         }
     }
 
