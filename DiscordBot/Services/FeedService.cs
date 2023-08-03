@@ -9,6 +9,7 @@ namespace DiscordBot.Services;
 
 public class FeedService
 {
+    private const string ServiceName = "FeedService";
     private readonly DiscordSocketClient _client;
     
     private readonly BotSettings _settings;
@@ -72,13 +73,12 @@ public class FeedService
             var client = new HttpClient();
             var response = await client.GetStringAsync(url);
             response = Utils.Utils.SanitizeXml(response);
-            XmlReader reader = new XmlTextReader(new StringReader(response));
+            var reader = XmlReader.Create(new StringReader(response));
             feed = SyndicationFeed.Load(reader);
         }
         catch (Exception e)
         {
-            LoggingService.LogToConsole(e.ToString(), LogSeverity.Error);
-            await _logging.LogAction($"Feed Service Error: {e.ToString()}", true, true);
+            LoggingService.LogToConsole( $"[{ServiceName} Feed failure: {e.ToString()}", ExtendedLogSeverity.LowWarning);
         }
 
         // Return the feed, empty feed if null to prevent additional checks for null on return
@@ -97,8 +97,8 @@ public class FeedService
             var channel = _client.GetChannel(channelId) as IForumChannel;
             if (channel == null)
             {
-                await _logging.LogAction($"Feed Service Error: Channel {channelId} not found", true, true);
-                LoggingService.LogToConsole($"Feed Service Error: Channel {channelId} not found", LogSeverity.Error);
+                await _logging.LogAction($"[{ServiceName}] Error: Channel {channelId} not found", true, true);
+                LoggingService.LogToConsole($"[{ServiceName}] Error: Channel {channelId} not found", LogSeverity.Error);
                 return;
             }
             foreach (var item in feed.Items.Take(MaximumCheck))
@@ -110,7 +110,7 @@ public class FeedService
                 // Title
                 var newsTitle = string.Format(newsFeed.TitleFormat, item.Title.Text);
                 if (newsTitle.Length > 90)
-                    newsTitle = newsTitle.Substring(0, 95) + "...";
+                    newsTitle = newsTitle[..90] + "...";
                 
                 // Confirm we haven't posted this title before
                 if (_postedFeeds.Contains(newsTitle))
@@ -126,8 +126,8 @@ public class FeedService
                     var summary = Utils.Utils.RemoveHtmlTags(item.Summary.Text);
                     newsContent = "**__Summary__**\n" + summary;
                     // Unlikely to be over, but we need space for extra local info
-                    if (newsContent.Length > Constants.MaxLengthChannelMessage - 100)
-                        newsContent = newsContent.Substring(0, Constants.MaxLengthChannelMessage - 100) + "...";
+                    if (newsContent.Length > Constants.MaxLengthChannelMessage - 400)
+                        newsContent = newsContent[..(Constants.MaxLengthChannelMessage - 400)] + "...";
                 }
                 // If a role is provided we add to end of title to ping the role
                 var role = _client.GetGuild(_settings.GuildId).GetRole(roleId ?? 0);
@@ -140,7 +140,7 @@ public class FeedService
                 // The Post
                 var post = await channel.CreatePostAsync(newsTitle, ForumArchiveDuration, null, newsContent, null, null, AllowedMentions.All);
                 // If any tags, include them
-                if (newsFeed.IncludeTags != null && newsFeed.IncludeTags.Count > 0)
+                if (newsFeed.IncludeTags is { Count: > 0 })
                 {
                     var includedTags = new List<ulong>();
                     foreach (var tag in newsFeed.IncludeTags)
@@ -157,7 +157,7 @@ public class FeedService
         catch (Exception e)
         {
             LoggingService.LogToConsole(e.ToString(), LogSeverity.Error);
-            await _logging.LogAction($"Feed Service Error: {e.ToString()}", true, true);
+            await _logging.LogAction($"[{ServiceName}] Error: {e.ToString()}", true, true);
         }
     }
 
