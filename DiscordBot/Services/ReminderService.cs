@@ -160,7 +160,9 @@ public class ReminderService
                     // If channel is null we get the bot command channel, and send the message there
                     channel ??= _client.GetChannel(_botCommandsChannel.Id) as SocketTextChannel;
                     var user = _client.GetUser(reminder.UserId);
-                    if (user != null)
+                    if (user == null) continue;
+                    
+                    if (channel != null)
                         await channel.SendMessageAsync(
                             $"{user.Mention} reminder: \"{reminder.Message}\"");
                 }
