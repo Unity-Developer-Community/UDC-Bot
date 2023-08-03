@@ -29,7 +29,7 @@ public class RecruitService
     private Color WarningMessageColor => new (255, 255, 100);
     private Color EditedMessageColor => new (100, 255, 100);
 
-    private const int TimeBeforeDeletingForumInSec = 30;
+    private const int TimeBeforeDeletingForumInSec = 60;
     private const string _messageToBeDeleted = "Your thread will be deleted in %s because it did not follow the expected guidelines. Try again after the slow mode period has passed.";
     
     private const int MinimumLengthMessage = 120;
@@ -263,7 +263,7 @@ public class RecruitService
         await parentChannel.AddPermissionOverwriteAsync(thread.Owner, new OverwritePermissions(sendMessages: PermValue.Allow));
         
         // We give them a bit of time to edit their post, then remove the permission
-        await message.DeleteAfterSeconds((_editTimePermissionInMin * 60) + 5);
+        await message.DeleteAfterSeconds((_editTimePermissionInMin * 60) + 2);
         await parentChannel.RemovePermissionOverwriteAsync(thread.Owner);
         
         // Lock the thread so anyone else can't post even when they have edit permissions
