@@ -28,8 +28,8 @@ public class ReminderService
     private readonly BotCommandsChannel _botCommandsChannel;
     private bool _hasChangedSinceLastSave = false;
 
-    private int _maxUserReminders = 5;
-        
+    private const int _maxUserReminders = 10;
+
     public ReminderService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings)
     {
         _client = client;
