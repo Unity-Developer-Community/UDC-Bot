@@ -138,7 +138,7 @@ public class RecruitService
 
         Task.Run(async () =>
         {
-            if (thread.AppliedTags.Count == 0)
+            if (!DoesThreadHaveAValidTag(thread))
             {
                 await ThreadHandleNoTags(thread);
                 return;
@@ -346,6 +346,12 @@ public class RecruitService
         if (tags.Contains(_tagUnpaidCollab.Id)) clashingTagCount++;
         
         return clashingTagCount > 1;
+    }
+
+    private bool DoesThreadHaveAValidTag(SocketThreadChannel thread)
+    {
+        var tags = thread.AppliedTags;
+        return tags.Contains(_tagIsHiring.Id) || tags.Contains(_tagWantsWork.Id) || tags.Contains(_tagUnpaidCollab.Id);
     }
     
     private async Task DeleteThread(SocketThreadChannel thread)
