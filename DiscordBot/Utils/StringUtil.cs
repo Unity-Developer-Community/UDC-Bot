@@ -5,7 +5,7 @@ namespace DiscordBot.Utils;
 public static class StringUtil
 {
     private static readonly Regex CurrencyRegex =
-        new (@"(?:\$\s*\d+|\d+\s*\$|\d*\s*(?:USD|£|pounds|€|EUR|euro|euros|GBP))", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(250));
+        new (@"(?:\$\s*\d+|\d+\s*\$|\d*\s*(?:USD|£|pounds|€|EUR|euro|euros|GBP|円|YEN))", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(250));
     private static readonly Regex RevShareRegex = new (@"\b(?:rev-share|revshare|rev share)\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(250));
     
     // a string extension that checks if the contents of the string contains a limited selection of currency symbols/words

@@ -29,7 +29,7 @@ public class RecruitService
     private Color WarningMessageColor => new (255, 255, 100);
     private Color EditedMessageColor => new (100, 255, 100);
 
-    private const int TimeBeforeDeletingForumInSec = 30;
+    private const int TimeBeforeDeletingForumInSec = 60;
     private const string _messageToBeDeleted = "Your thread will be deleted in %s because it did not follow the expected guidelines. Try again after the slow mode period has passed.";
     
     private const int MinimumLengthMessage = 120;
@@ -97,6 +97,7 @@ public class RecruitService
 
         // Subscribe to events
         _client.ThreadCreated += GatewayOnThreadCreated;
+        _client.MessageReceived += GatewayOnMessageReceived;
 
         ConstructEmbeds();
         
@@ -138,7 +139,7 @@ public class RecruitService
 
         Task.Run(async () =>
         {
-            if (thread.AppliedTags.Count == 0)
+            if (!DoesThreadHaveAValidTag(thread))
             {
                 await ThreadHandleNoTags(thread);
                 return;
@@ -191,6 +192,27 @@ public class RecruitService
             }
         });
     }
+    
+    private async Task GatewayOnMessageReceived(SocketMessage message)
+    {
+        var thread = message.Channel as SocketThreadChannel;
+        // check if channel is a thread in a forum
+        if (thread == null)
+            return;
+        
+        if (!thread.IsThreadInChannel(_recruitChannel.Id))
+            return;
+        if (message.Author.IsUserBotOrWebhook())
+            return;
+        if (message.Author.HasRoleGroup(ModeratorRole))
+            return;
+
+        // Sanity process, delete any new messages that aren't written from the thread owner, moderators or bots.
+        if (message.Author.Id != thread.Owner.Id)
+        {
+            await message.DeleteAsync();
+        }
+    }
 
     #endregion // Thread Creation
 
@@ -241,8 +263,11 @@ public class RecruitService
         await parentChannel.AddPermissionOverwriteAsync(thread.Owner, new OverwritePermissions(sendMessages: PermValue.Allow));
         
         // We give them a bit of time to edit their post, then remove the permission
-        await message.DeleteAfterSeconds((_editTimePermissionInMin * 60) + 5);
+        await message.DeleteAfterSeconds((_editTimePermissionInMin * 60) + 2);
         await parentChannel.RemovePermissionOverwriteAsync(thread.Owner);
+        
+        // Lock the thread so anyone else can't post even when they have edit permissions
+        await thread.ModifyAsync(x => x.Locked = true);
     }
     
     #endregion // Basic Handlers for posts
@@ -346,6 +371,12 @@ public class RecruitService
         if (tags.Contains(_tagUnpaidCollab.Id)) clashingTagCount++;
         
         return clashingTagCount > 1;
+    }
+
+    private bool DoesThreadHaveAValidTag(SocketThreadChannel thread)
+    {
+        var tags = thread.AppliedTags;
+        return tags.Contains(_tagIsHiring.Id) || tags.Contains(_tagWantsWork.Id) || tags.Contains(_tagUnpaidCollab.Id);
     }
     
     private async Task DeleteThread(SocketThreadChannel thread)
