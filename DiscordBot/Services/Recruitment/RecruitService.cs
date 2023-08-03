@@ -97,6 +97,7 @@ public class RecruitService
 
         // Subscribe to events
         _client.ThreadCreated += GatewayOnThreadCreated;
+        _client.MessageReceived += GatewayOnMessageReceived;
 
         ConstructEmbeds();
         
@@ -191,6 +192,27 @@ public class RecruitService
             }
         });
     }
+    
+    private async Task GatewayOnMessageReceived(SocketMessage message)
+    {
+        var thread = message.Channel as SocketThreadChannel;
+        // check if channel is a thread in a forum
+        if (thread == null)
+            return;
+        
+        if (!thread.IsThreadInChannel(_recruitChannel.Id))
+            return;
+        if (message.Author.IsUserBotOrWebhook())
+            return;
+        if (message.Author.HasRoleGroup(ModeratorRole))
+            return;
+
+        // Sanity process, delete any new messages that aren't written from the thread owner, moderators or bots.
+        if (message.Author.Id != thread.Owner.Id)
+        {
+            await message.DeleteAsync();
+        }
+    }
 
     #endregion // Thread Creation
 
@@ -243,6 +265,9 @@ public class RecruitService
         // We give them a bit of time to edit their post, then remove the permission
         await message.DeleteAfterSeconds((_editTimePermissionInMin * 60) + 5);
         await parentChannel.RemovePermissionOverwriteAsync(thread.Owner);
+        
+        // Lock the thread so anyone else can't post even when they have edit permissions
+        await thread.ModifyAsync(x => x.Locked = true);
     }
     
     #endregion // Basic Handlers for posts
