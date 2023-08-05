@@ -17,6 +17,9 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
     [SlashCommand("resolve-question", "If in unity-help forum channel, resolve the thread")]
     public async Task ResolveQuestion()
     {
+        if (!BotSettings.UnityHelpBabySitterEnabled)
+            return;
+        
         await Context.Interaction.DeferAsync(ephemeral: true);
 
         if (!IsValidUser())
@@ -42,6 +45,9 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
     [MessageCommand("Correct Answer")]
     public async Task MarkResponseAnswer(IMessage targetResponse)
     {
+        if (!BotSettings.UnityHelpBabySitterEnabled)
+            return;
+        
         await Context.Interaction.DeferAsync(ephemeral: true);
         if (!IsValidUser())
         {
