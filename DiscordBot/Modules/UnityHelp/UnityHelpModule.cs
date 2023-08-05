@@ -19,6 +19,8 @@ public class UnityHelpModule : ModuleBase
     [Summary("When a question is answered, use this command to mark it as resolved.")]
     public async Task ResolveAsync()
     {
+        if (!BotSettings.UnityHelpBabySitterEnabled)
+            return;
         if (!IsValidUser() || !IsInHelpChannel())
             await Context.Message.DeleteAsync();
         await HelpService.OnUserRequestChannelClose(Context.User, Context.Channel as SocketThreadChannel);

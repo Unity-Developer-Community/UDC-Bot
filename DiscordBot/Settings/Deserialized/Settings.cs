@@ -110,6 +110,12 @@ public class BotSettings
 
     #endregion // Recruitment Thread Tags
 
+    #region Unity Help Threads
+
+    public string TagUnitHelpResolvedTag { get; set; }
+
+    #endregion // Unity Help Threads
+
     #region API Keys
 
     public string WeatherAPIKey { get; set; }

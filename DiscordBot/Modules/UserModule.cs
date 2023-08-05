@@ -746,16 +746,34 @@ public class UserModule : ModuleBase
         foreach (var p in pages)
         {
             var curScore = CalculateScore(p[1], query);
-            if (curScore < minimumScore)
-            {
-                minimumScore = curScore;
-                mostSimilarPage = p;
-            }
+            if (!(curScore < minimumScore)) continue;
+            
+            minimumScore = curScore;
+            mostSimilarPage = p;
         }
 
         // If a page has been found (should be), return the message, else return information
         if (mostSimilarPage != null)
-            await ReplyAsync($"** {mostSimilarPage[1]} **\nRead More: https://docs.unity3d.com/Manual/{mostSimilarPage[0]}.html");
+        {
+            EmbedBuilder embedBuilder = new();
+            embedBuilder.Title = $"Found {mostSimilarPage[0]}";
+            embedBuilder.Description = $"**{mostSimilarPage[1]}** - [Read More..](https://docs.unity3d.com/Manual/{mostSimilarPage[0]}.html)";
+            embedBuilder.Color = new Color(81, 50, 169);
+            embedBuilder.Footer = new EmbedFooterBuilder().WithText("Results sourced from Unity3D Docs.");
+            var message = await ReplyAsync(embed: embedBuilder.Build());
+            
+            var doc = new HtmlWeb().Load($"https://docs.unity3d.com/Manual/{mostSimilarPage[0]}.html");
+            // Get first Header as this'll contain the main part we need
+            var descriptionNode = doc.DocumentNode.SelectSingleNode("//h1");
+            if (descriptionNode == null) return;
+            // Description is in next <p>, but we need to strip out tooltips
+            descriptionNode = descriptionNode.SelectSingleNode("following-sibling::p");
+            descriptionNode.Descendants().Where(n => n.GetAttributeValue("class", "").Contains("tooltip")).ToList().ForEach(n => n.Remove());
+            var description = descriptionNode.InnerText;
+
+            embedBuilder.WithDescription($"**Description:** {(description.Length > 500 ? $"{description[..500]}.." : description)}\n" + $"[Read More..](https://docs.unity3d.com/Manual/{mostSimilarPage[0]}.html)");
+            await message.ModifyAsync(msg => msg.Embed = embedBuilder.Build());
+        }
         else
             await ReplyAsync("No Results Found.").DeleteAfterSeconds(seconds: 10);
     }
@@ -775,17 +793,49 @@ public class UserModule : ModuleBase
         foreach (var p in pages)
         {
             var curScore = CalculateScore(p[1], query);
-            if (curScore < minimumScore)
-            {
-                minimumScore = curScore;
-                mostSimilarPage = p;
-            }
+            if (!(curScore < minimumScore)) continue;
+            
+            minimumScore = curScore;
+            mostSimilarPage = p;
         }
-
+        
         // If a page has been found (should be), return the message, else return information
         if (mostSimilarPage != null)
-            await ReplyAsync(
-                $"** {mostSimilarPage[1]} **\nRead More: https://docs.unity3d.com/ScriptReference/{mostSimilarPage[0]}.html");
+        {
+            EmbedBuilder embedBuilder = new();
+            embedBuilder.Title = $"Found {mostSimilarPage[0]}";
+            embedBuilder.Description = $"**{mostSimilarPage[1]}** - [Read More..](https://docs.unity3d.com/ScriptReference/{mostSimilarPage[0]}.html)";
+            embedBuilder.Color = new Color(81, 50, 169);
+            embedBuilder.Footer = new EmbedFooterBuilder().WithText("Results sourced from Unity3D Docs.");
+            var message = await ReplyAsync(embed: embedBuilder.Build());
+            
+            // Load the page, and look for a <h3>Description</h3> tag, and then get the next <p> tag
+            var doc = new HtmlWeb().Load($"https://docs.unity3d.com/ScriptReference/{mostSimilarPage[0]}.html");
+            var descriptionNode = doc.DocumentNode.SelectSingleNode("//h3[contains(text(), 'Description')]");
+
+            string descriptionString = "";
+            string manualLinkString = "";
+            if (descriptionNode != null)
+            {
+                var description = descriptionNode.SelectSingleNode("following-sibling::p").InnerText;
+                descriptionString =
+                    $"**Description:** {(description.Length > 500 ? $"{description[..500]}.." : description)}\n" +
+                    $"[Read More..](https://docs.unity3d.com/ScriptReference/{mostSimilarPage[0]}.html)";
+
+            }
+
+            // We check the page for the first "switch-link" class, which will be a link to a Manual page
+            var manualLink = doc.DocumentNode.SelectSingleNode("//a[contains(@class, 'switch-link')]");
+            if (manualLink != null && manualLink.Attributes.Contains("title"))
+            {
+                var manualLinkText = manualLink.GetAttributes("title").First().Value;
+                var manualLinkUrl = "https://docs.unity3d.com/" + manualLink.GetAttributeValue("href", "");
+                manualLinkString = $"\n**Manual:** [{manualLinkText}]({manualLinkUrl})";
+            }
+
+            embedBuilder.WithDescription(descriptionString + manualLinkString);
+            await message.ModifyAsync(msg => msg.Embed = embedBuilder.Build());
+        }
         else
             await ReplyAsync("No Results Found.").DeleteAfterSeconds(seconds: 10);
     }

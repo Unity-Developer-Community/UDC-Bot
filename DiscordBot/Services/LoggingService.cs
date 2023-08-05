@@ -104,7 +104,7 @@ public class LoggingService : ILoggingService
     
     public static void LogServiceDisabled(string service, string varName)
     {
-        LogToConsole($"Service \"{service}\" is Disabled, {varName} is false in settings.json", ExtendedLogSeverity.Warning);
+        LogToConsole($"Service \"{service}\" is Disabled, {varName} is false in settings.json", ExtendedLogSeverity.LowWarning);
     }
     
     public static void LogServiceEnabled(string service)

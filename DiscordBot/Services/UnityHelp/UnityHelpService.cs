@@ -73,7 +73,6 @@ public class UnityHelpService
     
     private readonly IForumChannel _helpChannel;
     
-    private const string ResolvedTag = "Resolved";
     private readonly ForumTag _resolvedForumTag;
 
     #endregion // Extra Details
@@ -97,7 +96,9 @@ public class UnityHelpService
         {
             LoggingService.LogToConsole($"[{ServiceName}] Help channel not found", LogSeverity.Error);
         }
-        var resolvedTag = _helpChannel!.Tags.FirstOrDefault(x => x.Name == ResolvedTag);
+        var resolvedTag = _helpChannel!.Tags.FirstOrDefault(x => x.Id == ulong.Parse(settings.TagUnitHelpResolvedTag));
+        if (resolvedTag == null || resolvedTag.Id <= 0)
+            LoggingService.LogToConsole($"[{ServiceName}] Resolved tag not found", LogSeverity.Error);
         _resolvedForumTag = resolvedTag;
 
         // on reaction added, call method
