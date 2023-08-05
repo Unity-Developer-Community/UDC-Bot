@@ -37,7 +37,7 @@ public class Program
         {
             LogLevel = LogSeverity.Verbose,
             AlwaysDownloadUsers = true,
-            MessageCacheSize = 50,
+            MessageCacheSize = 200,
             GatewayIntents = GatewayIntents.All,
         });
         _client.Log += LoggingService.DiscordNetLogger;
