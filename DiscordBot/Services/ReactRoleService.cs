@@ -7,6 +7,8 @@ namespace DiscordBot.Services;
 
 public class ReactRoleService
 {
+    private const string ServiceName = "ReactRoleService";
+    
     private const string ReactionSettingsPath = @"Settings/ReactionRoles.json";
     private readonly DiscordSocketClient _client;
     private readonly Dictionary<ulong, GuildEmote> _guildEmotes = new Dictionary<ulong, GuildEmote>();
@@ -35,8 +37,12 @@ public class ReactRoleService
         _client = client;
 
         if (!_settings.ReactRoleServiceEnabled)
+        {
+            LoggingService.LogServiceDisabled(ServiceName, nameof(_settings.ReactRoleServiceEnabled));
             return;
-        
+        }
+        LoggingService.LogServiceEnabled(ServiceName);
+
         _client.ReactionAdded += ReactionAdded;
         _client.ReactionRemoved += ReactionRemoved;
         
