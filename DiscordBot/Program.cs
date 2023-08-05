@@ -49,28 +49,27 @@ public class Program
         {
             // Ready can be called additional times if the bot disconnects for long enough,
             // so we need to make sure we only initialize commands and such for the bot once if it manages to re-establish connection
-            if (!_isInitialized)
+            if (_isInitialized) return Task.CompletedTask;
+            
+            _interactionService = new InteractionService(_client);
+            _commandService = new CommandService(new CommandServiceConfig
             {
-                _interactionService = new InteractionService(_client);
-                _commandService = new CommandService(new CommandServiceConfig
-                {
-                    CaseSensitiveCommands = false,
-                    DefaultRunMode = RunMode.Async
-                });
+                CaseSensitiveCommands = false,
+                DefaultRunMode = RunMode.Async
+            });
 
-                _services = ConfigureServices();
-                _commandHandlingService = _services.GetRequiredService<CommandHandlingService>();
+            _services = ConfigureServices();
+            _commandHandlingService = _services.GetRequiredService<CommandHandlingService>();
 
-                _client.GetGuild(_settings.GuildId)
-                    ?.GetTextChannel(_settings.BotAnnouncementChannel.Id)
-                    ?.SendMessageAsync("Bot Started.");
+            _client.GetGuild(_settings.GuildId)
+                ?.GetTextChannel(_settings.BotAnnouncementChannel.Id)
+                ?.SendMessageAsync("Bot Started.");
 
-                LoggingService.LogToConsole("Bot is connected.", ExtendedLogSeverity.Positive);
-                _isInitialized = true;
+            LoggingService.LogToConsole("Bot is connected.", ExtendedLogSeverity.Positive);
+            _isInitialized = true;
                 
-                _unityHelpService = _services.GetRequiredService<UnityHelpService>();
-                _recruitService = _services.GetRequiredService<RecruitService>();
-            }
+            _unityHelpService = _services.GetRequiredService<UnityHelpService>();
+            _recruitService = _services.GetRequiredService<RecruitService>();
             return Task.CompletedTask;
         };
 
