@@ -25,18 +25,18 @@ public class RecruitService
     
     #region Configuration
 
-    private Color DeletedMessageColor => new (255, 50, 50);
-    private Color WarningMessageColor => new (255, 255, 100);
-    private Color EditedMessageColor => new (100, 255, 100);
+    private static Color DeletedMessageColor => new (255, 50, 50);
+    private static Color WarningMessageColor => new (255, 255, 100);
+    private static Color EditedMessageColor => new (100, 255, 100);
 
     private const int TimeBeforeDeletingForumInSec = 60;
-    private const string _messageToBeDeleted = "Your thread will be deleted in %s because it did not follow the expected guidelines. Try again after the slow mode period has passed.";
+    private const string MessageToBeDeleted = "Your thread will be deleted in %s because it did not follow the expected guidelines. Try again after the slow mode period has passed.";
     
     private const int MinimumLengthMessage = 120;
     private const int ShortMessageNoticeDurationInSec = 30 * 4;
 
     private readonly int _editTimePermissionInMin;
-    private const string _messageToBeEdited = "This post will remain editable until %s, make any desired changes to your thread. After that the thread will be locked.";
+    private const string MessageToBeEdited = "This post will remain editable until %s, make any desired changes to your thread. After that the thread will be locked.";
 
 
     private Embed _userHiringButNoPrice;
@@ -279,7 +279,7 @@ public class RecruitService
         LoggingService.LogToConsole($"[{ServiceName}] Tag {tagId} not found. '{tagName}'", LogSeverity.Error);
     }
 
-    #endregion // Basic Logging Assisst
+    #endregion // Basic Logging Assist
 
     #region Embed Construction
 
@@ -326,7 +326,7 @@ public class RecruitService
     
     private Embed GetDeletedMessageEmbed()
     {
-        var message = _messageToBeDeleted.Replace("%s", GetDynamicTimeStampString(TimeBeforeDeletingForumInSec));
+        var message = MessageToBeDeleted.Replace("%s", GetDynamicTimeStampString(TimeBeforeDeletingForumInSec));
         return new EmbedBuilder()
             .WithTitle("Post does not follow guidelines")
             .WithDescription(message)
@@ -336,7 +336,7 @@ public class RecruitService
 
     private Embed GetEditPermMessageEmbed()
     {
-        var message = _messageToBeEdited.Replace("%s", GetDynamicTimeStampString(_editTimePermissionInMin * 60));
+        var message = MessageToBeEdited.Replace("%s", GetDynamicTimeStampString(_editTimePermissionInMin * 60));
         return new EmbedBuilder()
             .WithTitle("Edit permissions granted")
             .WithDescription(message)
