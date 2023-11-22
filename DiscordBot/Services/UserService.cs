@@ -460,7 +460,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             if (_thanksCooldown.HasUser(userId))
             {
                 await messageParam.Channel.SendMessageAsync(
-                        $"{messageParam.Author.GetUserPreferredName()}, you must wait " +
+                        $"{messageParam.Author.Mention} you must wait " +
                         $"{DateTime.Now - _thanksCooldown[userId]:ss} " +
                         "seconds before giving another karma point." + Environment.NewLine +
                         "(In the future, if you are trying to thank multiple people, include all their names in the thanks message.)")
@@ -506,7 +506,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             sb.Append(".");
             if (mentionedSelf)
                 await messageParam.Channel.SendMessageAsync(
-                    $"{messageParam.Author.GetUserPreferredName()}, you can't give karma to yourself.").DeleteAfterTime(defaultDelTime);
+                    $"{messageParam.Author.Mention} you can't give karma to yourself.").DeleteAfterTime(defaultDelTime);
 
             _canEditThanks.Remove(messageParam.Id);
 
@@ -551,7 +551,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             {
                 // A ``` codeblock was found, but no CS, let 'em know
                 await messageParam.Channel.SendMessageAsync(
-                        $"{messageParam.Author.GetUserPreferredName()}, when using code blocks remember to use the ***syntax highlights*** to improve readability.\n{CodeReminderFormattingExample}")
+                        $"{messageParam.Author.Mention} when using code blocks remember to use the ***syntax highlights*** to improve readability.\n{CodeReminderFormattingExample}")
                     .DeleteAfterSeconds(seconds: 60);
                 return;
             }
@@ -570,7 +570,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             {
                 //! CodeReminderCooldown.AddCooldown(userId, _codeReminderCooldownTime);
                 await messageParam.Channel.SendMessageAsync(
-                        $"{messageParam.Author.GetUserPreferredName()}, are you sharing C# scripts? Remember to use codeblocks to help readability!\n{CodeReminderFormattingExample}")
+                        $"{messageParam.Author.Mention} are you sharing C# scripts? Remember to use codeblocks to help readability!\n{CodeReminderFormattingExample}")
                     .DeleteAfterSeconds(seconds: 60);
                 if (content.Length > _maxCodeBlockLengthWarning)
                 {
@@ -606,7 +606,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 DateTime.Now.AddSeconds(_settings.EveryoneScoldPeriodSeconds);
 
             await messageParam.Channel.SendMessageAsync(
-                    $"Please don't try to alert **everyone** on the server, {messageParam.Author.GetUserPreferredName()}!\n" +
+                    $"Please don't try to alert **everyone** on the server, {messageParam.Author.Mention}!\n" +
                     "If you are asking a question, people will help you when they have time.")
                 .DeleteAfterTime(minutes: 2);
         }
