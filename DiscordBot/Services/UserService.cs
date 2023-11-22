@@ -271,7 +271,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (level <= 3)
             return;
 
-        await messageParam.Channel.SendMessageAsync($"**{messageParam.Author}** has leveled up !").DeleteAfterTime(60);
+        await messageParam.Channel.SendMessageAsync($"**{messageParam.Author.GetUserPreferredName()}** has leveled up!").DeleteAfterTime(60);
         //TODO Add level up card
     }
 
@@ -411,7 +411,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         string icon = user.GetAvatarUrl();
         icon = string.IsNullOrEmpty(icon) ? "https://cdn.discordapp.com/embed/avatars/0.png" : icon;
         
-        string welcomeString = $"Welcome to Unity Developer Community {user.GetPreferredAndUsername()}!";
+        string welcomeString = $"Welcome to Unity Developer Community, {user.GetPreferredAndUsername()}!";
         var builder = new EmbedBuilder()
             .WithDescription(welcomeString)
             .WithColor(_welcomeColour)
@@ -460,10 +460,10 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             if (_thanksCooldown.HasUser(userId))
             {
                 await messageParam.Channel.SendMessageAsync(
-                        $"{messageParam.Author.Mention} you must wait " +
+                        $"{messageParam.Author.GetUserPreferredName()}, you must wait " +
                         $"{DateTime.Now - _thanksCooldown[userId]:ss} " +
                         "seconds before giving another karma point." + Environment.NewLine +
-                        "(In the future, if you are trying to thank multiple people, include all their names in the thanks message)")
+                        "(In the future, if you are trying to thank multiple people, include all their names in the thanks message.)")
                     .DeleteAfterTime(defaultDelTime);
                 return;
             }
@@ -478,7 +478,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var mentionedSelf = false;
             var mentionedBot = false;
             var sb = new StringBuilder();
-            sb.Append("**").Append(messageParam.Author.Username).Append("** gave karma to **");
+            sb.Append("**").Append(messageParam.Author.GetUserPreferredName()).Append("** gave karma to **");
             foreach (var user in mentions)
             {
                 if (user.IsBot)
@@ -494,18 +494,19 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 }
 
                 await _databaseService.Query().IncrementKarma(user.Id.ToString());
-                sb.Append(user.Username).Append(" , ");
+                sb.Append(user.GetUserPreferredName()).Append("**, **");
             }
 
             // Even if a user gives multiple karma in one message, we only add one.
             var authorKarmaGiven = await _databaseService.Query().GetKarmaGiven(messageParam.Author.Id.ToString());
             await _databaseService.Query().UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
 
-            sb.Length -= 2; //Removes last instance of appended comma without convoluted tracking
-            sb.Append("**");
+            sb.Length -= 4; //Removes last instance of appended comma/startbold without convoluted tracking
+            //sb.Append("**"); // Already appended an endbold
+            sb.Append(".");
             if (mentionedSelf)
                 await messageParam.Channel.SendMessageAsync(
-                    $"{messageParam.Author.Mention} you can't give karma to yourself.").DeleteAfterTime(defaultDelTime);
+                    $"{messageParam.Author.GetUserPreferredName()}, you can't give karma to yourself.").DeleteAfterTime(defaultDelTime);
 
             _canEditThanks.Remove(messageParam.Id);
 
@@ -550,7 +551,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             {
                 // A ``` codeblock was found, but no CS, let 'em know
                 await messageParam.Channel.SendMessageAsync(
-                        $"{messageParam.Author.Mention} when using code blocks remember to use the ***syntax highlights*** to improve readability.\n{CodeReminderFormattingExample}")
+                        $"{messageParam.Author.GetUserPreferredName()}, when using code blocks remember to use the ***syntax highlights*** to improve readability.\n{CodeReminderFormattingExample}")
                     .DeleteAfterSeconds(seconds: 60);
                 return;
             }
@@ -569,7 +570,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             {
                 //! CodeReminderCooldown.AddCooldown(userId, _codeReminderCooldownTime);
                 await messageParam.Channel.SendMessageAsync(
-                        $"{messageParam.Author.Mention} are you sharing c# scripts? Remember to use codeblocks to help readability!\n{CodeReminderFormattingExample}")
+                        $"{messageParam.Author.GetUserPreferredName()}, are you sharing C# scripts? Remember to use codeblocks to help readability!\n{CodeReminderFormattingExample}")
                     .DeleteAfterSeconds(seconds: 60);
                 if (content.Length > _maxCodeBlockLengthWarning)
                 {
@@ -605,7 +606,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 DateTime.Now.AddSeconds(_settings.EveryoneScoldPeriodSeconds);
 
             await messageParam.Channel.SendMessageAsync(
-                    $"Please don't try to alert **everyone** on the server {messageParam.Author.Mention}!\nIf you are asking a question, people will help you when they have time.")
+                    $"Please don't try to alert **everyone** on the server, {messageParam.Author.GetUserPreferredName()}!\n" +
+                    "If you are asking a question, people will help you when they have time.")
                 .DeleteAfterTime(minutes: 2);
         }
     }
