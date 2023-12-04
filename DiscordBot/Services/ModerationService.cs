@@ -25,6 +25,10 @@ public class ModerationService
     {
         if (message.Value.Author.IsBot || channel.Id == _settings.BotAnnouncementChannel.Id)
             return;
+        // Check the author is even in the guild
+        var guildUser = message.Value.Author as SocketGuildUser;
+        if (guildUser == null)
+            return;
 
         var content = message.Value.Content;
         if (content.Length > MaxMessageLength)
