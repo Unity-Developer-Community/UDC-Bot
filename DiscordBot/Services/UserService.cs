@@ -171,7 +171,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         else
         {
             await _loggingService.LogAction(
-                $"User `{guildUser.GetPreferredAndUsername()}` - ID : `{user.Id}` - Left at {DateTime.Now}");
+                $"User Left - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}` - Left at {DateTime.Now}");
         }
     }
 
