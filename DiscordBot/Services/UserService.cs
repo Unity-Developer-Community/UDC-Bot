@@ -680,6 +680,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         await Task.Delay(10000);
         try
         {
+            List<ulong> toRemove = new();
             while (true)
             {
                 var now = DateTime.Now;
@@ -689,8 +690,22 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 {
                     currentlyProcessedUserId = userData.id;
                     await ProcessWelcomeUser(userData.id, null);
+                    
+                    toRemove.Add(userData.id);
                 }
                 
+                // Remove all the users we've welcomed from the list
+                if (toRemove.Count > 0)
+                {
+                    _welcomeNoticeUsers.RemoveAll(u => toRemove.Contains(u.id));
+                    toRemove.Clear();
+                    // Prevent the list from growing too large, not that it really matters.
+                    if (toRemove.Capacity > 20)
+                    {
+                        toRemove.Capacity = 20;
+                    }
+                }
+
                 if (firstRun)
                     firstRun = false;
                 await Task.Delay(10000);
@@ -723,9 +738,6 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         if (_welcomeNoticeUsers.Exists(u => u.id == userID))
         {
-            // Remove the user from the welcome list.
-            _welcomeNoticeUsers.RemoveAll(u => u.id == userID);
-
             // If we didn't get the user passed in, we try grab it
             user ??= await _client.GetUserAsync(userID);
             // if they're null, they've likely left, so we just remove them from the list.
