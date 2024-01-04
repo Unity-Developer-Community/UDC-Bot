@@ -1146,15 +1146,22 @@ public class UserModule : ModuleBase
     {
         await ConvertCurrency(1, from, to);
     }
-
+    
     [Command("Currency"), Priority(29)]
     [Summary("Converts a currency. Syntax : !currency amount fromCurrency toCurrency")]
     [Alias("curr")]
     public async Task ConvertCurrency(double amount, string from, string to = "usd")
     {
         if (Context.HasAnyPingableMention())
-            return;
-        
+        {
+            // Only continue command if the user is replying to a message
+            if (!Context.IsReply())
+                return;
+            // And that mention is only the author of the replied message
+            if (!Context.IsOnlyReplyingToAuthor())
+                return;
+        }
+
         from = from.ToLower();
         to = to.ToLower();
 
