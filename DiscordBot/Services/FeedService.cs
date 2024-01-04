@@ -1,5 +1,4 @@
 using System.IO;
-using System.Net.Http;
 using System.ServiceModel.Syndication;
 using System.Xml;
 using Discord.WebSocket;
@@ -70,10 +69,8 @@ public class FeedService
         SyndicationFeed feed = null;
         try
         {
-            var client = new HttpClient();
-            var response = await client.GetStringAsync(url);
-            response = Utils.Utils.SanitizeXml(response);
-            var reader = XmlReader.Create(new StringReader(response));
+            var content = await Utils.WebUtil.GetXMLContent(url);
+            var reader = XmlReader.Create(new StringReader(content));
             feed = SyndicationFeed.Load(reader);
         }
         catch (Exception e)
@@ -82,9 +79,7 @@ public class FeedService
         }
 
         // Return the feed, empty feed if null to prevent additional checks for null on return
-        if (feed == null)
-            feed = new SyndicationFeed();
-        return feed;
+        return feed ??= new SyndicationFeed();
     }
 
     #region Feed Handlers
