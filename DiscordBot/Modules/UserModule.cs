@@ -283,7 +283,7 @@ public class UserModule : ModuleBase
 
             await u.AddRoleAsync(role);
             await ReplyAsync($"{u.Username} you now have the `{role.Name}` role.");
-            await LoggingService.LogAction($"{Context.User.Username} has added {role} to themself.");
+            await LoggingService.LogChannelAndFile($"{Context.User.Username} has added {role} to themself.");
         }
 
         [Command("Remove")]
@@ -301,7 +301,7 @@ public class UserModule : ModuleBase
 
             await u.RemoveRoleAsync(role);
             await ReplyAsync($"{u.Username} your `{role.Name}` role has been removed");
-            await LoggingService.LogAction($"{Context.User.Username} has removed role {role} from themself.");
+            await LoggingService.LogChannelAndFile($"{Context.User.Username} has removed role {role} from themself.");
         }
 
         [Command("List")]
@@ -505,7 +505,7 @@ public class UserModule : ModuleBase
         }
         catch (Exception e)
         {
-            await LoggingService.LogAction($"Failed to generate top 10 embed.\n{e}", true, false);
+            await LoggingService.LogChannelAndFile($"Failed to generate top 10 embed.\n{e}", ExtendedLogSeverity.LowWarning);
             embedBuilder.Description = "Failed to generate top 10 embed.";
         }
 
@@ -539,7 +539,8 @@ public class UserModule : ModuleBase
         }
         catch (Exception e)
         {
-            await LoggingService.LogAction($"Error while generating profile card for {user.Username}.\nEx:{e}", true, false);
+            await LoggingService.LogAction($"Error while generating profile card for {user.Username}.\nEx:{e}",
+                ExtendedLogSeverity.LowWarning);
         }
     }
 

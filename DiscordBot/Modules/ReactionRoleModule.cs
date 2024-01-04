@@ -226,7 +226,7 @@ public class ReactionRoleModule : ModuleBase
         ReactRoleService.ReactSettings.UserReactRoleList.Remove(foundMessage);
         await ReplyAsync(
             "Deleted the configuration for that ID, use \"!reactrole restart\" to enable these changes.");
-        await LoggingService.LogAction(
+        await LoggingService.LogChannelAndFile(
             $"{Context.User} deleted the reactionrole configuration for `{foundMessage}`.");
     }
 

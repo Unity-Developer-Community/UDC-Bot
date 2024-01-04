@@ -4,7 +4,6 @@ using DiscordBot.Settings;
 using Insight.Database;
 using MySql.Data.MySqlClient;
 
-
 namespace DiscordBot.Services;
 
 public class DatabaseService
@@ -41,13 +40,13 @@ public class DatabaseService
             try
             {
                 var userCount = await _connection.TestConnection();
-                await _logging.LogAction($"{ServiceName}: Connected to database successfully. {userCount} users in database.");
-                LoggingService.LogToConsole($"{ServiceName}: Connected to database successfully. {userCount} users in database.", ExtendedLogSeverity.Positive);
+                await _logging.LogAction(
+                    $"{ServiceName}: Connected to database successfully. {userCount} users in database.",
+                    ExtendedLogSeverity.Positive);
             }
             catch
             {
-                LoggingService.LogToConsole(
-                    "DatabaseService: Table 'users' does not exist, attempting to generate table.",
+                await _logging.LogAction("DatabaseService: Table 'users' does not exist, attempting to generate table.",
                     ExtendedLogSeverity.LowWarning);
                 try
                 {
@@ -60,13 +59,13 @@ public class DatabaseService
                 }
                 catch (Exception e)
                 {
-                    LoggingService.LogToConsole(
+                    await _logging.LogAction(
                         $"SQL Exception: Failed to generate table 'users'.\nMessage: {e}",
-                        LogSeverity.Critical);
+                        ExtendedLogSeverity.Critical);
                     c.Close();
                     return;
                 }
-                LoggingService.LogToConsole("DatabaseService: Table 'users' generated without errors.",
+                await _logging.LogAction("DatabaseService: Table 'users' generated without errors.",
                     ExtendedLogSeverity.Positive);
                 c.Close();
             }
@@ -84,8 +83,8 @@ public class DatabaseService
             }
             catch (Exception e)
             {
-                LoggingService.LogToConsole($"SQL Exception: Failed to generate leaderboard events.\nMessage: {e}",
-                    LogSeverity.Warning);
+                await _logging.LogAction($"SQL Exception: Failed to generate leaderboard events.\nMessage: {e}",
+                    ExtendedLogSeverity.Warning);
             }
         });
     }
@@ -129,7 +128,7 @@ public class DatabaseService
             });
         }
 
-        await _logging.LogAction(
+        await _logging.LogChannelAndFile(
             $"Database Synchronized {counter.ToString()} Users Successfully.\n{newAdd.ToString()} missing users added.");
     }
 
@@ -148,15 +147,14 @@ public class DatabaseService
 
             await Query().InsertUser(user);
 
-            await _logging.LogAction(
-                $"User {socketUser.GetPreferredAndUsername()} successfully added to the database.",
-                true,
-                false);
+            await _logging.Log(LogBehaviour.File,
+                $"User {socketUser.GetPreferredAndUsername()} successfully added to the database.");
         }
         catch (Exception e)
         {
-            await _logging.LogAction(
-                $"Error when trying to add user {socketUser.Id.ToString()} to the database : {e}", true, false);
+            // We don't print to channel as this could be spammy (Albeit rare)
+            await _logging.Log(LogBehaviour.Console | LogBehaviour.File,
+                $"Error when trying to add user {socketUser.Id.ToString()} to the database : {e}", ExtendedLogSeverity.Warning);
         }
     }
 
@@ -170,7 +168,8 @@ public class DatabaseService
         }
         catch (Exception e)
         {
-            await _logging.LogAction($"Error when trying to delete user {id.ToString()} from the database : {e}", true, false);
+            await _logging.Log(LogBehaviour.Console | LogBehaviour.File,
+                $"Error when trying to delete user {id.ToString()} from the database : {e}", ExtendedLogSeverity.Warning);
         }
     }
 

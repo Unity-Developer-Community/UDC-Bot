@@ -108,8 +108,7 @@ public class ReactRoleService
         var serverGuild = _client.GetGuild(_settings.GuildId);
         if (serverGuild == null)
         {
-            LoggingService.LogToConsole($"[{ServiceName}] ReactRoleService failed to start, could not return guild information.", LogSeverity.Warning);
-            await _loggingService.LogAction($"[{ServiceName}] ReactRoleService failed to start.");
+            await _loggingService.LogAction($"[{ServiceName}] ReactRoleService failed to start, could not return guild information.", ExtendedLogSeverity.Warning);
             return false;
         }
 
@@ -206,7 +205,7 @@ public class ReactRoleService
         }
 
         if (ReactSettings.LogUpdates)
-            await _loggingService.LogAction($"[{ServiceName}] {user.Username} Updated Roles.", false);
+            await _loggingService.Log(LogBehaviour.Channel, $"[{ServiceName}] {user.Username} Updated Roles.", ExtendedLogSeverity.Info);
 
         _pendingUserUpdate.Remove(user);
     }

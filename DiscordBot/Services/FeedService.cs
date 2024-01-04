@@ -89,11 +89,9 @@ public class FeedService
         try
         {
             var feed = await GetFeedData(newsFeed.Url);
-            var channel = _client.GetChannel(channelId) as IForumChannel;
-            if (channel == null)
+            if (_client.GetChannel(channelId) is not IForumChannel channel)
             {
-                await _logging.LogAction($"[{ServiceName}] Error: Channel {channelId} not found", true, true);
-                LoggingService.LogToConsole($"[{ServiceName}] Error: Channel {channelId} not found", LogSeverity.Error);
+                await _logging.LogAction($"[{ServiceName}] Error: Channel {channelId} not found", ExtendedLogSeverity.Error);
                 return;
             }
             foreach (var item in feed.Items.Take(MaximumCheck))
@@ -151,8 +149,7 @@ public class FeedService
         }
         catch (Exception e)
         {
-            LoggingService.LogToConsole(e.ToString(), LogSeverity.Error);
-            await _logging.LogAction($"[{ServiceName}] Error: {e.ToString()}", true, true);
+            await _logging.LogAction($"[{ServiceName}] Error: {e}", ExtendedLogSeverity.Error);
         }
     }
 

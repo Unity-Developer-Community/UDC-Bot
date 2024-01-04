@@ -54,10 +54,10 @@ public class ModerationService
 
         // TimeStamp for the Footer
 
+        
         await _loggingService.LogAction(
             $"User {user.GetPreferredAndUsername()} has " +
-            $"deleted the message\n{content}\n from channel #{(await channel.GetOrDownloadAsync()).Name}", true, false);
-        await _loggingService.LogAction(" ", false, true, embed);
+            $"deleted the message\n{content}\n from channel #{(await channel.GetOrDownloadAsync()).Name}", ExtendedLogSeverity.Info, embed);
     }
 
     private async Task MessageUpdated(Cacheable<IMessage, ulong> before, SocketMessage after, ISocketMessageChannel channel)
@@ -103,7 +103,6 @@ public class ModerationService
         
         await _loggingService.LogAction(
             $"User {user.GetPreferredAndUsername()} has " +
-            $"updated the message\n{content}\n in channel #{channel.Name}", true, false);
-        await _loggingService.LogAction(" ", false, true, embed);
+            $"updated the message\n{content}\n in channel #{channel.Name}", ExtendedLogSeverity.Info, embed);
     }
 }
