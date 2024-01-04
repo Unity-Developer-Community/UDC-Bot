@@ -23,6 +23,12 @@ public class ModerationService
 
     private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
     {
+        if (message.HasValue == false)
+        {
+            await _loggingService.LogChannelAndFile($"An uncached Message snowflake:`{message.Id}` was deleted from channel <#{(await channel.GetOrDownloadAsync()).Id}>");
+            return;
+        }
+        
         if (message.Value.Author.IsBot || channel.Id == _settings.BotAnnouncementChannel.Id)
             return;
         // Check the author is even in the guild
