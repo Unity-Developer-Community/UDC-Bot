@@ -3,6 +3,7 @@ using System.ServiceModel.Syndication;
 using System.Xml;
 using Discord.WebSocket;
 using DiscordBot.Settings;
+using HtmlAgilityPack;
 
 namespace DiscordBot.Services;
 
@@ -16,6 +17,7 @@ public class FeedService
 
     #region Configurable Settings
 
+    private const int MaxFeedLengthBuffer = 400;
     #region News Feed Config
 
     private class ForumNewsFeed
@@ -23,27 +25,29 @@ public class FeedService
         public string TitleFormat { get; set; }
         public string Url { get; set; }
         public List<string> IncludeTags { get; set; }
-        public bool IncludeSummary { get; set; } = false;
+        public bool IsRelease { get; set; } = false;
     }
 
     private readonly ForumNewsFeed _betaNews = new()
     {
         TitleFormat = "Beta Release - {0}",
         Url = "https://unity3d.com/unity/beta/latest.xml",
-        IncludeTags = new(){ "Beta Update" }
+        IncludeTags = new(){ "Beta Update" },
+        IsRelease = true
     };
     private readonly ForumNewsFeed _releaseNews = new()
     {
         TitleFormat = "New Release - {0}",
         Url = "https://unity3d.com/unity/releases.xml",
-        IncludeTags = new(){"New Release"}
+        IncludeTags = new(){"New Release"},
+        IsRelease = true
     };
     private readonly ForumNewsFeed _blogNews = new()
     {
         TitleFormat = "Blog - {0}",
         Url = "https://blogs.unity3d.com/feed/",
         IncludeTags = new() { "Unity Blog" },
-        IncludeSummary = true
+        IsRelease = false
     };
     
     #endregion // News Feed Config
@@ -113,37 +117,37 @@ public class FeedService
                     _postedFeeds.RemoveAt(0);
 
                 // Message
-                string newsContent = string.Empty;
-                if (newsFeed.IncludeSummary)
+                var newsContent = string.Empty;
+                List<string> releaseNotes = new();
+                if (!newsFeed.IsRelease)
+                    newsContent = GetSummary(newsFeed, item);
+                else
                 {
-                    var summary = Utils.Utils.RemoveHtmlTags(item.Summary.Text);
-                    newsContent = "**__Summary__**\n" + summary;
-                    // Unlikely to be over, but we need space for extra local info
-                    if (newsContent.Length > Constants.MaxLengthChannelMessage - 400)
-                        newsContent = newsContent[..(Constants.MaxLengthChannelMessage - 400)] + "...";
+                    releaseNotes = GetReleaseNotes(item);
+                    newsContent = releaseNotes[0];
                 }
+                
                 // If a role is provided we add to end of title to ping the role
                 var role = _client.GetGuild(_settings.GuildId).GetRole(roleId ?? 0);
                 if (role != null)
-                    newsContent = $"{(newsContent.Length > 0 ? $"{newsContent}\n" : "")}{role.Mention}";
+                    newsContent += $"\n{role.Mention}";
                 // Link to post
                 if (item.Links.Count > 0)
                     newsContent += $"\n\n**__Source__**\n{item.Links[0].Uri}";
                 
                 // The Post
                 var post = await channel.CreatePostAsync(newsTitle, ForumArchiveDuration, null, newsContent, null, null, AllowedMentions.All);
-                // If any tags, include them
-                if (newsFeed.IncludeTags is { Count: > 0 })
-                {
-                    var includedTags = new List<ulong>();
-                    foreach (var tag in newsFeed.IncludeTags)
-                    {
-                        var tagContainer = channel.Tags.FirstOrDefault(x => x.Name == tag);
-                        if (tagContainer != null)
-                            includedTags.Add(tagContainer.Id);
-                    }
+                await AddTagsToPost(channel, post, newsFeed.IncludeTags);
 
-                    await post.ModifyAsync(properties => { properties.AppliedTags = includedTags; });
+                if (releaseNotes.Count == 1)
+                    continue;
+                
+                // post a new message for each release note after the first
+                for (int i = 1; i < releaseNotes.Count; i++)
+                {
+                    if (releaseNotes[i].Length == 0)
+                        continue;
+                    await post.SendMessageAsync(releaseNotes[i]);
                 }
             }
         }
@@ -151,6 +155,161 @@ public class FeedService
         {
             await _logging.LogAction($"[{ServiceName}] Error: {e}", ExtendedLogSeverity.Error);
         }
+    }
+    
+    private async Task AddTagsToPost(IForumChannel channel, IThreadChannel post, List<string> tags)
+    {
+        if (tags.Count <= 0)
+            return;
+        
+        var includedTags = new List<ulong>();
+        foreach (var tag in tags)
+        {
+            var tagContainer = channel.Tags.FirstOrDefault(x => x.Name == tag);
+            if (tagContainer != null)
+                includedTags.Add(tagContainer.Id);
+        }
+
+        await post.ModifyAsync(properties => { properties.AppliedTags = includedTags; });
+    }
+
+    private string GetSummary(ForumNewsFeed feed, SyndicationItem item)
+    {
+        var summary = Utils.Utils.RemoveHtmlTags(item.Summary.Text);
+
+        // If it is too long, we truncate it
+        var summaryLength = summary.Length;
+        if (summaryLength > Constants.MaxLengthChannelMessage - MaxFeedLengthBuffer)
+            summary = summary[..(Constants.MaxLengthChannelMessage - MaxFeedLengthBuffer)] + "...";
+        return summary;
+    }
+
+    private List<string> GetReleaseNotes(SyndicationItem item)
+    {
+        List<string> releaseNotes = new();
+        var summary = string.Empty;
+
+        var htmlDoc = new HtmlDocument();
+        var summaryText = item.Summary.Text;
+        
+        summaryText = summaryText.Replace("&#x2192;", "->");
+        // // TODO : (James) Likely other entities we need to replace
+        
+        htmlDoc.LoadHtml(summaryText);
+
+        // Find "release-notes"
+        var summaryNode = htmlDoc.DocumentNode.SelectSingleNode("//div[@class='release-notes']");
+        if (summaryNode == null)
+            return new List<string>() { "No release notes found" };
+
+        // Find "Known Issues"
+        var knownIssueNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h3" && x.InnerText.Contains("Known Issues"))?.NextSibling;
+        var entriesSinceNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h3" && x.InnerText.Contains("Entries since"));
+
+        // Find the features node which will be a h4 heading with content "Features"
+        var featuresNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "Features")?.NextSibling;
+        var improvementsNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "Improvements")?.NextSibling;
+        var apiChangesNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "API Changes")?.NextSibling;
+        var changesNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "Changes")?.NextSibling;
+        var fixesNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "Fixes")?.NextSibling;
+        var packagesUpdatedNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText.ToLower().Contains("package changes"))?.NextSibling.NextSibling.NextSibling;
+
+        // Need to construct the summary which is just a stats summary
+        summary += $"**Release notes summary**\n";
+        var issueCount = knownIssueNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
+        summary += $"Known Issues: {issueCount}\n";
+
+        if (entriesSinceNode != null)
+            summary += $"__{entriesSinceNode.InnerText}__\n\n";
+
+        if (featuresNode != null)
+        {
+            var featuresCount = featuresNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
+            summary += $"Features: {featuresCount}\n";
+        }
+
+        if (improvementsNode != null)
+        {
+            var improvementsCount = improvementsNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
+            summary += $"Improvements: {improvementsCount}\n";
+        }
+
+        if (apiChangesNode != null)
+        {
+            var apiChangesCount = apiChangesNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
+            summary += $"API Changes: {apiChangesCount}\n";
+        }
+
+        if (changesNode != null)
+        {
+            var changesCount = changesNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
+            summary += $"Changes: {changesCount}\n";
+        }
+
+        var fixesCount = fixesNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
+        summary += $"Fixes: {fixesCount}\n";
+        
+        var packagesUpdatedCount = packagesUpdatedNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
+        summary += $"Packages updated: {packagesUpdatedCount}\n";
+        
+        // Add Package Updates to Summary
+        releaseNotes.Add(BuildReleaseNote("Packages Updated", packagesUpdatedNode, summary));
+        
+        // Features, Improvements
+        releaseNotes.Add(BuildReleaseNote("Features", featuresNode));
+        releaseNotes.Add(BuildReleaseNote("Improvements", improvementsNode, "", 1000));
+        // API Changes, Changes + Fixes
+        releaseNotes.Add(BuildReleaseNote("API Changes", apiChangesNode));
+        releaseNotes.Add(BuildReleaseNote("Changes", changesNode));
+        releaseNotes.Add(BuildReleaseNote("Fixes", fixesNode, "", 1400));
+        
+        // Known Issues
+        releaseNotes.Add(BuildReleaseNote("Known Issues", knownIssueNode, "", 1000));
+        
+        return releaseNotes;
+    }
+
+    private string BuildReleaseNote(string title, HtmlNode node, string contents = "", int maxLength = Constants.MaxLengthChannelMessage - MaxFeedLengthBuffer)
+    {
+        if (node == null) 
+            return string.Empty;
+        
+        var summary = $"**{node.PreviousSibling.InnerText}**\n";
+        if (contents.Length > 0)
+            summary = $"{contents}\n{summary}";
+        
+        foreach (var feature in node.NextSibling.ChildNodes.Where(x => x.Name == "li"))
+        {
+            var featureNode = feature;
+            var extraText = string.Empty;
+            if (title == "Fixes" || title == "Known Issues")
+            {
+                var nodeContents = featureNode.ChildNodes[0];
+                // Remove \n if any
+                nodeContents.InnerHtml = nodeContents.InnerHtml.Replace("\n", " ");
+                
+                var linkNode = nodeContents.SelectSingleNode("a");
+                if (linkNode != null)
+                {
+                    nodeContents = nodeContents.RemoveChild(linkNode);
+                    // Need to remove ()
+                    featureNode.InnerHtml = featureNode.InnerHtml.Replace("()", "");
+                    
+                    // Add link to extraText, but use the InnerText as the text, and format so discord will use it as link
+                    extraText = $" ([{linkNode.InnerText}](<{linkNode.Attributes["href"].Value}>))";
+                }
+            }
+            
+            summary += $"- {featureNode.InnerText}{extraText}\n";
+            if (summary.Length > maxLength)
+            {
+                // Trim down to the last full line, that is less than limits
+                var lastLine = summary[..maxLength].LastIndexOf('\n');
+                summary = summary[..lastLine] + $"\n{title} truncated...\n";
+                return summary;
+            }
+        }
+        return summary;
     }
 
     #endregion // Feed Handlers
