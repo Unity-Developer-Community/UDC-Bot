@@ -193,7 +193,7 @@ public class FeedService
         var summaryText = item.Summary.Text;
         
         summaryText = summaryText.Replace("&#x2192;", "->");
-        // // TODO : (James) Likely other entities we need to replace
+        // TODO : (James) Likely other entities we need to replace
         
         htmlDoc.LoadHtml(summaryText);
 
@@ -202,71 +202,57 @@ public class FeedService
         if (summaryNode == null)
             return new List<string>() { "No release notes found" };
 
-        // Find "Known Issues"
-        var knownIssueNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h3" && x.InnerText.Contains("Known Issues"))?.NextSibling;
-        var entriesSinceNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h3" && x.InnerText.Contains("Entries since"));
-
-        // Find the features node which will be a h4 heading with content "Features"
-        var featuresNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "Features")?.NextSibling;
-        var improvementsNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "Improvements")?.NextSibling;
-        var apiChangesNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "API Changes")?.NextSibling;
-        var changesNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "Changes")?.NextSibling;
-        var fixesNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "Fixes")?.NextSibling;
-        var packagesUpdatedNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText.ToLower().Contains("package changes"))?.NextSibling.NextSibling.NextSibling;
-
-        // Need to construct the summary which is just a stats summary
-        summary += $"**Release notes summary**\n";
-        var issueCount = knownIssueNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
-        summary += $"Known Issues: {issueCount}\n";
-
-        if (entriesSinceNode != null)
-            summary += $"__{entriesSinceNode.InnerText}__\n\n";
-
-        if (featuresNode != null)
+        try
         {
-            var featuresCount = featuresNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
-            summary += $"Features: {featuresCount}\n";
-        }
+            // Find "Known Issues"
+            var knownIssueNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h3" && x.InnerText.Contains("Known Issues"))?.NextSibling;
+            var entriesSinceNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h3" && x.InnerText.Contains("Entries since"));
 
-        if (improvementsNode != null)
+            // Find the features node which will be a h4 heading with content "Features"
+            var featuresNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "Features")?.NextSibling;
+            var improvementsNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "Improvements")?.NextSibling;
+            var apiChangesNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "API Changes")?.NextSibling;
+            var changesNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "Changes")?.NextSibling;
+            var fixesNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText == "Fixes")?.NextSibling;
+            var packagesUpdatedNode = summaryNode.ChildNodes.FirstOrDefault(x => x.Name == "h4" && x.InnerText.ToLower().Contains("package changes"))?.NextSibling.NextSibling.NextSibling;
+
+            // Need to construct the summary which is just a stats summary
+            summary += $"**Summary**\n";
+            summary += GetNodeLiCountString("Known Issues", knownIssueNode?.NextSibling);
+
+            if (entriesSinceNode != null)
+                summary += $"__{entriesSinceNode.InnerText}__\n\n";
+
+            // Construct Stat Summary
+            summary += GetNodeLiCountString("Features", featuresNode?.NextSibling);
+            summary += GetNodeLiCountString("Improvements", improvementsNode?.NextSibling);
+            summary += GetNodeLiCountString("API Changes", apiChangesNode?.NextSibling);
+            summary += GetNodeLiCountString("Changes", changesNode?.NextSibling);
+            summary += GetNodeLiCountString("Fixes", fixesNode?.NextSibling);
+            summary += GetNodeLiCountString("Packages Updated", packagesUpdatedNode?.NextSibling);
+
+            // Add Package Updates to Summary
+            releaseNotes.Add(BuildReleaseNote("Packages Updated", packagesUpdatedNode, summary));
+
+            // Features, Improvements
+            releaseNotes.Add(BuildReleaseNote("Features", featuresNode));
+            releaseNotes.Add(BuildReleaseNote("Improvements", improvementsNode, "", 1000));
+            // API Changes, Changes + Fixes
+            releaseNotes.Add(BuildReleaseNote("API Changes", apiChangesNode));
+            releaseNotes.Add(BuildReleaseNote("Changes", changesNode));
+            releaseNotes.Add(BuildReleaseNote("Fixes", fixesNode, ""));
+
+            // Known Issues
+            releaseNotes.Add(BuildReleaseNote("Known Issues", knownIssueNode, "", 1200));
+
+            return releaseNotes;
+        }
+        catch (Exception e)
         {
-            var improvementsCount = improvementsNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
-            summary += $"Improvements: {improvementsCount}\n";
+            _logging.LogChannelAndFile($"[{ServiceName}] Error generating release notes: {e}\nLikely updated format.", ExtendedLogSeverity.Warning);
+            // We ignore anything we've generated and return a "No release notes found" to maintain appearance
+            return new List<string>() { "No release notes found" };
         }
-
-        if (apiChangesNode != null)
-        {
-            var apiChangesCount = apiChangesNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
-            summary += $"API Changes: {apiChangesCount}\n";
-        }
-
-        if (changesNode != null)
-        {
-            var changesCount = changesNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
-            summary += $"Changes: {changesCount}\n";
-        }
-
-        var fixesCount = fixesNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
-        summary += $"Fixes: {fixesCount}\n";
-        
-        var packagesUpdatedCount = packagesUpdatedNode.NextSibling.ChildNodes.Count(x => x.Name == "li");
-        summary += $"Packages updated: {packagesUpdatedCount}\n";
-        
-        // Add Package Updates to Summary
-        releaseNotes.Add(BuildReleaseNote("Packages Updated", packagesUpdatedNode, summary));
-        
-        // Features, Improvements
-        releaseNotes.Add(BuildReleaseNote("Features", featuresNode));
-        releaseNotes.Add(BuildReleaseNote("Improvements", improvementsNode, "", 1000));
-        // API Changes, Changes + Fixes
-        releaseNotes.Add(BuildReleaseNote("API Changes", apiChangesNode));
-        releaseNotes.Add(BuildReleaseNote("Changes", changesNode));
-        releaseNotes.Add(BuildReleaseNote("Fixes", fixesNode, "", 1400));
-        
-        // Known Issues
-        releaseNotes.Add(BuildReleaseNote("Known Issues", knownIssueNode, "", 1000));
-        
-        return releaseNotes;
     }
 
     private string BuildReleaseNote(string title, HtmlNode node, string contents = "", int maxLength = Constants.MaxLengthChannelMessage - MaxFeedLengthBuffer)
@@ -274,17 +260,17 @@ public class FeedService
         if (node == null) 
             return string.Empty;
         
-        var summary = $"**{node.PreviousSibling.InnerText}**\n";
-        if (contents.Length > 0)
-            summary = $"{contents}\n{summary}";
+        // If we pass in contents, we prepend it to the summary
+        var summary = $"{(contents.Length > 0 ? $"{contents}\n" : string.Empty)}**{node.PreviousSibling.InnerText}**\n";
         
+        bool needsExtraProcessing = title is "Fixes" or "Known Issues" or "API Changes";
+
         foreach (var feature in node.NextSibling.ChildNodes.Where(x => x.Name == "li"))
         {
-            var featureNode = feature;
             var extraText = string.Empty;
-            if (title == "Fixes" || title == "Known Issues")
+            if (needsExtraProcessing)
             {
-                var nodeContents = featureNode.ChildNodes[0];
+                var nodeContents = feature.ChildNodes[0];
                 // Remove \n if any
                 nodeContents.InnerHtml = nodeContents.InnerHtml.Replace("\n", " ");
                 
@@ -293,14 +279,14 @@ public class FeedService
                 {
                     nodeContents = nodeContents.RemoveChild(linkNode);
                     // Need to remove ()
-                    featureNode.InnerHtml = featureNode.InnerHtml.Replace("()", "");
+                    feature.InnerHtml = feature.InnerHtml.Replace("()", "");
                     
                     // Add link to extraText, but use the InnerText as the text, and format so discord will use it as link
                     extraText = $" ([{linkNode.InnerText}](<{linkNode.Attributes["href"].Value}>))";
                 }
             }
             
-            summary += $"- {featureNode.InnerText}{extraText}\n";
+            summary += $"- {feature.InnerText}{extraText}\n";
             if (summary.Length > maxLength)
             {
                 // Trim down to the last full line, that is less than limits
@@ -310,6 +296,15 @@ public class FeedService
             }
         }
         return summary;
+    }
+    
+    private string GetNodeLiCountString(string title, HtmlNode node)
+    {
+        if (node == null)
+            return string.Empty;
+        
+        var count = node.ChildNodes.Count(x => x.Name == "li");
+        return $"{title}: {count}\n";
     }
 
     #endregion // Feed Handlers
