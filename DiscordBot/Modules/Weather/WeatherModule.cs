@@ -63,6 +63,7 @@ public class WeatherModule : ModuleBase
         var builder = await TemperatureEmbed(city, user.GetUserPreferredName());
         if (builder == null)
             return;
+        builder.FooterRequestedBy(Context.User);
 
         await ReplyAsync(embed: builder.Build());
     }
@@ -118,7 +119,7 @@ public class WeatherModule : ModuleBase
         }
 
         EmbedBuilder builder = new EmbedBuilder()
-            .WithTitle($"{res.name} Weather ({res.sys.country}) [{DateTime.UtcNow.AddSeconds(res.timezone):hh\\:mmtt}]")
+            .WithTitle($"{(replaceCityWith.Length == 0 ? res.name : replaceCityWith)} Weather ({res.sys.country}) [{DateTime.UtcNow.AddSeconds(res.timezone):hh\\:mmtt}]")
             .AddField(
                 $"Weather: **{Math.Round(res.main.Temp, 1)}°C** [Feels like **{Math.Round(res.main.Feels, 1)}°C**]",
                 $"{extraInfo}\n")
@@ -141,6 +142,7 @@ public class WeatherModule : ModuleBase
         var builder = await WeatherEmbed(city, user.GetUserPreferredName());
         if (builder == null)
             return;
+        builder.FooterRequestedBy(Context.User);
 
         await ReplyAsync(embed: builder.Build());
     }
@@ -199,7 +201,7 @@ public class WeatherModule : ModuleBase
         }
 
         EmbedBuilder builder = new EmbedBuilder()
-            .WithTitle($"{res.name} Pollution ({res.sys.country})")
+            .WithTitle($"{(replaceCityWith.Length == 0 ? res.name : replaceCityWith)} Pollution ({res.sys.country})")
             .AddField($"Air Quality: **{AQI_Index[polResult.list[0].main.aqi]}** [Pollutants {combined:F2}μg/m3]\n", desc);
 
         return builder;
@@ -216,6 +218,7 @@ public class WeatherModule : ModuleBase
         var builder = await PollutionEmbed(city, user.GetUserPreferredName());
         if (builder == null)
             return;
+        builder.FooterRequestedBy(Context.User);
 
         await ReplyAsync(embed: builder.Build());
     }
@@ -262,6 +265,7 @@ public class WeatherModule : ModuleBase
         var builder = await TimeEmbed(city, user.GetUserPreferredName());
         if (builder == null)
             return;
+        builder.FooterRequestedBy(Context.User);
 
         await ReplyAsync(embed: builder.Build());
     }
