@@ -222,12 +222,9 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (_xpCooldown.HasUser(userId))
             return;
 
-        var user = await _databaseService.Query().GetUser(userId.ToString());
+        var user = await _databaseService.AddNewUser((SocketGuildUser)messageParam.Author);
         if (user == null)
-        {
-            await _databaseService.AddNewUser((SocketGuildUser)messageParam.Author);
-            user = await _databaseService.Query().GetUser(userId.ToString());
-        }
+            return;
         
         bonusXp += baseXp * (1f + user.Karma / 100f);
 

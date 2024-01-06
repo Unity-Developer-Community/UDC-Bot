@@ -154,13 +154,17 @@ public class DatabaseService
             $"Database Synchronized {counter.ToString()} Users Successfully.\n{newAdd.ToString()} missing users added.");
     }
 
-    public async Task AddNewUser(SocketGuildUser socketUser)
+    /// <summary>
+    /// Adds a new user to the database if they don't already exist.
+    /// </summary>
+    /// <returns>Existing or newly created user. Null on database error.</returns>
+    public async Task<ServerUser> AddNewUser(SocketGuildUser socketUser)
     {
         try
         {
             var user = await Query().GetUser(socketUser.Id.ToString());
             if (user != null)
-                return;
+                return user;
 
             user = new ServerUser
             {
@@ -168,15 +172,18 @@ public class DatabaseService
             };
 
             await Query().InsertUser(user);
+            user = await Query().GetUser(socketUser.Id.ToString());
 
             await _logging.Log(LogBehaviour.File,
                 $"User {socketUser.GetPreferredAndUsername()} successfully added to the database.");
+            return user;
         }
         catch (Exception e)
         {
             // We don't print to channel as this could be spammy (Albeit rare)
             await _logging.Log(LogBehaviour.Console | LogBehaviour.File,
                 $"Error when trying to add user {socketUser.Id.ToString()} to the database : {e}", ExtendedLogSeverity.Warning);
+            return null;
         }
     }
 
