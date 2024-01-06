@@ -99,6 +99,7 @@ public class Program
             .AddSingleton<ReminderService>()
             .AddSingleton<WeatherService>()
             .AddSingleton<AirportService>()
+            .AddSingleton<UserExtendedService>()
             .BuildServiceProvider();
 
     private static void DeserializeSettings()

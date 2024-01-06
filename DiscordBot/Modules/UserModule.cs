@@ -23,6 +23,8 @@ public class UserModule : ModuleBase
     public PublisherService PublisherService { get; set; }
     public UpdateService UpdateService { get; set; }
     public CommandHandlingService CommandHandlingService { get; set; }
+    public WeatherService WeatherService { get; set; }
+    public UserExtendedService UserExtendedService { get; set; }
     public BotSettings Settings { get; set; }
     public Rules Rules { get; set; }
         
@@ -542,6 +544,39 @@ public class UserModule : ModuleBase
         var joinDate = ((IGuildUser)Context.User).JoinedAt;
         await ReplyAsync($"{Context.User.Mention} you joined **{joinDate:dddd dd/MM/yyy HH:mm:ss}**");
         await Context.Message.DeleteAsync();
+    }
+    
+    [Command("SetCity"), Priority(100)]
+    [Alias("SetDefaultCity")]
+    [Summary("Set 'Default City' which can be used by various commands.")]
+    public async Task SetDefaultCity(params string[] city)
+    {
+        var fullCityName = string.Join(" ", city);
+        var (exists, result) = await WeatherService.CityExists(fullCityName);
+        if (!exists)
+        {
+            await ReplyAsync($"Sorry, {Context.User.Mention} but I couldn't find a city with that name.").DeleteAfterSeconds(30);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+        // Set default city
+        await UserExtendedService.SetUserDefaultCity(Context.User, result.name);
+        await ReplyAsync($"{Context.User.Mention} your default city has been set to {result.name}.");
+    }
+
+    [Command("RemoveCity"), Priority(100)]
+    [Alias("RemoveDefaultCity")]
+    [Summary("Remove 'Default City' which can be used by various commands.")]
+    public async Task RemoveDefaultCity()
+    {
+        if (!await UserExtendedService.DoesUserHaveDefaultCity(Context.User))
+        {
+            await ReplyAsync($"{Context.User.Mention} you don't have a default city set.").DeleteAfterSeconds(30);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+        await UserExtendedService.RemoveUserDefaultCity(Context.User);
+        await ReplyAsync($"{Context.User.Mention} your default city has been removed.");
     }
 
     #endregion

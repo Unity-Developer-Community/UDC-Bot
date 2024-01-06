@@ -1,7 +1,7 @@
 using Discord.WebSocket;
-using DiscordBot.Modules;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
+using DiscordBot.Modules.Weather;
 
 namespace DiscordBot.Services;
 
@@ -20,16 +20,23 @@ public class WeatherService
     }
     
     
-    public async Task<WeatherModule.WeatherContainer.Result> GetWeather(string city, string unit = "metric")
+    public async Task<WeatherContainer.Result> GetWeather(string city, string unit = "metric")
     {
         var query = $"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={_weatherApiKey}&units={unit}";
-        return await SerializeUtil.LoadUrlDeserializeResult<WeatherModule.WeatherContainer.Result>(query);
+        return await SerializeUtil.LoadUrlDeserializeResult<WeatherContainer.Result>(query);
     }
 
-    public async Task<WeatherModule.PollutionContainer.Result> GetPollution(double lon, double lat)
+    public async Task<PollutionContainer.Result> GetPollution(double lon, double lat)
     {
         var query = $"https://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={_weatherApiKey}";
-        return await SerializeUtil.LoadUrlDeserializeResult<WeatherModule.PollutionContainer.Result>(query);
+        return await SerializeUtil.LoadUrlDeserializeResult<PollutionContainer.Result>(query);
+    }
+    
+    public async Task<(bool exists, WeatherContainer.Result result)> CityExists(string city)
+    {
+        var res = await GetWeather(city: city);
+        var exists = !object.Equals(res, default(WeatherContainer.Result));
+        return (exists, res);
     }
 
 }
