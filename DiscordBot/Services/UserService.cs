@@ -417,12 +417,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var builder = new EmbedBuilder()
             .WithDescription(welcomeString)
             .WithColor(_welcomeColour)
-            .WithAuthor(author =>
-            {
-                author
-                    .WithName(user.GetUserPreferredName())
-                    .WithIconUrl(icon);
-            });
+            .WithAuthor(user.GetUserPreferredName(), icon);
 
         var embed = builder.Build();
         return embed;

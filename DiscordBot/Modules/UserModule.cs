@@ -128,18 +128,8 @@ public class UserModule : ModuleBase
         var builder = new EmbedBuilder()
             .WithColor(new Color(200, 128, 128))
             .WithTimestamp(message.Timestamp)
-            .WithFooter(footer =>
-            {
-                footer
-                    .WithText($"Quoted by {Context.User.GetUserPreferredName()} • From channel {message.Channel.Name}")
-                    .WithIconUrl(Context.User.GetAvatarUrl());
-            })
-            .WithAuthor(author =>
-            {
-                author
-                    .WithName(message.Author.Username)
-                    .WithIconUrl(message.Author.GetAvatarUrl());
-            });
+            .FooterQuoteBy(Context.User, message.Channel)
+            .AddAuthor(message.Author);
         if (msgContent == string.Empty && msgAttachment != string.Empty) msgContent = "📸";
 
         msgContent += $"\n\n***[Linkback]({messageLink})***";
@@ -1084,7 +1074,7 @@ public class UserModule : ModuleBase
 
     #endregion
 
-    #region temperatures
+    #region Temperatures
 
     [Command("FtoC"), Priority(28)]
     [Summary("Converts a temperature in fahrenheit to celsius. Syntax : !ftoc temperature")]

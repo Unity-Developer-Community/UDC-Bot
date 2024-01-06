@@ -44,16 +44,8 @@ public class ModerationService
         var builder = new EmbedBuilder()
             .WithColor(DeletedMessageColor)
             .WithTimestamp(message.Value.Timestamp)
-            .WithFooter(footer =>
-            {
-                footer
-                    .WithText($"In channel {message.Value.Channel.Name}");
-            })
-            .WithAuthor(author =>
-            {
-                author
-                    .WithName($"{user.GetPreferredAndUsername()} deleted a message");
-            })
+            .WithFooter($"In channel {message.Value.Channel.Name}")
+            .WithAuthor($"{user.GetPreferredAndUsername()} deleted a message")
             .AddField($"Deleted Message {(content.Length != message.Value.Content.Length ? "(truncated)" : "")}",
                 content);
         var embed = builder.Build();
@@ -90,16 +82,8 @@ public class ModerationService
         var builder = new EmbedBuilder()
             .WithColor(EditedMessageColor)
             .WithTimestamp(after.Timestamp)
-            .WithFooter(footer =>
-            {
-                footer
-                    .WithText($"In channel {after.Channel.Name}");
-            })
-            .WithAuthor(author =>
-            {
-                author
-                    .WithName($"{user.GetPreferredAndUsername()} updated a message");
-            });
+            .WithFooter($"In channel {after.Channel.Name}")
+            .WithAuthor($"{user.GetPreferredAndUsername()} updated a message");
         if (isCached)
             builder.AddField($"Previous message content {(isTruncated ? "(truncated)" : "")}", content);
         builder.WithDescription($"Message: [{after.Id}]({after.GetJumpUrl()})");
