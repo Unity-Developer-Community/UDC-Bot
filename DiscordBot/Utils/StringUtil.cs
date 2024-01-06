@@ -24,4 +24,13 @@ public static class StringUtil
         var time = DateTime.Now.ToUnixTimestamp() + secondsFromNow;
         return $"Self-delete: **<t:{time}:R>**";
     }
+    
+    /// <summary>
+    /// Sanitizes @everyone and @here mentions by adding a zero-width space after the @ symbol.
+    /// </summary>
+    public static string SanitizeEveryoneHereMentions(this string str)
+    {
+        return str.Replace("@everyone", "@\u200beveryone").Replace("@here", "@\u200bhere");
+    }
+    
 }

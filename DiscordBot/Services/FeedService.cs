@@ -3,6 +3,7 @@ using System.ServiceModel.Syndication;
 using System.Xml;
 using Discord.WebSocket;
 using DiscordBot.Settings;
+using DiscordBot.Utils;
 using HtmlAgilityPack;
 
 namespace DiscordBot.Services;
@@ -134,6 +135,8 @@ public class FeedService
                 // Link to post
                 if (item.Links.Count > 0)
                     newsContent += $"\n\n**__Source__**\n{item.Links[0].Uri}";
+
+                newsContent = newsContent.SanitizeEveryoneHereMentions();
                 
                 // The Post
                 var post = await channel.CreatePostAsync(newsTitle, ForumArchiveDuration, null, newsContent, null, null, AllowedMentions.All);
@@ -147,7 +150,7 @@ public class FeedService
                 {
                     if (releaseNotes[i].Length == 0)
                         continue;
-                    await post.SendMessageAsync(releaseNotes[i]);
+                    await post.SendMessageAsync(releaseNotes[i].SanitizeEveryoneHereMentions());
                 }
             }
         }
