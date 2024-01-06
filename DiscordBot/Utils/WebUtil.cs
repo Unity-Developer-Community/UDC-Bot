@@ -1,4 +1,6 @@
+using System.Net;
 using System.Net.Http;
+using HtmlAgilityPack;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 
@@ -21,6 +23,74 @@ public static class WebUtil
         {
             LoggingService.LogToConsole($"[WebUtil] Failed to get content from {url}: {e.Message}", ExtendedLogSeverity.LowWarning);
             return "";
+        }
+    }
+    
+    /// <summary>
+    /// Returns the Html document of a url, or null if the request fails.
+    /// Internally calls GetContent and parses the result.
+    /// </summary>
+    public static async Task<HtmlDocument> GetHtmlDocument(string url)
+    {
+        try
+        {
+            var html = await GetContent(url);
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+            return doc;
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+    }
+    
+    /// <summary>
+    /// Returns the Html node of a url and xpath, or null if the request fails.
+    /// Internally calls GetHtmlDocument and parses the result with xpath.
+    /// </summary>
+    public static async Task<HtmlNode> GetHtmlNode(string url, string xpath)
+    {
+        try
+        {
+            var doc = await GetHtmlDocument(url);
+            return doc.DocumentNode.SelectSingleNode(xpath);
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+    }
+    
+    /// <summary>
+    /// Returns the Html nodes of a url and xpath, or null if the request fails.
+    /// </summary>
+    public static async Task<HtmlNodeCollection> GetHtmlNodes(string url, string xpath)
+    {
+        try
+        {
+            var doc = await GetHtmlDocument(url);
+            return doc.DocumentNode.SelectNodes(xpath);
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+    } 
+    
+    /// <summary>
+    /// Returns the decoded inner text of a url and xpath, or an empty string if the request fails.
+    /// </summary>
+    public static async Task<string> GetHtmlNodeInnerText(string url, string xpath)
+    {
+        try
+        {
+            var node = await GetHtmlNode(url, xpath);
+            return WebUtility.HtmlDecode(node?.InnerText);
+        }
+        catch (Exception e)
+        {
+            return string.Empty;
         }
     }
     
