@@ -43,6 +43,15 @@ public class DatabaseService
                 await _logging.LogAction(
                     $"{ServiceName}: Connected to database successfully. {userCount} users in database.",
                     ExtendedLogSeverity.Positive);
+                
+                // Not sure on best practice for if column is missing, full blown migrations seem overkill
+                var defaultCityExists = await c.ColumnExists(UserProps.TableName, UserProps.DefaultCity);
+                if (!defaultCityExists)
+                {
+                    c.ExecuteSql($"ALTER TABLE `{UserProps.TableName}` ADD `{UserProps.DefaultCity}` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER `{UserProps.Level}`");
+                    await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.DefaultCity}' to table '{UserProps.TableName}'.",
+                        ExtendedLogSeverity.Positive);
+                }
             }
             catch
             {
