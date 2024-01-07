@@ -250,8 +250,8 @@ public class UserModule : ModuleBase
         }
 
         const uint xpGain = 5000;
-        var userXp = await DatabaseService.Query().GetXp(userId.ToString());
-        await DatabaseService.Query().UpdateXp(userId.ToString(), userXp + xpGain);
+        var userXp = await DatabaseService.Query.GetXp(userId.ToString());
+        await DatabaseService.Query.UpdateXp(userId.ToString(), userXp + xpGain);
         await Context.Message.DeleteAsync();
     }
 
@@ -409,7 +409,7 @@ public class UserModule : ModuleBase
     [Alias("toplevel", "ranking")]
     public async Task TopLevel()
     {
-        var users = await DatabaseService.Query().GetTopLevel(10);
+        var users = await DatabaseService.Query.GetTopLevel(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.Level)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Level");
@@ -421,7 +421,7 @@ public class UserModule : ModuleBase
     [Alias("karmarank", "rankingkarma", "topk")]
     public async Task TopKarma()
     {
-        var users = await DatabaseService.Query().GetTopKarma(10);
+        var users = await DatabaseService.Query.GetTopKarma(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.Karma)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Karma");
@@ -433,7 +433,7 @@ public class UserModule : ModuleBase
     [Alias("karmarankweekly", "rankingkarmaweekly", "topkw")]
     public async Task TopKarmaWeekly()
     {
-        var users = await DatabaseService.Query().GetTopKarmaWeekly(10);
+        var users = await DatabaseService.Query.GetTopKarmaWeekly(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.KarmaWeekly)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Weekly Karma");
@@ -445,7 +445,7 @@ public class UserModule : ModuleBase
     [Alias("karmarankmonthly", "rankingkarmamonthly", "topkm")]
     public async Task TopKarmaMonthly()
     {
-        var users = await DatabaseService.Query().GetTopKarmaMonthly(10);
+        var users = await DatabaseService.Query.GetTopKarmaMonthly(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.KarmaMonthly)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Monthly Karma");
@@ -457,7 +457,7 @@ public class UserModule : ModuleBase
     [Alias("karmaranktearly", "rankingkarmayearly", "topky")]
     public async Task TopKarmaYearly()
     {
-        var users = await DatabaseService.Query().GetTopKarmaYearly(10);
+        var users = await DatabaseService.Query.GetTopKarmaYearly(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.KarmaYearly)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Yearly Karma");

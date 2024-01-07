@@ -19,7 +19,7 @@ public class UserExtendedService
     public async Task<bool> SetUserDefaultCity(IUser user, string city)
     {
         // Update Database
-        await _databaseService.Query().UpdateDefaultCity(user.Id.ToString(), city);
+        await _databaseService.Query.UpdateDefaultCity(user.Id.ToString(), city);
         // Update Cache
         _cityCachedName[user.Id] = city;
         return true;
@@ -32,7 +32,7 @@ public class UserExtendedService
             return true;
         
         // Check database
-        var res = await _databaseService.Query().GetDefaultCity(user.Id.ToString());
+        var res = await _databaseService.Query.GetDefaultCity(user.Id.ToString());
         if (string.IsNullOrEmpty(res))
             return false;
         
@@ -51,7 +51,7 @@ public class UserExtendedService
     public async Task<bool> RemoveUserDefaultCity(IUser user)
     {
         // Update Database
-        await _databaseService.Query().UpdateDefaultCity(user.Id.ToString(), null);
+        await _databaseService.Query.UpdateDefaultCity(user.Id.ToString(), null);
         // Update Cache
         _cityCachedName.Remove(user.Id);
         return true;

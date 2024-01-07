@@ -13,8 +13,7 @@ public class DatabaseService
     private readonly ILoggingService _logging;
     private string ConnectionString { get; }
 
-    public IServerUserRepo Query() => _connection;
-    private readonly IServerUserRepo _connection;
+    public IServerUserRepo Query { get; }
 
     public DatabaseService(ILoggingService logging, BotSettings settings)
     {
@@ -25,7 +24,7 @@ public class DatabaseService
         try
         {
             c = new MySqlConnection(ConnectionString);
-            _connection = c.As<IServerUserRepo>();
+            Query = c.As<IServerUserRepo>();
         }
         catch (Exception e)
         {
@@ -39,7 +38,7 @@ public class DatabaseService
             // Test connection, if it fails we create the table and set keys
             try
             {
-                var userCount = await _connection.TestConnection();
+                var userCount = await Query.TestConnection();
                 await _logging.LogAction(
                     $"{ServiceName}: Connected to database successfully. {userCount} users in database.",
                     ExtendedLogSeverity.Positive);
@@ -129,10 +128,10 @@ public class DatabaseService
                 if (!user.IsBot)
                 {
                     var userIdString = user.Id.ToString();
-                    var serverUser = await Query().GetUser(userIdString);
+                    var serverUser = await Query.GetUser(userIdString);
                     if (serverUser == null)
                     {
-                        await AddNewUser(user as SocketGuildUser);
+                        await GetOrAddUser(user as SocketGuildUser);
                         newAdd++;
                     }
                 }
@@ -158,11 +157,11 @@ public class DatabaseService
     /// Adds a new user to the database if they don't already exist.
     /// </summary>
     /// <returns>Existing or newly created user. Null on database error.</returns>
-    public async Task<ServerUser> AddNewUser(SocketGuildUser socketUser)
+    public async Task<ServerUser> GetOrAddUser(SocketGuildUser socketUser)
     {
         try
         {
-            var user = await Query().GetUser(socketUser.Id.ToString());
+            var user = await Query.GetUser(socketUser.Id.ToString());
             if (user != null)
                 return user;
 
@@ -171,8 +170,8 @@ public class DatabaseService
                 UserID = socketUser.Id.ToString(),
             };
 
-            await Query().InsertUser(user);
-            user = await Query().GetUser(socketUser.Id.ToString());
+            await Query.InsertUser(user);
+            user = await Query.GetUser(socketUser.Id.ToString());
 
             await _logging.Log(LogBehaviour.File,
                 $"User {socketUser.GetPreferredAndUsername()} successfully added to the database.");
@@ -191,9 +190,9 @@ public class DatabaseService
     {
         try
         {
-            var user = await Query().GetUser(id.ToString());
+            var user = await Query.GetUser(id.ToString());
             if (user != null)
-                await Query().RemoveUser(user.UserID);
+                await Query.RemoveUser(user.UserID);
         }
         catch (Exception e)
         {
@@ -204,6 +203,6 @@ public class DatabaseService
 
     public async Task<bool> UserExists(ulong id)
     {
-        return (await Query().GetUser(id.ToString()) != null);
+        return (await Query.GetUser(id.ToString()) != null);
     }
 }

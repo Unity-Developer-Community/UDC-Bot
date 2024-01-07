@@ -404,7 +404,7 @@ public class ModerationModule : ModuleBase
     [RequireUserPermission(GuildPermission.Administrator)]
     public async Task DbSync(IUser user)
     {
-        await DatabaseService.AddNewUser((SocketGuildUser)user);
+        await DatabaseService.GetOrAddUser((SocketGuildUser)user);
     }
 
     [Command("DBFullSync")]

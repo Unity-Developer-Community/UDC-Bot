@@ -222,7 +222,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (_xpCooldown.HasUser(userId))
             return;
 
-        var user = await _databaseService.AddNewUser((SocketGuildUser)messageParam.Author);
+        var user = await _databaseService.GetOrAddUser((SocketGuildUser)messageParam.Author);
         if (user == null)
             return;
         
@@ -239,7 +239,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var xpGain = (int)Math.Round((baseXp + bonusXp) * reduceXp);
         _xpCooldown.AddCooldown(userId, waitTime);
 
-        await _databaseService.Query().UpdateXp(userId.ToString(), user.Exp + (uint)xpGain);
+        await _databaseService.Query.UpdateXp(userId.ToString(), user.Exp + (uint)xpGain);
 
         _loggingService.LogXp(messageParam.Channel.Name, messageParam.Author.Username, baseXp, bonusXp, reduceXp,
             xpGain);
@@ -255,15 +255,15 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     /// <returns></returns>
     private async Task LevelUp(SocketMessage messageParam, ulong userId)
     {
-        var level = await _databaseService.Query().GetLevel(userId.ToString());
-        var xp = await _databaseService.Query().GetXp(userId.ToString());
+        var level = await _databaseService.Query.GetLevel(userId.ToString());
+        var xp = await _databaseService.Query.GetXp(userId.ToString());
 
         var xpHigh = GetXpHigh(level);
 
         if (xp < xpHigh)
             return;
 
-        await _databaseService.Query().UpdateLevel(userId.ToString(), level + 1);
+        await _databaseService.Query.UpdateLevel(userId.ToString(), level + 1);
 
         // First few levels are only a couple messages,
         // so we hide them to avoid scaring people away and give them slightly longer to naturally see these in the server.
@@ -293,7 +293,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
         try
         {
-            var dbRepo = _databaseService.Query();
+            var dbRepo = _databaseService.Query;
             if (dbRepo == null)
                 return profileCardPath;
             
@@ -487,13 +487,13 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                     continue;
                 }
 
-                await _databaseService.Query().IncrementKarma(user.Id.ToString());
+                await _databaseService.Query.IncrementKarma(user.Id.ToString());
                 sb.Append(user.GetUserPreferredName()).Append("**, **");
             }
 
             // Even if a user gives multiple karma in one message, we only add one.
-            var authorKarmaGiven = await _databaseService.Query().GetKarmaGiven(messageParam.Author.Id.ToString());
-            await _databaseService.Query().UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
+            var authorKarmaGiven = await _databaseService.Query.GetKarmaGiven(messageParam.Author.Id.ToString());
+            await _databaseService.Query.UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
 
             sb.Length -= 4; //Removes last instance of appended comma/startbold without convoluted tracking
             //sb.Append("**"); // Already appended an endbold
@@ -638,7 +638,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         await DMFormattedWelcome(user);
 
         var socketTextChannel = _client.GetChannel(_settings.GeneralChannel.Id) as SocketTextChannel;
-        await _databaseService.AddNewUser(user);
+        await _databaseService.GetOrAddUser(user);
 
         // Check if moderator commands are enabled, and if so we check if they were previously muted.
         if (_settings.ModeratorCommandsEnabled)
