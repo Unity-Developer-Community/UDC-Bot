@@ -255,7 +255,7 @@ public class UserModule : ModuleBase
         await Context.Message.DeleteAsync();
     }
 
-    [Group("Role"), BotChannelOnly]
+    [Group("Role"), BotCommandChannel]
     public class RoleModule : ModuleBase
     {
         public BotSettings Settings { get; set; }
@@ -640,7 +640,7 @@ public class UserModule : ModuleBase
 
     #region Publisher
 
-    [Command("PInfo"), BotChannelOnly, Priority(11)]
+    [Command("PInfo"), BotCommandChannel, Priority(11)]
     [Summary("Information on how to get publisher role.")]
     [Alias("publisherinfo")]
     public async Task PublisherInfo()
@@ -656,7 +656,7 @@ public class UserModule : ModuleBase
         await Context.Message.DeleteAfterSeconds(seconds: 2);
     }
 
-    [Command("Publisher"), BotChannelOnly, HideFromHelp]
+    [Command("Publisher"), BotCommandChannel, HideFromHelp]
     [Summary("Get the Asset-Publisher role by verifying who you are. Syntax: !publisher publisherID")]
     public async Task Publisher(uint publisherId)
     {
@@ -676,7 +676,7 @@ public class UserModule : ModuleBase
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
 
-    [Command("Verify"), BotChannelOnly, HideFromHelp]
+    [Command("Verify"), BotCommandChannel, HideFromHelp]
     [Summary("Verify a publisher with the code received by email. Syntax : !verify publisherId code")]
     public async Task VerifyPackage(uint packageId, string code)
     {
@@ -1014,13 +1014,9 @@ public class UserModule : ModuleBase
     public async Task Birthday()
     {
         // URL to cell C15/"Next birthday" cell from Corn's google sheet
-        var nextBirthday =
-            "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&range=C15:C15";
-        var doc = new HtmlWeb().Load(nextBirthday);
-
-        // XPath to the table row
-        var row = doc.DocumentNode.SelectSingleNode("/html/body/table/tr[2]/td");
-        var tableText = WebUtility.HtmlDecode(row.InnerText);
+        const string nextBirthday = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&range=C15:C15";
+        
+        var tableText = await WebUtil.GetHtmlNodeInnerText(nextBirthday, "/html/body/table/tr[2]/td");
         var message = $"**{tableText}**";
 
         await ReplyAsync(message).DeleteAfterTime(minutes: 3);

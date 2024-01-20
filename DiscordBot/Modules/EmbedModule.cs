@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using Discord.Commands;
+using DiscordBot.Attributes;
 using Newtonsoft.Json;
 
 // ReSharper disable all UnusedMember.Local
