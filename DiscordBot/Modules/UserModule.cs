@@ -1030,29 +1030,29 @@ public class UserModule : ModuleBase
     {
         var searchName = user.Username;
         // URL to columns B to D of Corn's google sheet
-        var birthdayTable =
-            "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
-        var doc = new HtmlWeb().Load(birthdayTable);
+        const string birthdayTable = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
+        var relevantNodes = await WebUtil.GetHtmlNodes(birthdayTable, "/html/body/table/tr");
+        
         var birthdate = default(DateTime);
 
         HtmlNode matchedNode = null;
         var matchedLength = int.MaxValue;
 
         // XPath to each table row
-        foreach (var row in doc.DocumentNode.SelectNodes("/html/body/table/tr"))
+        foreach (var row in relevantNodes)
         {
             // XPath to the name column (C)
             var nameNode = row.SelectSingleNode("td[2]");
             var name = nameNode.InnerText;
-            if (name.ToLower().Contains(searchName.ToLower()))
-                // Check for a "Closer" match
-                if (name.Length < matchedLength)
-                {
-                    matchedNode = row;
-                    matchedLength = name.Length;
-                    // Nothing will match "Better" so we may as well break out
-                    if (name.Length == searchName.Length) break;
-                }
+            
+            if (!name.ToLower().Contains(searchName.ToLower()) || name.Length >= matchedLength)
+                continue;
+            
+            // Check for a "Closer" match
+            matchedNode = row;
+            matchedLength = name.Length;
+            // Nothing will match "Better" so we may as well break out
+            if (name.Length == searchName.Length) break;
         }
 
         if (matchedNode != null)
