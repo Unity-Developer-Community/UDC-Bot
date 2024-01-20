@@ -222,29 +222,33 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (_xpCooldown.HasUser(userId))
             return;
 
-        var user = await _databaseService.GetOrAddUser((SocketGuildUser)messageParam.Author);
-        if (user == null)
-            return;
-        
-        bonusXp += baseXp * (1f + user.Karma / 100f);
-
-        //Reduce XP for members with no role
-        if (((IGuildUser)messageParam.Author).RoleIds.Count < 2)
-            baseXp *= .9f;
-
-        //Lower xp for difference between level and karma
-        var reduceXp = 1f;
-        if (user.Karma < user.Level) reduceXp = 1 - Math.Min(.9f, (user.Level - user.Karma) * .05f);
-
-        var xpGain = (int)Math.Round((baseXp + bonusXp) * reduceXp);
+        // Add Delay and delay action by 200ms to avoid some weird database collision?
         _xpCooldown.AddCooldown(userId, waitTime);
+        Task.Run(async () =>
+        {
+            var user = await _databaseService.GetOrAddUser((SocketGuildUser)messageParam.Author);
+            if (user == null)
+                return;
+        
+            bonusXp += baseXp * (1f + user.Karma / 100f);
 
-        await _databaseService.Query.UpdateXp(userId.ToString(), user.Exp + (uint)xpGain);
+            //Reduce XP for members with no role
+            if (((IGuildUser)messageParam.Author).RoleIds.Count < 2)
+                baseXp *= .9f;
 
-        _loggingService.LogXp(messageParam.Channel.Name, messageParam.Author.Username, baseXp, bonusXp, reduceXp,
-            xpGain);
+            //Lower xp for difference between level and karma
+            var reduceXp = 1f;
+            if (user.Karma < user.Level) reduceXp = 1 - Math.Min(.9f, (user.Level - user.Karma) * .05f);
 
-        await LevelUp(messageParam, userId);
+            var xpGain = (int)Math.Round((baseXp + bonusXp) * reduceXp);
+
+            await _databaseService.Query.UpdateXp(userId.ToString(), user.Exp + (uint)xpGain);
+
+            _loggingService.LogXp(messageParam.Channel.Name, messageParam.Author.Username, baseXp, bonusXp, reduceXp,
+                xpGain);
+
+            await LevelUp(messageParam, userId);
+        });
     }
 
     /// <summary>
