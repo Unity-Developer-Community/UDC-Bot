@@ -23,6 +23,8 @@ public class UserModule : ModuleBase
     public PublisherService PublisherService { get; set; }
     public UpdateService UpdateService { get; set; }
     public CommandHandlingService CommandHandlingService { get; set; }
+    public WeatherService WeatherService { get; set; }
+    public UserExtendedService UserExtendedService { get; set; }
     public BotSettings Settings { get; set; }
     public Rules Rules { get; set; }
         
@@ -128,18 +130,8 @@ public class UserModule : ModuleBase
         var builder = new EmbedBuilder()
             .WithColor(new Color(200, 128, 128))
             .WithTimestamp(message.Timestamp)
-            .WithFooter(footer =>
-            {
-                footer
-                    .WithText($"Quoted by {Context.User.GetUserPreferredName()} • From channel {message.Channel.Name}")
-                    .WithIconUrl(Context.User.GetAvatarUrl());
-            })
-            .WithAuthor(author =>
-            {
-                author
-                    .WithName(message.Author.Username)
-                    .WithIconUrl(message.Author.GetAvatarUrl());
-            });
+            .FooterQuoteBy(Context.User, message.Channel)
+            .AddAuthor(message.Author);
         if (msgContent == string.Empty && msgAttachment != string.Empty) msgContent = "📸";
 
         msgContent += $"\n\n***[Linkback]({messageLink})***";
@@ -258,8 +250,8 @@ public class UserModule : ModuleBase
         }
 
         const uint xpGain = 5000;
-        var userXp = await DatabaseService.Query().GetXp(userId.ToString());
-        await DatabaseService.Query().UpdateXp(userId.ToString(), userXp + xpGain);
+        var userXp = await DatabaseService.Query.GetXp(userId.ToString());
+        await DatabaseService.Query.UpdateXp(userId.ToString(), userXp + xpGain);
         await Context.Message.DeleteAsync();
     }
 
@@ -283,7 +275,7 @@ public class UserModule : ModuleBase
 
             await u.AddRoleAsync(role);
             await ReplyAsync($"{u.Username} you now have the `{role.Name}` role.");
-            await LoggingService.LogAction($"{Context.User.Username} has added {role} to themself.");
+            await LoggingService.LogChannelAndFile($"{Context.User.Username} has added {role} to themself.");
         }
 
         [Command("Remove")]
@@ -301,7 +293,7 @@ public class UserModule : ModuleBase
 
             await u.RemoveRoleAsync(role);
             await ReplyAsync($"{u.Username} your `{role.Name}` role has been removed");
-            await LoggingService.LogAction($"{Context.User.Username} has removed role {role} from themself.");
+            await LoggingService.LogChannelAndFile($"{Context.User.Username} has removed role {role} from themself.");
         }
 
         [Command("List")]
@@ -417,7 +409,7 @@ public class UserModule : ModuleBase
     [Alias("toplevel", "ranking")]
     public async Task TopLevel()
     {
-        var users = await DatabaseService.Query().GetTopLevel(10);
+        var users = await DatabaseService.Query.GetTopLevel(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.Level)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Level");
@@ -429,7 +421,7 @@ public class UserModule : ModuleBase
     [Alias("karmarank", "rankingkarma", "topk")]
     public async Task TopKarma()
     {
-        var users = await DatabaseService.Query().GetTopKarma(10);
+        var users = await DatabaseService.Query.GetTopKarma(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.Karma)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Karma");
@@ -441,7 +433,7 @@ public class UserModule : ModuleBase
     [Alias("karmarankweekly", "rankingkarmaweekly", "topkw")]
     public async Task TopKarmaWeekly()
     {
-        var users = await DatabaseService.Query().GetTopKarmaWeekly(10);
+        var users = await DatabaseService.Query.GetTopKarmaWeekly(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.KarmaWeekly)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Weekly Karma");
@@ -453,7 +445,7 @@ public class UserModule : ModuleBase
     [Alias("karmarankmonthly", "rankingkarmamonthly", "topkm")]
     public async Task TopKarmaMonthly()
     {
-        var users = await DatabaseService.Query().GetTopKarmaMonthly(10);
+        var users = await DatabaseService.Query.GetTopKarmaMonthly(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.KarmaMonthly)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Monthly Karma");
@@ -465,7 +457,7 @@ public class UserModule : ModuleBase
     [Alias("karmaranktearly", "rankingkarmayearly", "topky")]
     public async Task TopKarmaYearly()
     {
-        var users = await DatabaseService.Query().GetTopKarmaYearly(10);
+        var users = await DatabaseService.Query.GetTopKarmaYearly(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.KarmaYearly)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Yearly Karma");
@@ -505,7 +497,7 @@ public class UserModule : ModuleBase
         }
         catch (Exception e)
         {
-            await LoggingService.LogAction($"Failed to generate top 10 embed.\n{e}", true, false);
+            await LoggingService.LogChannelAndFile($"Failed to generate top 10 embed.\n{e}", ExtendedLogSeverity.LowWarning);
             embedBuilder.Description = "Failed to generate top 10 embed.";
         }
 
@@ -539,7 +531,8 @@ public class UserModule : ModuleBase
         }
         catch (Exception e)
         {
-            await LoggingService.LogAction($"Error while generating profile card for {user.Username}.\nEx:{e}", true, false);
+            await LoggingService.LogAction($"Error while generating profile card for {user.Username}.\nEx:{e}",
+                ExtendedLogSeverity.LowWarning);
         }
     }
 
@@ -551,6 +544,39 @@ public class UserModule : ModuleBase
         var joinDate = ((IGuildUser)Context.User).JoinedAt;
         await ReplyAsync($"{Context.User.Mention} you joined **{joinDate:dddd dd/MM/yyy HH:mm:ss}**");
         await Context.Message.DeleteAsync();
+    }
+    
+    [Command("SetCity"), Priority(100)]
+    [Alias("SetDefaultCity")]
+    [Summary("Set 'Default City' which can be used by various commands.")]
+    public async Task SetDefaultCity(params string[] city)
+    {
+        var fullCityName = string.Join(" ", city);
+        var (exists, result) = await WeatherService.CityExists(fullCityName);
+        if (!exists)
+        {
+            await ReplyAsync($"Sorry, {Context.User.Mention} but I couldn't find a city with that name.").DeleteAfterSeconds(30);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+        // Set default city
+        await UserExtendedService.SetUserDefaultCity(Context.User, result.name);
+        await ReplyAsync($"{Context.User.Mention} your default city has been set to {result.name}.");
+    }
+
+    [Command("RemoveCity"), Priority(100)]
+    [Alias("RemoveDefaultCity")]
+    [Summary("Remove 'Default City' which can be used by various commands.")]
+    public async Task RemoveDefaultCity()
+    {
+        if (!await UserExtendedService.DoesUserHaveDefaultCity(Context.User))
+        {
+            await ReplyAsync($"{Context.User.Mention} you don't have a default city set.").DeleteAfterSeconds(30);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+        await UserExtendedService.RemoveUserDefaultCity(Context.User);
+        await ReplyAsync($"{Context.User.Mention} your default city has been removed.");
     }
 
     #endregion
@@ -1083,7 +1109,7 @@ public class UserModule : ModuleBase
 
     #endregion
 
-    #region temperatures
+    #region Temperatures
 
     [Command("FtoC"), Priority(28)]
     [Summary("Converts a temperature in fahrenheit to celsius. Syntax : !ftoc temperature")]
@@ -1146,15 +1172,22 @@ public class UserModule : ModuleBase
     {
         await ConvertCurrency(1, from, to);
     }
-
+    
     [Command("Currency"), Priority(29)]
     [Summary("Converts a currency. Syntax : !currency amount fromCurrency toCurrency")]
     [Alias("curr")]
     public async Task ConvertCurrency(double amount, string from, string to = "usd")
     {
         if (Context.HasAnyPingableMention())
-            return;
-        
+        {
+            // Only continue command if the user is replying to a message
+            if (!Context.IsReply())
+                return;
+            // And that mention is only the author of the replied message
+            if (!Context.IsOnlyReplyingToAuthor())
+                return;
+        }
+
         from = from.ToLower();
         to = to.ToLower();
 

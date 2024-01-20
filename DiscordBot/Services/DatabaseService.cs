@@ -4,7 +4,6 @@ using DiscordBot.Settings;
 using Insight.Database;
 using MySql.Data.MySqlClient;
 
-
 namespace DiscordBot.Services;
 
 public class DatabaseService
@@ -14,8 +13,7 @@ public class DatabaseService
     private readonly ILoggingService _logging;
     private string ConnectionString { get; }
 
-    public IServerUserRepo Query() => _connection;
-    private readonly IServerUserRepo _connection;
+    public IServerUserRepo Query { get; }
 
     public DatabaseService(ILoggingService logging, BotSettings settings)
     {
@@ -26,7 +24,7 @@ public class DatabaseService
         try
         {
             c = new MySqlConnection(ConnectionString);
-            _connection = c.As<IServerUserRepo>();
+            Query = c.As<IServerUserRepo>();
         }
         catch (Exception e)
         {
@@ -40,33 +38,54 @@ public class DatabaseService
             // Test connection, if it fails we create the table and set keys
             try
             {
-                var userCount = await _connection.TestConnection();
-                await _logging.LogAction($"{ServiceName}: Connected to database successfully. {userCount} users in database.");
-                LoggingService.LogToConsole($"{ServiceName}: Connected to database successfully. {userCount} users in database.", ExtendedLogSeverity.Positive);
+                var userCount = await Query.TestConnection();
+                await _logging.LogAction(
+                    $"{ServiceName}: Connected to database successfully. {userCount} users in database.",
+                    ExtendedLogSeverity.Positive);
+                
+                // Not sure on best practice for if column is missing, full blown migrations seem overkill
+                var defaultCityExists = await c.ColumnExists(UserProps.TableName, UserProps.DefaultCity);
+                if (!defaultCityExists)
+                {
+                    c.ExecuteSql($"ALTER TABLE `{UserProps.TableName}` ADD `{UserProps.DefaultCity}` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER `{UserProps.Level}`");
+                    await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.DefaultCity}' to table '{UserProps.TableName}'.",
+                        ExtendedLogSeverity.Positive);
+                }
             }
             catch
             {
-                LoggingService.LogToConsole(
-                    "DatabaseService: Table 'users' does not exist, attempting to generate table.",
+                await _logging.LogAction($"DatabaseService: Table '{UserProps.TableName}' does not exist, attempting to generate table.",
                     ExtendedLogSeverity.LowWarning);
                 try
                 {
                     c.ExecuteSql(
-                        "CREATE TABLE `users` (`ID` int(11) UNSIGNED  NOT NULL, `UserID` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, `Karma` int(11) UNSIGNED  NOT NULL DEFAULT 0, `KarmaWeekly` int(11) UNSIGNED  NOT NULL DEFAULT 0, `KarmaMonthly` int(11) UNSIGNED  NOT NULL DEFAULT 0, `KarmaYearly` int(11) UNSIGNED  NOT NULL DEFAULT 0, `KarmaGiven` int(11) UNSIGNED NOT NULL DEFAULT 0, `Exp` bigint(11) UNSIGNED  NOT NULL DEFAULT 0, `Level` int(11) UNSIGNED NOT NULL DEFAULT 0) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+                        $"CREATE TABLE `{UserProps.TableName}` (`ID` int(11) UNSIGNED  NOT NULL," +
+                        $"`{UserProps.UserID}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                        $"`{UserProps.Karma}` int(11) UNSIGNED  NOT NULL DEFAULT 0, " +
+                        $"`{UserProps.KarmaWeekly}` int(11) UNSIGNED  NOT NULL DEFAULT 0, " +
+                        $"`{UserProps.KarmaMonthly}` int(11) UNSIGNED  NOT NULL DEFAULT 0, " +
+                        $"`{UserProps.KarmaYearly}` int(11) UNSIGNED  NOT NULL DEFAULT 0, " +
+                        $"`{UserProps.KarmaGiven}` int(11) UNSIGNED NOT NULL DEFAULT 0, " +
+                        $"`{UserProps.Exp}` bigint(11) UNSIGNED  NOT NULL DEFAULT 0, " +
+                        $"`{UserProps.Level}` int(11) UNSIGNED NOT NULL DEFAULT 0) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
                     c.ExecuteSql(
-                        "ALTER TABLE `users` ADD PRIMARY KEY (`ID`,`UserID`), ADD UNIQUE KEY `UserID` (`UserID`)");
+                        $"ALTER TABLE `{UserProps.TableName}` ADD PRIMARY KEY (`ID`,`{UserProps.UserID}`), ADD UNIQUE KEY `{UserProps.UserID}` (`{UserProps.UserID}`)");
                     c.ExecuteSql(
-                        "ALTER TABLE `users` MODIFY `ID` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1");
+                        $"ALTER TABLE `{UserProps.TableName}` MODIFY `ID` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1");
+                    
+                    // "DefaultCity" Nullable - Weather, BDay, Temp, Time, etc. Optional for users to set their own city (Added - Jan 2024)
+                    c.ExecuteSql(
+                        $"ALTER TABLE `{UserProps.TableName}` ADD `{UserProps.DefaultCity}` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER `{UserProps.Level}`");
                 }
                 catch (Exception e)
                 {
-                    LoggingService.LogToConsole(
-                        $"SQL Exception: Failed to generate table 'users'.\nMessage: {e}",
-                        LogSeverity.Critical);
+                    await _logging.LogAction(
+                        $"SQL Exception: Failed to generate table '{UserProps.TableName}'.\nMessage: {e}",
+                        ExtendedLogSeverity.Critical);
                     c.Close();
                     return;
                 }
-                LoggingService.LogToConsole("DatabaseService: Table 'users' generated without errors.",
+                await _logging.LogAction($"DatabaseService: Table '{UserProps.TableName}' generated without errors.",
                     ExtendedLogSeverity.Positive);
                 c.Close();
             }
@@ -75,18 +94,19 @@ public class DatabaseService
             try
             {
                 c.ExecuteSql(
-                    $"CREATE EVENT IF NOT EXISTS `ResetWeeklyLeaderboards` ON SCHEDULE EVERY 1 WEEK STARTS '2021-08-02 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO UPDATE {c.Database}.users SET KarmaWeekly = 0");
+                    $"CREATE EVENT IF NOT EXISTS `ResetWeeklyLeaderboards` ON SCHEDULE EVERY 1 WEEK STARTS '2021-08-02 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO UPDATE {c.Database}.users SET {UserProps.KarmaWeekly} = 0");
                 c.ExecuteSql(
-                    $"CREATE EVENT IF NOT EXISTS `ResetMonthlyLeaderboards` ON SCHEDULE EVERY 1 MONTH STARTS '2021-08-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO UPDATE {c.Database}.users SET KarmaMonthly = 0");
+                    $"CREATE EVENT IF NOT EXISTS `ResetMonthlyLeaderboards` ON SCHEDULE EVERY 1 MONTH STARTS '2021-08-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO UPDATE {c.Database}.users SET {UserProps.KarmaMonthly} = 0");
                 c.ExecuteSql(
-                    $"CREATE EVENT IF NOT EXISTS `ResetYearlyLeaderboards` ON SCHEDULE EVERY 1 YEAR STARTS '2022-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO UPDATE {c.Database}.users SET KarmaYearly = 0");
+                    $"CREATE EVENT IF NOT EXISTS `ResetYearlyLeaderboards` ON SCHEDULE EVERY 1 YEAR STARTS '2022-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO UPDATE {c.Database}.users SET {UserProps.KarmaYearly} = 0");
                 c.Close();
             }
             catch (Exception e)
             {
-                LoggingService.LogToConsole($"SQL Exception: Failed to generate leaderboard events.\nMessage: {e}",
-                    LogSeverity.Warning);
+                await _logging.LogAction($"SQL Exception: Failed to generate leaderboard events.\nMessage: {e}",
+                    ExtendedLogSeverity.Warning);
             }
+            
         });
     }
 
@@ -108,10 +128,10 @@ public class DatabaseService
                 if (!user.IsBot)
                 {
                     var userIdString = user.Id.ToString();
-                    var serverUser = await Query().GetUser(userIdString);
+                    var serverUser = await Query.GetUser(userIdString);
                     if (serverUser == null)
                     {
-                        await AddNewUser(user as SocketGuildUser);
+                        await GetOrAddUser(user as SocketGuildUser);
                         newAdd++;
                     }
                 }
@@ -129,34 +149,40 @@ public class DatabaseService
             });
         }
 
-        await _logging.LogAction(
+        await _logging.LogChannelAndFile(
             $"Database Synchronized {counter.ToString()} Users Successfully.\n{newAdd.ToString()} missing users added.");
     }
 
-    public async Task AddNewUser(SocketGuildUser socketUser)
+    /// <summary>
+    /// Adds a new user to the database if they don't already exist.
+    /// </summary>
+    /// <returns>Existing or newly created user. Null on database error.</returns>
+    public async Task<ServerUser> GetOrAddUser(SocketGuildUser socketUser)
     {
         try
         {
-            var user = await Query().GetUser(socketUser.Id.ToString());
+            var user = await Query.GetUser(socketUser.Id.ToString());
             if (user != null)
-                return;
+                return user;
 
             user = new ServerUser
             {
                 UserID = socketUser.Id.ToString(),
             };
 
-            await Query().InsertUser(user);
+            await Query.InsertUser(user);
+            user = await Query.GetUser(socketUser.Id.ToString());
 
-            await _logging.LogAction(
-                $"User {socketUser.GetPreferredAndUsername()} successfully added to the database.",
-                true,
-                false);
+            await _logging.Log(LogBehaviour.File,
+                $"User {socketUser.GetPreferredAndUsername()} successfully added to the database.");
+            return user;
         }
         catch (Exception e)
         {
-            await _logging.LogAction(
-                $"Error when trying to add user {socketUser.Id.ToString()} to the database : {e}", true, false);
+            // We don't print to channel as this could be spammy (Albeit rare)
+            await _logging.Log(LogBehaviour.Console | LogBehaviour.File,
+                $"Error when trying to add user {socketUser.Id.ToString()} to the database : {e}", ExtendedLogSeverity.Warning);
+            return null;
         }
     }
 
@@ -164,18 +190,19 @@ public class DatabaseService
     {
         try
         {
-            var user = await Query().GetUser(id.ToString());
+            var user = await Query.GetUser(id.ToString());
             if (user != null)
-                await Query().RemoveUser(user.UserID);
+                await Query.RemoveUser(user.UserID);
         }
         catch (Exception e)
         {
-            await _logging.LogAction($"Error when trying to delete user {id.ToString()} from the database : {e}", true, false);
+            await _logging.Log(LogBehaviour.Console | LogBehaviour.File,
+                $"Error when trying to delete user {id.ToString()} from the database : {e}", ExtendedLogSeverity.Warning);
         }
     }
 
     public async Task<bool> UserExists(ulong id)
     {
-        return (await Query().GetUser(id.ToString()) != null);
+        return (await Query.GetUser(id.ToString()) != null);
     }
 }

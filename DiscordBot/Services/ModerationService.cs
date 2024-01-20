@@ -23,7 +23,17 @@ public class ModerationService
 
     private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
     {
+        if (message.HasValue == false)
+        {
+            await _loggingService.LogChannelAndFile($"An uncached Message snowflake:`{message.Id}` was deleted from channel <#{(await channel.GetOrDownloadAsync()).Id}>");
+            return;
+        }
+        
         if (message.Value.Author.IsBot || channel.Id == _settings.BotAnnouncementChannel.Id)
+            return;
+        // Check the author is even in the guild
+        var guildUser = message.Value.Author as SocketGuildUser;
+        if (guildUser == null)
             return;
 
         var content = message.Value.Content;
@@ -34,26 +44,18 @@ public class ModerationService
         var builder = new EmbedBuilder()
             .WithColor(DeletedMessageColor)
             .WithTimestamp(message.Value.Timestamp)
-            .WithFooter(footer =>
-            {
-                footer
-                    .WithText($"In channel {message.Value.Channel.Name}");
-            })
-            .WithAuthor(author =>
-            {
-                author
-                    .WithName($"{user.GetPreferredAndUsername()} deleted a message");
-            })
+            .WithFooter($"In channel {message.Value.Channel.Name}")
+            .WithAuthor($"{user.GetPreferredAndUsername()} deleted a message")
             .AddField($"Deleted Message {(content.Length != message.Value.Content.Length ? "(truncated)" : "")}",
                 content);
         var embed = builder.Build();
 
         // TimeStamp for the Footer
 
+        
         await _loggingService.LogAction(
             $"User {user.GetPreferredAndUsername()} has " +
-            $"deleted the message\n{content}\n from channel #{(await channel.GetOrDownloadAsync()).Name}", true, false);
-        await _loggingService.LogAction(" ", false, true, embed);
+            $"deleted the message\n{content}\n from channel #{(await channel.GetOrDownloadAsync()).Name}", ExtendedLogSeverity.Info, embed);
     }
 
     private async Task MessageUpdated(Cacheable<IMessage, ulong> before, SocketMessage after, ISocketMessageChannel channel)
@@ -80,16 +82,8 @@ public class ModerationService
         var builder = new EmbedBuilder()
             .WithColor(EditedMessageColor)
             .WithTimestamp(after.Timestamp)
-            .WithFooter(footer =>
-            {
-                footer
-                    .WithText($"In channel {after.Channel.Name}");
-            })
-            .WithAuthor(author =>
-            {
-                author
-                    .WithName($"{user.GetPreferredAndUsername()} updated a message");
-            });
+            .WithFooter($"In channel {after.Channel.Name}")
+            .WithAuthor($"{user.GetPreferredAndUsername()} updated a message");
         if (isCached)
             builder.AddField($"Previous message content {(isTruncated ? "(truncated)" : "")}", content);
         builder.WithDescription($"Message: [{after.Id}]({after.GetJumpUrl()})");
@@ -99,7 +93,6 @@ public class ModerationService
         
         await _loggingService.LogAction(
             $"User {user.GetPreferredAndUsername()} has " +
-            $"updated the message\n{content}\n in channel #{channel.Name}", true, false);
-        await _loggingService.LogAction(" ", false, true, embed);
+            $"updated the message\n{content}\n in channel #{channel.Name}", ExtendedLogSeverity.Info, embed);
     }
 }

@@ -37,7 +37,7 @@ public class Program
         {
             LogLevel = LogSeverity.Verbose,
             AlwaysDownloadUsers = true,
-            MessageCacheSize = 200,
+            MessageCacheSize = 1024,
             GatewayIntents = GatewayIntents.All,
         });
         _client.Log += LoggingService.DiscordNetLogger;
@@ -99,6 +99,7 @@ public class Program
             .AddSingleton<ReminderService>()
             .AddSingleton<WeatherService>()
             .AddSingleton<AirportService>()
+            .AddSingleton<UserExtendedService>()
             .BuildServiceProvider();
 
     private static void DeserializeSettings()

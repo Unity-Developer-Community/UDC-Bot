@@ -14,6 +14,8 @@ namespace DiscordBot.Services;
 
 public class UserService
 {
+    private const string ServiceName = "UserService";
+    
     private readonly HashSet<ulong> _canEditThanks; //Doesn't need to be saved
     private readonly DiscordSocketClient _client;
     public readonly string CodeFormattingExample;
@@ -163,15 +165,15 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var joinDate = guildUser.JoinedAt.Value.Date;
 
             var timeStayed = DateTime.Now - joinDate;
-            await _loggingService.LogAction(
+            await _loggingService.LogChannelAndFile(
                 $"User Left - After {(timeStayed.Days > 1 ? Math.Floor((double)timeStayed.Days) + " days" : " ")}" +
                 $" {Math.Floor((double)timeStayed.Hours).ToString(CultureInfo.InvariantCulture)} hours {user.Mention} - `{guildUser.GetPreferredAndUsername()}` - ID : `{user.Id}`");
         }
         // If bot is to slow to get user info, we just say they left at current time.
         else
         {
-            await _loggingService.LogAction(
-                $"User `{guildUser.GetPreferredAndUsername()}` - ID : `{user.Id}` - Left at {DateTime.Now}");
+            await _loggingService.LogChannelAndFile(
+                $"User Left - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}` - Left at {DateTime.Now}");
         }
     }
 
@@ -220,12 +222,9 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (_xpCooldown.HasUser(userId))
             return;
 
-        var user = await _databaseService.Query().GetUser(userId.ToString());
+        var user = await _databaseService.GetOrAddUser((SocketGuildUser)messageParam.Author);
         if (user == null)
-        {
-            await _databaseService.AddNewUser((SocketGuildUser)messageParam.Author);
-            user = await _databaseService.Query().GetUser(userId.ToString());
-        }
+            return;
         
         bonusXp += baseXp * (1f + user.Karma / 100f);
 
@@ -240,7 +239,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var xpGain = (int)Math.Round((baseXp + bonusXp) * reduceXp);
         _xpCooldown.AddCooldown(userId, waitTime);
 
-        await _databaseService.Query().UpdateXp(userId.ToString(), user.Exp + (uint)xpGain);
+        await _databaseService.Query.UpdateXp(userId.ToString(), user.Exp + (uint)xpGain);
 
         _loggingService.LogXp(messageParam.Channel.Name, messageParam.Author.Username, baseXp, bonusXp, reduceXp,
             xpGain);
@@ -256,15 +255,15 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     /// <returns></returns>
     private async Task LevelUp(SocketMessage messageParam, ulong userId)
     {
-        var level = await _databaseService.Query().GetLevel(userId.ToString());
-        var xp = await _databaseService.Query().GetXp(userId.ToString());
+        var level = await _databaseService.Query.GetLevel(userId.ToString());
+        var xp = await _databaseService.Query.GetXp(userId.ToString());
 
         var xpHigh = GetXpHigh(level);
 
         if (xp < xpHigh)
             return;
 
-        await _databaseService.Query().UpdateLevel(userId.ToString(), level + 1);
+        await _databaseService.Query.UpdateLevel(userId.ToString(), level + 1);
 
         // First few levels are only a couple messages,
         // so we hide them to avoid scaring people away and give them slightly longer to naturally see these in the server.
@@ -294,7 +293,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
         try
         {
-            var dbRepo = _databaseService.Query();
+            var dbRepo = _databaseService.Query;
             if (dbRepo == null)
                 return profileCardPath;
             
@@ -397,7 +396,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         }
         catch (Exception e)
         {
-            await _loggingService.LogAction($"Failed to generate profile card for {user.Username}.\nEx:{e.Message}");
+            await _loggingService.LogChannelAndFile($"Failed to generate profile card for {user.Username}.\nEx:{e.Message}", ExtendedLogSeverity.LowWarning);
         }
         
         if (!string.IsNullOrEmpty(profileCardPath))
@@ -415,12 +414,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var builder = new EmbedBuilder()
             .WithDescription(welcomeString)
             .WithColor(_welcomeColour)
-            .WithAuthor(author =>
-            {
-                author
-                    .WithName(user.GetUserPreferredName())
-                    .WithIconUrl(icon);
-            });
+            .WithAuthor(user.GetUserPreferredName(), icon);
 
         var embed = builder.Build();
         return embed;
@@ -493,13 +487,13 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                     continue;
                 }
 
-                await _databaseService.Query().IncrementKarma(user.Id.ToString());
+                await _databaseService.Query.IncrementKarma(user.Id.ToString());
                 sb.Append(user.GetUserPreferredName()).Append("**, **");
             }
 
             // Even if a user gives multiple karma in one message, we only add one.
-            var authorKarmaGiven = await _databaseService.Query().GetKarmaGiven(messageParam.Author.Id.ToString());
-            await _databaseService.Query().UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
+            var authorKarmaGiven = await _databaseService.Query.GetKarmaGiven(messageParam.Author.Id.ToString());
+            await _databaseService.Query.UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
 
             sb.Length -= 4; //Removes last instance of appended comma/startbold without convoluted tracking
             //sb.Append("**"); // Already appended an endbold
@@ -516,7 +510,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 return;
             _thanksCooldown.AddCooldown(userId, _thanksCooldownTime);
             await messageParam.Channel.SendMessageAsync(sb.ToString());
-            await _loggingService.LogAction(sb + " in channel " + messageParam.Channel.Name);
+            await _loggingService.LogChannelAndFile(sb + " in channel " + messageParam.Channel.Name);
         }
 
         if (mentions.Count == 0 && _canEditThanks.Add(messageParam.Id))
@@ -644,7 +638,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         await DMFormattedWelcome(user);
 
         var socketTextChannel = _client.GetChannel(_settings.GeneralChannel.Id) as SocketTextChannel;
-        await _databaseService.AddNewUser(user);
+        await _databaseService.GetOrAddUser(user);
 
         // Check if moderator commands are enabled, and if so we check if they were previously muted.
         if (_settings.ModeratorCommandsEnabled)
@@ -652,7 +646,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             if (MutedUsers.HasUser(user.Id))
             {
                 await user.AddRoleAsync(socketTextChannel?.Guild.GetRole(_settings.MutedRoleId));
-                await _loggingService.LogAction(
+                await _loggingService.LogChannelAndFile(
                     $"Currently muted user rejoined - {user.Mention} - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}`");
                 if (socketTextChannel != null)
                     await socketTextChannel.SendMessageAsync(
@@ -662,7 +656,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             }
         }
 
-        await _loggingService.LogAction(
+        await _loggingService.LogChannelAndFile(
             $"User Joined - {user.Mention} - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}`");
 
         // We check if they're already in the welcome list, if they are we don't add them again to avoid double posts
@@ -680,6 +674,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         await Task.Delay(10000);
         try
         {
+            List<ulong> toRemove = new();
             while (true)
             {
                 var now = DateTime.Now;
@@ -689,8 +684,22 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 {
                     currentlyProcessedUserId = userData.id;
                     await ProcessWelcomeUser(userData.id, null);
+                    
+                    toRemove.Add(userData.id);
                 }
                 
+                // Remove all the users we've welcomed from the list
+                if (toRemove.Count > 0)
+                {
+                    _welcomeNoticeUsers.RemoveAll(u => toRemove.Contains(u.id));
+                    toRemove.Clear();
+                    // Prevent the list from growing too large, not that it really matters.
+                    if (toRemove.Capacity > 20)
+                    {
+                        toRemove.Capacity = 20;
+                    }
+                }
+
                 if (firstRun)
                     firstRun = false;
                 await Task.Delay(10000);
@@ -699,20 +708,18 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         catch (Exception e)
         {
             // Catch and show exception
-            LoggingService.LogToConsole($"UserService Exception during welcome message `{currentlyProcessedUserId}`.\n{e.Message}",
-                LogSeverity.Error);
-            await _loggingService.LogAction($"UserService Exception during welcome message `{currentlyProcessedUserId}`.\n{e.Message}.", true, true);
+            await _loggingService.LogChannelAndFile($"{ServiceName} Exception during welcome message `{currentlyProcessedUserId}`.\n{e.Message}.", ExtendedLogSeverity.Warning);
             
             // Remove the offending user from the dictionary and run the service again.
             _welcomeNoticeUsers.RemoveAll(u => u.id == currentlyProcessedUserId);
             if (_welcomeNoticeUsers.Count > 200)
             {
                 _welcomeNoticeUsers.Clear();
-                await _loggingService.LogAction("UserService: Welcome list cleared due to size (+200), this should not happen.", true, true);
+                await _loggingService.LogAction($"{ServiceName}: Welcome list cleared due to size (+200), this should not happen.", ExtendedLogSeverity.Error);
             }
 
             if (firstRun)
-                await _loggingService.LogAction("UserService: Welcome service failed on first run!? This should not happen.", true, true);
+                await _loggingService.LogAction($"{ServiceName}: Welcome service failed on first run!? This should not happen.", ExtendedLogSeverity.Error);
 
             // Run the service again.
             Task.Run(DelayedWelcomeService);
@@ -723,9 +730,6 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         if (_welcomeNoticeUsers.Exists(u => u.id == userID))
         {
-            // Remove the user from the welcome list.
-            _welcomeNoticeUsers.RemoveAll(u => u.id == userID);
-
             // If we didn't get the user passed in, we try grab it
             user ??= await _client.GetUserAsync(userID);
             // if they're null, they've likely left, so we just remove them from the list.
@@ -789,7 +793,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var oldUser = await oldUserCached.GetOrDownloadAsync();
         if (oldUser.Nickname != user.Nickname)
         {
-            await _loggingService.LogAction(
+            await _loggingService.LogChannelAndFile(
                 $"User {oldUser.GetUserPreferredName()} changed his " +
                 $"username to {user.GetUserPreferredName()}");
         }
