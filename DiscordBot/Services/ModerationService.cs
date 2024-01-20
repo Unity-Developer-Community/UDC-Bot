@@ -44,14 +44,11 @@ public class ModerationService
         var builder = new EmbedBuilder()
             .WithColor(DeletedMessageColor)
             .WithTimestamp(message.Value.Timestamp)
-            .WithFooter($"In channel {message.Value.Channel.Name}")
-            .WithAuthor($"{user.GetPreferredAndUsername()} deleted a message")
+            .FooterInChannel(message.Value.Channel)
+            .AddAuthorWithAction(user, "Deleted a message", true)
             .AddField($"Deleted Message {(content.Length != message.Value.Content.Length ? "(truncated)" : "")}",
                 content);
         var embed = builder.Build();
-
-        // TimeStamp for the Footer
-
         
         await _loggingService.Log(LogBehaviour.Channel, string.Empty, ExtendedLogSeverity.Info, embed);
     }
@@ -80,8 +77,8 @@ public class ModerationService
         var builder = new EmbedBuilder()
             .WithColor(EditedMessageColor)
             .WithTimestamp(after.Timestamp)
-            .WithFooter($"In channel {after.Channel.Name}")
-            .WithAuthor($"{user.GetPreferredAndUsername()} updated a message");
+            .FooterInChannel(after.Channel)
+            .AddAuthorWithAction(user, "Updated a message", true);
         if (isCached)
             builder.AddField($"Previous message content {(isTruncated ? "(truncated)" : "")}", content);
         builder.WithDescription($"Message: [{after.Id}]({after.GetJumpUrl()})");
