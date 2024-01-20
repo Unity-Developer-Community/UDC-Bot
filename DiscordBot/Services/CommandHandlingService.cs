@@ -209,6 +209,10 @@ public class CommandHandlingService
             if (result is PreconditionGroupResult groupResult)
             {
                 resultString = groupResult.PreconditionResults.First().ErrorReason;
+                
+                // Pre-condition doesn't have a reason, we don't respond.
+                if (resultString == string.Empty)
+                    return;
             }
             await context.Channel.SendMessageAsync(resultString).DeleteAfterSeconds(10);
         }
