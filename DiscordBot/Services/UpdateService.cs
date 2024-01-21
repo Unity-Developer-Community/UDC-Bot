@@ -48,6 +48,8 @@ public class FeedData
 //TODO Download all avatars to cache them
 public class UpdateService
 {
+    private const string ServiceName = "UpdateService";
+    private readonly ILoggingService _loggingService;
     private readonly FeedService _feedService;
     private readonly BotSettings _settings;
     private readonly CancellationToken _token;
@@ -62,10 +64,11 @@ public class UpdateService
     private UserData _userData;
 
     public UpdateService(DiscordSocketClient client,
-        DatabaseService databaseService, BotSettings settings, FeedService feedService)
+        DatabaseService databaseService, BotSettings settings, FeedService feedService, ILoggingService loggingService)
     {
         _client = client;
         _feedService = feedService;
+        _loggingService = loggingService as LoggingService;
 
         _settings = settings;
         _token = new CancellationToken();
@@ -183,9 +186,9 @@ public class UpdateService
             _apiDatabase = ConvertJsToArray(apiInput, false);
 
             if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unitymanual.json", _manualDatabase))
-                LoggingService.LogToConsole("Failed to save unitymanual.json", LogSeverity.Warning);
+                await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile,$"{ServiceName}: Failed to save unitymanual.json", ExtendedLogSeverity.Warning);
             if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unityapi.json", _apiDatabase))
-                LoggingService.LogToConsole("Failed to save unityapi.json", LogSeverity.Warning);
+                await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile,$"{ServiceName}: Failed to save unityapi.json", ExtendedLogSeverity.Warning);
 
             string[][] ConvertJsToArray(string data, bool isManual)
             {
@@ -214,7 +217,7 @@ public class UpdateService
         }
         catch (Exception e)
         {
-            LoggingService.LogToConsole($"Failed to download manual/api file\nEx:{e.ToString()}", LogSeverity.Error);
+            await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile,$"{ServiceName}: Failed to download manual/api file\nEx:{e.ToString()}", ExtendedLogSeverity.Warning);
         }
     }
 
@@ -235,22 +238,29 @@ public class UpdateService
         await Task.Delay(TimeSpan.FromSeconds(30d), _token);
         while (true)
         {
-            if (_feedData != null)
+            try
             {
-                if (_feedData.LastUnityReleaseCheck < DateTime.Now - TimeSpan.FromMinutes(5))
+                if (_feedData != null)
                 {
-                    _feedData.LastUnityReleaseCheck = DateTime.Now;
+                    if (_feedData.LastUnityReleaseCheck < DateTime.Now - TimeSpan.FromMinutes(5))
+                    {
+                        _feedData.LastUnityReleaseCheck = DateTime.Now;
 
-                    await _feedService.CheckUnityBetasAsync(_feedData);
-                    await _feedService.CheckUnityReleasesAsync(_feedData);
+                        await _feedService.CheckUnityBetasAsync(_feedData);
+                        await _feedService.CheckUnityReleasesAsync(_feedData);
+                    }
+
+                    if (_feedData.LastUnityBlogCheck < DateTime.Now - TimeSpan.FromMinutes(10))
+                    {
+                        _feedData.LastUnityBlogCheck = DateTime.Now;
+
+                        await _feedService.CheckUnityBlogAsync(_feedData);
+                    }
                 }
-
-                if (_feedData.LastUnityBlogCheck < DateTime.Now - TimeSpan.FromMinutes(10))
-                {
-                    _feedData.LastUnityBlogCheck = DateTime.Now;
-
-                    await _feedService.CheckUnityBlogAsync(_feedData);
-                }
+            }
+            catch (Exception e)
+            {
+                await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile,$"{ServiceName}: Failed to update RSS feeds, attempting to continue.", ExtendedLogSeverity.Error);
             }
 
             await Task.Delay(TimeSpan.FromSeconds(30d), _token);
@@ -270,7 +280,7 @@ public class UpdateService
         }
         catch
         {
-            LoggingService.LogToConsole($"Wikipedia method failed loading URL: {wikiSearchUri}", LogSeverity.Warning);
+            await _loggingService.LogChannelAndFile($"{ServiceName}: Wikipedia method failed loading URL: {wikiSearchUri}", ExtendedLogSeverity.Warning);
             return (null, null, null);
         }
 
@@ -313,7 +323,7 @@ public class UpdateService
         }
         catch (Exception e)
         {
-            LoggingService.LogToConsole($"Wikipedia method likely failed to parse JSON response from: {wikiSearchUri}.\nEx:{e.ToString()}");
+            await _loggingService.LogChannelAndFile($"{ServiceName}: Wikipedia method likely failed to parse JSON response from: {wikiSearchUri}.\nEx:{e.ToString()}", ExtendedLogSeverity.Warning);
         }
 
         return (null, null, null);
