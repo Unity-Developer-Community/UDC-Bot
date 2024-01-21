@@ -37,8 +37,8 @@ public class UnityHelpModule : ModuleBase
             await ReplyAsync("UnityHelp Service currently disabled.").DeleteAfterSeconds(15);
             return;
         }
-        var pendingQuestions = HelpService.GetPendingQuestions();
-        await ReplyAsync($"There are {pendingQuestions} pending questions in the help channel.");
+        var trackedQuestionCount = HelpService.GetTrackedQuestionCount();
+        await ReplyAsync($"There are {trackedQuestionCount} pending questions in the help channel.");
     }
 
     #region Utility
