@@ -27,7 +27,7 @@ public class ReminderService
     private readonly ILoggingService _loggingService;
     private List<ReminderItem> _reminders = new List<ReminderItem>();
         
-    private readonly BotCommandsChannel _botCommandsChannel;
+    private readonly ChannelInfo _botCommandsChannel;
     private bool _hasChangedSinceLastSave = false;
 
     private const int _maxUserReminders = 10;
