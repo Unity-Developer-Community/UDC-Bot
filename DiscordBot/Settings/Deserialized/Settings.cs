@@ -31,10 +31,9 @@ public class BotSettings
     // Used for enabling/disabling services in the bot
     
     public bool RecruitmentServiceEnabled { get; set; } = false;
-
     public bool UnityHelpBabySitterEnabled { get; set; } = false;
-
     public bool ReactRoleServiceEnabled { get; set; } = false;
+    public bool IntroductionWatcherServiceEnabled { get; set; } = false;
 
     #endregion // Service Enabling
 
@@ -54,6 +53,7 @@ public class BotSettings
     
     #region Channels
     
+    public ChannelInfo IntroductionChannel { get; set; }
     public ChannelInfo GeneralChannel { get; set; }
     public ChannelInfo GenericHelpChannel { get; set; }
     
