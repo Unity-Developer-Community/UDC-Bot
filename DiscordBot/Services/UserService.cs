@@ -622,7 +622,11 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (user.Value.IsBot)
             return;
 
-        await ProcessWelcomeUser(user.Id, user.Value);
+        if (_welcomeNoticeUsers.Exists(u => u.id == user.Id))
+        {
+            _welcomeNoticeUsers.RemoveAll(u => u.id == user.Id);
+            await ProcessWelcomeUser(user.Id, user.Value);
+        }
     }
     
     private async Task CheckForWelcomeMessage(SocketMessage messageParam)
@@ -633,7 +637,12 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var user = messageParam.Author;
         if (user.IsBot)
             return;
-        await ProcessWelcomeUser(user.Id, user);
+        
+        if (_welcomeNoticeUsers.Exists(u => u.id == user.Id))
+        {
+            _welcomeNoticeUsers.RemoveAll(u => u.id == user.Id);
+            await ProcessWelcomeUser(user.Id, user);
+        }
     }
 
     private async Task UserJoined(SocketGuildUser user)
@@ -733,20 +742,18 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     private async Task ProcessWelcomeUser(ulong userID, IUser user = null)
     {
         if (_welcomeNoticeUsers.Exists(u => u.id == userID))
-        {
             // If we didn't get the user passed in, we try grab it
             user ??= await _client.GetUserAsync(userID);
-            // if they're null, they've likely left, so we just remove them from the list.
-            if (user == null)
-                return;
-            
-            var offTopic = await _client.GetChannelAsync(_settings.GeneralChannel.Id) as SocketTextChannel;
-            if (user is not SocketGuildUser guildUser)
-                return;
-            var em = WelcomeMessage(guildUser);
-            if (offTopic != null && em != null)
-                await offTopic.SendMessageAsync(string.Empty, false, em);
-        }
+        // if they're null, they've likely left, so we just remove them from the list.
+        if (user == null)
+            return;
+
+        var offTopic = await _client.GetChannelAsync(_settings.GeneralChannel.Id) as SocketTextChannel;
+        if (user is not SocketGuildUser guildUser)
+            return;
+        var em = WelcomeMessage(guildUser);
+        if (offTopic != null && em != null)
+            await offTopic.SendMessageAsync(string.Empty, false, em);
     }
 
 
