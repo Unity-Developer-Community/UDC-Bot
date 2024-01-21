@@ -739,6 +739,11 @@ public class UnityHelpService
         return false;
 
     }
+    
+    public int GetTrackedQuestionCount()
+    {
+        return _activeThreads.Count;
+    }
 
     #endregion // Utility Methods
     

@@ -19,6 +19,13 @@ public static class EmbedBuilderExtension
         return builder;
     }
     
+    public static EmbedBuilder FooterInChannel(this EmbedBuilder builder, IChannel channel)
+    {
+        builder.WithFooter(
+            $"In channel #{channel.Name}", null);
+        return builder;
+    }
+    
     public static EmbedBuilder AddAuthor(this EmbedBuilder builder, IUser user, bool includeAvatar = true)
     {
         builder.WithAuthor(
@@ -27,5 +34,12 @@ public static class EmbedBuilderExtension
         return builder;
     }
     
+    public static EmbedBuilder AddAuthorWithAction(this EmbedBuilder builder, IUser user, string action, bool includeAvatar = true)
+    {
+        builder.WithAuthor(
+            $"{user.GetUserPreferredName()} - {action}",
+            includeAvatar ? user.GetAvatarUrl() : null);
+        return builder;
+    }
     
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -70,6 +71,8 @@ public class Program
                 
             _unityHelpService = _services.GetRequiredService<UnityHelpService>();
             _recruitService = _services.GetRequiredService<RecruitService>();
+            _services.GetRequiredService<IntroductionWatcherService>();
+            
             return Task.CompletedTask;
         };
 
@@ -88,6 +91,7 @@ public class Program
             .AddSingleton<ILoggingService, LoggingService>()
             .AddSingleton<DatabaseService>()
             .AddSingleton<UserService>()
+            .AddSingleton<IntroductionWatcherService>()
             .AddSingleton<ModerationService>()
             .AddSingleton<PublisherService>()
             .AddSingleton<FeedService>()

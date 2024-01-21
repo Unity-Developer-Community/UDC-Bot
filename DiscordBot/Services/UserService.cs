@@ -222,29 +222,33 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (_xpCooldown.HasUser(userId))
             return;
 
-        var user = await _databaseService.GetOrAddUser((SocketGuildUser)messageParam.Author);
-        if (user == null)
-            return;
-        
-        bonusXp += baseXp * (1f + user.Karma / 100f);
-
-        //Reduce XP for members with no role
-        if (((IGuildUser)messageParam.Author).RoleIds.Count < 2)
-            baseXp *= .9f;
-
-        //Lower xp for difference between level and karma
-        var reduceXp = 1f;
-        if (user.Karma < user.Level) reduceXp = 1 - Math.Min(.9f, (user.Level - user.Karma) * .05f);
-
-        var xpGain = (int)Math.Round((baseXp + bonusXp) * reduceXp);
+        // Add Delay and delay action by 200ms to avoid some weird database collision?
         _xpCooldown.AddCooldown(userId, waitTime);
+        Task.Run(async () =>
+        {
+            var user = await _databaseService.GetOrAddUser((SocketGuildUser)messageParam.Author);
+            if (user == null)
+                return;
+        
+            bonusXp += baseXp * (1f + user.Karma / 100f);
 
-        await _databaseService.Query.UpdateXp(userId.ToString(), user.Exp + (uint)xpGain);
+            //Reduce XP for members with no role
+            if (((IGuildUser)messageParam.Author).RoleIds.Count < 2)
+                baseXp *= .9f;
 
-        _loggingService.LogXp(messageParam.Channel.Name, messageParam.Author.Username, baseXp, bonusXp, reduceXp,
-            xpGain);
+            //Lower xp for difference between level and karma
+            var reduceXp = 1f;
+            if (user.Karma < user.Level) reduceXp = 1 - Math.Min(.9f, (user.Level - user.Karma) * .05f);
 
-        await LevelUp(messageParam, userId);
+            var xpGain = (int)Math.Round((baseXp + bonusXp) * reduceXp);
+
+            await _databaseService.Query.UpdateXp(userId.ToString(), user.Exp + (uint)xpGain);
+
+            _loggingService.LogXp(messageParam.Channel.Name, messageParam.Author.Username, baseXp, bonusXp, reduceXp,
+                xpGain);
+
+            await LevelUp(messageParam, userId);
+        });
     }
 
     /// <summary>
@@ -618,7 +622,11 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (user.Value.IsBot)
             return;
 
-        await ProcessWelcomeUser(user.Id, user.Value);
+        if (_welcomeNoticeUsers.Exists(u => u.id == user.Id))
+        {
+            _welcomeNoticeUsers.RemoveAll(u => u.id == user.Id);
+            await ProcessWelcomeUser(user.Id, user.Value);
+        }
     }
     
     private async Task CheckForWelcomeMessage(SocketMessage messageParam)
@@ -629,7 +637,12 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var user = messageParam.Author;
         if (user.IsBot)
             return;
-        await ProcessWelcomeUser(user.Id, user);
+        
+        if (_welcomeNoticeUsers.Exists(u => u.id == user.Id))
+        {
+            _welcomeNoticeUsers.RemoveAll(u => u.id == user.Id);
+            await ProcessWelcomeUser(user.Id, user);
+        }
     }
 
     private async Task UserJoined(SocketGuildUser user)
@@ -729,20 +742,18 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     private async Task ProcessWelcomeUser(ulong userID, IUser user = null)
     {
         if (_welcomeNoticeUsers.Exists(u => u.id == userID))
-        {
             // If we didn't get the user passed in, we try grab it
             user ??= await _client.GetUserAsync(userID);
-            // if they're null, they've likely left, so we just remove them from the list.
-            if (user == null)
-                return;
-            
-            var offTopic = await _client.GetChannelAsync(_settings.GeneralChannel.Id) as SocketTextChannel;
-            if (user is not SocketGuildUser guildUser)
-                return;
-            var em = WelcomeMessage(guildUser);
-            if (offTopic != null && em != null)
-                await offTopic.SendMessageAsync(string.Empty, false, em);
-        }
+        // if they're null, they've likely left, so we just remove them from the list.
+        if (user == null)
+            return;
+
+        var offTopic = await _client.GetChannelAsync(_settings.GeneralChannel.Id) as SocketTextChannel;
+        if (user is not SocketGuildUser guildUser)
+            return;
+        var em = WelcomeMessage(guildUser);
+        if (offTopic != null && em != null)
+            await offTopic.SendMessageAsync(string.Empty, false, em);
     }
 
 

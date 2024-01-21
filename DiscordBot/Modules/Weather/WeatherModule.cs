@@ -54,8 +54,9 @@ public class WeatherModule : ModuleBase
     [Command("Temperature"), HideFromHelp]
     [Summary("Attempts to provide the temperature of the user provided.")]
     [Alias("temp"), Priority(20)]
-    public async Task Temperature(IUser user)
+    public async Task Temperature(IUser user = null)
     {
+        user ??= Context.User;
         if (!await DoesUserHaveDefaultCity(user))
             return;
         
@@ -133,8 +134,9 @@ public class WeatherModule : ModuleBase
         
     [Command("Weather"), HideFromHelp, Priority(20)]
     [Summary("Attempts to provide the weather of the user provided.")]
-    public async Task CurentWeather(IUser user)
+    public async Task CurentWeather(IUser user = null)
     {
+        user ??= Context.User;
         if (!await DoesUserHaveDefaultCity(user))
             return;
         
@@ -209,8 +211,9 @@ public class WeatherModule : ModuleBase
 
     [Command("Pollution"), HideFromHelp, Priority(21)]
     [Summary("Attempts to provide the pollution conditions of the user provided.")]
-    public async Task Pollution(IUser user)
+    public async Task Pollution(IUser user = null)
     {
+        user ??= Context.User;
         if (!await DoesUserHaveDefaultCity(user))
             return;
         
@@ -256,8 +259,9 @@ public class WeatherModule : ModuleBase
     
     [Command("Time"), HideFromHelp, Priority(22)]
     [Summary("Attempts to provide the time of the user provided.")]
-    public async Task Time(IUser user)
+    public async Task Time(IUser user = null)
     {
+        user ??= Context.User;
         if (!await DoesUserHaveDefaultCity(user))
             return;
         
