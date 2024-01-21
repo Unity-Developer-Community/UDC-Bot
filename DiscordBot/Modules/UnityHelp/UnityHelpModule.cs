@@ -1,5 +1,6 @@
 using Discord.Commands;
 using Discord.WebSocket;
+using DiscordBot.Attributes;
 using DiscordBot.Services;
 using DiscordBot.Settings;
 
@@ -24,6 +25,20 @@ public class UnityHelpModule : ModuleBase
         if (!IsValidUser() || !IsInHelpChannel())
             await Context.Message.DeleteAsync();
         await HelpService.OnUserRequestChannelClose(Context.User, Context.Channel as SocketThreadChannel);
+    }
+    
+    [Command("pending-questions")]
+    [Summary("Moderation only command, announces the number of pending questions in the help channel.")]
+    [RequireModerator, HideFromHelp, IgnoreBots]
+    public async Task PendingQuestionsAsync()
+    {
+        if (!BotSettings.UnityHelpBabySitterEnabled)
+        {
+            await ReplyAsync("UnityHelp Service currently disabled.").DeleteAfterSeconds(15);
+            return;
+        }
+        var pendingQuestions = HelpService.GetPendingQuestions();
+        await ReplyAsync($"There are {pendingQuestions} pending questions in the help channel.");
     }
 
     #region Utility
