@@ -214,8 +214,11 @@ public class UnityHelpService
             return Task.CompletedTask;
         if (thread.Owner.HasRoleGroup(ModeratorRole))
             return Task.CompletedTask;
-        // Gateway is called twice for forums, not sure why
+        // Gateway is called twice for forums/threads (When Bot joins channel)
         if (_activeThreads.ContainsKey(thread.Id))
+            return Task.CompletedTask;
+        // Ignore new thread if age is over, 5 mins?
+        if (thread.CreatedAt < DateTime.Now.AddMinutes(-5))
             return Task.CompletedTask;
         
         LoggingService.DebugLog($"[{ServiceName}] New Thread Created: {thread.Id} - {thread.Name}", LogSeverity.Debug);
