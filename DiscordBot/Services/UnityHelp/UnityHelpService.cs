@@ -31,13 +31,13 @@ public class UnityHelpService
         .WithColor(Color.Green)
         .Build();
     private static readonly Emoji CloseEmoji = new Emoji(":lock:");
-    private const int HasResponseIdleTimeSelfUser = 60 * 8;
+    private const int HasResponseIdleTimeSelfUser = 60 * 14;
     private static readonly string HasResponseIdleTimeSelfUserMessage = $"Hello {{0}}! This forum has been inactive for {HasResponseIdleTimeSelfUser / 60} hours. If the question has been appropriately answered, click the {CloseEmoji} emoji to close this thread.";
-    private const int HasResponseIdleTimeOtherUser = 60 * 12;
+    private const int HasResponseIdleTimeOtherUser = 60 * 20;
     private static readonly string HasResponseMessageRequestClose = $"Hello {{0}}! This forum has been inactive for {HasResponseIdleTimeOtherUser / 60} hours without your input. If the question has been appropriately answered, click the {CloseEmoji} emoji to close this thread.";
     private const string HasResponseExtraMessage = $"If you still need help, perhaps include additional details!";
 
-    private const int NoResponseNotResolvedIdleTime = 60 * 24 * 2;
+    private const int NoResponseNotResolvedIdleTime = 60 * 24 * 3;
     private readonly Embed _stealthDeleteEmbed = new EmbedBuilder()
         .WithTitle("Warning: No Activity")
         .WithDescription($"This question has been idle for {NoResponseNotResolvedIdleTime / 60} hours and has no response.\n" +
