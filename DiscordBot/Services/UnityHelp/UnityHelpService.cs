@@ -49,7 +49,7 @@ public class UnityHelpService
     
     private readonly Embed _noAppliedTagsEmbed = new EmbedBuilder()
         .WithTitle("Warning: No Tags Applied")
-        .WithDescription($"Apply tags to your thread to help others find it!\n" +
+        .WithDescription($"Consider adding tags to your question to help others find it!\n" +
                          $"Right click on the thread title and select 'Edit Tags'!\n")
         .WithFooter($"Relevant tags help experienced users find you!")
         .WithColor(Color.LightOrange)
