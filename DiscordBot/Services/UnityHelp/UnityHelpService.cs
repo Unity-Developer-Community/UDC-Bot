@@ -30,7 +30,7 @@ public class UnityHelpService
         .WithFooter($"Remember to Right click a message and select 'Apps->Correct Answer'")
         .WithColor(Color.Green)
         .Build();
-    private static readonly Emoji CloseEmoji = new Emoji(":lock:");
+    private static readonly Emoji CloseEmoji = new Emoji("\ud83d\udd12");
     private const int HasResponseIdleTimeSelfUser = 60 * 14;
     private static readonly string HasResponseIdleTimeSelfUserMessage = $"Hello {{0}}! This forum has been inactive for {HasResponseIdleTimeSelfUser / 60} hours. If the question has been appropriately answered, click the {CloseEmoji} emoji to close this thread.";
     private const int HasResponseIdleTimeOtherUser = 60 * 20;
