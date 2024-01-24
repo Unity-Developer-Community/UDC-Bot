@@ -30,14 +30,14 @@ public class UnityHelpService
         .WithFooter($"Remember to Right click a message and select 'Apps->Correct Answer'")
         .WithColor(Color.Green)
         .Build();
-    private static readonly Emoji CloseEmoji = new Emoji(":lock:");
-    private const int HasResponseIdleTimeSelfUser = 60 * 8;
+    private static readonly Emoji CloseEmoji = new Emoji("\ud83d\udd12");
+    private const int HasResponseIdleTimeSelfUser = 60 * 14;
     private static readonly string HasResponseIdleTimeSelfUserMessage = $"Hello {{0}}! This forum has been inactive for {HasResponseIdleTimeSelfUser / 60} hours. If the question has been appropriately answered, click the {CloseEmoji} emoji to close this thread.";
-    private const int HasResponseIdleTimeOtherUser = 60 * 12;
+    private const int HasResponseIdleTimeOtherUser = 60 * 20;
     private static readonly string HasResponseMessageRequestClose = $"Hello {{0}}! This forum has been inactive for {HasResponseIdleTimeOtherUser / 60} hours without your input. If the question has been appropriately answered, click the {CloseEmoji} emoji to close this thread.";
     private const string HasResponseExtraMessage = $"If you still need help, perhaps include additional details!";
 
-    private const int NoResponseNotResolvedIdleTime = 60 * 24 * 2;
+    private const int NoResponseNotResolvedIdleTime = 60 * 24 * 3;
     private readonly Embed _stealthDeleteEmbed = new EmbedBuilder()
         .WithTitle("Warning: No Activity")
         .WithDescription($"This question has been idle for {NoResponseNotResolvedIdleTime / 60} hours and has no response.\n" +
@@ -49,7 +49,7 @@ public class UnityHelpService
     
     private readonly Embed _noAppliedTagsEmbed = new EmbedBuilder()
         .WithTitle("Warning: No Tags Applied")
-        .WithDescription($"Apply tags to your thread to help others find it!\n" +
+        .WithDescription($"Consider adding tags to your question to help others find it!\n" +
                          $"Right click on the thread title and select 'Edit Tags'!\n")
         .WithFooter($"Relevant tags help experienced users find you!")
         .WithColor(Color.LightOrange)
@@ -214,8 +214,11 @@ public class UnityHelpService
             return Task.CompletedTask;
         if (thread.Owner.HasRoleGroup(ModeratorRole))
             return Task.CompletedTask;
-        // Gateway is called twice for forums, not sure why
+        // Gateway is called twice for forums/threads (When Bot joins channel)
         if (_activeThreads.ContainsKey(thread.Id))
+            return Task.CompletedTask;
+        // Ignore new thread if age is over, 5 mins?
+        if (thread.CreatedAt < DateTime.Now.AddMinutes(-5))
             return Task.CompletedTask;
         
         LoggingService.DebugLog($"[{ServiceName}] New Thread Created: {thread.Id} - {thread.Name}", LogSeverity.Debug);

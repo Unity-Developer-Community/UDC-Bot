@@ -66,6 +66,12 @@ public class ModerationService
         else
             content = beforeMessage.Content;
 
+        // Check the message aren't the same
+        if (content == after.Content)
+            return;
+        if (content.Length == 0 && beforeMessage.Attachments.Count == 0)
+            return;
+
         bool isTruncated = false;
         if (content.Length > MaxMessageLength)
         {
@@ -80,12 +86,26 @@ public class ModerationService
             .FooterInChannel(after.Channel)
             .AddAuthorWithAction(user, "Updated a message", true);
         if (isCached)
+        {
             builder.AddField($"Previous message content {(isTruncated ? "(truncated)" : "")}", content);
+            // if any attachments that after does not, add a link to them and a count
+            if (beforeMessage.Attachments.Count > 0)
+            {
+                var attachments = beforeMessage.Attachments.Where(x => after.Attachments.All(y => y.Url != x.Url));
+                var removedAttachments = attachments.ToList();
+                if (removedAttachments.Any())
+                {
+                    var attachmentString = string.Join("\n", removedAttachments.Select(x => $"[{x.Filename}]({x.Url})"));
+                    builder.AddField($"Previous attachments ({removedAttachments.Count()})", attachmentString);
+                }
+            }
+        }
+
         builder.WithDescription($"Message: [{after.Id}]({after.GetJumpUrl()})");
-            var embed = builder.Build();
-        
+        var embed = builder.Build();
+
         // TimeStamp for the Footer
-        
-        await _loggingService.Log(LogBehaviour.Channel,string.Empty, ExtendedLogSeverity.Info, embed);
+
+        await _loggingService.Log(LogBehaviour.Channel, string.Empty, ExtendedLogSeverity.Info, embed);
     }
 }
