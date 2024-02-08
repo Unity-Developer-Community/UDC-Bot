@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
+using DiscordBot.Service;
 using DiscordBot.Services;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
@@ -103,6 +104,7 @@ public class Program
             .AddSingleton<ReminderService>()
             .AddSingleton<WeatherService>()
             .AddSingleton<AirportService>()
+            .AddSingleton<CannedResponseService>()
             .AddSingleton<UserExtendedService>()
             .BuildServiceProvider();
 
