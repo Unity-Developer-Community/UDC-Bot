@@ -68,11 +68,31 @@ public class LoggingService : ILoggingService
     
     private readonly BotSettings _settings;
     private readonly ISocketMessageChannel _logChannel;
+    
+    // Configuration
+    private readonly long MAX_LOG_SIZE = 1024 * 1024 * 2; // 2MB
+    private readonly long FILE_CHECK_INTERVAL = 1000 * 60 * 60 * 1; // 1 Hour
+    private readonly string BACKUP_LOG_FILE_PATH;
+    private readonly string LOG_FILE_PATH;
+    private readonly string LOG_XP_FILE_PATH;
+
+    private DateTime _lastFileCheck;
 
     public LoggingService(DiscordSocketClient client, BotSettings settings)
     {
         _settings = settings;
         
+        // Paths
+        BACKUP_LOG_FILE_PATH = _settings.ServerRootPath + @"/log_backups/";
+        LOG_FILE_PATH = _settings.ServerRootPath + @"/log.txt";
+        LOG_XP_FILE_PATH = _settings.ServerRootPath + @"/logXP.txt";
+
+        if (!Directory.Exists(BACKUP_LOG_FILE_PATH))
+        {
+            Directory.CreateDirectory(BACKUP_LOG_FILE_PATH);
+            LogToConsole($"[{ServiceName}] Created backup log directory", ExtendedLogSeverity.Info);
+        }
+
         // INIT
         if (_settings.BotAnnouncementChannel == null)
         {
@@ -105,13 +125,15 @@ public class LoggingService : ILoggingService
     
     public async Task LogToFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info)
     { 
-        await File.AppendAllTextAsync(_settings.ServerRootPath + @"/log.txt",
+        PrepareLogFile(LOG_FILE_PATH);
+        await File.AppendAllTextAsync(LOG_FILE_PATH,
             $"[{ConsistentDateTimeFormat()}] - [{severity}] - {message} {Environment.NewLine}");
     }
     
     public void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, int totalXp)
     {
-        File.AppendAllText(_settings.ServerRootPath + @"/logXP.txt",
+        PrepareLogFile(LOG_XP_FILE_PATH);
+        File.AppendAllText(LOG_XP_FILE_PATH,
             $"[{ConsistentDateTimeFormat()}] - {user} gained {totalXp}xp (base: {baseXp}, bonus : {bonusXp}, reduce : {xpReduce}) in channel {channel} {Environment.NewLine}");
     }
 
@@ -127,6 +149,29 @@ public class LoggingService : ILoggingService
         LogToConsole($"{message.Source} | {message.Message}", message.Severity.ToExtended());
         return Task.CompletedTask;
     }
+
+    private void PrepareLogFile(string path)
+    {
+        if (DateTime.Now - _lastFileCheck < TimeSpan.FromMilliseconds(FILE_CHECK_INTERVAL))
+            return;
+        
+        _lastFileCheck = DateTime.Now;
+        if (new FileInfo(path).Length > MAX_LOG_SIZE)
+        {
+            // Rename the file, add the year, month and day it was created, and the year month and day it was backed up (SHORT year
+            var backupPath = $"{BACKUP_LOG_FILE_PATH}log_F{File.GetCreationTime(path):yyMMdd}_T{DateTime.Now:yyMMdd}.txt";
+            File.Move(path, backupPath);
+            LogToConsole($"[{ServiceName}] Log file was backed up to {backupPath}", ExtendedLogSeverity.Info);
+        }
+        
+        if (!File.Exists(path))
+        {
+            File.Create(path).Dispose();
+            File.AppendAllText(path, $"[{ConsistentDateTimeFormat()}] - Log file was started. {Environment.NewLine}");
+            LogToConsole($"[{ServiceName}] Log file was started", ExtendedLogSeverity.Info);
+        }
+    }
+    
     #region Console Messages
     // Logs message to console without changing the colour
     public static void LogConsole(string message) {
