@@ -14,7 +14,7 @@ public class ServerUser
     public ulong Exp { get; set; }
     public uint Level { get; set; }
     // DefaultCity - Optional Location for Weather, BDay, Temp, Time, etc. (Added - Jan 2024)
-    public string DefaultCity { get; set; }
+    public string DefaultCity { get; set; } = string.Empty;
 }
 
 /// <summary>
