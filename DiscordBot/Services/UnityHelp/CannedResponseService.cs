@@ -164,9 +164,9 @@ public class CannedResponseService
                       "```cs\n" +
                       "var speed = 1.0f\n" +
                       "var dir = transform.forward;\n" +
-                      "// Move 'speed' units forward speed Units **Per Frame**\n" +
+                      "// Move 'speed' units forward **Per Frame**\n" +
                       "transform.position += dir * speed;\n" +
-                      "// Move 'speed' units forward **Per Seconds**\n" +
+                      "// Move 'speed' units forward **Per Second**\n" +
                       "transform.position += dir * speed * Time.deltaTime;```" +
                       "Avoid per-frame speeds as FPS varies among players, affecting object speed. Use `deltaTime` " +
                       "[Update](https://docs.unity3d.com/ScriptReference/MonoBehaviour.Update.html) or " +
