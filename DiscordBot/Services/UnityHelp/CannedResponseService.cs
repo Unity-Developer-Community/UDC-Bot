@@ -12,6 +12,7 @@ public class CannedResponseService
         Paste,
         NoCode,
         XYProblem,
+        DeltaTime,
         // Passive Aggressive
         GameToBig,
         HowToGoogle,
@@ -155,6 +156,27 @@ public class CannedResponseService
                       "- Free Icons: [Icon Monstr](https://iconmonstr.com/)"
     };
     
+    private readonly EmbedBuilder _deltaTime = new EmbedBuilder
+    {
+        Title = "Frame Independence",
+        Description = "[Time.deltaTime](https://docs.unity3d.com/ScriptReference/Time-deltaTime.html) is the time in seconds it took to complete the last frame.\n" +
+                      "Avoid moving objects or making calculations based on constant values." +
+                      "```cs\n" +
+                      "var speed = 1.0f\n" +
+                      "var dir = transform.forward;\n" +
+                      "// Move 'speed' units forward speed Units **Per Frame**\n" +
+                      "transform.position += dir * speed;\n" +
+                      "// Move 'speed' units forward **Per Seconds**\n" +
+                      "transform.position += dir * speed * Time.deltaTime;```" +
+                      "Avoid per-frame speeds as FPS varies among players, affecting object speed. Use `deltaTime` " +
+                      "[Update](https://docs.unity3d.com/ScriptReference/MonoBehaviour.Update.html) or " +
+                      "`fixedDeltaTime` [FixedUpdate](https://docs.unity3d.com/ScriptReference/MonoBehaviour.FixedUpdate.html) for consistent speed.\n" +
+                      "See: [Time Frame Management](https://docs.unity3d.com/Manual/TimeFrameManagement.html), " +
+                      "[FixedUpdate](https://docs.unity3d.com/ScriptReference/MonoBehaviour.FixedUpdate.html), " + 
+                      "[DeltaTime](https://docs.unity3d.com/ScriptReference/Time-deltaTime.html)",
+        Url = "https://docs.unity3d.com/Manual/TimeFrameManagement.html",
+    };
+    
 
     #endregion // Configuration
     
@@ -178,6 +200,7 @@ public class CannedResponseService
             CannedResponseType.Paste => _pasteEmbed,
             CannedResponseType.NoCode => _noCodeEmbed,
             CannedResponseType.XYProblem => _xyProblemEmbed,
+            CannedResponseType.DeltaTime => _deltaTime,
             // Passive Aggressive
             CannedResponseType.GameToBig => _gameToBigEmbed,
             CannedResponseType.HowToGoogle => _howToGoogleEmbed,

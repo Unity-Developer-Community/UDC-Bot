@@ -112,4 +112,11 @@ public class CannedResponseModule : ModuleBase
     {
         await RespondWithCannedResponse(CannedResponseType.Design);
     }
+    
+    [Command("delta"), Alias("deltatime", "fixedupdate")]
+    [Summary("When someone asks about delta time, respond with a link to the 'Delta Time' page.")]
+    public async Task RespondWithDeltaTime()
+    {
+        await RespondWithCannedResponse(CannedResponseType.DeltaTime);
+    }
 }
