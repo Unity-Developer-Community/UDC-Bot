@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http;
 using HtmlAgilityPack;
-using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 
 namespace DiscordBot.Utils;
