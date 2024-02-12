@@ -24,6 +24,28 @@ public class CannedResponseService
         Audio,
         Design,
     }
+
+    public enum CannedHelp
+    {
+        HowToAsk = CannedResponseType.HowToAsk,
+        CodePaste = CannedResponseType.Paste,
+        NoCode = CannedResponseType.NoCode,
+        XYProblem = CannedResponseType.XYProblem,
+        DeltaTime = CannedResponseType.DeltaTime,
+        // Passive Aggressive
+        GameToBig = CannedResponseType.GameToBig,
+        HowToGoogle = CannedResponseType.HowToGoogle,
+    }
+    
+    public enum CannedResources
+    {
+        Programming = CannedResponseType.Programming,
+        GeneralArt = CannedResponseType.Art,
+        Art2D = CannedResponseType.ThreeD,
+        Art3D = CannedResponseType.TwoD,
+        Audio = CannedResponseType.Audio,
+        Design = CannedResponseType.Design,
+    }
     
     private readonly Color _defaultEmbedColor = new Color(0x00, 0x80, 0xFF);
 
@@ -180,13 +202,14 @@ public class CannedResponseService
 
     #endregion // Configuration
     
-    public EmbedBuilder GetCannedResponse(CannedResponseType type, IUser requestor)
+    public EmbedBuilder GetCannedResponse(CannedResponseType type, IUser requestor = null)
     {
         var embed = GetUnbuiltCannedResponse(type);
         if (embed == null)
             return null;
         
-        embed.FooterRequestedBy(requestor);
+        if (requestor != null)
+            embed.FooterRequestedBy(requestor);
         embed.WithColor(_defaultEmbedColor);
         
         return embed;
