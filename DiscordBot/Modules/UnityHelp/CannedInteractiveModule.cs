@@ -1,3 +1,4 @@
+using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Service;
@@ -18,7 +19,7 @@ public class CannedInteractiveModule : InteractionModuleBase
     #endregion // Dependency Injection
     
     // Responses are any of the CannedResponseType enum
-    [SlashCommand("can", "Prepared responses to help answer common questions")]
+    [SlashCommand("faq", "Prepared responses to help answer common questions")]
     public async Task CannedResponses(CannedHelp type)
     {
         if (Context.User.IsUserBotOrWebhook())
