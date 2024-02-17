@@ -635,6 +635,59 @@ public class UserModule : ModuleBase
         await ReplyAsync($"**{Context.User.Username}** flipped a coin and got **{coin[_random.Next() % 2]}**!");
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
+    
+    [Command("Roll"), Priority(23)]
+    [Summary("Roll a dice. Syntax : !roll [sides] (max 100)")]
+    public async Task RollDice(int sides = 20)
+    {
+        if (sides < 1 || sides > 1000)
+        {
+            await ReplyAsync("Invalid number of sides. Please choose a number between 1 and 1000.").DeleteAfterSeconds(seconds: 10);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+
+        var roll = _random.Next(1, sides + 1);
+        await ReplyAsync($"**{Context.User.Username}** rolled a D{sides} and got **{roll}**!");
+        await Context.Message.DeleteAfterSeconds(seconds: 1);
+    }
+    
+    [Command("Roll"), Priority(23)]
+    [Summary("Roll a dice. Syntax : !roll [sides] [number]")]
+    public async Task RollDice(int sides, int number)
+    {
+        if (sides < 1 || sides > 1000)
+        {
+            await ReplyAsync("Invalid number of sides. Please choose a number between 1 and 1000.").DeleteAfterSeconds(seconds: 10);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+
+        var roll = _random.Next(1, sides + 1);
+        var message = $"**{Context.User.Username}** rolled a D{sides} and got **{roll}**!";
+        if (roll > number)
+            message = " :white_check_mark: " + message + " [Needed: " + number + "]";
+        else
+            message = " :x: " + message + " [Needed: " + number + "]";
+        
+        await ReplyAsync(message);
+        await Context.Message.DeleteAfterSeconds(seconds: 1);
+    }
+    
+    [Command("D20"), Priority(23)]
+    [Summary("Roll a D20 dice.")]
+    public async Task RollD20(int number)
+    {
+        var roll = _random.Next(1, 21);
+        var message = $"**{Context.User.Username}** rolled a D20 and got **{roll}**!";
+        if (roll > number)
+            message = " :white_check_mark: " + message + " [Needed: " + number + "]";
+        else
+            message = " :x: " + message + " [Needed: " + number + "]";
+        
+        await ReplyAsync(message);
+        await Context.Message.DeleteAfterSeconds(seconds: 1);
+    }
 
     #endregion
 
