@@ -61,7 +61,7 @@ public class CannedResponseModule : ModuleBase
     [Summary("When someone is asking for help with a large project, respond with a link to the 'Game Too Big' page.")]
     public async Task RespondWithGameToBig()
     {
-        await RespondWithCannedResponse(CannedResponseType.GameToBig);
+        await RespondWithCannedResponse(CannedResponseType.GameTooBig);
     }
     
     [Command("google"), Alias("search", "howtosearch")]
@@ -69,6 +69,20 @@ public class CannedResponseModule : ModuleBase
     public async Task RespondWithHowToGoogle()
     {
         await RespondWithCannedResponse(CannedResponseType.HowToGoogle);
+    }
+    
+    [Command("debug")]
+    [Summary("When someone asks for help debugging, respond with a link to the 'How to Debug' page.")]
+    public async Task RespondWithHowToDebug()
+    {
+        await RespondWithCannedResponse(CannedResponseType.Debugging);
+    }
+    
+    [Command("folder"), Alias("directory", "structure")]
+    [Summary("When someone asks about folder structure, respond with a link to the 'Folder Structure' page.")]
+    public async Task RespondWithFolderStructure()
+    {
+        await RespondWithCannedResponse(CannedResponseType.FolderStructure);
     }
     
     [Command("programming")]

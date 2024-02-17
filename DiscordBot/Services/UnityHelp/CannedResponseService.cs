@@ -13,16 +13,28 @@ public class CannedResponseService
         NoCode,
         XYProblem,
         DeltaTime,
-        // Passive Aggressive
-        GameToBig,
-        HowToGoogle,
         // General Help
+        Debugging,
+        FolderStructure,
+        // VersionControl,
+        // ErrorMessages,
+        // CodeStructure,
+        // CodeComments,
+        // Passive Aggressive
+        GameTooBig,
+        HowToGoogle,
+        // Resources
         Programming,
         Art,
         ThreeD,
         TwoD,
         Audio,
         Design,
+        // Animation,
+        // Physics,
+        // Networking,
+        // PerformanceAndOptimization,
+        // UIUX
     }
 
     public enum CannedHelp
@@ -32,8 +44,15 @@ public class CannedResponseService
         NoCode = CannedResponseType.NoCode,
         XYProblem = CannedResponseType.XYProblem,
         DeltaTime = CannedResponseType.DeltaTime,
+        // Mode general help
+        Debugging = CannedResponseType.Debugging,
+        FolderStructure = CannedResponseType.FolderStructure,
+        // VersionControl = CannedResponseType.VersionControl,
+        // ErrorMessages = CannedResponseType.ErrorMessages,
+        // CodeStructure = CannedResponseType.CodeStructure,
+        // CodeComments = CannedResponseType.CodeComments,
         // Passive Aggressive
-        GameToBig = CannedResponseType.GameToBig,
+        GameTooBig = CannedResponseType.GameTooBig,
         HowToGoogle = CannedResponseType.HowToGoogle,
     }
     
@@ -45,10 +64,17 @@ public class CannedResponseService
         Art3D = CannedResponseType.TwoD,
         Audio = CannedResponseType.Audio,
         Design = CannedResponseType.Design,
+        // Animation = CannedResponseType.Animation,
+        // Physics = CannedResponseType.Physics,
+        // Networking = CannedResponseType.Networking,
+        // PerformanceAndOptimization = CannedResponseType.PerformanceAndOptimization,
+        // UIUX = CannedResponseType.UIUX
     }
     
     private readonly Color _defaultEmbedColor = new Color(0x00, 0x80, 0xFF);
 
+    #region Canned Help
+    
     private readonly EmbedBuilder _howToAskEmbed = new EmbedBuilder
     {
         Title = "How to Ask",
@@ -63,7 +89,7 @@ public class CannedResponseService
     {
         Title = "How to Paste Code",
         // A unity based example
-        Description = "When sharing code on Discord, it’s best to use code blocks. You can create a code block by wrapping your code in backticks (\\`\\`\\`). For example:\n" +
+        Description = "When sharing code on Discord, it’s best to use code blocks. You can create a code block by wrapping your code in backticks (\\`\\`\\`). [Discord Markdown](https://gist.github.com/matthewzring/9f7bbfd102003963f9be7dbcf7d40e51#code-blocks)\n" +
                       "```csharp\n" +
                       "public void Start()\n" +
                       "{\n" +
@@ -80,14 +106,14 @@ public class CannedResponseService
     private readonly EmbedBuilder _noCodeEmbed = new EmbedBuilder
     {
         Title = "No Code Provided",
-        Description = "***Where the code at?*** Your question is code focused, but you haven't provided much if any of the code involved." +
+        Description = "***Where the code at?*** It appears you're trying to ask something that would benefit from showing what you've tried, but you haven't provided much code. " +
                       "Someone who wants to help you won't be able to do so without seeing the code you're working with."
     };
     
     private readonly EmbedBuilder _xyProblemEmbed = new EmbedBuilder
     {
         Title = "XY Problem",
-        Description = "Don't ask about your attempted solution, ask about the actual problem.\n" +
+        Description = "Don't ask about your attempted solution, include details about the actual problem you're trying to solve.\n" +
                       "This leads to a lot of wasted time and energy, both on the part of people asking for help, and on the part of those providing help.\n" +
                       "See: [XY Problem](https://xyproblem.info/)\n" +
                       "- Always include information about the broader problem.\n" +
@@ -95,7 +121,7 @@ public class CannedResponseService
         Url = "https://xyproblem.info/",
     };
     
-    private readonly EmbedBuilder _gameToBigEmbed = new EmbedBuilder
+    private readonly EmbedBuilder _gameTooBigEmbed = new EmbedBuilder
     {
         Title = "Game Too Big",
         Description = "Managing project scope is important. It's important to start small and build up from there. " +
@@ -112,7 +138,58 @@ public class CannedResponseService
                       "See: [How to Google](https://www.lifehack.org/articles/technology/20-tips-use-google-search-efficiently.html)",
         Url = "https://www.lifehack.org/articles/technology/20-tips-use-google-search-efficiently.html",
     };
+    
+    private readonly EmbedBuilder _deltaTime = new EmbedBuilder
+    {
+        Title = "Frame Independence",
+        Description = "[Time.deltaTime](https://docs.unity3d.com/ScriptReference/Time-deltaTime.html) is the time in seconds it took to complete the last frame.\n" +
+                      "Avoid moving objects or making calculations based on constant values." +
+                      "```cs\n" +
+                      "var speed = 1.0f\n" +
+                      "var dir = transform.forward;\n" +
+                      "// Move 'speed' units forward **Per Frame**\n" +
+                      "transform.position += dir * speed;\n" +
+                      "// Move 'speed' units forward **Per Second**\n" +
+                      "transform.position += dir * speed * Time.deltaTime;```" +
+                      "Avoid per-frame adjustments as FPS varies among players, affecting object speed. Use `deltaTime` " +
+                      "[Update](https://docs.unity3d.com/ScriptReference/MonoBehaviour.Update.html) or " +
+                      "`fixedDeltaTime` [FixedUpdate](https://docs.unity3d.com/ScriptReference/MonoBehaviour.FixedUpdate.html) for consistent speed.\n" +
+                      "See: [Time Frame Management](https://docs.unity3d.com/Manual/TimeFrameManagement.html), " +
+                      "[FixedUpdate](https://docs.unity3d.com/ScriptReference/MonoBehaviour.FixedUpdate.html), " + 
+                      "[DeltaTime](https://docs.unity3d.com/ScriptReference/Time-deltaTime.html)",
+        Url = "https://docs.unity3d.com/Manual/TimeFrameManagement.html",
+    };
+    
+    private readonly EmbedBuilder _debugging = new EmbedBuilder
+    {
+        Title = "Debugging in Unity",
+        Description = "Debugging is key in game development, and usually required to fix 'bugs' in code. This can often be the most time consuming work involved with programming.\n__Here are some Unity debugging tips:__\n" +
+                      "- **Error Messages**: Unity error messages indicate the error line and code (e.g. **CS1002**). [C# Compiler Errors](https://learn.microsoft.com/en-us/dotnet/csharp/misc/cs1002).\n" +
+                      "- **Debug.Log**: Unity [Debug.Log](https://docs.unity3d.com/ScriptReference/Debug.Log.html) to print console messages for code tracking and variable values.\n" +
+                      "- **Breakpoints**: Use [Breakpoints](https://docs.unity3d.com/Manual/ManagedCodeDebugging.html) to pause and step through code line by line at a specific point for game state examination.\n" +
+                      "- **Unity Profiler**: The [Unity Profiler](https://docs.unity3d.com/Manual/Profiler.html) identifies performance bottlenecks for game optimization.\n" +
+                      "- **Documentation**: Unity's documentation provides insights into functions, features, and error resolution.\n" +
+                      "Debugging improves with practice, enhancing your bug identification and resolution skills.",
+        Url = "https://docs.unity3d.com/Manual/ManagedCodeDebugging.html",
+    };
+    
+    private readonly EmbedBuilder _folderStructure = new EmbedBuilder
+    {
+        Title = "Folder Structure",
+        Description = "Organizing your project is important for maintainability and collaboration (Including yourself weeks later). + " +
+                      "well-organized project is easier to navigate and understand, and makes it easier to find and fix problems.\n" +
+                      "- **Consistency**: Keep it consistent, and make sure everyone on your team knows the structure.\n" +
+                      "- **Separation**: Keep your assets separate from your code.\n" +
+                      "- **Naming**: Use clear and consistent naming conventions.\n" +
+                      "- **Documentation**: Keep a README file, either in the root of project, or in specific folders when additional information would be useful.\n" +
+                      "See: [Organizing Your Project](https://unity.com/how-to/organizing-your-project)",
+        Url = "https://unity.com/how-to/organizing-your-project",
+    };
+    
+    #endregion
 
+    #region Canned Resources
+    
     private readonly EmbedBuilder _programmingEmbed = new EmbedBuilder
     {
         Title = "Programming Resources",
@@ -178,28 +255,8 @@ public class CannedResponseService
                       "- Free Icons: [Icon Monstr](https://iconmonstr.com/)"
     };
     
-    private readonly EmbedBuilder _deltaTime = new EmbedBuilder
-    {
-        Title = "Frame Independence",
-        Description = "[Time.deltaTime](https://docs.unity3d.com/ScriptReference/Time-deltaTime.html) is the time in seconds it took to complete the last frame.\n" +
-                      "Avoid moving objects or making calculations based on constant values." +
-                      "```cs\n" +
-                      "var speed = 1.0f\n" +
-                      "var dir = transform.forward;\n" +
-                      "// Move 'speed' units forward **Per Frame**\n" +
-                      "transform.position += dir * speed;\n" +
-                      "// Move 'speed' units forward **Per Second**\n" +
-                      "transform.position += dir * speed * Time.deltaTime;```" +
-                      "Avoid per-frame speeds as FPS varies among players, affecting object speed. Use `deltaTime` " +
-                      "[Update](https://docs.unity3d.com/ScriptReference/MonoBehaviour.Update.html) or " +
-                      "`fixedDeltaTime` [FixedUpdate](https://docs.unity3d.com/ScriptReference/MonoBehaviour.FixedUpdate.html) for consistent speed.\n" +
-                      "See: [Time Frame Management](https://docs.unity3d.com/Manual/TimeFrameManagement.html), " +
-                      "[FixedUpdate](https://docs.unity3d.com/ScriptReference/MonoBehaviour.FixedUpdate.html), " + 
-                      "[DeltaTime](https://docs.unity3d.com/ScriptReference/Time-deltaTime.html)",
-        Url = "https://docs.unity3d.com/Manual/TimeFrameManagement.html",
-    };
+    #endregion
     
-
     #endregion // Configuration
     
     public EmbedBuilder GetCannedResponse(CannedResponseType type, IUser requestor = null)
@@ -224,8 +281,15 @@ public class CannedResponseService
             CannedResponseType.NoCode => _noCodeEmbed,
             CannedResponseType.XYProblem => _xyProblemEmbed,
             CannedResponseType.DeltaTime => _deltaTime,
+            // General Help
+            CannedResponseType.Debugging => _debugging,
+            CannedResponseType.FolderStructure => _folderStructure,
+            // CannedResponseType.VersionControl =>
+            // CannedResponseType.ErrorMessages =>
+            // CannedResponseType.CodeStructure =>
+            // CannedResponseType.CodeComments =>
             // Passive Aggressive
-            CannedResponseType.GameToBig => _gameToBigEmbed,
+            CannedResponseType.GameTooBig => _gameTooBigEmbed,
             CannedResponseType.HowToGoogle => _howToGoogleEmbed,
             // General Help
             CannedResponseType.Programming => _programmingEmbed,
