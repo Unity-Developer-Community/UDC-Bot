@@ -179,8 +179,7 @@ public class DatabaseService
         }
         catch (Exception e)
         {
-            // We don't print to channel as this could be spammy (Albeit rare)
-            await _logging.Log(LogBehaviour.Console | LogBehaviour.File,
+            await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
                 $"Error when trying to add user {socketUser.Id.ToString()} to the database : {e}", ExtendedLogSeverity.Warning);
             return null;
         }

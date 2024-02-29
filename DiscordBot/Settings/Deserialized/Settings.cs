@@ -18,6 +18,7 @@ public class BotSettings
 
     public int WelcomeMessageDelaySeconds { get; set; } = 300;
     public bool ModeratorCommandsEnabled { get; set; }
+    public bool ModeratorNoInviteLinks { get; set; }
     // How long between when the bot will scold a user for trying to ping everyone. Default 6 hours
     public ulong EveryoneScoldPeriodSeconds { get; set; } = 21600;
 
@@ -69,6 +70,8 @@ public class BotSettings
     public ChannelInfo RecruitmentChannel { get; set; }
 
     public ChannelInfo ReportedMessageChannel { get; set; }
+    
+    public ChannelInfo MemeChannel { get; set; }
     
     #region Complaint Channel
 

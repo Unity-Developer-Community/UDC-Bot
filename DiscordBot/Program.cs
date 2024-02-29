@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
+using DiscordBot.Service;
 using DiscordBot.Services;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
@@ -62,9 +63,9 @@ public class Program
             _services = ConfigureServices();
             _commandHandlingService = _services.GetRequiredService<CommandHandlingService>();
 
-            _client.GetGuild(_settings.GuildId)
-                ?.GetTextChannel(_settings.BotAnnouncementChannel.Id)
-                ?.SendMessageAsync("Bot Started.");
+            // Announce, and Log bot started to track issues a bit easier
+            var logger = _services.GetRequiredService<ILoggingService>();
+            logger.LogChannelAndFile("Bot Started.", ExtendedLogSeverity.Positive);
 
             LoggingService.LogToConsole("Bot is connected.", ExtendedLogSeverity.Positive);
             _isInitialized = true;
@@ -103,6 +104,7 @@ public class Program
             .AddSingleton<ReminderService>()
             .AddSingleton<WeatherService>()
             .AddSingleton<AirportService>()
+            .AddSingleton<CannedResponseService>()
             .AddSingleton<UserExtendedService>()
             .BuildServiceProvider();
 

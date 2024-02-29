@@ -164,13 +164,26 @@ public class CommandHandlingService
     }
 
     private IEnumerable<CommandInfo> GetOrganizedCommandInfo(
-        (string moduleName, bool orderByName, bool includeArgs, bool includeModuleName) input, string search = "")
+        (string moduleName, bool orderByName, bool includeArgs, bool includeModuleName) input, string search = "", bool onlyNormalUsers = true)
     {
+        // Prepare attributes before linq
+        var hideFromHelp = new HideFromHelpAttribute();
+        var requireModerator = new RequireModeratorAttribute();
+        var requireAdmin = new RequireAdminAttribute();
+        
         // Generates a list of commands that doesn't include any that have the ``HideFromHelp`` attribute.
         // Adds commands that use the same Module, and contains the search query if given.
-        var commands = _commandService.Commands.Where(x =>
-            x.Module.Name == input.moduleName && !x.Attributes.Contains(new HideFromHelpAttribute()) &&
-            (search == string.Empty || x.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase)));
+        var commands = 
+            _commandService.Commands.Where(x =>
+            x.Module.Name == input.moduleName && 
+            !x.Attributes.Contains(hideFromHelp) &&
+            (search == string.Empty || x.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase))
+        );
+        // We try to hide commands that have moderator or admin requirements if onlyNormalUsers is true.
+        commands = onlyNormalUsers
+            ? commands.Where(x => !x.Preconditions.Any(y => y.TypeId == requireModerator.TypeId || y.TypeId == requireAdmin.TypeId))
+            : commands;
+        
         // Orders the list either by name or by priority, if no priority is given we push it to the end.
         commands = input.orderByName
             ? commands.OrderBy(c => c.Name)

@@ -1,4 +1,5 @@
-﻿using Discord.WebSocket;
+﻿using System.Text.RegularExpressions;
+using Discord.WebSocket;
 using DiscordBot.Settings;
 
 namespace DiscordBot.Services;
@@ -7,18 +8,25 @@ public class ModerationService
 {
     private readonly ILoggingService _loggingService;
     private readonly BotSettings _settings;
+    private readonly DiscordSocketClient _client;
     
     private const int MaxMessageLength = 800;
     private static readonly Color DeletedMessageColor = new (200, 128, 128);
     private static readonly Color EditedMessageColor = new (255, 255, 128);
+    
+    private readonly IMessageChannel _botAnnouncementChannel;
 
     public ModerationService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService)
     {
+        _client = client;
         _settings = settings;
         _loggingService = loggingService;
 
         client.MessageDeleted += MessageDeleted;
         client.MessageUpdated += MessageUpdated;
+        client.MessageReceived += MessageReceived;
+        
+        _botAnnouncementChannel = _client.GetChannel(_settings.BotAnnouncementChannel.Id) as IMessageChannel;
     }
 
     private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
@@ -107,5 +115,27 @@ public class ModerationService
         // TimeStamp for the Footer
 
         await _loggingService.Log(LogBehaviour.Channel, string.Empty, ExtendedLogSeverity.Info, embed);
+    }
+    
+    // MessageReceived
+    private async Task MessageReceived(SocketMessage message)
+    {
+        if (message.Author.IsBot)
+            return;
+
+        if (_settings.ModeratorNoInviteLinks == true)
+        {
+            if (_settings.MemeChannel.Id == message.Channel.Id)
+            {
+                if (message.ContainsInviteLink())
+                {
+                    await message.DeleteAsync();
+                    // Send a message in _botAnnouncementChannel about the deleted message, nothing fancy, name, userid, channel and message content
+                    await _botAnnouncementChannel.SendMessageAsync(
+                        $"{message.Author.Mention} tried to post an invite link in <#{message.Channel.Id}>: {message.Content}");
+                    return;
+                }
+            }
+        }
     }
 }

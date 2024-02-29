@@ -18,3 +18,31 @@ public class IgnoreBotsAttribute : PreconditionAttribute
         return Task.FromResult(PreconditionResult.FromSuccess());
     }
 }
+
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+public class IgnoreBotsAndWebhooksAttribute : PreconditionAttribute
+{
+    public override Task<PreconditionResult> CheckPermissionsAsync(ICommandContext context, CommandInfo command, IServiceProvider services)
+    {
+        if (context.Message.Author.IsBot || context.Message.Author.IsWebhook)
+        {
+            return Task.FromResult(PreconditionResult.FromError(string.Empty));
+        }
+
+        return Task.FromResult(PreconditionResult.FromSuccess());
+    }
+}
+
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+public class IgnoreWebhooksAttribute : PreconditionAttribute
+{
+    public override Task<PreconditionResult> CheckPermissionsAsync(ICommandContext context, CommandInfo command, IServiceProvider services)
+    {
+        if (context.Message.Author.IsWebhook)
+        {
+            return Task.FromResult(PreconditionResult.FromError(string.Empty));
+        }
+
+        return Task.FromResult(PreconditionResult.FromSuccess());
+    }
+}
