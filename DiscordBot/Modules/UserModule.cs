@@ -678,6 +678,12 @@ public class UserModule : ModuleBase
     [Summary("Roll a D20 dice.")]
     public async Task RollD20(int number)
     {
+        if (number < 1)
+        {
+            await ReplyAsync("Invalid number. Please choose a number 1 or above.").DeleteAfterSeconds(seconds: 10);
+            await Context.Message.DeleteAsync();
+            return;
+        }
         var roll = _random.Next(1, 21);
         var message = $"**{Context.User.Username}** rolled a D20 and got **{roll}**!";
         if (roll > number)

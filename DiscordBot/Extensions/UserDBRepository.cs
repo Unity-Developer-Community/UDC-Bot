@@ -37,8 +37,10 @@ public static class UserProps
 
 public interface IServerUserRepo
 {
-    [Sql($"INSERT INTO {UserProps.TableName} ({UserProps.UserID}) VALUES (@{UserProps.UserID})")]
-    Task InsertUser(ServerUser user);
+    [Sql($@"
+    INSERT INTO {UserProps.TableName} ({UserProps.UserID}) VALUES (@{UserProps.UserID});
+    SELECT * FROM {UserProps.TableName} WHERE {UserProps.UserID} = @{UserProps.UserID}")]
+    Task<ServerUser> InsertUser(ServerUser user);
     [Sql($"DELETE FROM {UserProps.TableName} WHERE {UserProps.UserID} = @userId")]
     Task RemoveUser(string userId);
 

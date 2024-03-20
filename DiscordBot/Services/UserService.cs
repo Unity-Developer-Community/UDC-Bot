@@ -215,12 +215,12 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             return;
 
         var userId = messageParam.Author.Id;
+        if (_xpCooldown.HasUser(userId))
+            return;
+        
         var waitTime = _rand.Next(_xpMinCooldown, _xpMaxCooldown);
         float baseXp = _rand.Next(_xpMinPerMessage, _xpMaxPerMessage);
         float bonusXp = 0;
-
-        if (_xpCooldown.HasUser(userId))
-            return;
 
         // Add Delay and delay action by 200ms to avoid some weird database collision?
         _xpCooldown.AddCooldown(userId, waitTime);
