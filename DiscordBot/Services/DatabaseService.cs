@@ -12,7 +12,7 @@ public class DatabaseService
     
     private readonly ILoggingService _logging;
     private string ConnectionString { get; }
-
+    
     public IServerUserRepo Query { get; }
 
     public DatabaseService(ILoggingService logging, BotSettings settings)
@@ -159,6 +159,20 @@ public class DatabaseService
     /// <returns>Existing or newly created user. Null on database error.</returns>
     public async Task<ServerUser> GetOrAddUser(SocketGuildUser socketUser)
     {
+        if (socketUser == null)
+        {
+            await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
+                $"SocketUser is null", ExtendedLogSeverity.Warning);
+            return null;
+        }
+
+        if (Query == null)
+        {
+            await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
+                $"Query is null", ExtendedLogSeverity.Warning);
+            return null;
+        }
+
         try
         {
             var user = await Query.GetUser(socketUser.Id.ToString());
@@ -170,8 +184,14 @@ public class DatabaseService
                 UserID = socketUser.Id.ToString(),
             };
 
-            await Query.InsertUser(user);
-            user = await Query.GetUser(socketUser.Id.ToString());
+            user = await Query.InsertUser(user);
+
+            if (user == null)
+            {
+                await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
+                    $"User is null after InsertUser", ExtendedLogSeverity.Warning);
+                return null;
+            }
 
             await _logging.Log(LogBehaviour.File,
                 $"User {socketUser.GetPreferredAndUsername()} successfully added to the database.");
