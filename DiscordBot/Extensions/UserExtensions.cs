@@ -37,4 +37,12 @@ public static class UserExtensions
             return guildUser.DisplayName;
         return $"{guildUser.DisplayName} (aka {user.Username})";
     }
+
+    public static string GetUserLoggingString(this IUser user)
+    {
+        var guildUser = user as SocketGuildUser;
+        if (guildUser == null)
+            return $"{user.Username} `{user.Id}`";
+        return $"{guildUser.GetPreferredAndUsername()} `{guildUser.Id}`";
+    }
 }

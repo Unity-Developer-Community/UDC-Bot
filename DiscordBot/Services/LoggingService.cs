@@ -21,6 +21,26 @@ public enum ExtendedLogSeverity
     LowWarning = 11, // LowWarning(warning) is yellow in the console
 }
 
+/// <summary>
+/// An enum for specifying which logging behaviour to use. Can be combined with bitwise OR.
+/// </summary>
+/// <remarks>
+/// When adding new behaviours, ensure that the value is a power of 2 (1, 2, 4, 8, 16, etc).
+/// Do not add a "ALL" value, as this could be dangerous for future additions depending on how it's used.
+/// If adding behaviours, maybe rename `LogAction` to avoid confusion unless there is no chance of ambiguity or conflict.
+/// </remarks>
+[Flags]
+public enum LogBehaviour
+{
+    None = 0,
+    Console = 1,
+    Channel = 2,
+    File = 4,
+    // Common combinations
+    ChannelAndFile = Channel | File,
+    ConsoleChannelAndFile = Console | Channel | File,
+}
+
 public static class ExtendedLogSeverityExtensions
 {
     public static LogSeverity ToLogSeverity(this ExtendedLogSeverity severity)
@@ -44,32 +64,76 @@ public static class ExtendedLogSeverityExtensions
 
 public class LoggingService : ILoggingService
 {
-    private readonly DiscordSocketClient _client;
-
+    private const string ServiceName = "LoggingService";
+    
     private readonly BotSettings _settings;
+    private readonly ISocketMessageChannel _logChannel;
+    
+    // Configuration
+    private readonly long MAX_LOG_SIZE = 1024 * 1024 * 2; // 2MB
+    private readonly long FILE_CHECK_INTERVAL = 1000 * 60 * 60 * 1; // 1 Hour
+    private readonly string BACKUP_LOG_FILE_PATH;
+    private readonly string LOG_FILE_PATH;
+    private readonly string LOG_XP_FILE_PATH;
+
+    private DateTime _lastFileCheck;
 
     public LoggingService(DiscordSocketClient client, BotSettings settings)
     {
-        _client = client;
         _settings = settings;
-    }
+        
+        // Paths
+        BACKUP_LOG_FILE_PATH = _settings.ServerRootPath + @"/log_backups/";
+        LOG_FILE_PATH = _settings.ServerRootPath + @"/log.txt";
+        LOG_XP_FILE_PATH = _settings.ServerRootPath + @"/logXP.txt";
 
-    public async Task LogAction(string action, bool logToFile = true, bool logToChannel = true, Embed embed = null)
-    {
-        if (logToChannel)
+        if (!Directory.Exists(BACKUP_LOG_FILE_PATH))
         {
-            var channel = _client.GetChannel(_settings.BotAnnouncementChannel.Id) as ISocketMessageChannel;
-            await channel.SendMessageAsync(action, false, embed);
+            Directory.CreateDirectory(BACKUP_LOG_FILE_PATH);
+            LogToConsole($"[{ServiceName}] Created backup log directory", ExtendedLogSeverity.Info);
         }
 
-        if (logToFile)
-            await File.AppendAllTextAsync(_settings.ServerRootPath + @"/log.txt",
-                $"[{ConsistentDateTimeFormat()}] {action} {Environment.NewLine}");
+        // INIT
+        if (_settings.BotAnnouncementChannel == null)
+        {
+            LogToConsole($"[{ServiceName}] Error: Logging Channel not set in settings.json", LogSeverity.Error);
+            return;
+        }
+        _logChannel = client.GetChannel(_settings.BotAnnouncementChannel.Id) as ISocketMessageChannel;
+        if (_logChannel == null)
+        {
+            LogToConsole($"[{ServiceName}] Error: Logging Channel {_settings.BotAnnouncementChannel.Id} not found", LogSeverity.Error);
+        }
     }
-
+    
+    public async Task Log(LogBehaviour behaviour, string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null)
+    {
+        if (behaviour.HasFlag(LogBehaviour.Console))
+            LogToConsole(message, severity);
+        if (behaviour.HasFlag(LogBehaviour.Channel))
+            await LogToChannel(message, severity, embed);
+        if (behaviour.HasFlag(LogBehaviour.File))
+            await LogToFile(message, severity);
+    }
+    
+    public async Task LogToChannel(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null)
+    {
+        if (_logChannel == null)
+            return;
+        await _logChannel.SendMessageAsync(message, false, embed);
+    }
+    
+    public async Task LogToFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info)
+    { 
+        PrepareLogFile(LOG_FILE_PATH);
+        await File.AppendAllTextAsync(LOG_FILE_PATH,
+            $"[{ConsistentDateTimeFormat()}] - [{severity}] - {message} {Environment.NewLine}");
+    }
+    
     public void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, int totalXp)
     {
-        File.AppendAllText(_settings.ServerRootPath + @"/logXP.txt",
+        PrepareLogFile(LOG_XP_FILE_PATH);
+        File.AppendAllText(LOG_XP_FILE_PATH,
             $"[{ConsistentDateTimeFormat()}] - {user} gained {totalXp}xp (base: {baseXp}, bonus : {bonusXp}, reduce : {xpReduce}) in channel {channel} {Environment.NewLine}");
     }
 
@@ -82,9 +146,32 @@ public class LoggingService : ILoggingService
     // Logs DiscordNet specific messages, this shouldn't be used for normal logging
     public static Task DiscordNetLogger(LogMessage message)
     {
-        LoggingService.LogToConsole($"{message.Source} | {message.Message}", message.Severity.ToExtended());
+        LogToConsole($"{message.Source} | {message.Message}", message.Severity.ToExtended());
         return Task.CompletedTask;
     }
+
+    private void PrepareLogFile(string path)
+    {
+        if (DateTime.Now - _lastFileCheck < TimeSpan.FromMilliseconds(FILE_CHECK_INTERVAL))
+            return;
+        
+        _lastFileCheck = DateTime.Now;
+        if (new FileInfo(path).Length > MAX_LOG_SIZE)
+        {
+            // Rename the file, add the year, month and day it was created, and the year month and day it was backed up (SHORT year
+            var backupPath = $"{BACKUP_LOG_FILE_PATH}log_F{File.GetCreationTime(path):yyMMdd}_T{DateTime.Now:yyMMdd}.txt";
+            File.Move(path, backupPath);
+            LogToConsole($"[{ServiceName}] Log file was backed up to {backupPath}", ExtendedLogSeverity.Info);
+        }
+        
+        if (!File.Exists(path))
+        {
+            File.Create(path).Dispose();
+            File.AppendAllText(path, $"[{ConsistentDateTimeFormat()}] - Log file was started. {Environment.NewLine}");
+            LogToConsole($"[{ServiceName}] Log file was started", ExtendedLogSeverity.Info);
+        }
+    }
+    
     #region Console Messages
     // Logs message to console without changing the colour
     public static void LogConsole(string message) {
@@ -100,6 +187,7 @@ public class LoggingService : ILoggingService
 
         Console.ForegroundColor = restoreColour;
     }
+    
     public static void LogToConsole(string message, LogSeverity severity) => LogToConsole(message, severity.ToExtended());
     
     public static void LogServiceDisabled(string service, string varName)
@@ -154,8 +242,37 @@ public class LoggingService : ILoggingService
     #endregion
 } 
 
+/// <summary>
+/// Interface for the LoggingService, this is only really required if you want to use DI.
+/// Logging to console and file is still available without this through the static methods.
+/// </summary>
+/// <remarks>
+/// There is also DebugLog (LoggingService), which is only included in debug builds which is useful for more verbose logging during development.
+/// </remarks>
 public interface ILoggingService
 {
-    Task LogAction(string action, bool logToFile = true, bool logToChannel = true, Embed embed = null);
     void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, int totalXp);
+    
+    /// <summary>
+    /// Standard logging, this will log to console, channel and file depending on the behaviour.
+    /// </summary>
+    /// <param name="behaviour">Where logs go, Console, Channel, File (Or some combination)</param>
+    /// <param name="message">Message</param>
+    /// <param name="severity">Info, Error, Warn, etc (Included in File and Console logging)</param>
+    /// <param name="embed">Embed, only used by Channel Logging</param>
+    Task Log(LogBehaviour behaviour, string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null);
+
+    /// <summary>
+    /// 'Short hand' for logging to all CURRENT supported behaviours, console, channel and file.
+    /// Same as calling `Log(LogBehaviour.ConsoleChannelAndFile, message, severity, embed);`
+    /// </summary>
+    Task LogAction(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null) => 
+        Log(LogBehaviour.ConsoleChannelAndFile, message, severity, embed);
+    
+    /// <summary>
+    /// 'Short hand' for logging to channel and file.
+    /// Same as calling `Log(LogBehaviour.ChannelAndFile, message, severity, embed);`
+    /// </summary>
+    Task LogChannelAndFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null) => 
+        Log(LogBehaviour.ChannelAndFile, message, severity, embed);
 }

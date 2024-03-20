@@ -1,15 +1,16 @@
-﻿using System.IO;
-using System.Net;
-using System.Net.Http;
+﻿using DiscordBot.Utils;
 using Newtonsoft.Json.Linq;
 
 namespace DiscordBot.Services;
 
 public class CurrencyService
 {
+    private const string ServiceName = "CurrencyService";
+    
     #region Configuration
 
     private const int ApiVersion = 1;
+    private const string TargetDate = "latest";
     private const string ValidCurrenciesEndpoint = "currencies.min.json";
     private const string ExchangeRatesEndpoint = "currencies";
     
@@ -21,22 +22,28 @@ public class CurrencyService
 
     #endregion // Configuration
     
-    private readonly Dictionary<string, Currency> _currencies = new Dictionary<string, Currency>();
+    private readonly Dictionary<string, Currency> _currencies = new();
 
-    private static readonly string ApiUrl = $"https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@{ApiVersion}/latest/";
+    private static readonly string ApiUrl = $"https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@{TargetDate}/v{ApiVersion}/";
 
     public async Task<float> GetConversion(string toCurrency, string fromCurrency = "usd")
     {
         toCurrency = toCurrency.ToLower();
         fromCurrency = fromCurrency.ToLower();
         
-        var url = $"{ApiUrl}{ExchangeRatesEndpoint}/{fromCurrency.ToLower()}/{toCurrency.ToLower()}.min.json";
-        var response = await GetResponse(url);
-        if (string.IsNullOrEmpty(response))
+        var url = $"{ApiUrl}{ExchangeRatesEndpoint}/{fromCurrency.ToLower()}.min.json";
+        
+        // Check if success
+        var (success, response) = await WebUtil.TryGetObjectFromJson<JObject>(url);
+        if (!success)
             return -1;
         
-        var json = JObject.Parse(response);
-        return json[$"{toCurrency}"].Value<float>();
+        // json[fromCurrency][toCurrency]
+        var value = response.SelectToken($"{fromCurrency}.{toCurrency}");
+        if (value == null)
+            return -1;
+        
+        return value.Value<float>();
     }
     
     #region Public Methods
@@ -64,10 +71,7 @@ public class CurrencyService
     private async Task BuildCurrencyList()
     {
         var url = ApiUrl + ValidCurrenciesEndpoint;
-        var client = new HttpClient();
-        var response = await client.GetAsync(url);
-        var json = await response.Content.ReadAsStringAsync();
-        var currencies = JObject.Parse(json);
+        var currencies = await WebUtil.GetObjectFromJson<Dictionary<string, string>>(url);
         
         // Json is weird format of `Code: Name` each in dependant ie; {"1inch":"1inch Network","aave":"Aave"}
         foreach (var currency in currencies)
@@ -78,21 +82,8 @@ public class CurrencyService
                 Short = currency.Key
             });
         }
-    }
-
-    private async Task<string> GetResponse(string url)
-    {
-        string jsonString = string.Empty;
-
-        using var client = new HttpClient();
         
-        var response = await client.GetAsync(url);
-        if (response.IsSuccessStatusCode)
-        {
-            jsonString = await response.Content.ReadAsStringAsync();
-        }
-
-        return jsonString;
+        LoggingService.LogToConsole($"[{ServiceName}] Built currency list with {_currencies.Count} currencies.", ExtendedLogSeverity.Positive);
     }
 
     #endregion // Private Methods

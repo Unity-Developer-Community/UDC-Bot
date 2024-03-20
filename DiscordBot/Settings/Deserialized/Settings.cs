@@ -18,23 +18,23 @@ public class BotSettings
 
     public int WelcomeMessageDelaySeconds { get; set; } = 300;
     public bool ModeratorCommandsEnabled { get; set; }
+    public bool ModeratorNoInviteLinks { get; set; }
     // How long between when the bot will scold a user for trying to ping everyone. Default 6 hours
     public ulong EveryoneScoldPeriodSeconds { get; set; } = 21600;
 
     #region Fun Commands
 
-    public List<string> UserModuleSlapChoices { get; set; } = new List<string>() { "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan", "low poly donut" };
-
+    public List<string> UserModuleSlapChoices { get; set; } = new List<string>() { "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan", "life choice", "bug report", "unhandled exception", "null pointer", "keyboard", "cheese wheel", "banana peel", "unresolved bug", "low poly donut" };
+    
     #endregion // Fun Commands
 
     #region Service Enabling
     // Used for enabling/disabling services in the bot
     
     public bool RecruitmentServiceEnabled { get; set; } = false;
-
     public bool UnityHelpBabySitterEnabled { get; set; } = false;
-
     public bool ReactRoleServiceEnabled { get; set; } = false;
+    public bool IntroductionWatcherServiceEnabled { get; set; } = false;
 
     #endregion // Service Enabling
 
@@ -54,21 +54,24 @@ public class BotSettings
     
     #region Channels
     
-    public GeneralChannel GeneralChannel { get; set; }
-    public GenericHelpChannel GenericHelpChannel { get; set; }
+    public ChannelInfo IntroductionChannel { get; set; }
+    public ChannelInfo GeneralChannel { get; set; }
+    public ChannelInfo GenericHelpChannel { get; set; }
     
-    public BotAnnouncementChannel BotAnnouncementChannel { get; set; }
-    public AnnouncementsChannel AnnouncementsChannel { get; set; }
-    public BotCommandsChannel BotCommandsChannel { get; set; }
-    public UnityNewsChannel UnityNewsChannel { get; set; }
-    public UnityReleasesChannel UnityReleasesChannel { get; set; }
-    public RulesChannel RulesChannel { get; set; }
+    public ChannelInfo BotAnnouncementChannel { get; set; }
+    public ChannelInfo AnnouncementsChannel { get; set; }
+    public ChannelInfo BotCommandsChannel { get; set; }
+    public ChannelInfo UnityNewsChannel { get; set; }
+    public ChannelInfo UnityReleasesChannel { get; set; }
+    public ChannelInfo RulesChannel { get; set; }
 
     // Recruitment Channels
     
-    public RecruitmentChannel RecruitmentChannel { get; set; }
+    public ChannelInfo RecruitmentChannel { get; set; }
 
     public ChannelInfo ReportedMessageChannel { get; set; }
+    
+    public ChannelInfo MemeChannel { get; set; }
     
     #region Complaint Channel
 
@@ -90,7 +93,7 @@ public class BotSettings
 
     #region User Roles
 
-    public UserAssignableRoles UserAssignableRoles { get; set; }
+    public RoleGroup UserAssignableRoles { get; set; }
     public ulong MutedRoleId { get; set; }
     public ulong SubsReleasesRoleId { get; set; }
     public ulong SubsNewsRoleId { get; set; }
@@ -145,10 +148,6 @@ public class RoleGroup
     public List<string> Roles { get; set; }
 }
 
-public class UserAssignableRoles : RoleGroup
-{
-}
-
 #endregion
 
 #region Channel Information
@@ -189,43 +188,6 @@ public class AutoThreadChannel
     {
         return String.Format(this.FirstMessage, author.Mention);
     }
-}
-
-public class GeneralChannel : ChannelInfo
-{
-}
-
-public class GenericHelpChannel : ChannelInfo
-{
-    
-}
-
-public class BotAnnouncementChannel : ChannelInfo
-{
-}
-
-public class AnnouncementsChannel : ChannelInfo
-{
-}
-
-public class BotCommandsChannel : ChannelInfo
-{
-}
-
-public class UnityNewsChannel : ChannelInfo
-{
-}
-
-public class UnityReleasesChannel : ChannelInfo
-{
-}
-
-public class RecruitmentChannel : ChannelInfo
-{
-}
-
-public class RulesChannel : ChannelInfo
-{
 }
 
 #endregion
