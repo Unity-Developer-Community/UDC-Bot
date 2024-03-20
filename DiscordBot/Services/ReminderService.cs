@@ -14,6 +14,8 @@ public class ReminderItem {
 
 public class ReminderService
 {
+    private const string ServiceName = "ReminderService";
+    
     // Bot responds to reminder request, any users who also use this emoji on the message will be pinged when the reminder is triggered.
     public static readonly Emoji BotResponseEmoji = new("✅");
     
@@ -25,7 +27,7 @@ public class ReminderService
     private readonly ILoggingService _loggingService;
     private List<ReminderItem> _reminders = new List<ReminderItem>();
         
-    private readonly BotCommandsChannel _botCommandsChannel;
+    private readonly ChannelInfo _botCommandsChannel;
     private bool _hasChangedSinceLastSave = false;
 
     private const int _maxUserReminders = 10;
@@ -46,8 +48,7 @@ public class ReminderService
         LoadReminders();
         if (_reminders == null)
         {
-            // Tell the user that we couldn't load the reminders
-            _loggingService.LogAction("ReminderService: Couldn't load reminders", false);
+            _loggingService.LogAction($"[{ServiceName}] Error: Could not load reminders from file.", ExtendedLogSeverity.Warning);
         }
         IsRunning = true;
         Task.Run(CheckReminders);
@@ -175,8 +176,7 @@ public class ReminderService
         catch (Exception e)
         {
             // Catch and show exception
-            LoggingService.LogToConsole($"Reminder Service Exception during Reminder.\n{e.Message}");
-            await _loggingService.LogAction($"Reminder Service has crashed.\nException Msg: {e.Message}.", false, true);
+            await _loggingService.LogChannelAndFile($"Reminder Service has crashed.\nException Msg: {e.Message}.", ExtendedLogSeverity.Warning);
             IsRunning = false;
         }
     }

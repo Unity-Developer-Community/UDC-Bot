@@ -5,8 +5,8 @@
     <LangVersion>10</LangVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Discord.Net" Version="3.11.0" />
     <PackageReference Include="HtmlAgilityPack" Version="1.11.54" />
+    <PackageReference Include="Discord.Net" Version="3.13.0" />
     <PackageReference Include="Insight.Database" Version="6.3.11" />
     <PackageReference Include="Magick.NET-Q8-x64" Version="7.5.0.1" />
     <PackageReference Include="MySql.Data" Version="8.1.0" />

@@ -23,6 +23,8 @@ public class UserModule : ModuleBase
     public PublisherService PublisherService { get; set; }
     public UpdateService UpdateService { get; set; }
     public CommandHandlingService CommandHandlingService { get; set; }
+    public WeatherService WeatherService { get; set; }
+    public UserExtendedService UserExtendedService { get; set; }
     public BotSettings Settings { get; set; }
     public Rules Rules { get; set; }
         
@@ -128,18 +130,8 @@ public class UserModule : ModuleBase
         var builder = new EmbedBuilder()
             .WithColor(new Color(200, 128, 128))
             .WithTimestamp(message.Timestamp)
-            .WithFooter(footer =>
-            {
-                footer
-                    .WithText($"Quoted by {Context.User.GetUserPreferredName()} • From channel {message.Channel.Name}")
-                    .WithIconUrl(Context.User.GetAvatarUrl());
-            })
-            .WithAuthor(author =>
-            {
-                author
-                    .WithName(message.Author.Username)
-                    .WithIconUrl(message.Author.GetAvatarUrl());
-            });
+            .FooterQuoteBy(Context.User, message.Channel)
+            .AddAuthor(message.Author);
         if (msgContent == string.Empty && msgAttachment != string.Empty) msgContent = "📸";
 
         msgContent += $"\n\n***[Linkback]({messageLink})***";
@@ -258,12 +250,12 @@ public class UserModule : ModuleBase
         }
 
         const uint xpGain = 5000;
-        var userXp = await DatabaseService.Query().GetXp(userId.ToString());
-        await DatabaseService.Query().UpdateXp(userId.ToString(), userXp + xpGain);
+        var userXp = await DatabaseService.Query.GetXp(userId.ToString());
+        await DatabaseService.Query.UpdateXp(userId.ToString(), userXp + xpGain);
         await Context.Message.DeleteAsync();
     }
 
-    [Group("Role"), BotChannelOnly]
+    [Group("Role"), BotCommandChannel]
     public class RoleModule : ModuleBase
     {
         public BotSettings Settings { get; set; }
@@ -283,7 +275,7 @@ public class UserModule : ModuleBase
 
             await u.AddRoleAsync(role);
             await ReplyAsync($"{u.Username} you now have the `{role.Name}` role.");
-            await LoggingService.LogAction($"{Context.User.Username} has added {role} to themself.");
+            await LoggingService.LogChannelAndFile($"{Context.User.Username} has added {role} to themself.");
         }
 
         [Command("Remove")]
@@ -301,7 +293,7 @@ public class UserModule : ModuleBase
 
             await u.RemoveRoleAsync(role);
             await ReplyAsync($"{u.Username} your `{role.Name}` role has been removed");
-            await LoggingService.LogAction($"{Context.User.Username} has removed role {role} from themself.");
+            await LoggingService.LogChannelAndFile($"{Context.User.Username} has removed role {role} from themself.");
         }
 
         [Command("List")]
@@ -417,7 +409,7 @@ public class UserModule : ModuleBase
     [Alias("toplevel", "ranking")]
     public async Task TopLevel()
     {
-        var users = await DatabaseService.Query().GetTopLevel(10);
+        var users = await DatabaseService.Query.GetTopLevel(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.Level)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Level");
@@ -429,7 +421,7 @@ public class UserModule : ModuleBase
     [Alias("karmarank", "rankingkarma", "topk")]
     public async Task TopKarma()
     {
-        var users = await DatabaseService.Query().GetTopKarma(10);
+        var users = await DatabaseService.Query.GetTopKarma(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.Karma)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Karma");
@@ -441,7 +433,7 @@ public class UserModule : ModuleBase
     [Alias("karmarankweekly", "rankingkarmaweekly", "topkw")]
     public async Task TopKarmaWeekly()
     {
-        var users = await DatabaseService.Query().GetTopKarmaWeekly(10);
+        var users = await DatabaseService.Query.GetTopKarmaWeekly(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.KarmaWeekly)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Weekly Karma");
@@ -453,7 +445,7 @@ public class UserModule : ModuleBase
     [Alias("karmarankmonthly", "rankingkarmamonthly", "topkm")]
     public async Task TopKarmaMonthly()
     {
-        var users = await DatabaseService.Query().GetTopKarmaMonthly(10);
+        var users = await DatabaseService.Query.GetTopKarmaMonthly(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.KarmaMonthly)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Monthly Karma");
@@ -465,7 +457,7 @@ public class UserModule : ModuleBase
     [Alias("karmaranktearly", "rankingkarmayearly", "topky")]
     public async Task TopKarmaYearly()
     {
-        var users = await DatabaseService.Query().GetTopKarmaYearly(10);
+        var users = await DatabaseService.Query.GetTopKarmaYearly(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.KarmaYearly)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Yearly Karma");
@@ -505,7 +497,7 @@ public class UserModule : ModuleBase
         }
         catch (Exception e)
         {
-            await LoggingService.LogAction($"Failed to generate top 10 embed.\n{e}", true, false);
+            await LoggingService.LogChannelAndFile($"Failed to generate top 10 embed.\n{e}", ExtendedLogSeverity.LowWarning);
             embedBuilder.Description = "Failed to generate top 10 embed.";
         }
 
@@ -539,7 +531,8 @@ public class UserModule : ModuleBase
         }
         catch (Exception e)
         {
-            await LoggingService.LogAction($"Error while generating profile card for {user.Username}.\nEx:{e}", true, false);
+            await LoggingService.LogAction($"Error while generating profile card for {user.Username}.\nEx:{e}",
+                ExtendedLogSeverity.LowWarning);
         }
     }
 
@@ -551,6 +544,39 @@ public class UserModule : ModuleBase
         var joinDate = ((IGuildUser)Context.User).JoinedAt;
         await ReplyAsync($"{Context.User.Mention} you joined **{joinDate:dddd dd/MM/yyy HH:mm:ss}**");
         await Context.Message.DeleteAsync();
+    }
+    
+    [Command("SetCity"), Priority(100)]
+    [Alias("SetDefaultCity")]
+    [Summary("Set 'Default City' which can be used by various commands.")]
+    public async Task SetDefaultCity(params string[] city)
+    {
+        var fullCityName = string.Join(" ", city);
+        var (exists, result) = await WeatherService.CityExists(fullCityName);
+        if (!exists)
+        {
+            await ReplyAsync($"Sorry, {Context.User.Mention} but I couldn't find a city with that name.").DeleteAfterSeconds(30);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+        // Set default city
+        await UserExtendedService.SetUserDefaultCity(Context.User, result.name);
+        await ReplyAsync($"{Context.User.Mention} your default city has been set to {result.name}.");
+    }
+
+    [Command("RemoveCity"), Priority(100)]
+    [Alias("RemoveDefaultCity")]
+    [Summary("Remove 'Default City' which can be used by various commands.")]
+    public async Task RemoveDefaultCity()
+    {
+        if (!await UserExtendedService.DoesUserHaveDefaultCity(Context.User))
+        {
+            await ReplyAsync($"{Context.User.Mention} you don't have a default city set.").DeleteAfterSeconds(30);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+        await UserExtendedService.RemoveUserDefaultCity(Context.User);
+        await ReplyAsync($"{Context.User.Mention} your default city has been removed.");
     }
 
     #endregion
@@ -609,12 +635,71 @@ public class UserModule : ModuleBase
         await ReplyAsync($"**{Context.User.Username}** flipped a coin and got **{coin[_random.Next() % 2]}**!");
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
+    
+    [Command("Roll"), Priority(23)]
+    [Summary("Roll a dice. Syntax : !roll [sides] (max 100)")]
+    public async Task RollDice(int sides = 20)
+    {
+        if (sides < 1 || sides > 1000)
+        {
+            await ReplyAsync("Invalid number of sides. Please choose a number between 1 and 1000.").DeleteAfterSeconds(seconds: 10);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+
+        var roll = _random.Next(1, sides + 1);
+        await ReplyAsync($"**{Context.User.Username}** rolled a D{sides} and got **{roll}**!");
+        await Context.Message.DeleteAfterSeconds(seconds: 1);
+    }
+    
+    [Command("Roll"), Priority(23)]
+    [Summary("Roll a dice. Syntax : !roll [sides] [number]")]
+    public async Task RollDice(int sides, int number)
+    {
+        if (sides < 1 || sides > 1000)
+        {
+            await ReplyAsync("Invalid number of sides. Please choose a number between 1 and 1000.").DeleteAfterSeconds(seconds: 10);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+
+        var roll = _random.Next(1, sides + 1);
+        var message = $"**{Context.User.Username}** rolled a D{sides} and got **{roll}**!";
+        if (roll > number)
+            message = " :white_check_mark: " + message + " [Needed: " + number + "]";
+        else
+            message = " :x: " + message + " [Needed: " + number + "]";
+        
+        await ReplyAsync(message);
+        await Context.Message.DeleteAfterSeconds(seconds: 1);
+    }
+    
+    [Command("D20"), Priority(23)]
+    [Summary("Roll a D20 dice.")]
+    public async Task RollD20(int number)
+    {
+        if (number < 1)
+        {
+            await ReplyAsync("Invalid number. Please choose a number 1 or above.").DeleteAfterSeconds(seconds: 10);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+        var roll = _random.Next(1, 21);
+        var message = $"**{Context.User.Username}** rolled a D20 and got **{roll}**!";
+        if (roll > number)
+            message = " :white_check_mark: " + message + " [Needed: " + number + "]";
+        else
+            message = " :x: " + message + " [Needed: " + number + "]";
+        
+        await ReplyAsync(message);
+        await Context.Message.DeleteAfterSeconds(seconds: 1);
+    }
 
     #endregion
 
     #region Publisher
 
-    [Command("PInfo"), BotChannelOnly, Priority(11)]
+    [Command("PInfo"), BotCommandChannel, Priority(11)]
     [Summary("Information on how to get publisher role.")]
     [Alias("publisherinfo")]
     public async Task PublisherInfo()
@@ -630,7 +715,7 @@ public class UserModule : ModuleBase
         await Context.Message.DeleteAfterSeconds(seconds: 2);
     }
 
-    [Command("Publisher"), BotChannelOnly, HideFromHelp]
+    [Command("Publisher"), BotCommandChannel, HideFromHelp]
     [Summary("Get the Asset-Publisher role by verifying who you are. Syntax: !publisher publisherID")]
     public async Task Publisher(uint publisherId)
     {
@@ -650,7 +735,7 @@ public class UserModule : ModuleBase
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
 
-    [Command("Verify"), BotChannelOnly, HideFromHelp]
+    [Command("Verify"), BotCommandChannel, HideFromHelp]
     [Summary("Verify a publisher with the code received by email. Syntax : !verify publisherId code")]
     public async Task VerifyPackage(uint packageId, string code)
     {
@@ -988,13 +1073,9 @@ public class UserModule : ModuleBase
     public async Task Birthday()
     {
         // URL to cell C15/"Next birthday" cell from Corn's google sheet
-        var nextBirthday =
-            "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&range=C15:C15";
-        var doc = new HtmlWeb().Load(nextBirthday);
-
-        // XPath to the table row
-        var row = doc.DocumentNode.SelectSingleNode("/html/body/table/tr[2]/td");
-        var tableText = WebUtility.HtmlDecode(row.InnerText);
+        const string nextBirthday = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&range=C15:C15";
+        
+        var tableText = await WebUtil.GetHtmlNodeInnerText(nextBirthday, "/html/body/table/tr[2]/td");
         var message = $"**{tableText}**";
 
         await ReplyAsync(message).DeleteAfterTime(minutes: 3);
@@ -1008,29 +1089,29 @@ public class UserModule : ModuleBase
     {
         var searchName = user.Username;
         // URL to columns B to D of Corn's google sheet
-        var birthdayTable =
-            "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
-        var doc = new HtmlWeb().Load(birthdayTable);
+        const string birthdayTable = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
+        var relevantNodes = await WebUtil.GetHtmlNodes(birthdayTable, "/html/body/table/tr");
+        
         var birthdate = default(DateTime);
 
         HtmlNode matchedNode = null;
         var matchedLength = int.MaxValue;
 
         // XPath to each table row
-        foreach (var row in doc.DocumentNode.SelectNodes("/html/body/table/tr"))
+        foreach (var row in relevantNodes)
         {
             // XPath to the name column (C)
             var nameNode = row.SelectSingleNode("td[2]");
             var name = nameNode.InnerText;
-            if (name.ToLower().Contains(searchName.ToLower()))
-                // Check for a "Closer" match
-                if (name.Length < matchedLength)
-                {
-                    matchedNode = row;
-                    matchedLength = name.Length;
-                    // Nothing will match "Better" so we may as well break out
-                    if (name.Length == searchName.Length) break;
-                }
+            
+            if (!name.ToLower().Contains(searchName.ToLower()) || name.Length >= matchedLength)
+                continue;
+            
+            // Check for a "Closer" match
+            matchedNode = row;
+            matchedLength = name.Length;
+            // Nothing will match "Better" so we may as well break out
+            if (name.Length == searchName.Length) break;
         }
 
         if (matchedNode != null)
@@ -1083,7 +1164,7 @@ public class UserModule : ModuleBase
 
     #endregion
 
-    #region temperatures
+    #region Temperatures
 
     [Command("FtoC"), Priority(28)]
     [Summary("Converts a temperature in fahrenheit to celsius. Syntax : !ftoc temperature")]
@@ -1146,15 +1227,22 @@ public class UserModule : ModuleBase
     {
         await ConvertCurrency(1, from, to);
     }
-
+    
     [Command("Currency"), Priority(29)]
     [Summary("Converts a currency. Syntax : !currency amount fromCurrency toCurrency")]
     [Alias("curr")]
     public async Task ConvertCurrency(double amount, string from, string to = "usd")
     {
         if (Context.HasAnyPingableMention())
-            return;
-        
+        {
+            // Only continue command if the user is replying to a message
+            if (!Context.IsReply())
+                return;
+            // And that mention is only the author of the replied message
+            if (!Context.IsOnlyReplyingToAuthor())
+                return;
+        }
+
         from = from.ToLower();
         to = to.ToLower();
 

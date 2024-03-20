@@ -1,4 +1,5 @@
 using Discord.Commands;
+using DiscordBot.Attributes;
 using DiscordBot.Services;
 using DiscordBot.Settings;
 

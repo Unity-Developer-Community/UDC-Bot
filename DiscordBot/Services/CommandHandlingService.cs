@@ -13,6 +13,7 @@ namespace DiscordBot.Services;
 
 public class CommandHandlingService
 {
+    private const string ServiceName = "CommandHandlingService";
     public bool IsInitialized { get; private set; }
     
     private readonly DiscordSocketClient _client;
@@ -20,6 +21,7 @@ public class CommandHandlingService
     private readonly InteractionService _interactionService;
     private readonly IServiceProvider _services;
     private readonly BotSettings _settings;
+    private readonly ILoggingService _loggingService;
 
     // While not the most attractive solution, it works, and is fairly cheap compared to the last solution.
     // Tuple of string moduleName, bool orderByName = false, bool includeArgs = true, bool includeModuleName = true for a dictionary
@@ -31,7 +33,8 @@ public class CommandHandlingService
         CommandService commandService,
         InteractionService interactionService,
         IServiceProvider services,
-        BotSettings settings
+        BotSettings settings,
+        ILoggingService loggingService
     )
     {
         _client = client;
@@ -39,6 +42,7 @@ public class CommandHandlingService
         _interactionService = interactionService;
         _services = services;
         _settings = settings;
+        _loggingService = loggingService;
 
         // Events
         _client.MessageReceived += HandleCommand;
@@ -50,9 +54,19 @@ public class CommandHandlingService
             try
             {
                 // Discover all of the commands in this assembly and load them.
-                await _commandService.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+                var addedEnumerable = await _commandService.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+                var commandModulesAdded = addedEnumerable.ToList();
+                await _loggingService.Log(LogBehaviour.Console, $"{ServiceName}: Loaded {commandModulesAdded.Count} 'Normal' modules. ({commandModulesAdded.Sum(x => x.Commands.Count)} commands)", ExtendedLogSeverity.Positive);
 
-                await _interactionService.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+                var addedInteractivity = await _interactionService.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
+                var moduleInfos = addedInteractivity.ToList();
+                await _loggingService.Log(LogBehaviour.Console, $"{ServiceName}: Loaded {moduleInfos.Count} 'Interactivity' modules.", ExtendedLogSeverity.Positive);
+                await _loggingService.Log(LogBehaviour.Console, $"{ServiceName}: {moduleInfos.Sum(x => x.SlashCommands.Count)} 'Slash' commands.", ExtendedLogSeverity.Positive);
+                await _loggingService.Log(LogBehaviour.Console, $"{ServiceName}: {moduleInfos.Sum(x => x.ContextCommands.Count)} 'Context' commands.", ExtendedLogSeverity.Positive);
+                await _loggingService.Log(LogBehaviour.Console, $"{ServiceName}: {moduleInfos.Sum(x => x.AutocompleteCommands.Count)} 'AutoComplete' commands.", ExtendedLogSeverity.Positive);
+                await _loggingService.Log(LogBehaviour.Console, $"{ServiceName}: {moduleInfos.Sum(x => x.ModalCommands.Count)} 'Modal' commands.", ExtendedLogSeverity.Positive);
+                await _loggingService.Log(LogBehaviour.Console, $"{ServiceName}: {moduleInfos.Sum(x => x.ComponentCommands.Count)} 'Component' commands.", ExtendedLogSeverity.Positive);
+                
                 //TODO Consider global commands? Maybe an attribute?
                 await _interactionService.RegisterCommandsToGuildAsync(_settings.GuildId);
 
@@ -60,7 +74,7 @@ public class CommandHandlingService
             }
             catch (Exception e)
             {
-                LoggingService.LogToConsole($"Failed to initialize the command service while adding modules.\nException: {e}", LogSeverity.Critical);
+                await _loggingService.Log(LogBehaviour.Console | LogBehaviour.File, $"[{ServiceName}] Failed to initialize service while adding modules.\nException: {e}", ExtendedLogSeverity.Critical);
             }
         });
     }
@@ -150,13 +164,26 @@ public class CommandHandlingService
     }
 
     private IEnumerable<CommandInfo> GetOrganizedCommandInfo(
-        (string moduleName, bool orderByName, bool includeArgs, bool includeModuleName) input, string search = "")
+        (string moduleName, bool orderByName, bool includeArgs, bool includeModuleName) input, string search = "", bool onlyNormalUsers = true)
     {
+        // Prepare attributes before linq
+        var hideFromHelp = new HideFromHelpAttribute();
+        var requireModerator = new RequireModeratorAttribute();
+        var requireAdmin = new RequireAdminAttribute();
+        
         // Generates a list of commands that doesn't include any that have the ``HideFromHelp`` attribute.
         // Adds commands that use the same Module, and contains the search query if given.
-        var commands = _commandService.Commands.Where(x =>
-            x.Module.Name == input.moduleName && !x.Attributes.Contains(new HideFromHelpAttribute()) &&
-            (search == string.Empty || x.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase)));
+        var commands = 
+            _commandService.Commands.Where(x =>
+            x.Module.Name == input.moduleName && 
+            !x.Attributes.Contains(hideFromHelp) &&
+            (search == string.Empty || x.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase))
+        );
+        // We try to hide commands that have moderator or admin requirements if onlyNormalUsers is true.
+        commands = onlyNormalUsers
+            ? commands.Where(x => !x.Preconditions.Any(y => y.TypeId == requireModerator.TypeId || y.TypeId == requireAdmin.TypeId))
+            : commands;
+        
         // Orders the list either by name or by priority, if no priority is given we push it to the end.
         commands = input.orderByName
             ? commands.OrderBy(c => c.Name)
@@ -195,6 +222,10 @@ public class CommandHandlingService
             if (result is PreconditionGroupResult groupResult)
             {
                 resultString = groupResult.PreconditionResults.First().ErrorReason;
+                
+                // Pre-condition doesn't have a reason, we don't respond.
+                if (resultString == string.Empty)
+                    return;
             }
             await context.Channel.SendMessageAsync(resultString).DeleteAfterSeconds(10);
         }

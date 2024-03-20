@@ -1,4 +1,5 @@
 using Discord.Commands;
+using DiscordBot.Modules.Weather;
 using DiscordBot.Services;
 using DiscordBot.Settings;
 
@@ -123,7 +124,7 @@ public class AirportModule : ModuleBase
     
     #region Utility Methods
     
-    private async Task<WeatherModule.WeatherContainer.Result> GetCity(string city, EmbedBuilder embed, IUserMessage msg)
+    private async Task<WeatherContainer.Result> GetCity(string city, EmbedBuilder embed, IUserMessage msg)
     {
         var cityResult = await WeatherService.GetWeather(city);
         if (cityResult == null)
@@ -136,7 +137,7 @@ public class AirportModule : ModuleBase
         return cityResult;
     }
     
-    private async Task<AirportService.AirLabsAirport> GetAirport(WeatherModule.WeatherContainer.Result weather, EmbedBuilder embed, IUserMessage msg)
+    private async Task<AirportService.AirLabsAirport> GetAirport(WeatherContainer.Result weather, EmbedBuilder embed, IUserMessage msg)
     {
         var airportResult = await AirportService.GetClosestAirport(weather.coord.Lat, weather.coord.Lon);
         if (airportResult == null)
