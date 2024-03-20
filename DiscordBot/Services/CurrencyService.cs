@@ -10,6 +10,7 @@ public class CurrencyService
     #region Configuration
 
     private const int ApiVersion = 1;
+    private const string TargetDate = "latest";
     private const string ValidCurrenciesEndpoint = "currencies.min.json";
     private const string ExchangeRatesEndpoint = "currencies";
     
@@ -23,24 +24,25 @@ public class CurrencyService
     
     private readonly Dictionary<string, Currency> _currencies = new();
 
-    private static readonly string ApiUrl = $"https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@{ApiVersion}/latest/";
+    private static readonly string ApiUrl = $"https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@{TargetDate}/v{ApiVersion}/";
 
     public async Task<float> GetConversion(string toCurrency, string fromCurrency = "usd")
     {
         toCurrency = toCurrency.ToLower();
         fromCurrency = fromCurrency.ToLower();
         
-        var url = $"{ApiUrl}{ExchangeRatesEndpoint}/{fromCurrency.ToLower()}/{toCurrency.ToLower()}.min.json";
+        var url = $"{ApiUrl}{ExchangeRatesEndpoint}/{fromCurrency.ToLower()}.min.json";
         
         // Check if success
         var (success, response) = await WebUtil.TryGetObjectFromJson<JObject>(url);
         if (!success)
             return -1;
         
-        // Check currency exists in response
-        response.TryGetValue($"{toCurrency}", out var value);
+        // json[fromCurrency][toCurrency]
+        var value = response.SelectToken($"{fromCurrency}.{toCurrency}");
         if (value == null)
             return -1;
+        
         return value.Value<float>();
     }
     
