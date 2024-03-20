@@ -173,12 +173,8 @@ public class UserSlashModule : InteractionModuleBase
                 .WithText($"Reported by {Context.User.GetPreferredAndUsername()} • From channel {reportedMessage.Channel.Name}")
                 .WithIconUrl(Context.User.GetAvatarUrl());
         })
-        .WithAuthor(author =>
-        {
-            author
-                .WithName(reportedMessage.Author.Username)
-                .WithIconUrl(reportedMessage.Author.GetAvatarUrl());
-        });
+        .AddAuthor(reportedMessage.Author);
+        
         embed.Description += $"\n\n***[Linkback]({reportedMessage.GetJumpUrl()})***";
 
         if (reportedMessage.Attachments.Count > 0)

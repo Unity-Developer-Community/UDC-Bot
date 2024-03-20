@@ -40,6 +40,10 @@
     "desc": "General-Chat Channel",
     "id": "0"
   },
+  "IntroductionChannel": { // Introductions
+    "desc": "Introductions Channel",
+    "id": "0"
+  },
   "botAnnouncementChannel": { // Most bot logs will go here
     "desc": "Bot-Announcement Channel",
     "id": "0"

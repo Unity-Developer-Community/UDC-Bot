@@ -52,7 +52,7 @@ public class ModerationModule : ModuleBase
         await u.AddRoleAsync(Context.Guild.GetRole(Settings.MutedRoleId));
 
         var reply = await ReplyAsync($"User {user} has been muted for {Utils.Utils.FormatTime(arg)} ({arg} seconds).");
-        await LoggingService.LogAction(
+        await LoggingService.LogChannelAndFile(
             $"{Context.User.Username} has muted {u.Username} ({u.Id}) for {Utils.Utils.FormatTime(arg)} ({arg} seconds).");
 
         UserService.MutedUsers.AddCooldown(u.Id, (int)arg, ignoreExisting: true);
@@ -105,7 +105,7 @@ public class ModerationModule : ModuleBase
 
         var reply =
             await ReplyAsync($"User {user} has been muted for {Utils.Utils.FormatTime(seconds)} ({seconds} seconds). Reason : {message}");
-        await LoggingService.LogAction(
+        await LoggingService.LogChannelAndFile(
             $"{Context.User.Username} has muted {u.Username} ({u.Id}) for {Utils.Utils.FormatTime(seconds)} ({seconds} seconds). Reason : {message}");
 
         var dm = await user.CreateDMChannelAsync(new RequestOptions());
@@ -117,7 +117,7 @@ public class ModerationModule : ModuleBase
                 await botCommandChannel.SendMessageAsync(
                     $"I could not DM you {user.Mention}!\nYou have been muted from UDC for **{Utils.Utils.FormatTime(seconds)}** for the following reason : **{message}**. " +
                     "This is not appealable and any tentative to avoid it will result in your permanent ban.");
-            await LoggingService.LogAction($"User {user.Username} has DM blocked and the mute reason couldn't be sent.", true, false);
+            await LoggingService.Log(LogBehaviour.Channel, $"User {user.Username} has DM blocked and the mute reason couldn't be sent.");
         }
 
         UserService.MutedUsers.AddCooldown(u.Id, (int)seconds, ignoreExisting: true);
@@ -163,7 +163,7 @@ public class ModerationModule : ModuleBase
             var u = user as IGuildUser;
             await u.AddRoleAsync(role);
             await ReplyAsync("Role " + role + " has been added to " + user).DeleteAfterTime(minutes: 5);
-            await LoggingService.LogAction($"{contextUser.Username} has added role {role} to {u.Username}");
+            await LoggingService.LogChannelAndFile($"{contextUser.Username} has added role {role} to {u.Username}");
             return;
         }
 
@@ -185,7 +185,7 @@ public class ModerationModule : ModuleBase
 
             await u.RemoveRoleAsync(role);
             await ReplyAsync("Role " + role + " has been removed from " + user).DeleteAfterTime(minutes: 5);
-            await LoggingService.LogAction($"{contextUser.Username} has removed role {role} from {u.Username}");
+            await LoggingService.LogChannelAndFile($"{contextUser.Username} has removed role {role} from {u.Username}");
             return;
         }
 
@@ -204,7 +204,7 @@ public class ModerationModule : ModuleBase
         await channel.DeleteMessagesAsync(messages);
 
         await ReplyAsync("Messages deleted.").DeleteAfterSeconds(seconds: 5);
-        await LoggingService.LogAction($"{Context.User.Username} has removed {count} messages from {Context.Channel.Name}");
+        await LoggingService.LogChannelAndFile($"{Context.User.Username} has removed {count} messages from {Context.Channel.Name}");
     }
 
     [Command("Clear")]
@@ -220,7 +220,7 @@ public class ModerationModule : ModuleBase
         await channel.DeleteMessagesAsync(enumerable);
 
         await ReplyAsync("Messages deleted.").DeleteAfterSeconds(seconds: 5);
-        await LoggingService.LogAction($"{Context.User.Username} has removed {enumerable.Count} messages from {Context.Channel.Name}");
+        await LoggingService.LogChannelAndFile($"{Context.User.Username} has removed {enumerable.Count} messages from {Context.Channel.Name}");
     }
 
     [Command("Kick")]
@@ -233,7 +233,7 @@ public class ModerationModule : ModuleBase
         var u = user as IGuildUser;
 
         await u.KickAsync();
-        await LoggingService.LogAction($"{Context.User.Username} has kicked {u.Username}");
+        await LoggingService.LogChannelAndFile($"{Context.User.Username} has kicked {u.Username}");
     }
 
     [Command("Ban")]
@@ -245,7 +245,7 @@ public class ModerationModule : ModuleBase
 
         var reason = string.Join(' ', reasons);
         await Context.Guild.AddBanAsync(user, 7, reason, RequestOptions.Default);
-        await LoggingService.LogAction($"{Context.User.Username} has banned {user.Username} with the reason \"{reasons}\"");
+        await LoggingService.LogChannelAndFile($"{Context.User.Username} has banned {user.Username} with the reason \"{reasons}\"");
     }
 
     [Command("Rules")]
@@ -404,7 +404,7 @@ public class ModerationModule : ModuleBase
     [RequireUserPermission(GuildPermission.Administrator)]
     public async Task DbSync(IUser user)
     {
-        await DatabaseService.AddNewUser((SocketGuildUser)user);
+        await DatabaseService.GetOrAddUser((SocketGuildUser)user);
     }
 
     [Command("DBFullSync")]
