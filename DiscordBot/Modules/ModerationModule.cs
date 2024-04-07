@@ -400,6 +400,28 @@ public class ModerationModule : ModuleBase
         });
     }
 
+    [Command("CommandHistory")]
+    [Summary("Get a text file of the command history for bot.")]
+    [RequireModerator]
+    public async Task CommandHistory(int count = 20)
+    {
+        await Context.Message.DeleteAsync();
+        await LoggingService.LogChannelAndFile("Command history requested by " + Context.User.Username,
+            ExtendedLogSeverity.Info);
+
+        var response = await ModerationService.GetBotCommandHistory(count);
+        using var stream = new MemoryStream();
+        using (var writer = new StreamWriter(stream))
+        {
+            await writer.WriteAsync(response);
+            await writer.FlushAsync();
+            stream.Position = 0;
+
+            // Send the MemoryStream as a file
+            await Context.User.SendFileAsync(stream, "CommandHistory.txt");
+        }
+    }
+
     [Command("DBSync")]
     [Summary("Force add a user to the database.")]
     [RequireAdmin]
