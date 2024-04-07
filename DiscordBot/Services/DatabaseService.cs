@@ -12,8 +12,22 @@ public class DatabaseService
     
     private readonly ILoggingService _logging;
     private string ConnectionString { get; }
+
+    private IServerUserRepo CreateQuery()
+    {
+        try
+        {
+            var c = new MySqlConnection(ConnectionString);
+            return c.As<IServerUserRepo>();
+        }
+        catch (Exception e)
+        {
+            _logging.LogChannelAndFile($"SQL Exception: Failed to create query.\nMessage: {e}", ExtendedLogSeverity.Critical);
+            return null;
+        }
+    }
     
-    public IServerUserRepo Query { get; }
+    public IServerUserRepo Query => CreateQuery();
 
     public DatabaseService(ILoggingService logging, BotSettings settings)
     {
@@ -24,7 +38,6 @@ public class DatabaseService
         try
         {
             c = new MySqlConnection(ConnectionString);
-            Query = c.As<IServerUserRepo>();
         }
         catch (Exception e)
         {
