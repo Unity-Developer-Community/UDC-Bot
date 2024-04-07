@@ -33,7 +33,7 @@ public static class UserExtensions
         var guildUser = user as SocketGuildUser;
         if (guildUser == null)
             return user.Username;
-        if (guildUser.DisplayName == user.Username)
+        if (string.Equals(guildUser.DisplayName, user.Username, StringComparison.CurrentCultureIgnoreCase))
             return guildUser.DisplayName;
         return $"{guildUser.DisplayName} (aka {user.Username})";
     }
