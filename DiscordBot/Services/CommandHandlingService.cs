@@ -32,7 +32,7 @@ public class CommandHandlingService
     private readonly IServiceProvider _services;
     private readonly ILoggingService _loggingService;
 
-    private readonly char _defaultPrefix = '!';
+    private const char DefaultPrefix = '!';
     private readonly char _commandPrefix;
 
     // While not the most attractive solution, it works, and is fairly cheap compared to the last solution.
@@ -72,8 +72,8 @@ public class CommandHandlingService
         _commandPrefix = settings.Prefix;
         if (_commandPrefix == default)
         {
-            _commandPrefix = _defaultPrefix;
-            _loggingService.Log(LogBehaviour.Console | LogBehaviour.File, $"{ServiceName}: Prefix not set, defaulting to {_defaultPrefix}", ExtendedLogSeverity.Warning);
+            _commandPrefix = DefaultPrefix;
+            _loggingService.Log(LogBehaviour.Console | LogBehaviour.File, $"{ServiceName}: Prefix not set, defaulting to {DefaultPrefix}", ExtendedLogSeverity.Warning);
         }
         else
         {
