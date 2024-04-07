@@ -36,6 +36,7 @@ public enum LogBehaviour
     Console = 1,
     Channel = 2,
     File = 4,
+    CommandFile = 8,
     // Common combinations
     ChannelAndFile = Channel | File,
     ConsoleChannelAndFile = Console | Channel | File,
@@ -66,43 +67,46 @@ public class LoggingService : ILoggingService
 {
     private const string ServiceName = "LoggingService";
     
-    private readonly BotSettings _settings;
     private readonly ISocketMessageChannel _logChannel;
     
     // Configuration
-    private readonly long MAX_LOG_SIZE = 1024 * 1024 * 2; // 2MB
-    private readonly long FILE_CHECK_INTERVAL = 1000 * 60 * 60 * 1; // 1 Hour
-    private readonly string BACKUP_LOG_FILE_PATH;
-    private readonly string LOG_FILE_PATH;
-    private readonly string LOG_XP_FILE_PATH;
+    private const long MaxLogSize = 1024 * 1024 * 2; // 2MB
+    private const long FileCheckInterval = 1000 * 60 * 60 * 1; // 1 Hour
+    private readonly bool _logCommandExecutions;
+    
+    // Where backup files go
+    private readonly string _backupLogFilePath;
+    
+    private readonly string _logFilePath; // Normal Logs
+    private readonly string _logXpFilePath; // XP Logs
 
     private DateTime _lastFileCheck;
 
     public LoggingService(DiscordSocketClient client, BotSettings settings)
     {
-        _settings = settings;
+        _logCommandExecutions = settings.LogCommandExecutions;
         
         // Paths
-        BACKUP_LOG_FILE_PATH = _settings.ServerRootPath + @"/log_backups/";
-        LOG_FILE_PATH = _settings.ServerRootPath + @"/log.txt";
-        LOG_XP_FILE_PATH = _settings.ServerRootPath + @"/logXP.txt";
+        _backupLogFilePath = settings.ServerRootPath + @"/log_backups/";
+        _logFilePath = settings.ServerRootPath + @"/log.txt";
+        _logXpFilePath = settings.ServerRootPath + @"/logXP.txt";
 
-        if (!Directory.Exists(BACKUP_LOG_FILE_PATH))
+        if (!Directory.Exists(_backupLogFilePath))
         {
-            Directory.CreateDirectory(BACKUP_LOG_FILE_PATH);
+            Directory.CreateDirectory(_backupLogFilePath);
             LogToConsole($"[{ServiceName}] Created backup log directory", ExtendedLogSeverity.Info);
         }
 
         // INIT
-        if (_settings.BotAnnouncementChannel == null)
+        if (settings.BotAnnouncementChannel == null)
         {
             LogToConsole($"[{ServiceName}] Error: Logging Channel not set in settings.json", LogSeverity.Error);
             return;
         }
-        _logChannel = client.GetChannel(_settings.BotAnnouncementChannel.Id) as ISocketMessageChannel;
+        _logChannel = client.GetChannel(settings.BotAnnouncementChannel.Id) as ISocketMessageChannel;
         if (_logChannel == null)
         {
-            LogToConsole($"[{ServiceName}] Error: Logging Channel {_settings.BotAnnouncementChannel.Id} not found", LogSeverity.Error);
+            LogToConsole($"[{ServiceName}] Error: Logging Channel {settings.BotAnnouncementChannel.Id} not found", LogSeverity.Error);
         }
     }
     
@@ -113,6 +117,8 @@ public class LoggingService : ILoggingService
         if (behaviour.HasFlag(LogBehaviour.Channel))
             await LogToChannel(message, severity, embed);
         if (behaviour.HasFlag(LogBehaviour.File))
+            await LogToFile(message, severity);
+        if (_logCommandExecutions && behaviour.HasFlag(LogBehaviour.CommandFile))
             await LogToFile(message, severity);
     }
     
@@ -125,15 +131,15 @@ public class LoggingService : ILoggingService
     
     public async Task LogToFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info)
     { 
-        PrepareLogFile(LOG_FILE_PATH);
-        await File.AppendAllTextAsync(LOG_FILE_PATH,
+        PrepareLogFile(_logFilePath);
+        await File.AppendAllTextAsync(_logFilePath,
             $"[{ConsistentDateTimeFormat()}] - [{severity}] - {message} {Environment.NewLine}");
     }
     
     public void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, int totalXp)
     {
-        PrepareLogFile(LOG_XP_FILE_PATH);
-        File.AppendAllText(LOG_XP_FILE_PATH,
+        PrepareLogFile(_logXpFilePath);
+        File.AppendAllText(_logXpFilePath,
             $"[{ConsistentDateTimeFormat()}] - {user} gained {totalXp}xp (base: {baseXp}, bonus : {bonusXp}, reduce : {xpReduce}) in channel {channel} {Environment.NewLine}");
     }
 
@@ -152,14 +158,14 @@ public class LoggingService : ILoggingService
 
     private void PrepareLogFile(string path)
     {
-        if (DateTime.Now - _lastFileCheck < TimeSpan.FromMilliseconds(FILE_CHECK_INTERVAL))
+        if (DateTime.Now - _lastFileCheck < TimeSpan.FromMilliseconds(FileCheckInterval))
             return;
         
         _lastFileCheck = DateTime.Now;
-        if (new FileInfo(path).Length > MAX_LOG_SIZE)
+        if (new FileInfo(path).Length > MaxLogSize)
         {
             // Rename the file, add the year, month and day it was created, and the year month and day it was backed up (SHORT year
-            var backupPath = $"{BACKUP_LOG_FILE_PATH}log_F{File.GetCreationTime(path):yyMMdd}_T{DateTime.Now:yyMMdd}.txt";
+            var backupPath = $"{_backupLogFilePath}log_F{File.GetCreationTime(path):yyMMdd}_T{DateTime.Now:yyMMdd}.txt";
             File.Move(path, backupPath);
             LogToConsole($"[{ServiceName}] Log file was backed up to {backupPath}", ExtendedLogSeverity.Info);
         }
