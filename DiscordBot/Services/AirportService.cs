@@ -15,15 +15,15 @@ public class AirportService
     
     #region Amadeus
 
-    private string _flightApiKey;
-    private string _flightSecret;
-    DateTime _amadeusTokenExpiration = DateTime.Now;
-    string _amadeusToken = string.Empty;
-    
-    private string _baseRoute = "https://test.api.amadeus.com/v2/";
-    private string _findCheapestRoute = "shopping/flight-offers";
-    private string _cheapestRouteParam =
-        "?originLocationCode={0}&destinationLocationCode={1}&departureDate={2}&adults=1&nonStop=false&max=5&currencyCode=USD";
+    private readonly string _flightApiKey;
+    private readonly string _flightSecret;
+    private DateTime _amadeusTokenExpiration = DateTime.Now;
+    private string _amadeusToken = string.Empty;
+
+    private const string BaseRoute = "https://test.api.amadeus.com/v2/";
+    private const string FindCheapestRoute = "shopping/flight-offers";
+
+    private const string CheapestRouteParam = "?originLocationCode={0}&destinationLocationCode={1}&departureDate={2}&adults=1&nonStop=false&max=5&currencyCode=USD";
 
     #region Return Results
     
@@ -213,18 +213,15 @@ public class AirportService
         HttpClient client = new();
         var response = await client.PostAsync(url, new StringContent(data, Encoding.UTF8, "application/x-www-form-urlencoded"));
 
-        if (response.IsSuccessStatusCode)
-        {
-            var result = await response.Content.ReadAsStringAsync();
-            var authRoot = JsonConvert.DeserializeObject<AmadeusAuthRoot>(result);
-            if (authRoot != null)
-            {
-                _amadeusToken = authRoot.access_token;
-                _amadeusTokenExpiration = DateTime.Now.AddSeconds(authRoot.expires_in - 1);
-                return true;
-            }
-        }
-        return false;
+        if (!response.IsSuccessStatusCode) return false;
+        
+        var result = await response.Content.ReadAsStringAsync();
+        var authRoot = JsonConvert.DeserializeObject<AmadeusAuthRoot>(result);
+        if (authRoot == null) return false;
+        
+        _amadeusToken = authRoot.access_token;
+        _amadeusTokenExpiration = DateTime.Now.AddSeconds(authRoot.expires_in - 1);
+        return true;
     }
     
     public async Task<List<FlightInfo>> GetFlightInfo(string from, string to, int daysFromNow = 2)
@@ -232,24 +229,21 @@ public class AirportService
         if (!await GetValidationToken())
             return null;
         
-        var url = _baseRoute + _findCheapestRoute + string.Format(_cheapestRouteParam, from, to, DateTime.Now.AddDays(daysFromNow).ToString("yyyy-MM-dd"));
+        var url = BaseRoute + FindCheapestRoute + string.Format(CheapestRouteParam, from, to, DateTime.Now.AddDays(daysFromNow).ToString("yyyy-MM-dd"));
         
         HttpClient client = new();
         HttpRequestHeaders headers = client.DefaultRequestHeaders;
         headers.Add("Authorization", "Bearer " + _amadeusToken);
         
         var response = await client.GetAsync(url);
-        if (response.IsSuccessStatusCode)
-        {
-            var result = await response.Content.ReadAsStringAsync();
-            var root = JsonConvert.DeserializeObject<AmadeusRoot>(result);
-            if (root != null)
-            {
-                root.data.Sort((a, b) => b.price.GrandTotalNumber().CompareTo(a.price.GrandTotalNumber()));
-                return root.data;
-            }
-        }
-        return null;
+        if (!response.IsSuccessStatusCode) return null;
+        
+        var result = await response.Content.ReadAsStringAsync();
+        var root = JsonConvert.DeserializeObject<AmadeusRoot>(result);
+        if (root == null) return null;
+        
+        root.data.Sort((a, b) => b.price.GrandTotalNumber().CompareTo(a.price.GrandTotalNumber()));
+        return root.data;
     }
 
     #endregion // Utility Methods

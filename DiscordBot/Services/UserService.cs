@@ -20,7 +20,7 @@ public class UserService
     private readonly DiscordSocketClient _client;
     public readonly string CodeFormattingExample;
     private readonly int _codeReminderCooldownTime;
-    public readonly string CodeReminderFormattingExample;
+    private readonly string CodeReminderFormattingExample;
     private readonly DatabaseService _databaseService;
     private readonly ILoggingService _loggingService;
 

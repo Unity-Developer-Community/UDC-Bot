@@ -276,6 +276,8 @@ public class CommandHandlingService
             // Execute the command and retrieve the result.
             IResult result = await _interactionService.ExecuteCommandAsync(ctx, _services);
             //TODO maybe do something if result is anything but success
+            
+            // TODO: (James) Need to "AddToCommandHistory" for interactions
         }
         catch (Exception ex)
         {
