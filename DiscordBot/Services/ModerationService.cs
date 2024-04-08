@@ -7,26 +7,33 @@ namespace DiscordBot.Services;
 public class ModerationService
 {
     private readonly ILoggingService _loggingService;
-    private readonly BotSettings _settings;
     private readonly DiscordSocketClient _client;
+    private readonly CommandHandlingService _commandHandlingService;
     
     private const int MaxMessageLength = 800;
     private static readonly Color DeletedMessageColor = new (200, 128, 128);
     private static readonly Color EditedMessageColor = new (255, 255, 128);
     
     private readonly IMessageChannel _botAnnouncementChannel;
+    private readonly IMessageChannel _memeChannel;
+    private readonly bool _moderatorNoInviteLinks;
 
-    public ModerationService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService)
+    public ModerationService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService,
+        CommandHandlingService commandHandlingService)
     {
         _client = client;
-        _settings = settings;
         _loggingService = loggingService;
+        _commandHandlingService = commandHandlingService;
 
         client.MessageDeleted += MessageDeleted;
         client.MessageUpdated += MessageUpdated;
         client.MessageReceived += MessageReceived;
-        
-        _botAnnouncementChannel = _client.GetChannel(_settings.BotAnnouncementChannel.Id) as IMessageChannel;
+
+        if (settings.BotAnnouncementChannel != null)
+            _botAnnouncementChannel = _client.GetChannel(settings.BotAnnouncementChannel.Id) as IMessageChannel;
+        if (settings.MemeChannel != null)
+            _memeChannel = _client.GetChannel(settings.MemeChannel.Id) as IMessageChannel;
+        _moderatorNoInviteLinks = settings.ModeratorNoInviteLinks;
     }
 
     private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
@@ -37,7 +44,7 @@ public class ModerationService
             return;
         }
         
-        if (message.Value.Author.IsBot || channel.Id == _settings.BotAnnouncementChannel.Id)
+        if (message.Value.Author.IsBot || channel.Id == _botAnnouncementChannel.Id)
             return;
         // Check the author is even in the guild
         var guildUser = message.Value.Author as SocketGuildUser;
@@ -63,7 +70,7 @@ public class ModerationService
 
     private async Task MessageUpdated(Cacheable<IMessage, ulong> before, SocketMessage after, ISocketMessageChannel channel)
     {
-        if (after.Author.IsBot || channel.Id == _settings.BotAnnouncementChannel.Id)
+        if (after.Author.IsBot || channel.Id == _botAnnouncementChannel.Id)
             return;
 
         bool isCached = true;
@@ -123,9 +130,9 @@ public class ModerationService
         if (message.Author.IsBot)
             return;
 
-        if (_settings.ModeratorNoInviteLinks == true)
+        if (_moderatorNoInviteLinks == true)
         {
-            if (_settings.MemeChannel.Id == message.Channel.Id)
+            if (_memeChannel.Id == message.Channel.Id)
             {
                 if (message.ContainsInviteLink())
                 {
@@ -137,5 +144,10 @@ public class ModerationService
                 }
             }
         }
+    }
+
+    public async Task<string> GetBotCommandHistory(int count)
+    {
+        return await _commandHandlingService.GetCommandHistory(count);
     }
 }

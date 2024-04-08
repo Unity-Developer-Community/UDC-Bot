@@ -11,6 +11,7 @@ public class BotSettings
     public string ServerRootPath { get; set; }
     public char Prefix { get; set; }
     public ulong GuildId { get; set; }
+    public bool LogCommandExecutions { get; set; } = true;
 
     #endregion // Important 
     

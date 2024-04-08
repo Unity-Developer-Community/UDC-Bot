@@ -11,6 +11,16 @@ using PreconditionGroupResult = Discord.Commands.PreconditionGroupResult;
 
 namespace DiscordBot.Services;
 
+public class CommandHistoryInfo
+{
+    public string Command { get; set; }
+    public string User { get; set; }
+    public ulong UserId { get; set; }
+    public string Channel { get; set; }
+    public DateTime Time { get; set; }
+    public string Error { get; set; } = string.Empty;
+}
+
 public class CommandHandlingService
 {
     private const string ServiceName = "CommandHandlingService";
@@ -20,13 +30,19 @@ public class CommandHandlingService
     private readonly CommandService _commandService;
     private readonly InteractionService _interactionService;
     private readonly IServiceProvider _services;
-    private readonly BotSettings _settings;
     private readonly ILoggingService _loggingService;
+
+    private const char DefaultPrefix = '!';
+    private readonly char _commandPrefix;
 
     // While not the most attractive solution, it works, and is fairly cheap compared to the last solution.
     // Tuple of string moduleName, bool orderByName = false, bool includeArgs = true, bool includeModuleName = true for a dictionary
     private readonly Dictionary<(string moduleName, bool orderByName, bool includeArgs, bool includeModuleName), string> _commandList = new();
     private readonly Dictionary<(string moduleName, bool orderByName, bool includeArgs, bool includeModuleName), List<string>> _commandListMessages = new();
+    
+    // A Collection to store the command history
+    private const int MaxCommandHistory = 200;
+    private readonly List<CommandHistoryInfo> _commandHistory = new List<CommandHistoryInfo>(MaxCommandHistory);
 
     public CommandHandlingService(
         DiscordSocketClient client,
@@ -41,12 +57,28 @@ public class CommandHandlingService
         _commandService = commandService;
         _interactionService = interactionService;
         _services = services;
-        _settings = settings;
         _loggingService = loggingService;
 
         // Events
         _client.MessageReceived += HandleCommand;
         _client.InteractionCreated += HandleInteraction;
+        
+        if (settings.GuildId == default)
+        {
+            _loggingService.Log(LogBehaviour.Console | LogBehaviour.File, $"{ServiceName}: GuildId not set, commands will not be registered.", ExtendedLogSeverity.Critical);
+            return;
+        }
+        
+        _commandPrefix = settings.Prefix;
+        if (_commandPrefix == default)
+        {
+            _commandPrefix = DefaultPrefix;
+            _loggingService.Log(LogBehaviour.Console | LogBehaviour.File, $"{ServiceName}: Prefix not set, defaulting to {DefaultPrefix}", ExtendedLogSeverity.Warning);
+        }
+        else
+        {
+            _loggingService.Log(LogBehaviour.Console, $"{ServiceName}: Prefix set to {_commandPrefix}", ExtendedLogSeverity.Positive);
+        }
 
         // Initialize the command service
         Task.Run(async () =>
@@ -68,7 +100,7 @@ public class CommandHandlingService
                 await _loggingService.Log(LogBehaviour.Console, $"{ServiceName}: {moduleInfos.Sum(x => x.ComponentCommands.Count)} 'Component' commands.", ExtendedLogSeverity.Positive);
                 
                 //TODO Consider global commands? Maybe an attribute?
-                await _interactionService.RegisterCommandsToGuildAsync(_settings.GuildId);
+                await _interactionService.RegisterCommandsToGuildAsync(settings.GuildId);
 
                 IsInitialized = true;
             }
@@ -193,18 +225,17 @@ public class CommandHandlingService
     }
 
     #endregion
-    
+
     private async Task HandleCommand(SocketMessage messageParam)
     {
         // Don't process the command if it was a System Message
-        if (!(messageParam is SocketUserMessage message))
+        if (messageParam is not SocketUserMessage message)
             return;
 
         // Create a number to track where the prefix ends and the command begins
         var argPos = 0;
-        var prefix = _settings.Prefix;
         // Determine if the message is a command, based on if it starts with '!' or a mention prefix
-        if (!(message.HasCharPrefix(prefix, ref argPos) || message.HasMentionPrefix(_client.CurrentUser, ref argPos)))
+        if (!(message.HasCharPrefix(_commandPrefix, ref argPos) || message.HasMentionPrefix(_client.CurrentUser, ref argPos)))
             return;
         // Create a Command Context
         var context = new CommandContext(_client, message);
@@ -212,25 +243,30 @@ public class CommandHandlingService
         // rather an object stating if the command executed successfully)
         var result = await _commandService.ExecuteAsync(context, argPos, _services);
 
-        if (!result.IsSuccess)
+        if (result.IsSuccess)
         {
-            // If the whole message is only ! or ? or space
-            if (message.Content.All(letter => letter is '!' or '?' or ' '))
-                return;
-
-            var resultString = result.ErrorReason;
-            if (result is PreconditionGroupResult groupResult)
-            {
-                resultString = groupResult.PreconditionResults.First().ErrorReason;
-                
-                // Pre-condition doesn't have a reason, we don't respond.
-                if (resultString == string.Empty)
-                    return;
-            }
-            await context.Channel.SendMessageAsync(resultString).DeleteAfterSeconds(10);
+            AddToCommandHistory(message);
+            return;
         }
+
+        // If the whole message is only ! or ? or space
+        if (message.Content.All(letter => letter is '!' or '?' or ' '))
+            return;
+
+        var resultString = result.ErrorReason;
+        if (result is PreconditionGroupResult groupResult)
+        {
+            resultString = groupResult.PreconditionResults.First().ErrorReason;
+
+            // Pre-condition doesn't have a reason, we don't respond.
+            if (resultString == string.Empty)
+                return;
+        }
+        
+        AddToCommandHistory(message, resultString);
+        await context.Channel.SendMessageAsync(resultString).DeleteAfterSeconds(10);
     }
-    
+
     private async Task HandleInteraction(SocketInteraction arg)
     {
         try
@@ -240,10 +276,43 @@ public class CommandHandlingService
             // Execute the command and retrieve the result.
             IResult result = await _interactionService.ExecuteCommandAsync(ctx, _services);
             //TODO maybe do something if result is anything but success
+            
+            // TODO: (James) Need to "AddToCommandHistory" for interactions
         }
         catch (Exception ex)
         {
             LoggingService.LogToConsole(ex.ToString(), LogSeverity.Error);
         }
+    }
+    
+    public void AddToCommandHistory(SocketUserMessage message, string error = default)
+    {
+        _commandHistory.Add(new CommandHistoryInfo()
+        {
+            Command = message.Content,
+            User = message.Author.Username,
+            UserId = message.Author.Id,
+            Channel = message.Channel.Name,
+            Error = error == null ? error : string.Empty,
+            Time = DateTime.Now
+        });
+        if (_commandHistory.Count > MaxCommandHistory)
+            _commandHistory.RemoveAt(0);
+    }
+    
+    public async Task<string> GetCommandHistory(int count = 10)
+    {
+        if (count > _commandHistory.Count)
+            count = _commandHistory.Count;
+        if (count == 0)
+            count = 10;
+        
+        var commandHistory = new StringBuilder();
+        for (var i = _commandHistory.Count - 1; i >= 0 && count > 0; i--, count--)
+        {
+            var command = _commandHistory[i];
+            commandHistory.AppendLine($"{command.Time} - {command.User}[{command.UserId}] used {command.Command} in {command.Channel} {(string.IsNullOrEmpty(command.Error) ? string.Empty : $"Error: {command.Error}")}");
+        }
+        return commandHistory.ToString();
     }
 }

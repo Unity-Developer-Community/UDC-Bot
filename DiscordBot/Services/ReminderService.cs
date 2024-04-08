@@ -49,6 +49,7 @@ public class ReminderService
         if (_reminders == null)
         {
             _loggingService.LogAction($"[{ServiceName}] Error: Could not load reminders from file.", ExtendedLogSeverity.Warning);
+            _reminders = new List<ReminderItem>();
         }
         IsRunning = true;
         Task.Run(CheckReminders);

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text;
 using Discord.Commands;
 using Discord.WebSocket;
@@ -335,7 +336,7 @@ public class ModerationModule : ModuleBase
     [Command("TagRole")]
     [Summary("Tag a role and post a message.")]
     [Alias("mentionrole", "pingrole", "rolemention", "roletag", "roleping")]
-    [RequireUserPermission(GuildPermission.Administrator)]
+    [RequireAdmin]
     public async Task TagRole(IRole role, params string[] messages)
     {
         var message = string.Join(' ', messages);
@@ -350,7 +351,7 @@ public class ModerationModule : ModuleBase
     [Command("React")]
     [Alias("reaction", "reactions", "addreactions", "addreaction")]
     [Summary("Adds the requested reactions to a message.")]
-    [RequireUserPermission(GuildPermission.Administrator)]
+    [RequireAdmin]
     public async Task React(ulong msgId, params string[] emojis)
     {
         var msg = (IUserMessage)await Context.Channel.GetMessageAsync(msgId);
@@ -365,7 +366,7 @@ public class ModerationModule : ModuleBase
     [Command("React")]
     [Alias("reaction", "reactions", "addreactions", "addreaction")]
     [Summary("Adds the requested reactions to a message.")]
-    [RequireUserPermission(GuildPermission.Administrator)]
+    [RequireAdmin]
     public async Task React(params string[] emojis)
     {
         var msg = (IUserMessage)(await Context.Channel.GetMessagesAsync(2).FlattenAsync()).Last();
@@ -381,7 +382,7 @@ public class ModerationModule : ModuleBase
     [Command("ClosePoll")]
     [Summary("Close a poll and append a message.")]
     [Alias("pollclose")]
-    [RequireUserPermission(GuildPermission.Administrator)]
+    [RequireAdmin]
     public async Task ClosePoll(IMessageChannel channel, ulong messageId, params string[] additionalNotes)
     {
         var additionalNote = string.Join(' ', additionalNotes);
@@ -399,9 +400,31 @@ public class ModerationModule : ModuleBase
         });
     }
 
+    [Command("CommandHistory")]
+    [Summary("Get a text file of the command history for bot.")]
+    [RequireModerator]
+    public async Task CommandHistory(int count = 20)
+    {
+        await Context.Message.DeleteAsync();
+        await LoggingService.LogChannelAndFile("Command history requested by " + Context.User.Username,
+            ExtendedLogSeverity.Info);
+
+        var response = await ModerationService.GetBotCommandHistory(count);
+        using var stream = new MemoryStream();
+        using (var writer = new StreamWriter(stream))
+        {
+            await writer.WriteAsync(response);
+            await writer.FlushAsync();
+            stream.Position = 0;
+
+            // Send the MemoryStream as a file
+            await Context.User.SendFileAsync(stream, "CommandHistory.txt");
+        }
+    }
+
     [Command("DBSync")]
     [Summary("Force add a user to the database.")]
-    [RequireUserPermission(GuildPermission.Administrator)]
+    [RequireAdmin]
     public async Task DbSync(IUser user)
     {
         await DatabaseService.GetOrAddUser((SocketGuildUser)user);
@@ -409,7 +432,7 @@ public class ModerationModule : ModuleBase
 
     [Command("DBFullSync")]
     [Summary("Inserts all missing users, and updates any tracked data.")]
-    [RequireUserPermission(GuildPermission.Administrator)]
+    [RequireAdmin]
     public async Task FullSync()
     {
         await Context.Message.DeleteAsync();
