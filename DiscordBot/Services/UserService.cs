@@ -805,8 +805,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (oldUser.Nickname != user.Nickname)
         {
             await _loggingService.LogChannelAndFile(
-                $"User {oldUser.GetUserPreferredName()} changed his " +
-                $"username to {user.GetUserPreferredName()}");
+                $"Nickname Change - {oldUser.GetUserLoggingString()} -> {user.GetUserPreferredName()}");
         }
     }
 
