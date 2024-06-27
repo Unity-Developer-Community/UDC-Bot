@@ -34,10 +34,11 @@ public static class EmbedBuilderExtension
         return builder;
     }
     
-    public static EmbedBuilder AddAuthorWithAction(this EmbedBuilder builder, IUser user, string action, bool includeAvatar = true)
+    public static EmbedBuilder AddAuthorWithAction(this EmbedBuilder builder, IUser user, string action, bool includeAvatar = true, bool includeUserID = false)
     {
+        string author = includeUserID ? user.GetUserLoggingString() : user.GetUserPreferredName();
         builder.WithAuthor(
-            $"{user.GetUserPreferredName()} - {action}",
+            $"{author} - {action}",
             includeAvatar ? user.GetAvatarUrl() : null);
         return builder;
     }

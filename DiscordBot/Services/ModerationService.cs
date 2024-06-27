@@ -60,7 +60,7 @@ public class ModerationService
             .WithColor(DeletedMessageColor)
             .WithTimestamp(message.Value.Timestamp)
             .FooterInChannel(message.Value.Channel)
-            .AddAuthorWithAction(user, "Deleted a message", true)
+            .AddAuthorWithAction(user, "Deleted a message", true, true)
             .AddField($"Deleted Message {(content.Length != message.Value.Content.Length ? "(truncated)" : "")}",
                 content);
         var embed = builder.Build();
@@ -99,7 +99,7 @@ public class ModerationService
             .WithColor(EditedMessageColor)
             .WithTimestamp(after.Timestamp)
             .FooterInChannel(after.Channel)
-            .AddAuthorWithAction(user, "Updated a message", true);
+            .AddAuthorWithAction(user, "Updated a message", true, true);
         if (isCached)
         {
             builder.AddField($"Previous message content {(isTruncated ? "(truncated)" : "")}", content);
