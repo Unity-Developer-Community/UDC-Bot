@@ -10,18 +10,16 @@ public class WeatherService
     private const string ServiceName = "FeedService";
     
     private readonly DiscordSocketClient _client;
-    private readonly ILoggingService _loggingService;
     private readonly string _weatherApiKey;
 
     public WeatherService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings)
     {
         _client = client;
-        _loggingService = loggingService;
         _weatherApiKey = settings.WeatherAPIKey;
 
         if (string.IsNullOrWhiteSpace(_weatherApiKey))
         {
-            _loggingService.LogAction($"[{ServiceName}] Error: Weather API Key is not set.", ExtendedLogSeverity.Warning);
+            loggingService.LogAction($"[{ServiceName}] Error: Weather API Key is not set.", ExtendedLogSeverity.Warning);
         }
     }
     
