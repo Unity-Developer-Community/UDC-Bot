@@ -1,5 +1,6 @@
 using Discord.Commands;
 using DiscordBot.Attributes;
+using DiscordBot.Attributes.Preconditions;
 using DiscordBot.Modules.Weather;
 using DiscordBot.Services;
 using Newtonsoft.Json;
@@ -54,6 +55,7 @@ public class WeatherModule : ModuleBase
     [Command("Temperature"), HideFromHelp]
     [Summary("Attempts to provide the temperature of the user provided.")]
     [Alias("temp"), Priority(20)]
+    [ExactUsernameMatch]
     public async Task Temperature(IUser user = null)
     {
         user ??= Context.User;
@@ -134,6 +136,7 @@ public class WeatherModule : ModuleBase
         
     [Command("Weather"), HideFromHelp, Priority(20)]
     [Summary("Attempts to provide the weather of the user provided.")]
+    [ExactUsernameMatch]
     public async Task CurentWeather(IUser user = null)
     {
         user ??= Context.User;
@@ -211,6 +214,7 @@ public class WeatherModule : ModuleBase
 
     [Command("Pollution"), HideFromHelp, Priority(21)]
     [Summary("Attempts to provide the pollution conditions of the user provided.")]
+    [ExactUsernameMatch]
     public async Task Pollution(IUser user = null)
     {
         user ??= Context.User;
@@ -259,6 +263,7 @@ public class WeatherModule : ModuleBase
     
     [Command("Time"), HideFromHelp, Priority(22)]
     [Summary("Attempts to provide the time of the user provided.")]
+    [ExactUsernameMatch]
     public async Task Time(IUser user = null)
     {
         user ??= Context.User;
