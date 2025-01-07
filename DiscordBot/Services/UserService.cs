@@ -15,7 +15,7 @@ namespace DiscordBot.Services;
 public class UserService
 {
     private const string ServiceName = "UserService";
-    
+
     private readonly HashSet<ulong> _canEditThanks; //Doesn't need to be saved
     private readonly DiscordSocketClient _client;
     public readonly string CodeFormattingExample;
@@ -25,7 +25,7 @@ public class UserService
     private readonly ILoggingService _loggingService;
 
     private readonly Regex _x3CodeBlock =
-new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multiline | RegexOptions.Singleline);
+        new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multiline | RegexOptions.Singleline);
 
     private readonly Regex _x2CodeBlock = new("^(`{2})[^`].+?([^`]`{2})$", RegexOptions.Multiline);
     private readonly List<Regex> _codeBlockWarnPatterns;
@@ -151,7 +151,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
         LoadData();
         UpdateLoop();
-      
+
         Task.Run(DelayedWelcomeService);
     }
 
@@ -217,7 +217,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var userId = messageParam.Author.Id;
         if (_xpCooldown.HasUser(userId))
             return;
-        
+
         var waitTime = _rand.Next(_xpMinCooldown, _xpMaxCooldown);
         float baseXp = _rand.Next(_xpMinPerMessage, _xpMaxPerMessage);
         float bonusXp = 0;
@@ -229,7 +229,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var user = await _databaseService.GetOrAddUser((SocketGuildUser)messageParam.Author);
             if (user == null)
                 return;
-        
+
             bonusXp += baseXp * (1f + user.Karma / 100f);
 
             //Reduce XP for members with no role
@@ -300,7 +300,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var dbRepo = _databaseService.Query;
             if (dbRepo == null)
                 return profileCardPath;
-            
+
             var userData = await dbRepo.GetUser(user.Id.ToString());
 
             var xpTotal = userData.Exp;
@@ -402,7 +402,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         {
             await _loggingService.LogChannelAndFile($"Failed to generate profile card for {user.Username}.\nEx:{e.Message}", ExtendedLogSeverity.LowWarning);
         }
-        
+
         if (!string.IsNullOrEmpty(profileCardPath))
             await Task.Delay(100);
 
@@ -413,7 +413,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         string icon = user.GetAvatarUrl();
         icon = string.IsNullOrEmpty(icon) ? "https://cdn.discordapp.com/embed/avatars/0.png" : icon;
-        
+
         string welcomeString = $"Welcome to Unity Developer Community, {user.GetPreferredAndUsername()}!";
         var builder = new EmbedBuilder()
             .WithDescription(welcomeString)
@@ -437,90 +437,87 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
     public async Task Thanks(SocketMessage messageParam)
     {
-        //Get guild id
-        var channel = (SocketGuildChannel)messageParam.Channel;
-        var guildId = channel.Guild.Id;
+        if (!IsValidMessage(messageParam, out var channel, out var guildId)) return;
 
-        //Make sure its in the UDC server
-        if (guildId != _settings.GuildId) return;
+        var mentions = messageParam.MentionedUsers.Distinct().ToList();
+        if (mentions.Count == 0)
+        {
+            if (_canEditThanks.Add(messageParam.Id))
+            {
+                var _ = _canEditThanks.RemoveAfterSeconds(messageParam.Id, 240);
+            }
 
-        if (messageParam.Author.IsBot)
             return;
-        var match = Regex.Match(messageParam.Content, _thanksRegex);
-        if (!match.Success)
-            return;
-        var mentions = messageParam.MentionedUsers;
-        mentions = mentions.Distinct().ToList();
+        }
+
         var userId = messageParam.Author.Id;
-        const int defaultDelTime = 120;
-        if (mentions.Count > 0)
+        if (_thanksCooldown.HasUser(userId)) return;
+
+        if (!HasJoinedLongEnough(messageParam.Author)) return;
+
+        var sb = new StringBuilder();
+        sb.Append("**").Append(messageParam.Author.GetUserPreferredName()).Append("** gave");
+        if (!string.IsNullOrEmpty(_settings.ThanksInfoMessageLink))
         {
-            if (_thanksCooldown.HasUser(userId))
-            {
-                await messageParam.Channel.SendMessageAsync(
-                        $"{messageParam.Author.Mention} you must wait " +
-                        $"{DateTime.Now - _thanksCooldown[userId]:ss} " +
-                        "seconds before giving another karma point." + Environment.NewLine +
-                        "(In the future, if you are trying to thank multiple people, include all their names in the thanks message.)")
-                    .DeleteAfterTime(defaultDelTime);
-                return;
-            }
-
-            var joinDate = ((IGuildUser)messageParam.Author).JoinedAt;
-            var j = joinDate + TimeSpan.FromSeconds(_thanksMinJoinTime);
-            if (j > DateTime.Now)
-            {
-                return;
-            }
-
-            var mentionedSelf = false;
-            var mentionedBot = false;
-            var sb = new StringBuilder();
-            sb.Append("**").Append(messageParam.Author.GetUserPreferredName()).Append("** gave karma to **");
-            foreach (var user in mentions)
-            {
-                if (user.IsBot)
-                {
-                    mentionedBot = true;
-                    continue;
-                }
-
-                if (user.Id == userId)
-                {
-                    mentionedSelf = true;
-                    continue;
-                }
-
-                await _databaseService.Query.IncrementKarma(user.Id.ToString());
-                sb.Append(user.GetUserPreferredName()).Append("**, **");
-            }
-
-            // Even if a user gives multiple karma in one message, we only add one.
-            var authorKarmaGiven = await _databaseService.Query.GetKarmaGiven(messageParam.Author.Id.ToString());
-            await _databaseService.Query.UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
-
-            sb.Length -= 4; //Removes last instance of appended comma/startbold without convoluted tracking
-            //sb.Append("**"); // Already appended an endbold
-            sb.Append(".");
-            if (mentionedSelf)
-                await messageParam.Channel.SendMessageAsync(
-                    $"{messageParam.Author.Mention} you can't give karma to yourself.").DeleteAfterTime(defaultDelTime);
-
-            _canEditThanks.Remove(messageParam.Id);
-
-            //Don't give karma cooldown if user only mentioned himself or the bot or both
-            if ((mentionedSelf || mentionedBot) && mentions.Count == 1 ||
-                mentionedBot && mentionedSelf && mentions.Count == 2)
-                return;
-            _thanksCooldown.AddCooldown(userId, _thanksCooldownTime);
-            await messageParam.Channel.SendMessageAsync(sb.ToString());
-            await _loggingService.LogChannelAndFile(sb + " in channel " + messageParam.Channel.Name);
+            sb.Append(" **[info](").Append(_settings.ThanksInfoMessageLink).Append(")**");
         }
 
-        if (mentions.Count == 0 && _canEditThanks.Add(messageParam.Id))
+        sb.Append(" karma to **");
+
+        bool mentionedSelf = false, mentionedBot = false;
+        foreach (var user in mentions)
         {
-            var _ = _canEditThanks.RemoveAfterSeconds(messageParam.Id, 240);
+            if (user.IsBot)
+            {
+                mentionedBot = true;
+                continue;
+            }
+
+            if (user.Id == userId)
+            {
+                mentionedSelf = true;
+                continue;
+            }
+
+            await _databaseService.Query.IncrementKarma(user.Id.ToString());
+            sb.Append(user.GetUserPreferredName()).Append("**, **");
         }
+
+        if (mentionedSelf)
+        {
+            await messageParam.Channel.SendMessageAsync($"{messageParam.Author.Mention} you can't give karma to yourself.").DeleteAfterTime(120);
+        }
+
+        if (mentionedSelf && mentions.Count == 1 || mentionedBot && mentions.Count == 1 || mentionedBot && mentionedSelf && mentions.Count == 2)
+        {
+            return;
+        }
+
+        _thanksCooldown.AddCooldown(userId, _thanksCooldownTime);
+        sb.Length -= 4; // Remove last comma and space
+        sb.Append('.');
+        await messageParam.Channel.SendMessageAsync(sb.ToString());
+        await _loggingService.LogChannelAndFile(sb + " in channel " + messageParam.Channel.Name);
+    }
+
+// TODO: (James) Could probably moved into Utility
+    private bool IsValidMessage(SocketMessage messageParam, out SocketGuildChannel channel, out ulong guildId)
+    {
+        channel = messageParam.Channel as SocketGuildChannel;
+        guildId = channel?.Guild.Id ?? 0;
+
+        if (guildId != _settings.GuildId || messageParam.Author.IsBot)
+        {
+            return false;
+        }
+
+        return Regex.IsMatch(messageParam.Content, _thanksRegex);
+    }
+
+    private bool HasJoinedLongEnough(IUser author)
+    {
+        var joinDate = ((IGuildUser)author).JoinedAt;
+        return joinDate.HasValue && joinDate.Value.AddSeconds(_thanksMinJoinTime) <= DateTime.Now;
     }
 
     public async Task CodeCheck(SocketMessage messageParam)
@@ -532,7 +529,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         // We just ignore anything if it is under 200 characters
         if (messageParam.Content.Length < 200)
             return;
-        
+
         var userId = messageParam.Author.Id;
 
         //Simple check to cover most large code posting cases without being an issue for most non-code messages
@@ -573,7 +570,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 if (content.Length > _maxCodeBlockLengthWarning)
                 {
                     await messageParam.Channel.SendMessageAsync(
-"The code you're sharing is quite long, maybe use a free service like <https://hastebin.com> and share the link here instead.")
+                            "The code you're sharing is quite long, maybe use a free service like <https://hastebin.com> and share the link here instead.")
                         .DeleteAfterSeconds(seconds: 60);
                 }
             }
@@ -628,16 +625,16 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             await ProcessWelcomeUser(user.Id, user.Value);
         }
     }
-    
+
     private async Task CheckForWelcomeMessage(SocketMessage messageParam)
     {
         if (_welcomeNoticeUsers.Count == 0)
             return;
-        
+
         var user = messageParam.Author;
         if (user.IsBot)
             return;
-        
+
         if (_welcomeNoticeUsers.Exists(u => u.id == user.Id))
         {
             _welcomeNoticeUsers.RemoveAll(u => u.id == user.Id);
@@ -697,10 +694,10 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 {
                     currentlyProcessedUserId = userData.id;
                     await ProcessWelcomeUser(userData.id, null);
-                    
+
                     toRemove.Add(userData.id);
                 }
-                
+
                 // Remove all the users we've welcomed from the list
                 if (toRemove.Count > 0)
                 {
@@ -722,7 +719,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         {
             // Catch and show exception
             await _loggingService.LogChannelAndFile($"{ServiceName} Exception during welcome message `{currentlyProcessedUserId}`.\n{e.Message}.", ExtendedLogSeverity.Warning);
-            
+
             // Remove the offending user from the dictionary and run the service again.
             _welcomeNoticeUsers.RemoveAll(u => u.id == currentlyProcessedUserId);
             if (_welcomeNoticeUsers.Count > 200)

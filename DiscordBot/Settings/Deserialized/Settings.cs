@@ -135,6 +135,8 @@ public class BotSettings
 
     public string AssetStoreFrontPage { get; set; }
     public string WikipediaSearchPage { get; set; }
+    
+    public string ThanksInfoMessageLink { get; set; }
 
     #endregion // Other
     
