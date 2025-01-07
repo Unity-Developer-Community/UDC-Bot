@@ -11,6 +11,8 @@ public class IntroductionWatcherService
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
     private readonly SocketChannel _introductionChannel;
+    
+    private SocketRole ModeratorRole { get; set; }
 
     private readonly HashSet<ulong> _uniqueUsers = new HashSet<ulong>(MaxMessagesToTrack + 1);
     private readonly Queue<ulong> _orderedUsers = new Queue<ulong>(MaxMessagesToTrack + 1);
@@ -28,6 +30,7 @@ public class IntroductionWatcherService
             return;
         }
         
+        ModeratorRole = _client.GetGuild(settings.GuildId).GetRole(settings.ModeratorRoleId);
         _introductionChannel = client.GetChannel(settings.IntroductionChannel.Id);
         if (_introductionChannel == null)
         {
@@ -42,6 +45,11 @@ public class IntroductionWatcherService
     {
         // We only watch the introduction channel
         if (_introductionChannel == null || message.Channel.Id != _introductionChannel.Id)
+            return;
+        
+        if (message.Author.IsUserBotOrWebhook())
+            return;
+        if (message.Author.HasRoleGroup(ModeratorRole))
             return;
         
         if (_uniqueUsers.Contains(message.Author.Id))
