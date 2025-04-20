@@ -86,7 +86,7 @@ jobs:
   # Call the reusable workflow as a job
   call-deploy:
     needs: process_comment
-    uses: ./.github/workflows/Build&Deploy.yml@temp-deploy-branch
+    uses: ./.github/workflows/Build&Deploy.yml
     with:
       env: ${{ needs.process_comment.outputs.env }}
     secrets: inherit
