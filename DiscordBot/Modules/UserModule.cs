@@ -402,7 +402,7 @@ public class UserModule : ModuleBase
     [Summary("Description of what Karma is.")]
     public async Task KarmaDescription(int seconds = 60)
     {
-        var uname = u.GetUserPreferredName();
+        var uname = Context.User.GetUserPreferredName();
         await ReplyAsync($"{uname}, Karma is tracked on your !profile which helps indicate how much you've helped others and provides a small increase in EXP gain.");
         await Context.Message.DeleteAfterSeconds(seconds: seconds);
     }
@@ -554,7 +554,7 @@ public class UserModule : ModuleBase
     [Summary("Set 'Default City' which can be used by various commands.")]
     public async Task SetDefaultCity(params string[] city)
     {
-        var uname = u.GetUserPreferredName();
+        var uname = Context.User.GetUserPreferredName();
         var fullCityName = string.Join(" ", city);
         var (exists, result) = await WeatherService.CityExists(fullCityName);
         if (!exists)
@@ -573,7 +573,7 @@ public class UserModule : ModuleBase
     [Summary("Remove 'Default City' which can be used by various commands.")]
     public async Task RemoveDefaultCity()
     {
-        var uname = u.GetUserPreferredName();
+        var uname = Context.User.GetUserPreferredName();
         if (!await UserExtendedService.DoesUserHaveDefaultCity(Context.User))
         {
             await ReplyAsync($"{uname}, you don't have a default city set.").DeleteAfterSeconds(30);
@@ -608,7 +608,7 @@ public class UserModule : ModuleBase
         if (!UserService.CodeReminderCooldown.IsPermanent(Context.User.Id))
         {
             UserService.CodeReminderCooldown.SetPermanent(Context.User.Id, true);
-            var uname = u.GetUserPreferredName();
+            var uname = Context.User.GetUserPreferredName();
             await ReplyAsync($"{uname}, you will no longer be reminded about correct code formatting.").DeleteAfterTime(20);
         }
     }
