@@ -626,7 +626,7 @@ public class UserModule : ModuleBase
         sb.Append($"**{uname}** slaps ");
         foreach (var user in users) sb.Append(user.Mention).Append(" ");
 
-        sb.Append("around a bit with a large ").Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]).Append(".");
+        sb.Append("around a bit with a VERY VERY VERY VERY VERY VERY VERY large ").Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]).Append(".");
 
         await Context.Channel.SendMessageAsync(sb.ToString());
         await Context.Message.DeleteAfterSeconds(seconds: 1);
