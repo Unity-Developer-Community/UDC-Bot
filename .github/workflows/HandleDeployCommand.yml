@@ -1,0 +1,77 @@
+name: PR Comment Commands
+"on":
+  issue_comment:
+    types: [created]
+
+jobs:
+  process_comment:
+    if: github.event.issue.pull_request && (github.event.comment.body == '/deploy_dev')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine deployment environment
+        id: deployment_env
+        run: |
+          if [[ "${{ github.event.comment.body }}" == "/deploy_dev" ]]; then
+            echo "env=DEV" >> $GITHUB_OUTPUT
+            echo "env_name=development" >> $GITHUB_OUTPUT
+          fi
+
+      # - name: Get PR information
+      #   id: pr_info
+      #   uses: actions/github-script@v6
+      #   with:
+      #     github-token: ${{ secrets.GITHUB_TOKEN }}
+      #     script: |
+      #       const { owner, repo, number } = context.issue;
+      #       const { data: pull } = await github.rest.pulls.get({
+      #         owner,
+      #         repo,
+      #         pull_number: number
+      #       });
+
+      #       console.log("PR head branch:", pull.head.ref);
+      #       console.log("PR head SHA:", pull.head.sha);
+
+      #       core.setOutput("branch", pull.head.ref);
+      #       core.setOutput("sha", pull.head.sha);
+      #       return pull.head.ref;
+
+      - name: Add reaction to comment
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket'
+            });
+
+      - name: Add deployment comment
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `🚀 Starting deployment of branch \`${{ steps.pr_info.outputs.branch }}\` to ${{ steps.deployment_env.outputs.env_name }}...`
+            });
+
+      # - name: Checkout PR branch
+      #   uses: actions/checkout@v3
+      #   with:
+      #     ref: ${{ steps.pr_info.outputs.branch }}
+
+      - name: Trigger deployment workflow
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: Build & Deploy
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ steps.pr_info.outputs.branch }}
+          inputs: |
+            {
+              "env": "${{ steps.deployment_env.outputs.env }}"
+            }
