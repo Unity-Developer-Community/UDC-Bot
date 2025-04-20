@@ -1,4 +1,4 @@
-name: PR Comment Commands
+name: Handle Deploy Command
 "on":
   issue_comment:
     types: [created]
