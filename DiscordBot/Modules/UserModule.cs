@@ -27,11 +27,11 @@ public class UserModule : ModuleBase
     public UserExtendedService UserExtendedService { get; set; }
     public BotSettings Settings { get; set; }
     public Rules Rules { get; set; }
-        
+
     #endregion
-        
+
     private readonly Random _random = new();
-        
+
     [Command("Help"), Priority(100)]
     [Summary("Does what you see now.")]
     [Alias("command", "commands")]
@@ -518,14 +518,14 @@ public class UserModule : ModuleBase
         try
         {
             await Context.Message.DeleteAsync();
-            
+
             var profileCard = await UserService.GenerateProfileCard(user);
             if (string.IsNullOrEmpty(profileCard))
             {
                 await ReplyAsync("Failed to generate profile card.").DeleteAfterSeconds(seconds: 10);
                 return;
             }
-            
+
             var profile = await Context.Channel.SendFileAsync(profileCard);
             await profile.DeleteAfterTime(minutes: 3);
         }
@@ -545,7 +545,7 @@ public class UserModule : ModuleBase
         await ReplyAsync($"{Context.User.Mention} you joined **{joinDate:dddd dd/MM/yyy HH:mm:ss}**");
         await Context.Message.DeleteAsync();
     }
-    
+
     [Command("SetCity"), Priority(100)]
     [Alias("SetDefaultCity")]
     [Summary("Set 'Default City' which can be used by various commands.")]
@@ -619,7 +619,7 @@ public class UserModule : ModuleBase
         sb.Append("**").Append(Context.User.Username).Append("** Slaps ");
         foreach (var user in users) sb.Append(user.Mention).Append(" ");
 
-        sb.Append("around a bit with a large ").Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]).Append(".");
+        sb.Append("around a bit with a VERY VERY large ").Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]).Append(".");
 
         await Context.Channel.SendMessageAsync(sb.ToString());
         await Context.Message.DeleteAfterSeconds(seconds: 1);
@@ -635,7 +635,7 @@ public class UserModule : ModuleBase
         await ReplyAsync($"**{Context.User.Username}** flipped a coin and got **{coin[_random.Next() % 2]}**!");
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
-    
+
     [Command("Roll"), Priority(23)]
     [Summary("Roll a dice. Syntax : !roll [sides] (max 100)")]
     public async Task RollDice(int sides = 20)
@@ -651,7 +651,7 @@ public class UserModule : ModuleBase
         await ReplyAsync($"**{Context.User.Username}** rolled a D{sides} and got **{roll}**!");
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
-    
+
     [Command("Roll"), Priority(23)]
     [Summary("Roll a dice. Syntax : !roll [sides] [number]")]
     public async Task RollDice(int sides, int number)
@@ -669,11 +669,11 @@ public class UserModule : ModuleBase
             message = " :white_check_mark: " + message + " [Needed: " + number + "]";
         else
             message = " :x: " + message + " [Needed: " + number + "]";
-        
+
         await ReplyAsync(message);
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
-    
+
     [Command("D20"), Priority(23)]
     [Summary("Roll a D20 dice.")]
     public async Task RollD20(int number)
@@ -690,7 +690,7 @@ public class UserModule : ModuleBase
             message = " :white_check_mark: " + message + " [Needed: " + number + "]";
         else
             message = " :x: " + message + " [Needed: " + number + "]";
-        
+
         await ReplyAsync(message);
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
@@ -832,7 +832,7 @@ public class UserModule : ModuleBase
         {
             var curScore = CalculateScore(p[1], query);
             if (!(curScore < minimumScore)) continue;
-            
+
             minimumScore = curScore;
             mostSimilarPage = p;
         }
@@ -846,7 +846,7 @@ public class UserModule : ModuleBase
             embedBuilder.Color = new Color(81, 50, 169);
             embedBuilder.Footer = new EmbedFooterBuilder().WithText("Results sourced from Unity3D Docs.");
             var message = await ReplyAsync(embed: embedBuilder.Build());
-            
+
             var doc = new HtmlWeb().Load($"https://docs.unity3d.com/Manual/{mostSimilarPage[0]}.html");
             // Get first Header as this'll contain the main part we need
             var descriptionNode = doc.DocumentNode.SelectSingleNode("//h1");
@@ -879,11 +879,11 @@ public class UserModule : ModuleBase
         {
             var curScore = CalculateScore(p[1], query);
             if (!(curScore < minimumScore)) continue;
-            
+
             minimumScore = curScore;
             mostSimilarPage = p;
         }
-        
+
         // If a page has been found (should be), return the message, else return information
         if (mostSimilarPage != null)
         {
@@ -893,7 +893,7 @@ public class UserModule : ModuleBase
             embedBuilder.Color = new Color(81, 50, 169);
             embedBuilder.Footer = new EmbedFooterBuilder().WithText("Results sourced from Unity3D Docs.");
             var message = await ReplyAsync(embed: embedBuilder.Build());
-            
+
             // Load the page, and look for a <h3>Description</h3> tag, and then get the next <p> tag
             var doc = new HtmlWeb().Load($"https://docs.unity3d.com/ScriptReference/{mostSimilarPage[0]}.html");
             var descriptionNode = doc.DocumentNode.SelectSingleNode("//h3[contains(text(), 'Description')]");
@@ -1074,7 +1074,7 @@ public class UserModule : ModuleBase
     {
         // URL to cell C15/"Next birthday" cell from Corn's google sheet
         const string nextBirthday = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&range=C15:C15";
-        
+
         var tableText = await WebUtil.GetHtmlNodeInnerText(nextBirthday, "/html/body/table/tr[2]/td");
         var message = $"**{tableText}**";
 
@@ -1091,7 +1091,7 @@ public class UserModule : ModuleBase
         // URL to columns B to D of Corn's google sheet
         const string birthdayTable = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
         var relevantNodes = await WebUtil.GetHtmlNodes(birthdayTable, "/html/body/table/tr");
-        
+
         var birthdate = default(DateTime);
 
         HtmlNode matchedNode = null;
@@ -1103,10 +1103,10 @@ public class UserModule : ModuleBase
             // XPath to the name column (C)
             var nameNode = row.SelectSingleNode("td[2]");
             var name = nameNode.InnerText;
-            
+
             if (!name.ToLower().Contains(searchName.ToLower()) || name.Length >= matchedLength)
                 continue;
-            
+
             // Check for a "Closer" match
             matchedNode = row;
             matchedLength = name.Length;
@@ -1203,8 +1203,8 @@ public class UserModule : ModuleBase
     #endregion
 
     #region Currency
-    
-    [Command("CurrencyName") , Priority(29)]
+
+    [Command("CurrencyName"), Priority(29)]
     [Summary("Get the name of a currency. Syntax : !currname USD")]
     [Alias("currname")]
     public async Task CurrencyName(string currency)
@@ -1227,7 +1227,7 @@ public class UserModule : ModuleBase
     {
         await ConvertCurrency(1, from, to);
     }
-    
+
     [Command("Currency"), Priority(29)]
     [Summary("Converts a currency. Syntax : !currency amount fromCurrency toCurrency")]
     [Alias("curr")]
@@ -1249,7 +1249,7 @@ public class UserModule : ModuleBase
         // We check if both currencies are valid
         bool fromValid = await CurrencyService.IsCurrency(from.ToLower());
         bool toValid = await CurrencyService.IsCurrency(to.ToLower());
-        
+
         // Check if valid
         if (!fromValid || !toValid)
         {
