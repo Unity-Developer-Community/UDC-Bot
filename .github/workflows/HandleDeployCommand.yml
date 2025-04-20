@@ -7,9 +7,6 @@ jobs:
   process_comment:
     if: github.event.issue.pull_request && (github.event.comment.body == '/deploy_dev')
     runs-on: ubuntu-latest
-    outputs:
-      env: ${{ steps.deployment_env.outputs.env }}
-      branch: ${{ steps.pr_info.outputs.branch }}
     steps:
       - name: Determine deployment environment
         id: deployment_env
@@ -63,18 +60,40 @@ jobs:
               body: `🚀 Starting deployment of branch \`${{ steps.pr_info.outputs.branch }}\` to ${{ steps.deployment_env.outputs.env_name }}...`
             });
 
-  # Call the reusable workflow as a job
-  call-deploy:
-    needs: process_comment
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout pull request
+      - name: Generate unique branch name
+        id: branch_name
+        run: |
+          TIMESTAMP=$(date +%s)
+          UNIQUE_BRANCH="deploy-branch-${{ steps.pr_info.outputs.branch }}-$TIMESTAMP"
+          echo "name=$UNIQUE_BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Checkout PR branch
         uses: actions/checkout@v3
         with:
-          ref: ${{ needs.process_comment.outputs.branch }}
+          ref: ${{ steps.pr_info.outputs.sha }}
+          repository: ${{ github.event.issue.pull_request.head.repo.full_name }}
+          fetch-depth: 0
 
-      - name: Call reusable workflow
-        uses: ./.github/workflows/Build&Deploy.yml
+      - name: Create temporary branch
+        run: |
+          git checkout -b ${{ steps.branch_name.outputs.name }}
+          git push origin ${{ steps.branch_name.outputs.name }}
+
+      - name: Trigger deployment workflow
+        uses: benc-uk/workflow-dispatch@v1
         with:
-          env: ${{ needs.process_comment.outputs.env }}
-          secrets: inherit
+          workflow: Build & Deploy
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ steps.branch_name.outputs.name }}
+          inputs: |
+            {
+              "env": "${{ steps.deployment_env.outputs.env }}"
+            }
+
+      - name: Wait for deployment to start
+        run: sleep 60 # Wait 60 seconds to ensure workflow has started
+
+      - name: Clean up temporary branch
+        if: always()
+        run: |
+          git push origin --delete ${{ steps.branch_name.outputs.name }} || true
