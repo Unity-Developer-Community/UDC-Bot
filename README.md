@@ -78,4 +78,4 @@ I strongly suggest giving [Discord.Net API Documention](https://discordnet.dev/g
 
 ## FAQ
 
-None yet, ask some, I might add them, additional help isn't garenteed.
+None yet, ask some, I might add them, additional help isn't guaranteed.
