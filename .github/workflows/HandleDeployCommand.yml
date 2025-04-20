@@ -60,10 +60,10 @@ jobs:
               body: `🚀 Starting deployment of branch \`${{ steps.pr_info.outputs.branch }}\` to ${{ steps.deployment_env.outputs.env_name }}...`
             });
 
-      # - name: Checkout PR branch
-      #   uses: actions/checkout@v3
-      #   with:
-      #     ref: ${{ steps.pr_info.outputs.branch }}
+      - name: Checkout PR branch
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ steps.pr_info.outputs.branch }}
 
       - name: Trigger deployment workflow
         uses: benc-uk/workflow-dispatch@v1
