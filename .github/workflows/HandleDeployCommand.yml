@@ -72,16 +72,22 @@ jobs:
           git checkout -b temp-deploy-branch
           git push origin temp-deploy-branch
 
-      - name: Trigger deployment workflow
-        uses: benc-uk/workflow-dispatch@v1
+      # - name: Trigger deployment workflow
+      #   uses: benc-uk/workflow-dispatch@v1
+      #   with:
+      #     workflow: Build & Deploy
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     ref: temp-deploy-branch
+      #     inputs: |
+      #       {
+      #         "env": "${{ steps.deployment_env.outputs.env }}"
+      #       }
+
+      - name: call-workflow
+        uses: ./.github/workflows/Build&Deploy.yml
         with:
-          workflow: Build & Deploy
-          token: ${{ secrets.GITHUB_TOKEN }}
-          ref: temp-deploy-branch
-          inputs: |
-            {
-              "env": "${{ steps.deployment_env.outputs.env }}"
-            }
+          env: ${{ steps.deployment_env.outputs.env }}
+          secrets: inherit
 
       # - name: Clean up temporary branch
       #   if: always()
