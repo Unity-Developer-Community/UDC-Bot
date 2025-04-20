@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       env: ${{ steps.deployment_env.outputs.env }}
+      branch: ${{ steps.pr_info.outputs.branch }}
     steps:
       - name: Determine deployment environment
         id: deployment_env
@@ -70,7 +71,7 @@ jobs:
       - name: Checkout pull request
         uses: actions/checkout@v3
         with:
-          ref: refs/pull/${{ github.event.issue.number }}/head
+          ref: ${{ needs.process_comment.outputs.branch }}
 
       - name: Call reusable workflow
         uses: ./.github/workflows/Build&Deploy.yml
