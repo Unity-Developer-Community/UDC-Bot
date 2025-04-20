@@ -63,7 +63,13 @@ jobs:
       - name: Checkout PR branch
         uses: actions/checkout@v3
         with:
-          ref: ${{ steps.pr_info.outputs.branch }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Create temporary branch
+        run: |
+          git checkout -b temp-deploy-branch
+          git push origin temp-deploy-branch
 
       - name: Trigger deployment workflow
         uses: benc-uk/workflow-dispatch@v1
@@ -75,3 +81,8 @@ jobs:
             {
               "env": "${{ steps.deployment_env.outputs.env }}"
             }
+
+      - name: Clean up temporary branch
+        if: always()
+        run: |
+          git push origin --delete temp-deploy-branch || true
