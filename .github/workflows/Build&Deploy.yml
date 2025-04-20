@@ -13,10 +13,10 @@ on:
       env:
         description: "Environment to deploy to"
         required: true
-        default: "DEV"
+        default: "dev"
         type: choice
         options:
-          - DEV
+          - dev
 
 jobs:
   push_to_registry:
