@@ -645,24 +645,14 @@ public class UserModule : ModuleBase
     }
     
     [Command("Roll"), Priority(23)]
-    [Summary("Roll a dice. Syntax : !roll [sides] (max 100)")]
-    public async Task RollDice(int sides = 20)
+    [Summary("Roll a dice. Syntax: !roll [sides]")]
+    public async Task RollDice(int sides=20)
     {
-        if (sides < 1 || sides > 1000)
-        {
-            await ReplyAsync("Invalid number of sides. Please choose a number between 1 and 1000.").DeleteAfterSeconds(seconds: 10);
-            await Context.Message.DeleteAsync();
-            return;
-        }
-
-        var uname = Context.User.GetUserPreferredName();
-        var roll = _random.Next(1, sides + 1);
-        await ReplyAsync($"**{uname}** rolled a D{sides} and got **{roll}**!");
-        await Context.Message.DeleteAfterSeconds(seconds: 1);
+        await RollDice(sides, 0);
     }
     
     [Command("Roll"), Priority(23)]
-    [Summary("Roll a dice. Syntax : !roll [sides] [number]")]
+    [Summary("Roll a dice. Syntax: !roll [sides] [minimum]")]
     public async Task RollDice(int sides, int number)
     {
         if (sides < 1 || sides > 1000)
@@ -675,7 +665,9 @@ public class UserModule : ModuleBase
         var uname = Context.User.GetUserPreferredName();
         var roll = _random.Next(1, sides + 1);
         var message = $"**{uname}** rolled a D{sides} and got **{roll}**!";
-        if (roll > number)
+        if (number < 1)
+            message = " :game_die: " + message;
+        else if (roll >= number)
             message = " :white_check_mark: " + message + " [Needed: " + number + "]";
         else
             message = " :x: " + message + " [Needed: " + number + "]";
@@ -683,28 +675,12 @@ public class UserModule : ModuleBase
         await ReplyAsync(message);
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
-    
-    [Command("D20"), Priority(23)]
-    [Summary("Roll a D20 dice.")]
-    public async Task RollD20(int number)
-    {
-        if (number < 1)
-        {
-            await ReplyAsync("Invalid number. Please choose a number 1 or above.").DeleteAfterSeconds(seconds: 10);
-            await Context.Message.DeleteAsync();
-            return;
-        }
 
-        var uname = Context.User.GetUserPreferredName();
-        var roll = _random.Next(1, 21);
-        var message = $"**{uname}** rolled a D20 and got **{roll}**!";
-        if (roll > number)
-            message = " :white_check_mark: " + message + " [Needed: " + number + "]";
-        else
-            message = " :x: " + message + " [Needed: " + number + "]";
-        
-        await ReplyAsync(message);
-        await Context.Message.DeleteAfterSeconds(seconds: 1);
+    [Command("D20"), Priority(23)]
+    [Summary("Roll a D20 dice. Syntax: !d20 [minimum]")]
+    public async Task RollD20(int number=0)
+    {
+        await RollDice(20, number);
     }
 
     #endregion
