@@ -12,7 +12,7 @@ jobs:
         id: deployment_env
         run: |
           if [[ "${{ github.event.comment.body }}" == "/deploy_dev" ]]; then
-            echo "env=DEV" >> $GITHUB_OUTPUT
+            echo "env=dev" >> $GITHUB_OUTPUT
             echo "env_name=development" >> $GITHUB_OUTPUT
           fi
 
