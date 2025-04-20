@@ -16,25 +16,25 @@ jobs:
             echo "env_name=development" >> $GITHUB_OUTPUT
           fi
 
-      # - name: Get PR information
-      #   id: pr_info
-      #   uses: actions/github-script@v6
-      #   with:
-      #     github-token: ${{ secrets.GITHUB_TOKEN }}
-      #     script: |
-      #       const { owner, repo, number } = context.issue;
-      #       const { data: pull } = await github.rest.pulls.get({
-      #         owner,
-      #         repo,
-      #         pull_number: number
-      #       });
+      - name: Get PR information
+        id: pr_info
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo, number } = context.issue;
+            const { data: pull } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: number
+            });
 
-      #       console.log("PR head branch:", pull.head.ref);
-      #       console.log("PR head SHA:", pull.head.sha);
+            console.log("PR head branch:", pull.head.ref);
+            console.log("PR head SHA:", pull.head.sha);
 
-      #       core.setOutput("branch", pull.head.ref);
-      #       core.setOutput("sha", pull.head.sha);
-      #       return pull.head.ref;
+            core.setOutput("branch", pull.head.ref);
+            core.setOutput("sha", pull.head.sha);
+            return pull.head.ref;
 
       - name: Add reaction to comment
         uses: actions/github-script@v6
