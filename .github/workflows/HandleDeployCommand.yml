@@ -12,7 +12,7 @@ jobs:
         id: deployment_env
         run: |
           if [[ "${{ github.event.comment.body }}" == "/deploy_dev" ]]; then
-            echo "env=DEV" >> $GITHUB_OUTPUT
+            echo "env=dev" >> $GITHUB_OUTPUT
             echo "env_name=development" >> $GITHUB_OUTPUT
           fi
 
@@ -34,6 +34,7 @@ jobs:
 
             core.setOutput("branch", pull.head.ref);
             core.setOutput("sha", pull.head.sha);
+            core.setOutput("repo_name", pull.head.repo.full_name);
             return pull.head.ref;
 
       - name: Add reaction to comment
@@ -57,7 +58,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `🚀 Starting deployment of branch \`${{ steps.pr_info.outputs.branch }}\` to ${{ steps.deployment_env.outputs.env_name }}...`
+              body: `🚀 Starting deployment of \`${{ steps.pr_info.outputs.repo_name }}:${{ steps.pr_info.outputs.branch }}\` to ${{ steps.deployment_env.outputs.env_name }}...`
             });
 
       - name: Generate unique branch name
