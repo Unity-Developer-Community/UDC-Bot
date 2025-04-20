@@ -83,13 +83,22 @@ jobs:
       #         "env": "${{ steps.deployment_env.outputs.env }}"
       #       }
 
-      - name: call-workflow
-        uses: ./.github/workflows/Build&Deploy.yml
-        with:
-          env: ${{ steps.deployment_env.outputs.env }}
-          secrets: inherit
+  # Call the reusable workflow as a job
+  call-deploy:
+    needs: process_comment
+    uses: ./.github/workflows/Build&Deploy.yml
+    with:
+      env: ${{ needs.process_comment.outputs.env }}
+    secrets: inherit
 
-      # - name: Clean up temporary branch
-      #   if: always()
-      #   run: |
-      #     git push origin --delete temp-deploy-branch || true
+  cleanup:
+    needs: [call-deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Delete temporary branch
+        run: |
+          git push origin --delete ${{ needs.process_comment.outputs.branch_name }} || true
