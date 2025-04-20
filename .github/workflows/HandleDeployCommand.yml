@@ -60,29 +60,6 @@ jobs:
               body: `🚀 Starting deployment of branch \`${{ steps.pr_info.outputs.branch }}\` to ${{ steps.deployment_env.outputs.env_name }}...`
             });
 
-      - name: Checkout PR branch
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ steps.pr_info.outputs.sha }}
-          repository: ${{ github.event.issue.pull_request.head.repo.full_name }}
-          fetch-depth: 0
-
-      - name: Create temporary branch
-        run: |
-          git checkout -b temp-deploy-branch
-          git push origin temp-deploy-branch
-
-      # - name: Trigger deployment workflow
-      #   uses: benc-uk/workflow-dispatch@v1
-      #   with:
-      #     workflow: Build & Deploy
-      #     token: ${{ secrets.GITHUB_TOKEN }}
-      #     ref: temp-deploy-branch
-      #     inputs: |
-      #       {
-      #         "env": "${{ steps.deployment_env.outputs.env }}"
-      #       }
-
   # Call the reusable workflow as a job
   call-deploy:
     needs: process_comment
@@ -90,15 +67,3 @@ jobs:
     with:
       env: ${{ needs.process_comment.outputs.env }}
     secrets: inherit
-
-  cleanup:
-    needs: [call-deploy]
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Delete temporary branch
-        run: |
-          git push origin --delete ${{ needs.process_comment.outputs.branch_name }} || true
