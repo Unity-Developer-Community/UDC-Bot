@@ -5,11 +5,11 @@
     <LangVersion>10</LangVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="HtmlAgilityPack" Version="1.11.59" />
-    <PackageReference Include="Discord.Net" Version="3.14.1" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.11.62" />
+    <PackageReference Include="Discord.Net" Version="3.15.3" />
     <PackageReference Include="Insight.Database" Version="6.3.11" />
     <PackageReference Include="Magick.NET-Q8-x64" Version="7.5.0.1" />
-    <PackageReference Include="MySql.Data" Version="8.3.0" />
+    <PackageReference Include="MySql.Data" Version="8.4.0" />
     <PackageReference Include="NETCore.MailKit" Version="2.1.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Pathoschild.NaturalTimeParser" Version="0.2.0-alpha" />

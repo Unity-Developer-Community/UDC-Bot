@@ -615,8 +615,10 @@ public class UserModule : ModuleBase
     public async Task SlapUser(params IUser[] users)
     {
         var sb = new StringBuilder();
+        var uname = Context.User.GetUserPreferredName();
 
-        sb.Append("**").Append(Context.User.Username).Append("** Slaps ");
+        //sb.Append("**").Append(Context.User.Username).Append("** Slaps ");
+        sb.Append($"**{uname}** slaps ");
         foreach (var user in users) sb.Append(user.Mention).Append(" ");
 
         sb.Append("around a bit with a large ").Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]).Append(".");
