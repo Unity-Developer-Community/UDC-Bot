@@ -76,13 +76,13 @@ jobs:
         with:
           workflow: Build & Deploy
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: master
+          ref: temp-deploy-branch
           inputs: |
             {
               "env": "${{ steps.deployment_env.outputs.env }}"
             }
 
-      - name: Clean up temporary branch
-        if: always()
-        run: |
-          git push origin --delete temp-deploy-branch || true
+      # - name: Clean up temporary branch
+      #   if: always()
+      #   run: |
+      #     git push origin --delete temp-deploy-branch || true
