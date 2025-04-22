@@ -113,6 +113,7 @@ public class UnityHelpService
         
         _client.MessageReceived += GatewayOnMessageReceived;
         _client.MessageUpdated += GatewayOnMessageUpdated;
+        _client.MessageDeleted += GatewayOnMessageDeleted;
 
         Task.Run(LoadActiveThreads);
         
@@ -446,6 +447,38 @@ public class UnityHelpService
                 await EndThreadTracking(thread);
                 return;
             }
+        }
+    }
+    
+    private async Task GatewayOnMessageDeleted(Cacheable<IMessage, ulong> messageCache, Cacheable<IMessageChannel, ulong> channelChache)
+    {
+        if (!messageCache.HasValue)
+            return;
+        
+        var message = messageCache.Value;
+        var channel = channelChache.Value;
+        
+        // Check if message is in a proper thread/forum and not just a normal message
+        if (message.Author.IsBot || channel.IsThreadInChannel(_helpChannel.Id))
+            return;
+        
+        // Check if message is a thread
+        if (message.Channel is not SocketThreadChannel threadChannel)
+            return;
+        
+        // Check if message is a thread that is being tracked
+        if (!_activeThreads.TryGetValue(threadChannel.Id, out var thread))
+            return;
+        if (thread.Owner != message.Author.Id)
+            return;
+        
+        // Check if message was the last message in the thread
+        if (thread.FirstUserMessage != message.Id)
+        {
+            // End Tracking and delete the whole thread not just the first message
+            await EndThreadTracking(thread);
+            await threadChannel.DeleteAsync();
+            return;
         }
     }
 

@@ -4,6 +4,7 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Service;
 using DiscordBot.Services;
+using DiscordBot.Services.Tips;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -104,6 +105,7 @@ public class Program
             .AddSingleton<ReminderService>()
             .AddSingleton<WeatherService>()
             .AddSingleton<AirportService>()
+            .AddSingleton<TipService>()
             .AddSingleton<CannedResponseService>()
             .AddSingleton<UserExtendedService>()
             .BuildServiceProvider();

@@ -119,6 +119,16 @@ public class BotSettings
     public string TagUnitHelpResolvedTag { get; set; }
 
     #endregion // Unity Help Threads
+    
+    #region Tips
+    
+    public string TipImageDirectory { get; set; }
+
+    public int TipMaxImageFileSize { get; set; } = 1024 * 1024 * 10; // 10MB
+    // Unlikely, but we prevent exploitation by limiting the max directory size to avoid VPS disk space issues
+    public int TipMaxDirectoryFileSize { get; set; } = 1024 * 1024 * 1024; // 1GB
+    
+    #endregion // Tips
 
     #region API Keys
 
