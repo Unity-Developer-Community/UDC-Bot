@@ -254,8 +254,8 @@ public class WeatherModule : ModuleBase
         var timezone = res.timezone / 3600;
         EmbedBuilder builder = new EmbedBuilder()
             .WithTitle($"{(replaceCityWith.Length == 0 ? res.name : replaceCityWith)} Time ({res.sys.country})")
-            // Timestamp is UTC, so we need to add the timezone offset to get the local time in format "Sunday, June 04, 2023 11:01:09"
-            .WithDescription($"{DateTime.UtcNow.AddSeconds(res.timezone):dddd, MMMM dd, yyyy hh:mm:ss}")
+            // Timestamp is UTC, so we need to add the timezone offset to get the local time in format "Sunday, June 04, 2023 7:01:09 AM"
+            .WithDescription($"{DateTime.UtcNow.AddSeconds(res.timezone):dddd, MMMM dd, yyyy h:mm:ss tt}")
             .AddField("Timezone", $"UTC {(timezone > 0 ? "+" : "")}{timezone}:00");
 
         return builder;
@@ -325,7 +325,8 @@ public class WeatherModule : ModuleBase
         if (await UserExtendedService.DoesUserHaveDefaultCity(user)) return true;
         
         // Otherwise respond and return false
-        await ReplyAsync($"User {user.Username} does not have a default city set.");
+        var uname = user.GetUserPreferredName();
+        await ReplyAsync($"User {uname} does not have a default city set.");
         return false;
     }
     
