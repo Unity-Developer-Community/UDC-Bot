@@ -1,4 +1,4 @@
-name: PR Comment Commands
+name: Handle Deploy Command
 "on":
   issue_comment:
     types: [created]
@@ -12,29 +12,30 @@ jobs:
         id: deployment_env
         run: |
           if [[ "${{ github.event.comment.body }}" == "/deploy_dev" ]]; then
-            echo "env=DEV" >> $GITHUB_OUTPUT
+            echo "env=dev" >> $GITHUB_OUTPUT
             echo "env_name=development" >> $GITHUB_OUTPUT
           fi
 
-      # - name: Get PR information
-      #   id: pr_info
-      #   uses: actions/github-script@v6
-      #   with:
-      #     github-token: ${{ secrets.GITHUB_TOKEN }}
-      #     script: |
-      #       const { owner, repo, number } = context.issue;
-      #       const { data: pull } = await github.rest.pulls.get({
-      #         owner,
-      #         repo,
-      #         pull_number: number
-      #       });
+      - name: Get PR information
+        id: pr_info
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo, number } = context.issue;
+            const { data: pull } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: number
+            });
 
-      #       console.log("PR head branch:", pull.head.ref);
-      #       console.log("PR head SHA:", pull.head.sha);
+            console.log("PR head branch:", pull.head.ref);
+            console.log("PR head SHA:", pull.head.sha);
 
-      #       core.setOutput("branch", pull.head.ref);
-      #       core.setOutput("sha", pull.head.sha);
-      #       return pull.head.ref;
+            core.setOutput("branch", pull.head.ref);
+            core.setOutput("sha", pull.head.sha);
+            core.setOutput("repo_name", pull.head.repo.full_name);
+            return pull.head.ref;
 
       - name: Add reaction to comment
         uses: actions/github-script@v6
@@ -57,21 +58,43 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `🚀 Starting deployment of branch \`${{ steps.pr_info.outputs.branch }}\` to ${{ steps.deployment_env.outputs.env_name }}...`
+              body: `🚀 Starting deployment of \`${{ steps.pr_info.outputs.repo_name }}:${{ steps.pr_info.outputs.branch }}\` to ${{ steps.deployment_env.outputs.env_name }}...`
             });
 
-      # - name: Checkout PR branch
-      #   uses: actions/checkout@v3
-      #   with:
-      #     ref: ${{ steps.pr_info.outputs.branch }}
+      - name: Generate unique branch name
+        id: branch_name
+        run: |
+          TIMESTAMP=$(date +%s)
+          UNIQUE_BRANCH="deploy-branch-${{ steps.pr_info.outputs.branch }}-$TIMESTAMP"
+          echo "name=$UNIQUE_BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ steps.pr_info.outputs.sha }}
+          repository: ${{ github.event.issue.pull_request.head.repo.full_name }}
+          fetch-depth: 0
+
+      - name: Create temporary branch
+        run: |
+          git checkout -b ${{ steps.branch_name.outputs.name }}
+          git push origin ${{ steps.branch_name.outputs.name }}
 
       - name: Trigger deployment workflow
         uses: benc-uk/workflow-dispatch@v1
         with:
           workflow: Build & Deploy
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ steps.pr_info.outputs.branch }}
+          ref: ${{ steps.branch_name.outputs.name }}
           inputs: |
             {
               "env": "${{ steps.deployment_env.outputs.env }}"
             }
+
+      - name: Wait for deployment to start
+        run: sleep 60 # Wait 60 seconds to ensure workflow has started
+
+      - name: Clean up temporary branch
+        if: always()
+        run: |
+          git push origin --delete ${{ steps.branch_name.outputs.name }} || true
