@@ -262,42 +262,44 @@ public class UserModule : ModuleBase
         public ILoggingService LoggingService { get; set; }
 
         [Command("Add")]
-        [Summary("Add a role to yourself. Syntax : !role add role")]
+        [Summary("Add a role to yourself. Syntax: !role add rolename")]
         public async Task AddRoleUser(IRole role)
         {
             if (!Settings.UserAssignableRoles.Roles.Contains(role.Name))
             {
-                await ReplyAsync("This role is not assignable");
+                await ReplyAsync("This role is not assignable.");
                 return;
             }
 
             var u = Context.User as IGuildUser;
+            var uname = u.GetUserPreferredName();
 
             await u.AddRoleAsync(role);
-            await ReplyAsync($"{u.Username} you now have the `{role.Name}` role.");
+            await ReplyAsync($"{uname}, you now have the `{role.Name}` role.");
             await LoggingService.LogChannelAndFile($"{Context.User.Username} has added {role} to themself.");
         }
 
         [Command("Remove")]
-        [Summary("Remove a role from yourself. Syntax : !role remove role")]
+        [Summary("Remove a role from yourself. Syntax: !role remove rolename")]
         [Alias("delete")]
         public async Task RemoveRoleUser(IRole role)
         {
             if (!Settings.UserAssignableRoles.Roles.Contains(role.Name))
             {
-                await ReplyAsync("Role is not assigneable");
+                await ReplyAsync("This role is not assignable.");
                 return;
             }
 
             var u = Context.User as IGuildUser;
+            var uname = u.GetUserPreferredName();
 
             await u.RemoveRoleAsync(role);
-            await ReplyAsync($"{u.Username} your `{role.Name}` role has been removed");
+            await ReplyAsync($"{uname}, your `{role.Name}` role has been removed.");
             await LoggingService.LogChannelAndFile($"{Context.User.Username} has removed role {role} from themself.");
         }
 
         [Command("List")]
-        [Summary("List of available roles. Syntax : !role list")]
+        [Summary("List of available roles. Syntax: !role list")]
         public async Task ListRole()
         {
             await ReplyAsync("**The following roles are available on this server** :\n" +
@@ -363,7 +365,7 @@ public class UserModule : ModuleBase
     {
         if (!await UserService.DMFormattedWelcome(Context.User as SocketGuildUser))
         {
-            await ReplyAsync("Could not send welcome, your DM's are disabled.").DeleteAfterSeconds(seconds: 2);
+            await ReplyAsync("Could not send welcome, your DMs are disabled.").DeleteAfterSeconds(seconds: 2);
         }
         await Context.Message.DeleteAfterSeconds(seconds: 4);
     }
@@ -400,7 +402,8 @@ public class UserModule : ModuleBase
     [Summary("Description of what Karma is.")]
     public async Task KarmaDescription(int seconds = 60)
     {
-        await ReplyAsync($"{Context.User.Username}, Karma is tracked on your !profile which helps indicate how much you've helped others and provides a small increase in EXP gain.");
+        var uname = Context.User.GetUserPreferredName();
+        await ReplyAsync($"{uname}, Karma is tracked on your !profile which helps indicate how much you've helped others and provides a small increase in EXP gain.");
         await Context.Message.DeleteAfterSeconds(seconds: seconds);
     }
 
@@ -551,17 +554,18 @@ public class UserModule : ModuleBase
     [Summary("Set 'Default City' which can be used by various commands.")]
     public async Task SetDefaultCity(params string[] city)
     {
+        var uname = Context.User.GetUserPreferredName();
         var fullCityName = string.Join(" ", city);
         var (exists, result) = await WeatherService.CityExists(fullCityName);
         if (!exists)
         {
-            await ReplyAsync($"Sorry, {Context.User.Mention} but I couldn't find a city with that name.").DeleteAfterSeconds(30);
+            await ReplyAsync($"Sorry, {uname}, but I couldn't find a city with that name.").DeleteAfterSeconds(30);
             await Context.Message.DeleteAsync();
             return;
         }
         // Set default city
         await UserExtendedService.SetUserDefaultCity(Context.User, result.name);
-        await ReplyAsync($"{Context.User.Mention} your default city has been set to {result.name}.");
+        await ReplyAsync($"{uname}, your default city has been set to {result.name}.");
     }
 
     [Command("RemoveCity"), Priority(100)]
@@ -569,14 +573,15 @@ public class UserModule : ModuleBase
     [Summary("Remove 'Default City' which can be used by various commands.")]
     public async Task RemoveDefaultCity()
     {
+        var uname = Context.User.GetUserPreferredName();
         if (!await UserExtendedService.DoesUserHaveDefaultCity(Context.User))
         {
-            await ReplyAsync($"{Context.User.Mention} you don't have a default city set.").DeleteAfterSeconds(30);
+            await ReplyAsync($"{uname}, you don't have a default city set.").DeleteAfterSeconds(30);
             await Context.Message.DeleteAsync();
             return;
         }
         await UserExtendedService.RemoveUserDefaultCity(Context.User);
-        await ReplyAsync($"{Context.User.Mention} your default city has been removed.");
+        await ReplyAsync($"{uname}, your default city has been removed.");
     }
 
     #endregion
@@ -584,7 +589,7 @@ public class UserModule : ModuleBase
     #region Codetips
 
     [Command("CodeTip"), Priority(20)]
-    [Summary("Show code formatting example. Syntax : !codetip userToPing(optional)")]
+    [Summary("Show code formatting example. Syntax: !codetip userToPing(optional)")]
     [Alias("codetips")]
     public async Task CodeTip(IUser user = null)
     {
@@ -603,7 +608,8 @@ public class UserModule : ModuleBase
         if (!UserService.CodeReminderCooldown.IsPermanent(Context.User.Id))
         {
             UserService.CodeReminderCooldown.SetPermanent(Context.User.Id, true);
-            await ReplyAsync($"{Context.User.Username}, " + "You will no longer be reminded about correct code formatting.").DeleteAfterTime(20);
+            var uname = Context.User.GetUserPreferredName();
+            await ReplyAsync($"{uname}, you will no longer be reminded about correct code formatting.").DeleteAfterTime(20);
         }
     }
 
@@ -616,7 +622,8 @@ public class UserModule : ModuleBase
     {
         var sb = new StringBuilder();
 
-        sb.Append("**").Append(Context.User.Username).Append("** Slaps ");
+        var uname = Context.User.GetUserPreferredName();
+        sb.Append($"**{uname}** slaps ");
         foreach (var user in users) sb.Append(user.Mention).Append(" ");
 
         sb.Append("around a bit with a large ").Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]).Append(".");
@@ -632,28 +639,20 @@ public class UserModule : ModuleBase
     {
         var coin = new[] { "Heads", "Tails" };
 
-        await ReplyAsync($"**{Context.User.Username}** flipped a coin and got **{coin[_random.Next() % 2]}**!");
+        var uname = Context.User.GetUserPreferredName();
+        await ReplyAsync($"**{uname}** flipped a coin and got **{coin[_random.Next() % 2]}**!");
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
     
     [Command("Roll"), Priority(23)]
-    [Summary("Roll a dice. Syntax : !roll [sides] (max 100)")]
-    public async Task RollDice(int sides = 20)
+    [Summary("Roll a dice. Syntax: !roll [sides]")]
+    public async Task RollDice(int sides=20)
     {
-        if (sides < 1 || sides > 1000)
-        {
-            await ReplyAsync("Invalid number of sides. Please choose a number between 1 and 1000.").DeleteAfterSeconds(seconds: 10);
-            await Context.Message.DeleteAsync();
-            return;
-        }
-
-        var roll = _random.Next(1, sides + 1);
-        await ReplyAsync($"**{Context.User.Username}** rolled a D{sides} and got **{roll}**!");
-        await Context.Message.DeleteAfterSeconds(seconds: 1);
+        await RollDice(sides, 0);
     }
     
     [Command("Roll"), Priority(23)]
-    [Summary("Roll a dice. Syntax : !roll [sides] [number]")]
+    [Summary("Roll a dice. Syntax: !roll [sides] [minimum]")]
     public async Task RollDice(int sides, int number)
     {
         if (sides < 1 || sides > 1000)
@@ -663,9 +662,12 @@ public class UserModule : ModuleBase
             return;
         }
 
+        var uname = Context.User.GetUserPreferredName();
         var roll = _random.Next(1, sides + 1);
-        var message = $"**{Context.User.Username}** rolled a D{sides} and got **{roll}**!";
-        if (roll > number)
+        var message = $"**{uname}** rolled a D{sides} and got **{roll}**!";
+        if (number < 1)
+            message = " :game_die: " + message;
+        else if (roll >= number)
             message = " :white_check_mark: " + message + " [Needed: " + number + "]";
         else
             message = " :x: " + message + " [Needed: " + number + "]";
@@ -673,26 +675,12 @@ public class UserModule : ModuleBase
         await ReplyAsync(message);
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
-    
+
     [Command("D20"), Priority(23)]
-    [Summary("Roll a D20 dice.")]
-    public async Task RollD20(int number)
+    [Summary("Roll a D20 dice. Syntax: !d20 [minimum]")]
+    public async Task RollD20(int number=0)
     {
-        if (number < 1)
-        {
-            await ReplyAsync("Invalid number. Please choose a number 1 or above.").DeleteAfterSeconds(seconds: 10);
-            await Context.Message.DeleteAsync();
-            return;
-        }
-        var roll = _random.Next(1, 21);
-        var message = $"**{Context.User.Username}** rolled a D20 and got **{roll}**!";
-        if (roll > number)
-            message = " :white_check_mark: " + message + " [Needed: " + number + "]";
-        else
-            message = " :x: " + message + " [Needed: " + number + "]";
-        
-        await ReplyAsync(message);
-        await Context.Message.DeleteAfterSeconds(seconds: 1);
+        await RollDice(20, number);
     }
 
     #endregion

@@ -3,15 +3,20 @@ name: Build & Deploy
 on:
   push:
     branches: [dev]
+  workflow_call:
+    inputs:
+      env:
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       env:
         description: "Environment to deploy to"
         required: true
-        default: "DEV"
+        default: "dev"
         type: choice
         options:
-          - DEV
+          - dev
 
 jobs:
   push_to_registry:
@@ -38,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
 
     environment:
-      name: ${{ github.event.inputs.env }}
+      name: ${{ inputs.env }}
 
     steps:
       - name: Run commands in SSH
