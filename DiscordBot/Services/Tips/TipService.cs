@@ -78,7 +78,7 @@ public class TipService
 
     private bool IsValidTipKeyword(string keyword)
     {
-        // start with ascii letter
+        // Start with ascii letter
         // continue with ascii letters, digits, limited punctuation
         // no whitespace, no commas
         //
@@ -115,7 +115,10 @@ public class TipService
             return;
         }
 
-        var keywordList = keywords.Split(',').Select(k => k.Trim()).Where(k -> IsValidTipKeyword(k)).ToList();
+        var keywordList = keywords.Split(',')
+            .Select(k => k.Trim())
+            .Where(k => IsValidTipKeyword(k))
+            .ToList();
         if (keywordList.Count == 0)
         {
             await textChannel.SendMessageAsync("No valid keywords given to store a new tip.");
@@ -128,7 +131,9 @@ public class TipService
             if (!IsValidTipAttachment(attachment))
                 continue;
 
-            var newFileName = Guid.NewGuid().ToString() + attachment.Filename.Substring(attachment.Filename.LastIndexOf('.'));
+            var newFileName =
+                Guid.NewGuid().ToString() +
+                attachment.Filename.Substring(attachment.Filename.LastIndexOf('.'));
             var filePath = Path.Combine(_imageDirectory, newFileName);
 
             using var client = new HttpClient();
@@ -139,15 +144,17 @@ public class TipService
             imagePaths.Add(newFileName);
         }
 
+        // Need content and/or a valid attachment
         if (imagePaths.Count == 0 && string.IsNullOrWhitespace(content))
         {
             await textChannel.SendMessageAsync("No valid content given to store a new tip.");
             return;
         }
 
+        ulong id = message.Id;
         var tip = new Tip
         {
-            // TODO: ID = original message id, // for later editing/removing tips
+            Id = id,
             Content = content,
             Keywords = keywordList,
             ImagePaths = imagePaths
@@ -171,7 +178,7 @@ public class TipService
         {
             var builder = new EmbedBuilder()
                 .WithTitle("Tip Added")
-                .WithDescription($"Your tip has been added with the keywords `{string.Join("`, `", keywordList)}`.")
+                .WithDescription($"Your tip has been added with the keywords `{string.Join("`, `", keywordList)}` and ID {tip.Id}.")
                 .WithColor(Color.Green);
 
             // TODO: (James) Attach the images if they exist?
@@ -215,6 +222,8 @@ public class TipService
 
     public List<Tip> GetTips(string keyword)
     {
+        // TODO: if keyword looks numeric, get one tip based on id
+
         return _tips.Where(kvp => kvp.Key.Split(',').Any(k => IsValidTipKeyword(k)))
             .SelectMany(kvp => kvp.Value)
             .Distinct()
