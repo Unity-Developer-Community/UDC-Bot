@@ -20,6 +20,7 @@ public class TipModule : ModuleBase
 	
 	[Command("Tip")]
 	[Summary("Find and provide pre-authored tips (images or text) by their keywords.")]
+ 	/* for now */ [RequireModerator]
 	public async Task Tip(string keywords)
 	{
 		var tips = TipService.GetTips(keywords);
@@ -76,9 +77,9 @@ public class TipModule : ModuleBase
 
 	#region CommandList
 	
-	[Summary("Does what you see now.")]
-	[Command("Ticket Help")]
-	public async Task TicketHelp()
+	[Command("Tip Help")]
+	[Summary("Shows available tip commands.")]
+	public async Task TipHelp()
 	{
 		foreach (var message in CommandHandlingService.GetCommandListMessages("TipModule", true, true, false))
 		{
