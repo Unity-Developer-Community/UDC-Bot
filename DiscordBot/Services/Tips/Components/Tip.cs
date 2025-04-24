@@ -1,3 +1,5 @@
+using Discord;
+
 namespace DiscordBot.Services.Tips.Components;
 
 public class Tip: IEntity<ulong>
