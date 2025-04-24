@@ -20,6 +20,7 @@ public class TipModule : ModuleBase
 	
 	[Command("Tip")]
 	[Summary("Find and provide pre-authored tips (images or text) by their keywords.")]
+ 	/* for now */ [RequireModerator]
 	public async Task Tip(string keywords)
 	{
 		var tips = TipService.GetTips(keywords);
@@ -73,12 +74,40 @@ public class TipModule : ModuleBase
 	{
 		await TipService.AddTip(Context.Message, keywords, content);
 	}
+	
+	[Command("RemoveTip")]
+	[Summary("Remove a tip from the database.")]
+	[RequireModerator]
+	public async Task RemoveTip(ulong tipId)
+	{
+ 		Tip tip = TipService.GetTip(tipId);
+   		if (tip == null)
+	 	{
+			await Context.Channel.SendMessageAsync("No such tip found to be removed.");
+			return;
+   		}
+ 
+		await TipService.RemoveTip(tip);
+	}
+	
+	[Command("DumpTips")]
+	[Summary("For debugging, view the tip index.")]
+	[RequireModerator]
+	public async Task DumpTipDatabase()
+	{
+ 		string json = TipService.DumpTipDatabase();
+		await Context.Channel.SendMessageAsync(
+			"Tip database index as JSON:\n```\n{json}\n```");
+	}
 
 	#region CommandList
-	
-	[Summary("Does what you see now.")]
-	[Command("Ticket Help")]
-	public async Task TicketHelp()
+ 	
+	[Command("TipHelp")]
+	[Alias("TipsHelp")]
+	[Alias("HelpTip")]
+	[Alias("HelpTips")]
+	[Summary("Shows available tip database commands.")]
+	public async Task TipHelp()
 	{
 		foreach (var message in CommandHandlingService.GetCommandListMessages("TipModule", true, true, false))
 		{
