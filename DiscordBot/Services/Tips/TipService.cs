@@ -95,11 +95,15 @@ public class TipService
 
     private bool IsValidTipAttachment(IAttachment attachment)
     {
+        if (attachment.Size > _settings.TipMaxImageFileSize)
+            return false;
+
         // Discord-friendly attachment image file formats only
         //
         if (attachment.Filename.EndsWith(".png")) return true;
         if (attachment.Filename.EndsWith(".webp")) return true;
         if (attachment.Filename.EndsWith(".jpg")) return true;
+
         return false;
     }
     
@@ -126,10 +130,6 @@ public class TipService
 
             var newFileName = Guid.NewGuid().ToString() + attachment.Filename.Substring(attachment.Filename.LastIndexOf('.'));
             var filePath = Path.Combine(_imageDirectory, newFileName);
-            if (attachment.Size > _settings.TipMaxImageFileSize)
-            {
-                continue;
-            }
 
             using var client = new HttpClient();
             await using var stream = await client.GetStreamAsync(attachment.Url);
