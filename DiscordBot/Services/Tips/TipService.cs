@@ -187,10 +187,13 @@ public class TipService
         }
     }
 
-    public void RemoveTip(Tip tip)
+    public async Task RemoveTip(Tip tip)
     {
         if (tip == null)
+        {
+            await textChannel.SendMessageAsync("No such tip found to be removed.");
             return;
+        }
 
         // for all keywords in this tip,
             // remove this tip from _tips[keyword] list
