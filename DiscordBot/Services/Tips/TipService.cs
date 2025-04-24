@@ -162,12 +162,10 @@ public class TipService
             });
         }
 
-        // In same folder, we save json files
-        var jsonPath = Path.Combine(_imageDirectory, "tips.json");
-        await File.WriteAllTextAsync(jsonPath, JsonConvert.SerializeObject(_tips));
+        CommitTipDatabase();
 
         await _loggingService.LogAction($"[{ServiceName}] Added tip from {message.Author.Username} with keywords {string.Join(", ", keywordList)}.", ExtendedLogSeverity.Info);
-        
+
         // Send a confirmation message
         if (message.Channel is SocketTextChannel textChannel)
         {
@@ -180,6 +178,39 @@ public class TipService
 
             await textChannel.SendMessageAsync(embed: builder.Build());
         }
+    }
+
+    public void RemoveTip(Tip tip)
+    {
+        if (tip == null)
+            return;
+
+        // for all keywords in this tip,
+            // remove this tip from _tips[keyword] list
+            // if this made _tips[keyword] empty,
+                // remove key
+
+        CommitTipDatabase();
+    }
+
+    private void CommitTipDatabase()
+    {
+        // In same folder, we save json files
+        var jsonPath = Path.Combine(_imageDirectory, "tips.json");
+        await File.WriteAllTextAsync(jsonPath, JsonConvert.SerializeObject(_tips));
+    }
+
+    public string DumpTipDatabase()
+    {
+        return JsonConvert.SerializeObject(_tips);
+    }
+
+    public Tip GetTip(ulong Id)
+    {
+        foreach (var kvp in _tips)
+            if (kvp.Value.Id == Id)
+                return kvp.Value;
+        return null;
     }
 
     public List<Tip> GetTips(string keyword)
