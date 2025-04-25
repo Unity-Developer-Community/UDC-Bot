@@ -236,6 +236,7 @@ public class TipService
             .Select(k => k.Trim())
             .Where(k => IsValidTipKeyword(k))
             .ToList();
+
         foreach (string keyword in keywordList)
             if (_tips.Contains(keyword))
                 foreach (Tip tip in _tips[keyword])
