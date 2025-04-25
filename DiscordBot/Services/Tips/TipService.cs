@@ -15,7 +15,8 @@ namespace DiscordBot.Services.Tips;
 public class TipService
 {
     private const string ServiceName = "TipService"; 
-    
+    private const string DatabaseName = "tips.json";
+
     private readonly BotSettings _settings;
     private readonly ILoggingService _loggingService;
     private readonly string _imageDirectory;
@@ -53,7 +54,7 @@ public class TipService
     {
         if (_isRunning) return;
         
-        var jsonPath = Path.Combine(_imageDirectory, "tips.json");
+        var jsonPath = GetTipPath(DatabaseName);;
         if (!Directory.Exists(_imageDirectory))
         {
             _loggingService.LogAction($"[{ServiceName}] Tip directory {_imageDirectory} did not exist.", ExtendedLogSeverity.Info);
@@ -115,7 +116,12 @@ public class TipService
 
         return false;
     }
-    
+
+    public string GetTipPath(string filename)
+    {
+        return Path.Combine(_imageDirectory, filename);
+    }
+
     public async Task AddTip(IUserMessage message, string keywords, string content)
     {
         if (string.IsNullOrEmpty(keywords))
@@ -143,7 +149,7 @@ public class TipService
             var newFileName =
                 Guid.NewGuid().ToString() +
                 attachment.Filename.Substring(attachment.Filename.LastIndexOf('.'));
-            var filePath = Path.Combine(_imageDirectory, newFileName);
+            var filePath = GetTipPath(newFileName);
 
             using var client = new HttpClient();
             await using var stream = await client.GetStreamAsync(attachment.Url);
@@ -213,13 +219,28 @@ public class TipService
                 _tips.Remove(keyword, out var _);
         }
 
+        foreach (string imagePath in tip.ImagePaths)
+        {
+            try { File.Delete(imagePath); }
+            catch (Exception _) { }
+        }
+
         await CommitTipDatabase();
+    }
+
+    public async Task ReplaceTip(IUserMessage message, string keywords, string content)
+    {
+        // TODO: get tip
+        // TODO: if not found, bail
+        // TODO: remove tip
+        // TODO: add tip
+        // REVIEW: causes two CommitTipDatabase calls
     }
 
     private async Task CommitTipDatabase()
     {
         // In same folder, we save json files
-        var jsonPath = Path.Combine(_imageDirectory, "tips.json");
+        var jsonPath = GetTipPath(DatabaseName);
         await File.WriteAllTextAsync(jsonPath, JsonConvert.SerializeObject(_tips));
     }
 
@@ -256,10 +277,5 @@ public class TipService
                     if (!found.Contains(tip))
                         found.Add(tip);
         return found;
-
-        //return _tips.Where(kvp => kvp.Key.Split(',').Any(k => IsValidTipKeyword(k)))
-        //    .SelectMany(kvp => kvp.Value)
-        //    .Distinct()
-        //    .ToList();
     }
 }
