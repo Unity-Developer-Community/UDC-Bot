@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -21,7 +22,9 @@ public class TipService
 
     private ConcurrentDictionary<string, List<Tip>> _tips = new();
     private bool _isRunning = false;
-    
+
+    private Regex keywordPattern = null;
+
     public TipService(BotSettings settings, ILoggingService loggingService)
     {
         _settings = settings;
@@ -73,20 +76,65 @@ public class TipService
         _isRunning = true;
     }
 
+    private bool IsValidTipKeyword(string keyword)
+    {
+        // Start with ascii letter
+        // continue with ascii letters, digits, limited punctuation
+        // no whitespace, no commas
+        //
+        // valid examples:  "dr.mendeleev" "f451" "wash_hands" "Poe's-Law"
+        //
+        if (keywordPattern == null)
+            keywordPattern = new Regex(@"^[a-z][a-z.0-9_'-]*$", RegexOptions.IgnoreCase);
+
+        if (!keywordPattern.IsMatch(keyword))
+            return false;
+
+        return true;
+    }
+
+    private bool IsValidTipAttachment(IAttachment attachment)
+    {
+        if (attachment.Size > _settings.TipMaxImageFileSize)
+            return false;
+
+        // Discord-friendly attachment image file formats only
+        //
+        if (attachment.Filename.EndsWith(".png")) return true;
+        if (attachment.Filename.EndsWith(".webp")) return true;
+        if (attachment.Filename.EndsWith(".jpg")) return true;
+
+        return false;
+    }
+    
     public async Task AddTip(IUserMessage message, string keywords, string content)
     {
-        var keywordList = keywords.Split(',').Select(k => k.Trim()).ToList();
-        var imagePaths = new List<string>();
+        if (string.IsNullOrWhitespace(keywords))
+        {
+            await textChannel.SendMessageAsync("No valid keywords given to store a new tip.");
+            return;
+        }
 
+        var keywordList = keywords.Split(',')
+            .Select(k => k.Trim())
+            .Where(k => IsValidTipKeyword(k))
+            .ToList();
+        if (keywordList.Count == 0)
+        {
+            await textChannel.SendMessageAsync("No valid keywords given to store a new tip.");
+            return;
+        }
+
+        var imagePaths = new List<string>();
         foreach (var attachment in message.Attachments)
         {
-            if (!attachment.Filename.EndsWith(".png") && !attachment.Filename.EndsWith(".webp") && !attachment.Filename.EndsWith(".jpg")) continue;
-            var newFileName = Guid.NewGuid().ToString() + attachment.Filename.Substring(attachment.Filename.LastIndexOf('.'));
-            var filePath = Path.Combine(_imageDirectory, newFileName);
-            if (attachment.Size > _settings.TipMaxImageFileSize)
-            {
+            if (!IsValidTipAttachment(attachment))
                 continue;
-            }
+
+            var newFileName =
+                Guid.NewGuid().ToString() +
+                attachment.Filename.Substring(attachment.Filename.LastIndexOf('.'));
+            var filePath = Path.Combine(_imageDirectory, newFileName);
 
             using var client = new HttpClient();
             await using var stream = await client.GetStreamAsync(attachment.Url);
@@ -96,8 +144,17 @@ public class TipService
             imagePaths.Add(newFileName);
         }
 
+        // Need content and/or a valid attachment
+        if (imagePaths.Count == 0 && string.IsNullOrWhitespace(content))
+        {
+            await textChannel.SendMessageAsync("No valid content given to store a new tip.");
+            return;
+        }
+
+        ulong id = message.Id;
         var tip = new Tip
         {
+            Id = id,
             Content = content,
             Keywords = keywordList,
             ImagePaths = imagePaths
@@ -112,30 +169,65 @@ public class TipService
             });
         }
 
-        // In same folder, we save json files
-        var jsonPath = Path.Combine(_imageDirectory, "tips.json");
-        await File.WriteAllTextAsync(jsonPath, JsonConvert.SerializeObject(_tips));
+        CommitTipDatabase();
 
         await _loggingService.LogAction($"[{ServiceName}] Added tip from {message.Author.Username} with keywords {string.Join(", ", keywordList)}.", ExtendedLogSeverity.Info);
-        
+
         // Send a confirmation message
         if (message.Channel is SocketTextChannel textChannel)
         {
             var builder = new EmbedBuilder()
                 .WithTitle("Tip Added")
-                .WithDescription($"Your tip has been added with the keywords `{string.Join(", ", keywordList)}`.")
+                .WithDescription($"Your tip has been added with the keywords `{string.Join("`, `", keywordList)}` and ID {tip.Id}.")
                 .WithColor(Color.Green);
-            
+
             // TODO: (James) Attach the images if they exist?
 
             await textChannel.SendMessageAsync(embed: builder.Build());
         }
     }
 
+    public async Task RemoveTip(Tip tip)
+    {
+        if (tip == null)
+        {
+            await textChannel.SendMessageAsync("No such tip found to be removed.");
+            return;
+        }
+
+        // for all keywords in this tip,
+            // remove this tip from _tips[keyword] list
+            // if this made _tips[keyword] empty,
+                // remove key
+
+        CommitTipDatabase();
+    }
+
+    private void CommitTipDatabase()
+    {
+        // In same folder, we save json files
+        var jsonPath = Path.Combine(_imageDirectory, "tips.json");
+        await File.WriteAllTextAsync(jsonPath, JsonConvert.SerializeObject(_tips));
+    }
+
+    public string DumpTipDatabase()
+    {
+        return JsonConvert.SerializeObject(_tips);
+    }
+
+    public Tip GetTip(ulong Id)
+    {
+        foreach (var kvp in _tips)
+            if (kvp.Value.Id == Id)
+                return kvp.Value;
+        return null;
+    }
+
     public List<Tip> GetTips(string keyword)
     {
-        var regex = new Regex(keyword, RegexOptions.IgnoreCase);
-        return _tips.Where(kvp => kvp.Key.Split(',').Any(k => regex.IsMatch(k)))
+        // TODO: if keyword looks numeric, get one tip based on id
+
+        return _tips.Where(kvp => kvp.Key.Split(',').Any(k => IsValidTipKeyword(k)))
             .SelectMany(kvp => kvp.Value)
             .Distinct()
             .ToList();
