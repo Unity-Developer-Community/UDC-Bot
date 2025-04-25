@@ -29,6 +29,13 @@ public class TipService
     {
         _settings = settings;
         _loggingService = loggingService;
+
+        if (string.IsNullOrEmpty(_settings.ServerRootPath))
+        {
+            _loggingService.LogAction($"[{ServiceName}] ServerRootPath not set, service will not run.", ExtendedLogSeverity.Warning);
+            _isRunning = false;
+            return;
+        }
         
         if (string.IsNullOrEmpty(_settings.TipImageDirectory))
         {
@@ -36,8 +43,8 @@ public class TipService
             _isRunning = false;
             return;
         }
-        
-        _imageDirectory = Path.Combine(Directory.GetCurrentDirectory(), _settings.TipImageDirectory);
+
+        _imageDirectory = Path.Combine(_settings.ServerRootPath, _settings.TipImageDirectory);
 
         Initialize();
     }
