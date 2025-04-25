@@ -9,6 +9,7 @@ using DiscordBot.Settings;
 // ReSharper disable all UnusedMember.Local
 namespace DiscordBot.Modules;
 
+[Group("TipModule"), Alias("")]
 public class TipModule : ModuleBase
 {
 	#region Dependency Injection
@@ -21,7 +22,7 @@ public class TipModule : ModuleBase
 	
 	[Command("Tip")]
 	[Summary("Find and provide pre-authored tips (images or text) by their keywords.")]
- 	/* for now */ [RequireModerator]
+ 	/* for now */ [RequireModerator] /* maybe Helper too */
 	public async Task Tip(string keywords)
 	{
 		var tips = TipService.GetTips(keywords);
@@ -51,16 +52,18 @@ public class TipModule : ModuleBase
 			.Select(imagePath => new FileAttachment(TipService.GetTipPath(imagePath)))
 			.ToList();
 
+		builder.WithFooter(footer => footer.WithText($"-# Tip ID {tip.Id}") );
+
 		if (attachments.Count > 0)
 		{
-			if (isAnyTextTips)
-			{
+			//if (isAnyTextTips)
+			//{
 				await Context.Channel.SendFilesAsync(attachments, embed: builder.Build());
-			}
-			else
-			{
-				await Context.Channel.SendFilesAsync(attachments);
-			}
+			//}
+			//else
+			//{
+			//	await Context.Channel.SendFilesAsync(attachments);
+			//}
 		}
 		else
 		{
@@ -90,6 +93,21 @@ public class TipModule : ModuleBase
  
 		await TipService.RemoveTip(Context.Message, tip);
 	}
+
+	[Command("ReplaceTip")]
+	[Summary("Replace image content of an existing tip in the database.")]
+	[RequireModerator]
+	public async Task ReplaceTip(ulong tipId, string content = "")
+	{
+ 		Tip tip = TipService.GetTip(tipId);
+   		if (tip == null)
+	 	{
+			await Context.Channel.SendMessageAsync("No such tip found to be replaced.");
+			return;
+   		}
+ 
+		await TipService.ReplaceTip(Context.Message, keywords, content);
+	}
 	
 	[Command("DumpTips")]
 	[Summary("For debugging, view the tip index.")]
@@ -98,7 +116,7 @@ public class TipModule : ModuleBase
 	{
  		string json = TipService.DumpTipDatabase();
    		string prefix = "Tip database index as JSON:\n";
-   		int chunkSize = 1500;
+   		int chunkSize = 1800;
 	 	int chunkTime = 2000;
    		while (!string.IsNullOrEmpty(json))
 	 	{
