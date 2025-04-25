@@ -139,7 +139,9 @@ public class TipModule : ModuleBase
 			while (tips.Count > 0 && chunk < chunkCount)
    			{
 				string keywords = string.Join("`, `", tips[0].Keywords.OrderBy(k => k));
-				string images = String.Concat(Enumerable.Repeat(" :frame_photo:", tip[0].ImagePaths.Count).ToArray());
+				string images = String.Concat(
+    					Enumerable.Repeat(" :frame_photo:",
+	 				tips[0].ImagePaths.Count).ToArray());
 				builder.AddField($"ID: {tips[0].Id} {images}", $"`{keywords}`");
 				tips.RemoveAt(0);
 				chunk++;
