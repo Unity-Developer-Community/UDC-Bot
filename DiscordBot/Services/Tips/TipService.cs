@@ -226,11 +226,26 @@ public class TipService
 
     public List<Tip> GetTips(string keyword)
     {
+        var found = new List<Tip>();
+        if (string.IsNullOrEmpty(keyword))
+            return found;
+
         // TODO: if keyword looks numeric, get one tip based on id
 
-        return _tips.Where(kvp => kvp.Key.Split(',').Any(k => IsValidTipKeyword(k)))
-            .SelectMany(kvp => kvp.Value)
-            .Distinct()
+        var keywordList = keywords.Split(',')
+            .Select(k => k.Trim())
+            .Where(k => IsValidTipKeyword(k))
             .ToList();
+        foreach (string keyword in keywordList)
+            if (_tips.Contains(keyword))
+                foreach (Tip tip in _tips[keyword])
+                    if (!found.Contains(tip))
+                        found.Add(tip);
+        return found;
+
+        //return _tips.Where(kvp => kvp.Key.Split(',').Any(k => IsValidTipKeyword(k)))
+        //    .SelectMany(kvp => kvp.Value)
+        //    .Distinct()
+        //    .ToList();
     }
 }
