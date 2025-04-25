@@ -145,7 +145,7 @@ public class TipService
         }
 
         // Need content and/or a valid attachment
-        if (imagePaths.Count == 0 && string.IsNullOrWhitespace(content))
+        if (imagePaths.Count == 0 && string.IsNullOrEmpty(content))
         {
             await message.Channel.SendMessageAsync("No valid content given to store a new tip.");
             return;
