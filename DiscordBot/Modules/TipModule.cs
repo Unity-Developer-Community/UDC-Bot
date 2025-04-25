@@ -32,7 +32,7 @@ public class TipModule : ModuleBase
 		}
 
 		var isAnyTextTips = tips.Any(tip => !string.IsNullOrEmpty(tip.Content));
-		EmbedBuilder builder = new EmbedBuilder();
+		var builder = new EmbedBuilder();
 		if (isAnyTextTips)
 		{
 			// Loop through tips in order, have dot point list of the .Content property in an embed
@@ -99,6 +99,28 @@ public class TipModule : ModuleBase
  		string json = TipService.DumpTipDatabase();
 		await Context.Channel.SendMessageAsync(
 			$"Tip database index as JSON:\n```\n{json}\n```");
+	}
+	
+	[Command("ListTips")]
+	[Summary("List available tips by their keywords.")]
+	[RequireModerator]
+	public async Task ListTips()
+	{
+ 		List<Tip> tips = TipService.GetAllTips().OrderBy(t => t.Id);
+
+		// TODO: paginate if long list of tips
+
+   		var builder = new EmbedBuilder();
+		builder
+			.WithTitle("List of Tips")
+			.WithDescription("Tips available for the following keywords:");
+		foreach (var tip in tips)
+		{
+  			string keywords = string.Join("`, `", tip.Keywords.OrderBy(k => k);
+			builder.AddField(tip.Id, $"`{keywords}`");
+		}
+		await ReplyAsync(embed: builder.Build());
+
 	}
 
 	#region CommandList
