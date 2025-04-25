@@ -107,7 +107,7 @@ public class TipModule : ModuleBase
 			return;
    		}
  
-		await TipService.ReplaceTip(Context.Message, string.Join(",", tip.Keywords), content);
+		await TipService.ReplaceTip(Context.Message, tip, content);
 	}
 	
 	[Command("DumpTips")]
