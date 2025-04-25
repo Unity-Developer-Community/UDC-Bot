@@ -97,8 +97,18 @@ public class TipModule : ModuleBase
 	public async Task DumpTipDatabase()
 	{
  		string json = TipService.DumpTipDatabase();
-		await Context.Channel.SendMessageAsync(
-			$"Tip database index as JSON:\n```\n{json}\n```");
+   		string prefix = "Tip database index as JSON:\n";
+   		int chunkSize = 1000;
+   		while (!string.IsNullOrEmpty(json))
+	 	{
+   			string chunk = json.Substring(0, chunkSize);
+	  		json = json.Substring(chunkSize);
+			await Context.Channel.SendMessageAsync(
+				$"{prefix}```\n{chunk}\n```");
+			prefix = "...";
+			if (!string.IsNullOrEmpty(json))
+				await Task.Delay(1000);
+		}
 	}
 	
 	[Command("ListTips")]
