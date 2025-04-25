@@ -221,11 +221,21 @@ public class TipService
 
         foreach (string imagePath in tip.ImagePaths)
         {
-            try { File.Delete(imagePath); }
-            catch (Exception _) { }
+            try
+            {
+                File.Delete(GetTipPath(imagePath));
+            }
+            catch (Exception e)
+            {
+                await _loggingService.LogAction(
+                    $"[{ServiceName}] Failed to remove tip image: {e}", ExtendedLogSeverity.Warning);
+            }
         }
 
         await CommitTipDatabase();
+
+        string keywords = string.Join("`, `", tip.Keywords);
+        await message.Channel.SendMessageAsync("Removed a tip with keywords `{keywords}`.");
     }
 
     public async Task ReplaceTip(IUserMessage message, string keywords, string content)
