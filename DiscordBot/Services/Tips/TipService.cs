@@ -238,7 +238,7 @@ public class TipService
             .ToList();
 
         foreach (string keyword in keywordList)
-            if (_tips.Contains(keyword))
+            if (_tips.ContainsKey(keyword))
                 foreach (Tip tip in _tips[keyword])
                     if (!found.Contains(tip))
                         found.Add(tip);
