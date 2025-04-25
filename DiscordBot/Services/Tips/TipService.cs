@@ -109,9 +109,9 @@ public class TipService
     
     public async Task AddTip(IUserMessage message, string keywords, string content)
     {
-        if (string.IsNullOrWhitespace(keywords))
+        if (string.IsNullOrEmpty(keywords))
         {
-            await textChannel.SendMessageAsync("No valid keywords given to store a new tip.");
+            await message.Channel.SendMessageAsync("No valid keywords given to store a new tip.");
             return;
         }
 
@@ -121,7 +121,7 @@ public class TipService
             .ToList();
         if (keywordList.Count == 0)
         {
-            await textChannel.SendMessageAsync("No valid keywords given to store a new tip.");
+            await message.Channel.SendMessageAsync("No valid keywords given to store a new tip.");
             return;
         }
 
@@ -147,7 +147,7 @@ public class TipService
         // Need content and/or a valid attachment
         if (imagePaths.Count == 0 && string.IsNullOrWhitespace(content))
         {
-            await textChannel.SendMessageAsync("No valid content given to store a new tip.");
+            await message.Channel.SendMessageAsync("No valid content given to store a new tip.");
             return;
         }
 
@@ -169,7 +169,7 @@ public class TipService
             });
         }
 
-        CommitTipDatabase();
+        await CommitTipDatabase();
 
         await _loggingService.LogAction($"[{ServiceName}] Added tip from {message.Author.Username} with keywords {string.Join(", ", keywordList)}.", ExtendedLogSeverity.Info);
 
@@ -187,11 +187,11 @@ public class TipService
         }
     }
 
-    public async Task RemoveTip(Tip tip)
+    public async Task RemoveTip(IUserMessage message, Tip tip)
     {
         if (tip == null)
         {
-            await textChannel.SendMessageAsync("No such tip found to be removed.");
+            await message.Channel.SendMessageAsync("No such tip found to be removed.");
             return;
         }
 
@@ -200,10 +200,10 @@ public class TipService
             // if this made _tips[keyword] empty,
                 // remove key
 
-        CommitTipDatabase();
+        await CommitTipDatabase();
     }
 
-    private void CommitTipDatabase()
+    private async Task CommitTipDatabase()
     {
         // In same folder, we save json files
         var jsonPath = Path.Combine(_imageDirectory, "tips.json");
@@ -218,8 +218,9 @@ public class TipService
     public Tip GetTip(ulong Id)
     {
         foreach (var kvp in _tips)
-            if (kvp.Value.Id == Id)
-                return kvp.Value;
+            foreach (var tip in kvp.Value)
+                if (tip.Id == Id)
+                    return tip;
         return null;
     }
 
