@@ -289,6 +289,18 @@ public class TipService
         return null;
     }
 
+    public List<Tip> GetAllTips()
+    {
+        var found = new List<Tip>();
+
+        foreach (string keyword in keywordList)
+            foreach (Tip tip in _tips[keyword])
+                if (!found.Any(t => t.Id == tip.Id))
+                    found.Add(tip);
+
+        return found;
+    }
+
     public List<Tip> GetTips(string keywords)
     {
         var found = new List<Tip>();
