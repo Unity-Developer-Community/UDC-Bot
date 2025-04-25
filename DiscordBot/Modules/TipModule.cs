@@ -44,11 +44,14 @@ public class TipModule : ModuleBase
 				builder.AddField(tip.Keywords.Count == 1 ? tip.Keywords[0] : "Multiple Keywords", tip.Content);
 			}
 		}
+
+		//TODO: ask TipService for full path given an image path
+		string imageDirectory = Path.Combine(Settings.ServerRootPath, Settings.TipImageDirectory);
 		
 		var attachments = tips
 			.Where(tip => tip.ImagePaths != null && tip.ImagePaths.Any())
 			.SelectMany(tip => tip.ImagePaths)
-			.Select(imagePath => new FileAttachment(Path.Combine(Settings.TipImageDirectory, imagePath)))
+			.Select(imagePath => new FileAttachment(Path.Combine(imageDirectory, imagePath)))
 			.ToList();
 
 		if (attachments.Count > 0)
