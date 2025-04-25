@@ -203,7 +203,7 @@ public class TipService
                 continue;
             _tips[keyword].Remove(tip);
             if (_tips[keyword].Count == 0)
-                _tips.Remove(keyword);
+                _tips.Remove(keyword, out var _);
         }
 
         await CommitTipDatabase();
