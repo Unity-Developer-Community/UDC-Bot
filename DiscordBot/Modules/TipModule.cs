@@ -9,7 +9,6 @@ using DiscordBot.Settings;
 // ReSharper disable all UnusedMember.Local
 namespace DiscordBot.Modules;
 
-[Group("TipModule")]
 public class TipModule : ModuleBase
 {
 	#region Dependency Injection
