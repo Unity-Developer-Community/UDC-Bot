@@ -9,7 +9,7 @@ using DiscordBot.Settings;
 // ReSharper disable all UnusedMember.Local
 namespace DiscordBot.Modules;
 
-[Group("TipModule"), Alias("")]
+[Group("TipModule")]
 public class TipModule : ModuleBase
 {
 	#region Dependency Injection
@@ -52,24 +52,24 @@ public class TipModule : ModuleBase
 			.Select(imagePath => new FileAttachment(TipService.GetTipPath(imagePath)))
 			.ToList();
 
-		var ids = string.Join(" ", tips.Select(t => t.Id.ToString()).ToArray());
-		builder.WithFooter(footer => footer.WithText($"-# Tip ID {ids}") );
-
 		if (attachments.Count > 0)
 		{
-			//if (isAnyTextTips)
-			//{
+			if (isAnyTextTips)
+			{
 				await Context.Channel.SendFilesAsync(attachments, embed: builder.Build());
-			//}
-			//else
-			//{
-			//	await Context.Channel.SendFilesAsync(attachments);
-			//}
+			}
+			else
+			{
+				await Context.Channel.SendFilesAsync(attachments);
+			}
 		}
 		else
 		{
 			await ReplyAsync(embed: builder.Build());
 		}
+
+		var ids = string.Join(" ", tips.Select(t => t.Id.ToString()).ToArray());
+		await ReplyAsync($"-# Tip ID {ids}");
 	}
 	
 	[Command("AddTip")]
