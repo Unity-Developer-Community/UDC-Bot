@@ -228,7 +228,7 @@ public class TipService
         {
             if (!_tips.ContainsKey(keyword))
                 continue;
-            _tips[keyword].Remove(tip);
+            _tips[keyword].RemoveAll(t => t.Id == tip.Id);
             if (_tips[keyword].Count == 0)
                 _tips.Remove(keyword, out var _);
         }
