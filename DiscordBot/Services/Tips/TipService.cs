@@ -308,7 +308,7 @@ public class TipService
             if (_tips.ContainsKey(keyword))
                 foreach (Tip tip in _tips[keyword])
                     if (tip.Keywords.Intersect(keywordList).Count == keywordList.Count)
-                        if (!found.Any(t => t.Id == tip.Id)
+                        if (!found.Any(t => t.Id == tip.Id))
                             found.Add(tip);
 #else
         // boolean OR search
