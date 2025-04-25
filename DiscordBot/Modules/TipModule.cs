@@ -103,8 +103,8 @@ public class TipModule : ModuleBase
 	#region CommandList
 	[Command("TipHelp")]
 	[Alias("TipsHelp")]
-	[Alias("HelpTip")]
-	[Alias("HelpTips")]
+	//[Alias("HelpTip")]
+	//[Alias("HelpTips")]
 	[Summary("Shows available tip database commands.")]
 	public async Task TipHelp()
 	{
