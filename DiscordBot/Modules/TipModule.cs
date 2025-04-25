@@ -116,7 +116,7 @@ public class TipModule : ModuleBase
 			.WithDescription("Tips available for the following keywords:");
 		foreach (var tip in tips)
 		{
-  			string keywords = string.Join("`, `", tip.Keywords.OrderBy(k => k);
+  			string keywords = string.Join("`, `", tip.Keywords.OrderBy(k => k));
 			builder.AddField(tip.Id, $"`{keywords}`");
 		}
 		await ReplyAsync(embed: builder.Build());
