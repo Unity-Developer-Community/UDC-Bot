@@ -293,7 +293,7 @@ public class TipService
     {
         var found = new List<Tip>();
 
-        foreach (string keyword in _tips)
+        foreach (string keyword in _tips.Keys)
             foreach (Tip tip in _tips[keyword])
                 if (!found.Any(t => t.Id == tip.Id))
                     found.Add(tip);
