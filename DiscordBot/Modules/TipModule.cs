@@ -102,8 +102,12 @@ public class TipModule : ModuleBase
 	 	int chunkTime = 2000;
    		while (!string.IsNullOrEmpty(json))
 	 	{
-   			string chunk = json.Substring(0, chunkSize);
-	  		json = json.Substring(chunkSize);
+   			string chunk = json;
+			if (json.Length > chunkSize)
+   			{
+				chunk =	json.Substring(0, chunkSize);
+		  		json = json.Substring(chunkSize);
+  			}
 			await Context.Channel.SendMessageAsync(
 				$"{prefix}```\n{chunk}\n```");
 			prefix = string.Empty;
@@ -118,20 +122,34 @@ public class TipModule : ModuleBase
 	public async Task ListTips()
 	{
  		List<Tip> tips = TipService.GetAllTips().OrderBy(t => t.Id).ToList();
+   		int chunkCount = 10;
+	 	int chunkTime = 2000;
+   		bool first = true;
 
-		// TODO: paginate if long list of tips
+		while (tips.Count > 0)
+  		{
+			var builder = new EmbedBuilder();
+			if (first)
+			{
+				builder
+					.WithTitle("List of Tips")
+					.WithDescription("Tips available for the following keywords:");
+				first = false;
+			}
 
-   		var builder = new EmbedBuilder();
-		builder
-			.WithTitle("List of Tips")
-			.WithDescription("Tips available for the following keywords:");
-		foreach (var tip in tips)
-		{
-  			string keywords = string.Join("`, `", tip.Keywords.OrderBy(k => k));
-			builder.AddField($"ID: {tip.Id}", $"`{keywords}`");
-		}
-		await ReplyAsync(embed: builder.Build());
+			int chunk = 0;
+			while (tips.Count > 0 && chunk < chunkCount)
+   			{
+				string keywords = string.Join("`, `", tips[0].Keywords.OrderBy(k => k));
+				builder.AddField($"ID: {tips[0].Id}", $"`{keywords}`");
+				tips.RemoveAt(0);
+				chunk++;
+			}
 
+			await ReplyAsync(embed: builder.Build());
+			if (tips.Count > 0)
+   				await Task.Delay(chunkTime);
+	   	}
 	}
 
 	#region CommandList
