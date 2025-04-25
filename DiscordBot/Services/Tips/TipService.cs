@@ -199,7 +199,7 @@ public class TipService
 
         string words = string.Join("`, `", keywordList);
         await _loggingService.LogAction(
-            $"[{ServiceName}] Added tip from {message.Author.Username} with keywords `{words)`}.",
+            $"[{ServiceName}] Added tip from {message.Author.Username} with keywords `{words}`.",
             ExtendedLogSeverity.Info);
 
         // Send a confirmation message
