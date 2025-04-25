@@ -3,6 +3,7 @@ using Discord.Commands;
 using DiscordBot.Attributes;
 using DiscordBot.Services;
 using DiscordBot.Services.Tips;
+using DiscordBot.Services.Tips.Components;
 using DiscordBot.Settings;
 
 // ReSharper disable all UnusedMember.Local
