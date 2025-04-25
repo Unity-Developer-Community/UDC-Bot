@@ -85,6 +85,7 @@ public class TipService
                 _loggingService.LogAction(
                     $"[{ServiceName}] Tip index has {_tips.Count} keywords.",
                     ExtendedLogSeverity.Info);
+                //NOTE: elements of type Tip are not de-duplicated after loading
             }
         }
 
@@ -301,11 +302,23 @@ public class TipService
             .Where(k => IsValidTipKeyword(k))
             .ToList();
 
+#if true
+        // boolean AND search
         foreach (string keyword in keywordList)
             if (_tips.ContainsKey(keyword))
                 foreach (Tip tip in _tips[keyword])
-                    if (!found.Contains(tip))
+                    if (tip.Keywords.Intersect(keywordList).Count == keywordList.Count)
+                        if (!found.Any(t => t.Id == tip.Id)
+                            found.Add(tip);
+#else
+        // boolean OR search
+        foreach (string keyword in keywordList)
+            if (_tips.ContainsKey(keyword))
+                foreach (Tip tip in _tips[keyword])
+                    if (!found.Any(t => t.Id == tip.Id))
                         found.Add(tip);
+#endif
+
         return found;
     }
 }
