@@ -104,8 +104,14 @@ public class TipModule : ModuleBase
 	 	{
    			string chunk = json;
 			if (json.Length > chunkSize)
+   			{
 				chunk =	json.Substring(0, chunkSize);
-			json = json.Substring(chunkSize);
+				json = json.Substring(chunkSize);
+			}
+   			else
+	  		{
+	 			json = string.Empty;
+ 			}
 			await Context.Channel.SendMessageAsync(
 				$"{prefix}```\n{chunk}\n```");
 			prefix = string.Empty;
