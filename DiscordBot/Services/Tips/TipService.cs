@@ -23,6 +23,7 @@ public class TipService
 
     private ConcurrentDictionary<string, List<Tip>> _tips = new();
     private bool _isRunning = false;
+    private bool _readOnly = false;
 
     private Regex keywordPattern = null;
 
@@ -53,7 +54,8 @@ public class TipService
     private void Initialize()
     {
         if (_isRunning) return;
-        
+
+        _readOnly = false;
         var jsonPath = GetTipPath(DatabaseName);;
         if (!Directory.Exists(_imageDirectory))
         {
@@ -66,11 +68,12 @@ public class TipService
             var directorySize = new DirectoryInfo(_imageDirectory).EnumerateFiles("*.*", SearchOption.AllDirectories).Sum(file => file.Length);
             if (directorySize > _settings.TipMaxDirectoryFileSize)
             {
-                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024} MB, exceeding the limit of {_settings.TipMaxDirectoryFileSize / 1024 / 1024} MB, no additional content will be added during this session.", ExtendedLogSeverity.Warning);
+                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024f:.#} MB, exceeding the limit of {_settings.TipMaxDirectoryFileSize / 1024 / 1024f:.#} MB, no additional content will be added during this session.", ExtendedLogSeverity.Warning);
+                _readOnly = true;
             }
             else
             {
-                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024} MB, within the limit of {_settings.TipMaxDirectoryFileSize / 1024 / 1024} MB.", ExtendedLogSeverity.Info);
+                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024f:.#} MB, within the limit of {_settings.TipMaxDirectoryFileSize / 1024 / 1024f:.#} MB.", ExtendedLogSeverity.Info);
                 _loggingService.LogAction($"[{ServiceName}] Tip directory contains {new DirectoryInfo(_imageDirectory).EnumerateFiles("*.*", SearchOption.AllDirectories).Count()} files.",
                     ExtendedLogSeverity.Info);
             }
@@ -79,7 +82,9 @@ public class TipService
             {
                 var json =  File.ReadAllText(jsonPath);
                 _tips = JsonConvert.DeserializeObject<ConcurrentDictionary<string, List<Tip>>>(json);
-                _loggingService.LogAction($"[{ServiceName}] Tip index has {_tips.Count} keywords.", ExtendedLogSeverity.Info);
+                _loggingService.LogAction(
+                    $"[{ServiceName}] Tip index has {_tips.Count} keywords.",
+                    ExtendedLogSeverity.Info);
             }
         }
 
@@ -124,6 +129,12 @@ public class TipService
 
     public async Task AddTip(IUserMessage message, string keywords, string content)
     {
+        if (_readOnly)
+        {
+            await message.Channel.SendMessageAsync("Cannot add or modify tips in the database at this time.");
+            return;
+        }
+
         if (string.IsNullOrEmpty(keywords))
         {
             await message.Channel.SendMessageAsync("No valid keywords given to store a new tip.");
@@ -186,14 +197,17 @@ public class TipService
 
         await CommitTipDatabase();
 
-        await _loggingService.LogAction($"[{ServiceName}] Added tip from {message.Author.Username} with keywords {string.Join(", ", keywordList)}.", ExtendedLogSeverity.Info);
+        string words = string.Join("`, `", keywordList);
+        await _loggingService.LogAction(
+            $"[{ServiceName}] Added tip from {message.Author.Username} with keywords `{words)`}.",
+            ExtendedLogSeverity.Info);
 
         // Send a confirmation message
         if (message.Channel is SocketTextChannel textChannel)
         {
             var builder = new EmbedBuilder()
                 .WithTitle("Tip Added")
-                .WithDescription($"Your tip has been added with the keywords `{string.Join("`, `", keywordList)}` and ID {tip.Id}.")
+                .WithDescription($"Your tip has been added with the keywords `{words}` and ID {tip.Id}.")
                 .WithColor(Color.Green);
 
             // TODO: (James) Attach the images if they exist?
@@ -235,11 +249,17 @@ public class TipService
         await CommitTipDatabase();
 
         string keywords = string.Join("`, `", tip.Keywords);
-        await message.Channel.SendMessageAsync("Removed a tip with keywords `{keywords}`.");
+        await message.Channel.SendMessageAsync($"Removed a tip with keywords `{keywords}`.");
     }
 
     public async Task ReplaceTip(IUserMessage message, string keywords, string content)
     {
+        if (_readOnly)
+        {
+            await message.Channel.SendMessageAsync("Cannot add or modify tips in the database at this time.");
+            return;
+        }
+
         // TODO: get tip
         // TODO: if not found, bail
         // TODO: remove tip
