@@ -253,7 +253,7 @@ public class TipService
         await message.Channel.SendMessageAsync($"Removed a tip with keywords `{keywords}`.");
     }
 
-    public async Task ReplaceTip(IUserMessage message, string keywords, string content)
+    public async Task ReplaceTip(IUserMessage message, Tip tip, string content)
     {
         if (_readOnly)
         {
@@ -261,10 +261,14 @@ public class TipService
             return;
         }
 
-        // TODO: get tip
-        // TODO: if not found, bail
-        // TODO: remove tip
-        // TODO: add tip
+        if (tip == null)
+        {
+            await message.Channel.SendMessageAsync("No such tip found to be replaced.");
+            return;
+        }
+
+        RemoveTip(message, tip);
+        AddTip(message, string.Join(",", tip.Keywords), content);
         // REVIEW: causes two CommitTipDatabase calls
     }
 
