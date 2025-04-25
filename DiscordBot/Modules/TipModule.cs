@@ -106,7 +106,7 @@ public class TipModule : ModuleBase
 	[RequireModerator]
 	public async Task ListTips()
 	{
- 		List<Tip> tips = TipService.GetAllTips().OrderBy(t => t.Id);
+ 		List<Tip> tips = TipService.GetAllTips().OrderBy(t => t.Id).ToList();
 
 		// TODO: paginate if long list of tips
 
@@ -117,7 +117,7 @@ public class TipModule : ModuleBase
 		foreach (var tip in tips)
 		{
   			string keywords = string.Join("`, `", tip.Keywords.OrderBy(k => k));
-			builder.AddField(tip.Id, $"`{keywords}`");
+			builder.AddField($"ID: {tip.Id}", $"`{keywords}`");
 		}
 		await ReplyAsync(embed: builder.Build());
 
