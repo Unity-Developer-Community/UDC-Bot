@@ -88,7 +88,7 @@ public class TipModule : ModuleBase
 			return;
    		}
  
-		await TipService.RemoveTip(tip);
+		await TipService.RemoveTip(Context.Message, tip);
 	}
 	
 	[Command("DumpTips")]
