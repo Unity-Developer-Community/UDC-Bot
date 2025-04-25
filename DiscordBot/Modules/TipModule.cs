@@ -98,7 +98,7 @@ public class TipModule : ModuleBase
 	{
  		string json = TipService.DumpTipDatabase();
 		await Context.Channel.SendMessageAsync(
-			"Tip database index as JSON:\n```\n{json}\n```");
+			$"Tip database index as JSON:\n```\n{json}\n```");
 	}
 
 	#region CommandList
