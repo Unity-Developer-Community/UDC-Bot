@@ -46,10 +46,12 @@ public class TipService
     {
         if (_isRunning) return;
         
+        var jsonPath = Path.Combine(_imageDirectory, "tips.json");
         if (!Directory.Exists(_imageDirectory))
         {
+            _loggingService.LogAction($"[{ServiceName}] Tip directory {_imageDirectory} did not exist.", ExtendedLogSeverity.Info);
             Directory.CreateDirectory(_imageDirectory);
-            File.WriteAllText(Path.Combine(_imageDirectory, "tips.json"), "{}");
+            File.WriteAllText(jsonPath, "{}");
         }
         else
         {
@@ -65,11 +67,11 @@ public class TipService
                     ExtendedLogSeverity.Info);
             }
             
-            var jsonPath = Path.Combine(_imageDirectory, "tips.json");
             if (File.Exists(jsonPath))
             {
                 var json =  File.ReadAllText(jsonPath);
                 _tips = JsonConvert.DeserializeObject<ConcurrentDictionary<string, List<Tip>>>(json);
+                _loggingService.LogAction($"[{ServiceName}] Tip index has {_tips.Count} keywords.", ExtendedLogSeverity.Info);
             }
         }
 
@@ -195,10 +197,14 @@ public class TipService
             return;
         }
 
-        // for all keywords in this tip,
-            // remove this tip from _tips[keyword] list
-            // if this made _tips[keyword] empty,
-                // remove key
+        foreach (string keyword in tip.Keywords)
+        {
+            if (!_tips.ContainsKey(keyword))
+                continue;
+            _tips[keyword].Remove(tip);
+            if (_tips[keyword].Count == 0)
+                _tips.Remove(keyword);
+        }
 
         await CommitTipDatabase();
     }
