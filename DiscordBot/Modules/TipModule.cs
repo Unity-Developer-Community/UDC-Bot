@@ -98,16 +98,17 @@ public class TipModule : ModuleBase
 	{
  		string json = TipService.DumpTipDatabase();
    		string prefix = "Tip database index as JSON:\n";
-   		int chunkSize = 1000;
+   		int chunkSize = 1500;
+	 	int chunkTime = 2000;
    		while (!string.IsNullOrEmpty(json))
 	 	{
    			string chunk = json.Substring(0, chunkSize);
 	  		json = json.Substring(chunkSize);
 			await Context.Channel.SendMessageAsync(
 				$"{prefix}```\n{chunk}\n```");
-			prefix = "...";
+			prefix = string.Empty;
 			if (!string.IsNullOrEmpty(json))
-				await Task.Delay(1000);
+				await Task.Delay(chunkTime);
 		}
 	}
 	
