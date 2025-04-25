@@ -101,7 +101,6 @@ public class TipModule : ModuleBase
 	}
 
 	#region CommandList
- 	
 	[Command("TipHelp")]
 	[Alias("TipsHelp")]
 	[Alias("HelpTip")]
