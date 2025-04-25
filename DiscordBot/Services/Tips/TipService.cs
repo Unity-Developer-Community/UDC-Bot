@@ -224,13 +224,13 @@ public class TipService
         return null;
     }
 
-    public List<Tip> GetTips(string keyword)
+    public List<Tip> GetTips(string keywords)
     {
         var found = new List<Tip>();
-        if (string.IsNullOrEmpty(keyword))
+        if (string.IsNullOrEmpty(keywords))
             return found;
 
-        // TODO: if keyword looks numeric, get one tip based on id
+        // TODO: if keywords looks numeric, get one tip based on id
 
         var keywordList = keywords.Split(',')
             .Select(k => k.Trim())
