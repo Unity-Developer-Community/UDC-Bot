@@ -143,7 +143,7 @@ public class TipService
 
         var keywordList = keywords.Split(',')
             .Select(k => k.Trim())
-            .Where(k => IsValidTipKeyword(k))
+            .Where(IsValidTipKeyword)
             .ToList();
         if (keywordList.Count == 0)
         {
@@ -230,7 +230,7 @@ public class TipService
                 continue;
             _tips[keyword].RemoveAll(t => t.Id == tip.Id);
             if (_tips[keyword].Count == 0)
-                _tips.Remove(keyword, out var _);
+                _tips.Remove(keyword, out _);
         }
 
         foreach (string imagePath in tip.ImagePaths)
@@ -314,7 +314,7 @@ public class TipService
 
         var keywordList = keywords.Split(',')
             .Select(k => k.Trim())
-            .Where(k => IsValidTipKeyword(k))
+            .Where(IsValidTipKeyword)
             .ToList();
 
 #if true
