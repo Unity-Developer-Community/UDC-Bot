@@ -320,7 +320,7 @@ public class TipService
 #if true
         // boolean AND search
         foreach (string keyword in keywordList)
-            if (var tips = _tips.TryGetValue(keyword))
+            if (_tips.TryGetValue(keyword, out var list))
                 foreach (Tip tip in tips)
                     if (tip.Keywords.Intersect(keywordList).Count() == keywordList.Count)
                         if (found.All(t => t.Id != tip.Id))
@@ -328,7 +328,7 @@ public class TipService
 #else
         // boolean OR search
         foreach (string keyword in keywordList)
-            if (var tips = _tips.TryGetValue(keyword))
+            if (_tips.TryGetValue(keyword, out var list))
                 foreach (Tip tip in tips)
                     if (found.All(t => t.Id != tip.Id))
                         found.Add(tip);
