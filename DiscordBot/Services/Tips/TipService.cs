@@ -3,7 +3,6 @@ using System.Text.RegularExpressions;
 using System.IO;
 using System.Net;
 using System.Net.Http;
-using System.Text.RegularExpressions;
 using Discord;
 using Discord.WebSocket;
 using DiscordBot.Services.Tips.Components;
@@ -299,7 +298,7 @@ public class TipService
 
         foreach (string keyword in _tips.Keys)
             foreach (Tip tip in _tips[keyword])
-                if (!found.Any(t => t.Id == tip.Id))
+                if (found.All(t => t.Id != tip.Id))
                     found.Add(tip);
 
         return found;
@@ -321,17 +320,17 @@ public class TipService
 #if true
         // boolean AND search
         foreach (string keyword in keywordList)
-            if (_tips.ContainsKey(keyword))
-                foreach (Tip tip in _tips[keyword])
+            if (var tips = _tips.TryGetValue(keyword))
+                foreach (Tip tip in tips)
                     if (tip.Keywords.Intersect(keywordList).Count() == keywordList.Count)
-                        if (!found.Any(t => t.Id == tip.Id))
+                        if (found.All(t => t.Id != tip.Id))
                             found.Add(tip);
 #else
         // boolean OR search
         foreach (string keyword in keywordList)
-            if (_tips.ContainsKey(keyword))
-                foreach (Tip tip in _tips[keyword])
-                    if (!found.Any(t => t.Id == tip.Id))
+            if (var tips = _tips.TryGetValue(keyword))
+                foreach (Tip tip in tips)
+                    if (found.All(t => t.Id != tip.Id))
                         found.Add(tip);
 #endif
 
