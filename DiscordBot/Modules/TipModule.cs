@@ -69,6 +69,7 @@ public class TipModule : ModuleBase
 
 		var ids = string.Join(" ", tips.Select(t => t.Id.ToString()).ToArray());
 		await ReplyAsync($"-# Tip ID {ids}");
+		await Context.Message.DeleteAsync();
 	}
 	
 	[Command("AddTip")]
@@ -183,6 +184,7 @@ public class TipModule : ModuleBase
 	[Summary("Shows available tip database commands.")]
 	public async Task TipHelp()
 	{
+ 		// NOTE: skips the RequireModerator commands, so nearly an empty list
 		foreach (var message in CommandHandlingService.GetCommandListMessages("TipModule", true, true, false))
 		{
 			await ReplyAsync(message);
