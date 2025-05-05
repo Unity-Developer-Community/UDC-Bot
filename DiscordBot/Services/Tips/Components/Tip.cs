@@ -8,4 +8,5 @@ public class Tip: IEntity<ulong>
 	public string Content { get; set; }
 	public List<string> Keywords { get; set; }
 	public List<string> ImagePaths { get; set; }
+	public int Requests { get; set; }
 }
