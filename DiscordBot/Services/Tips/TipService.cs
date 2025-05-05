@@ -76,16 +76,8 @@ public class TipService
                 _loggingService.LogAction($"[{ServiceName}] Tip directory contains {new DirectoryInfo(_imageDirectory).EnumerateFiles("*.*", SearchOption.AllDirectories).Count()} files.",
                     ExtendedLogSeverity.Info);
             }
-            
-            if (File.Exists(jsonPath))
-            {
-                var json =  File.ReadAllText(jsonPath);
-                _tips = JsonConvert.DeserializeObject<ConcurrentDictionary<string, List<Tip>>>(json);
-                _loggingService.LogAction(
-                    $"[{ServiceName}] Tip index has {_tips.Count} keywords.",
-                    ExtendedLogSeverity.Info);
-                //NOTE: elements of type Tip are not de-duplicated after loading
-            }
+
+            var blocking = ReloadTipDatabase().Result;
         }
 
         _isRunning = true;
@@ -271,11 +263,26 @@ public class TipService
         // REVIEW: causes two CommitTipDatabase calls
     }
 
+    public async Task ReloadTipDatabase()
+    {
+        if (File.Exists(jsonPath))
+        {
+            var json =  File.ReadAllText(jsonPath);
+            _tips = JsonConvert.DeserializeObject<ConcurrentDictionary<string, List<Tip>>>(json);
+            _loggingService.LogAction(
+                $"[{ServiceName}] Tip index has {_tips.Count} keywords.",
+                ExtendedLogSeverity.Info);
+            //NOTE: elements of type Tip are not de-duplicated after loading
+        }
+    }
+
     private async Task CommitTipDatabase()
     {
         // In same folder, we save json files
         var jsonPath = GetTipPath(DatabaseName);
-        await File.WriteAllTextAsync(jsonPath, JsonConvert.SerializeObject(_tips));
+        await File.WriteAllTextAsync(jsonPath,
+            JsonConvert.SerializeObject(_tips,
+                Formatting.Indented));
     }
 
     public string DumpTipDatabase()
