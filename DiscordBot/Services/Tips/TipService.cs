@@ -274,8 +274,10 @@ public class TipService
                 $"[{ServiceName}] Tip index has {_tips.Count} keywords.",
                 ExtendedLogSeverity.Info);
         }
+
         //NOTE: elements of type Tip are not de-duplicated after loading in earlier versions
         // probably some Linq clever way of de-duplicating
+        bool touched = false;
         var tips = new Dictionary<ulong, Tip>();
         foreach (string keyword in _tips.Keys)
         {
@@ -284,10 +286,18 @@ public class TipService
             {
                 ulong id = list[i].Id;
                 if (tips.TryGetValue(id, out var tip))
-                    list[i] = tip;
+                    { list[i] = tip; touched = true; }
                 else
                     tips[id] = list[i];
             }
+        }
+
+        if (touched)
+        {
+            _loggingService.LogAction(
+                $"[{ServiceName}] Tip index was de-duplicated.",
+                ExtendedLogSeverity.Info);
+            await CommitTipDatabase();
         }
     }
 
