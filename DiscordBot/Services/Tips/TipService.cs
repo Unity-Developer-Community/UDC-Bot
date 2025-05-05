@@ -273,7 +273,21 @@ public class TipService
             _loggingService.LogAction(
                 $"[{ServiceName}] Tip index has {_tips.Count} keywords.",
                 ExtendedLogSeverity.Info);
-            //NOTE: elements of type Tip are not de-duplicated after loading
+        }
+        //NOTE: elements of type Tip are not de-duplicated after loading in earlier versions
+        // probably some Linq clever way of de-duplicating
+        var tips = new Dictionary<ulong, Tip>();
+        foreach (string keyword in _tips.Keys)
+        {
+            var list = _tips[keyword];
+            for (int i = 0; i < list.Count; i++)
+            {
+                ulong id = list[i].Id;
+                if (tips.ContainsKey(id))
+                    list[i] = tips[id];
+                else
+                    tips[id] = list[i];
+            }
         }
     }
 
@@ -281,9 +295,14 @@ public class TipService
     {
         // In same folder, we save json files
         var jsonPath = GetTipPath(DatabaseName);
+        var settings = new JsonSerializerSettings
+        {
+            PreserveReferencesHandling = PreserveReferencesHandling.Objects
+        };
         await File.WriteAllTextAsync(jsonPath,
             JsonConvert.SerializeObject(_tips,
-                Formatting.Indented));
+                Formatting.Indented,
+                settings));
     }
 
     public string DumpTipDatabase()
