@@ -283,8 +283,8 @@ public class TipService
             for (int i = 0; i < list.Count; i++)
             {
                 ulong id = list[i].Id;
-                if (tips.ContainsKey(id))
-                    list[i] = tips[id];
+                if (tips.TryGetValue(id, out var tip))
+                    list[i] = tip;
                 else
                     tips[id] = list[i];
             }
