@@ -109,7 +109,8 @@ public class TipModule : ModuleBase
  
 		await TipService.ReplaceTip(Context.Message, tip, content);
 	}
-	
+
+#if false
 	[Command("DumpTips")]
 	[Summary("For debugging, view the tip index.")]
 	[RequireModerator]
@@ -137,6 +138,17 @@ public class TipModule : ModuleBase
 			if (!string.IsNullOrEmpty(json))
 				await Task.Delay(chunkTime);
 		}
+	}
+#endif
+
+	[Command("ReloadTips")]
+	[Summary("Reload the database of tips.")]
+	[RequireModerator]
+	public async Task ReloadTipDatabase()
+	{
+ 		// rare usage, but in case someone with a shell decides
+   		// to edit the json for debugging/expansion reasons...
+ 		await TipService.ReloadTipDatabase();
 	}
 	
 	[Command("ListTips")]
