@@ -49,7 +49,7 @@ public class TipModule : ModuleBase
 		}
 		
 		var attachments = tips
-			.Where(tip => tip.ImagePaths?.Any())
+			.Where(tip => tip.ImagePaths != null && tip.ImagePaths.Any())
 			.SelectMany(tip => tip.ImagePaths)
 			.Select(imagePath => new FileAttachment(TipService.GetTipPath(imagePath)))
 			.ToList();
