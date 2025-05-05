@@ -286,9 +286,17 @@ public class TipService
             {
                 ulong id = list[i].Id;
                 if (tips.TryGetValue(id, out var tip))
-                    { list[i] = tip; touched = true; }
+                {
+                    if (!Object.ReferenceEquals(list[i], tip))
+                    {
+                        list[i] = tip;
+                        touched = true;
+                    }
+                }
                 else
+                {
                     tips[id] = list[i];
+                }
             }
         }
 
