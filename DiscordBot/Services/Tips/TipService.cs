@@ -77,7 +77,7 @@ public class TipService
                     ExtendedLogSeverity.Info);
             }
 
-            var blocking = ReloadTipDatabase().Result;
+            var blocking = ReloadTipDatabase();
         }
 
         _isRunning = true;
@@ -265,6 +265,7 @@ public class TipService
 
     public async Task ReloadTipDatabase()
     {
+        var jsonPath = GetTipPath(DatabaseName);;
         if (File.Exists(jsonPath))
         {
             var json =  File.ReadAllText(jsonPath);
