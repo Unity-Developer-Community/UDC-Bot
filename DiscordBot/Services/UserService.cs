@@ -55,7 +55,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     private readonly Random _rand;
 
     public Dictionary<ulong, DateTime> MutedUsers { get; private set; }
-    private readonly Color _welcomeColour = new Color(7, 84, 53);
+    private readonly Color _welcomeColour = new(7, 84, 53);
     public int WaitingWelcomeMessagesCount => _welcomeNoticeUsers.Count;
 
     public DateTime NextWelcomeMessage =>
