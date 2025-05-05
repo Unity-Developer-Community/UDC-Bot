@@ -149,6 +149,7 @@ public class TipModule : ModuleBase
  		// rare usage, but in case someone with a shell decides
    		// to edit the json for debugging/expansion reasons...
  		await TipService.ReloadTipDatabase();
+   		await ReplyAsync("Tip index reloaded.");
 	}
 	
 	[Command("ListTips")]
