@@ -31,6 +31,9 @@ public class TipModule : ModuleBase
 			return;
 		}
 
+		foreach (var tip in tips)
+  			tip.Requests++;
+
 		var isAnyTextTips = tips.Any(tip => !string.IsNullOrEmpty(tip.Content));
 		var builder = new EmbedBuilder();
 		if (isAnyTextTips)
@@ -46,7 +49,7 @@ public class TipModule : ModuleBase
 		}
 		
 		var attachments = tips
-			.Where(tip => tip.ImagePaths != null && tip.ImagePaths.Any())
+			.Where(tip => tip.ImagePaths?.Any())
 			.SelectMany(tip => tip.ImagePaths)
 			.Select(imagePath => new FileAttachment(TipService.GetTipPath(imagePath)))
 			.ToList();
@@ -70,6 +73,7 @@ public class TipModule : ModuleBase
 		var ids = string.Join(" ", tips.Select(t => t.Id.ToString()).ToArray());
 		await ReplyAsync($"-# Tip ID {ids}");
 		await Context.Message.DeleteAsync();
+  		await TipService.CommitTipDatabase();
 	}
 	
 	[Command("AddTip")]
