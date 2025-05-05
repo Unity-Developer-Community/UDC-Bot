@@ -309,7 +309,7 @@ public class TipService
         }
     }
 
-    private async Task CommitTipDatabase()
+    public async Task CommitTipDatabase()
     {
         // In same folder, we save json files
         var jsonPath = GetTipPath(DatabaseName);
