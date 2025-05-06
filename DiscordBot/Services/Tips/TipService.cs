@@ -76,16 +76,8 @@ public class TipService
                 _loggingService.LogAction($"[{ServiceName}] Tip directory contains {new DirectoryInfo(_imageDirectory).EnumerateFiles("*.*", SearchOption.AllDirectories).Count()} files.",
                     ExtendedLogSeverity.Info);
             }
-            
-            if (File.Exists(jsonPath))
-            {
-                var json =  File.ReadAllText(jsonPath);
-                _tips = JsonConvert.DeserializeObject<ConcurrentDictionary<string, List<Tip>>>(json);
-                _loggingService.LogAction(
-                    $"[{ServiceName}] Tip index has {_tips.Count} keywords.",
-                    ExtendedLogSeverity.Info);
-                //NOTE: elements of type Tip are not de-duplicated after loading
-            }
+
+            var blocking = ReloadTipDatabase();
         }
 
         _isRunning = true;
@@ -271,11 +263,64 @@ public class TipService
         // REVIEW: causes two CommitTipDatabase calls
     }
 
-    private async Task CommitTipDatabase()
+    public async Task ReloadTipDatabase()
+    {
+        var jsonPath = GetTipPath(DatabaseName);;
+        if (File.Exists(jsonPath))
+        {
+            var json =  File.ReadAllText(jsonPath);
+            _tips = JsonConvert.DeserializeObject<ConcurrentDictionary<string, List<Tip>>>(json);
+            _loggingService.LogAction(
+                $"[{ServiceName}] Tip index has {_tips.Count} keywords.",
+                ExtendedLogSeverity.Info);
+        }
+
+        //NOTE: elements of type Tip are not de-duplicated after loading in earlier versions
+        // probably some Linq clever way of de-duplicating
+        bool touched = false;
+        var tips = new Dictionary<ulong, Tip>();
+        foreach (string keyword in _tips.Keys)
+        {
+            var list = _tips[keyword];
+            for (int i = 0; i < list.Count; i++)
+            {
+                ulong id = list[i].Id;
+                if (tips.TryGetValue(id, out var tip))
+                {
+                    if (!Object.ReferenceEquals(list[i], tip))
+                    {
+                        list[i] = tip;
+                        touched = true;
+                    }
+                }
+                else
+                {
+                    tips[id] = list[i];
+                }
+            }
+        }
+
+        if (touched)
+        {
+            _loggingService.LogAction(
+                $"[{ServiceName}] Tip index was de-duplicated.",
+                ExtendedLogSeverity.Info);
+            await CommitTipDatabase();
+        }
+    }
+
+    public async Task CommitTipDatabase()
     {
         // In same folder, we save json files
         var jsonPath = GetTipPath(DatabaseName);
-        await File.WriteAllTextAsync(jsonPath, JsonConvert.SerializeObject(_tips));
+        var settings = new JsonSerializerSettings
+        {
+            PreserveReferencesHandling = PreserveReferencesHandling.Objects
+        };
+        await File.WriteAllTextAsync(jsonPath,
+            JsonConvert.SerializeObject(_tips,
+                Formatting.Indented,
+                settings));
     }
 
     public string DumpTipDatabase()

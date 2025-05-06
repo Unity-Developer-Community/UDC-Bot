@@ -31,6 +31,9 @@ public class TipModule : ModuleBase
 			return;
 		}
 
+		foreach (var tip in tips)
+  			tip.Requests++;
+
 		var isAnyTextTips = tips.Any(tip => !string.IsNullOrEmpty(tip.Content));
 		var builder = new EmbedBuilder();
 		if (isAnyTextTips)
@@ -70,6 +73,7 @@ public class TipModule : ModuleBase
 		var ids = string.Join(" ", tips.Select(t => t.Id.ToString()).ToArray());
 		await ReplyAsync($"-# Tip ID {ids}");
 		await Context.Message.DeleteAsync();
+  		await TipService.CommitTipDatabase();
 	}
 	
 	[Command("AddTip")]
@@ -109,7 +113,8 @@ public class TipModule : ModuleBase
  
 		await TipService.ReplaceTip(Context.Message, tip, content);
 	}
-	
+
+#if false
 	[Command("DumpTips")]
 	[Summary("For debugging, view the tip index.")]
 	[RequireModerator]
@@ -137,6 +142,18 @@ public class TipModule : ModuleBase
 			if (!string.IsNullOrEmpty(json))
 				await Task.Delay(chunkTime);
 		}
+	}
+#endif
+
+	[Command("ReloadTips")]
+	[Summary("Reload the database of tips.")]
+	[RequireModerator]
+	public async Task ReloadTipDatabase()
+	{
+ 		// rare usage, but in case someone with a shell decides
+   		// to edit the json for debugging/expansion reasons...
+ 		await TipService.ReloadTipDatabase();
+   		await ReplyAsync("Tip index reloaded.");
 	}
 	
 	[Command("ListTips")]
