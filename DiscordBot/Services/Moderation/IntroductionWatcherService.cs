@@ -1,5 +1,6 @@
 using Discord.WebSocket;
 using DiscordBot.Settings;
+using DiscordBot.Services.UnityHelp;
 
 namespace DiscordBot.Services;
 
@@ -15,12 +16,16 @@ public class IntroductionWatcherService
     private readonly HashSet<ulong> _uniqueUsers = new HashSet<ulong>(MaxMessagesToTrack + 1);
     private readonly Queue<ulong> _orderedUsers = new Queue<ulong>(MaxMessagesToTrack + 1);
     
+    private SocketRole ModeratorRole { get; set; }
+
     private const int MaxMessagesToTrack = 1000;
     
     public IntroductionWatcherService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings)
     {
         _client = client;
         _loggingService = loggingService;
+
+        ModeratorRole = _client.GetGuild(settings.GuildId).GetRole(settings.ModeratorRoleId);
 
         if (!settings.IntroductionWatcherServiceEnabled)
         {
@@ -43,7 +48,10 @@ public class IntroductionWatcherService
         // We only watch the introduction channel
         if (_introductionChannel == null || message.Channel.Id != _introductionChannel.Id)
             return;
-        
+
+        if (message.Author.HasRoleGroup(ModeratorRole))
+            return;
+
         if (_uniqueUsers.Contains(message.Author.Id))
         {
             await message.DeleteAsync();
