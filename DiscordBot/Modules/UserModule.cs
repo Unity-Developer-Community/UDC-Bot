@@ -626,6 +626,8 @@ public class UserModule : ModuleBase
 
         if (Settings.UserModuleSlapChoices == null || Settings.UserModuleSlapChoices.Count == 0)
             Settings.UserModuleSlapChoices = new List<string>() { "fish", "mallet" };
+        if (Settings.UserModuleSlapFails == null || Settings.UserModuleSlapFails.Count == 0)
+            Settings.UserModuleSlapFails = new List<string>() { "hurting themselves" };
 
         bool fail = (_random.Next(1, 100) < 5);
 
@@ -642,8 +644,7 @@ public class UserModule : ModuleBase
             sb.Append(" around a bit with a large ");
             sb.Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]);
             sb.Append(", but misses and ends up ");
-            sb.Append("hurting themselves");
-            // sb.Append(Settings.UserModuleSlapFailChoices[_random.Next() % Settings.UserModuleSlapFailChoices.Count]);
+            sb.Append(Settings.UserModuleSlapFails[_random.Next() % Settings.UserModuleSlapFails.Count]);
             sb.Append(".");
         }
         else
