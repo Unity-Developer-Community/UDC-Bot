@@ -152,10 +152,10 @@ public static class StringExtensions
 			if (i > 0)
 			{
 				if (nouns.Length > 2)
-					sb.Append(",");
-                sb.Append(" ");
+					sb.Append(',');
+				sb.Append(' ');
 				if (i == nouns.Length-1)
-					sb.Append(conj).Append(" ");
+					sb.Append(conj).Append(' ');
 			}
 			sb.Append(nouns[i]);
 		}
