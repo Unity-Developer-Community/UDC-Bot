@@ -25,7 +25,7 @@ public class BotSettings
 
     #region Fun Commands
 
-    public List<string> UserModuleSlapChoices { get; set; };
+    public List<string> UserModuleSlapChoices { get; set; }
         // = { "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan",
         //     "life choice", "bug report", "unhandled exception", "null pointer", "keyboard",
         //     "cheese wheel", "banana peel", "unresolved bug", "low poly donut" };
