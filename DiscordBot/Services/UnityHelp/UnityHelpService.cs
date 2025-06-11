@@ -184,7 +184,7 @@ public class UnityHelpService
         }
         
         var threadTitle = thread.Name;
-        if (threadTitle.IsAlLCaps())
+        if (threadTitle.IsAllCaps())
         {
             threadTitle = thread.Name.ToLower();
         }
