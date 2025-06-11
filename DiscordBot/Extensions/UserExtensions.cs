@@ -45,4 +45,20 @@ public static class UserExtensions
             return $"{user.Username} `{user.Id}`";
         return $"{guildUser.GetPreferredAndUsername()} `{guildUser.Id}`";
     }
+
+    public static string[] ToUserPreferredNameArray(this IUser[] users)
+    {
+        var names = new string[users.Length];
+        for (int i = 0; i < users.Length; i++)
+            names[i] = GetUserPreferredName(users[i]);
+        return names;
+    }
+
+    public static string[] ToMentionArray(this IUser[] users)
+    {
+        var mentions = new string[users.Length];
+        for (int i = 0; i < users.Length; i++)
+            mentions[i] = users[i].Mention;
+        return mentions;
+    }
 }
