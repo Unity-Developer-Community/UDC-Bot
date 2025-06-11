@@ -623,10 +623,32 @@ public class UserModule : ModuleBase
         var sb = new StringBuilder();
 
         var uname = Context.User.GetUserPreferredName();
-        sb.Append($"**{uname}** slaps ");
-        foreach (var user in users) sb.Append(user.Mention).Append(" ");
 
-        sb.Append("around a bit with a large ").Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]).Append(".");
+        bool fail = (_random.Next(1, 100) < 5);
+
+        if (fail)
+            sb.Append($"**{uname}** tries to slap ");
+        else
+            sb.Append($"**{uname}** slaps ");
+
+        var mentions = users.ToMentionArray();
+        sb.Append(mentions.ToCommaList());
+
+        if (fail)
+        {
+            sb.Append(" around a bit with a large ");
+            sb.Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]);
+            sb.Append(", but misses and ends up ");
+            sb.Append("hurting themselves");
+            // sb.Append(Settings.UserModuleSlapFailChoices[_random.Next() % Settings.UserModuleSlapFailChoices.Count]);
+            sb.Append(".");
+        }
+        else
+        {
+            sb.Append(" around a bit with a large ");
+            sb.Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]);
+            sb.Append(".");
+        }
 
         await Context.Channel.SendMessageAsync(sb.ToString());
         await Context.Message.DeleteAfterSeconds(seconds: 1);
