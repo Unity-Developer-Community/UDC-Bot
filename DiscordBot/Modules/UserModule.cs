@@ -624,6 +624,9 @@ public class UserModule : ModuleBase
 
         var uname = Context.User.GetUserPreferredName();
 
+        if (Settings.UserModuleSlapChoices == null || Settings.UserModuleSlapChoices.Count == 0)
+            Settings.UserModuleSlapChoices = new List<string>() { "fish", "mallet" };
+
         bool fail = (_random.Next(1, 100) < 5);
 
         if (fail)
