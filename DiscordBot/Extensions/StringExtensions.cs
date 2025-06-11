@@ -140,7 +140,7 @@ public static class StringExtensions
     ///   "apples and bananas"
     ///   "apples, bananas, and cherries"
     /// </summary>
-    /// <param name="nouns">array of element phrases to be listed</param>
+    /// <param name="nouns">array or list of element phrases to be listed</param>
     /// <param name="conj">final conjunction; defaults to "and" if not given</param>
 	public static string ToCommaList(string[] nouns, string conj=null)
 	{
@@ -155,6 +155,25 @@ public static class StringExtensions
 					sb.Append(",");
                 sb.Append(" ");
 				if (i == nouns.Length-1)
+					sb.Append(conj).Append(" ");
+			}
+			sb.Append(nouns[i]);
+		}
+		return sb.ToString();
+	}
+	public static string ToCommaList(List<string> nouns, string conj=null)
+	{
+		if (conj == null)
+			conj = "and";
+		var sb = new StringBuilder();
+		for (int i = 0; i < nouns.Count; i++)
+		{
+			if (i > 0)
+			{
+				if (nouns.Count > 2)
+					sb.Append(",");
+                sb.Append(" ");
+				if (i == nouns.Count-1)
 					sb.Append(conj).Append(" ");
 			}
 			sb.Append(nouns[i]);
