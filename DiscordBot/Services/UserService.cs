@@ -435,6 +435,11 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (_canEditThanks.Contains(messageParam.Id)) await Thanks(messageParam);
     }
 
+    private string Bold(string text)
+    {
+        return $"**{text}**";
+    }
+    
     public async Task Thanks(SocketMessage messageParam)
     {
         //Get guild id
@@ -476,7 +481,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var mentionedSelf = false;
             var mentionedBot = false;
             var sb = new StringBuilder();
-            sb.Append("**").Append(messageParam.Author.GetUserPreferredName()).Append("** gave karma to **");
+            sb.Append(Bold(messageParam.Author.GetUserPreferredName());
+            sb.Append(" gave karma to ");
             foreach (var user in mentions)
             {
                 if (user.IsBot)
@@ -492,27 +498,27 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 }
 
                 await _databaseService.Query.IncrementKarma(user.Id.ToString());
-                sb.Append(user.GetUserPreferredName()).Append("**, **");
+                sb.Append(Bold(user.GetUserPreferredName()).Append(", ");
             }
 
-            // Even if a user gives multiple karma in one message, we only add one.
+            //Don't give karma cooldown or credit if user only mentioned himself or the bot or both
+            if ((mentionedSelf || mentionedBot) && mentions.Count == 1 ||
+                mentionedBot && mentionedSelf && mentions.Count == 2)
+                return;
+
+            // Even if a user gives multiple karma in one message, we only give one credit.
             var authorKarmaGiven = await _databaseService.Query.GetKarmaGiven(messageParam.Author.Id.ToString());
             await _databaseService.Query.UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
 
-            sb.Length -= 4; //Removes last instance of appended comma/startbold without convoluted tracking
-            //sb.Append("**"); // Already appended an endbold
+            sb.Length -= 2; //Removes last instance of appended comma
             sb.Append(".");
             if (mentionedSelf)
                 await messageParam.Channel.SendMessageAsync(
                     $"{messageParam.Author.Mention} you can't give karma to yourself.").DeleteAfterTime(defaultDelTime);
 
             _canEditThanks.Remove(messageParam.Id);
-
-            //Don't give karma cooldown if user only mentioned himself or the bot or both
-            if ((mentionedSelf || mentionedBot) && mentions.Count == 1 ||
-                mentionedBot && mentionedSelf && mentions.Count == 2)
-                return;
             _thanksCooldown.AddCooldown(userId, _thanksCooldownTime);
+
             await messageParam.Channel.SendMessageAsync(sb.ToString());
             await _loggingService.LogChannelAndFile(sb + " in channel " + messageParam.Channel.Name);
         }
