@@ -125,7 +125,8 @@ public class ModerationModule : ModuleBase
         await UserService.MutedUsers.AwaitCooldown(u.Id);
 
         await UnmuteUser(user, true);
-        reply?.DeleteAsync();
+        if (reply != null)
+            await reply.DeleteAsync();
     }
 
     [Command("Unmute")]
@@ -493,7 +494,7 @@ public class ModerationModule : ModuleBase
             .WithColor(Color.Blue)
             .Build();
 
-        Context.Message.DeleteAsync();
+        await Context.Message.DeleteAsync();
         await ReplyAsync(embed: embed).DeleteAfterSeconds(seconds: 60);
     }
 

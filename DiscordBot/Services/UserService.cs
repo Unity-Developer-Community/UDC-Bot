@@ -96,11 +96,12 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         */
         var sbThanks = new StringBuilder();
         var thx = userSettings.Thanks;
-        sbThanks.Append("(?i)\\b(");
-        foreach (var t in thx) sbThanks.Append(t).Append("|");
-
+        sbThanks.Append(@"(?i)(?<!\bno\s*)\b(");
+        foreach (var t in thx)
+            sbThanks.Append(t).Append('|');
         sbThanks.Length--; //Efficiently remove the final pipe that gets added in final loop, simplifying loop
-        sbThanks.Append(")\\b");
+        sbThanks.Append(@")\b");
+
         _thanksRegex = sbThanks.ToString();
         _thanksCooldownTime = userSettings.ThanksCooldown;
         _thanksMinJoinTime = userSettings.ThanksMinJoinTime;
@@ -274,7 +275,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (level <= 3)
             return;
 
-        await messageParam.Channel.SendMessageAsync($"**{messageParam.Author.GetUserPreferredName()}** has leveled up!").DeleteAfterTime(60);
+        var msg = messageParam.Author.GetUserPreferredName().ToBold() + " has leveled up!";
+        await messageParam.Channel.SendMessageAsync(msg).DeleteAfterTime(60);
         //TODO Add level up card
     }
 
@@ -434,7 +436,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         if (_canEditThanks.Contains(messageParam.Id)) await Thanks(messageParam);
     }
-
+    
     public async Task Thanks(SocketMessage messageParam)
     {
         //Get guild id
@@ -449,9 +451,11 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var match = Regex.Match(messageParam.Content, _thanksRegex);
         if (!match.Success)
             return;
-        var mentions = messageParam.MentionedUsers;
-        mentions = mentions.Distinct().ToList();
+
         var userId = messageParam.Author.Id;
+        var mentions = messageParam.MentionedUsers;
+        mentions = mentions.Distinct().Where(who => !who.IsBot && who.Id != userId).ToList();
+
         const int defaultDelTime = 120;
         if (mentions.Count > 0)
         {
@@ -473,46 +477,22 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 return;
             }
 
-            var mentionedSelf = false;
-            var mentionedBot = false;
             var sb = new StringBuilder();
-            sb.Append("**").Append(messageParam.Author.GetUserPreferredName()).Append("** gave karma to **");
-            foreach (var user in mentions)
-            {
-                if (user.IsBot)
-                {
-                    mentionedBot = true;
-                    continue;
-                }
+            sb.Append(messageParam.Author.GetUserPreferredName().ToBold());
+            sb.Append(" gave karma to ");
+            sb.Append(mentions.ToArray().ToUserPreferredNameArray().ToBoldArray().ToCommaList());
+            foreach (var mention in mentions)
+                await _databaseService.Query.IncrementKarma(mention.Id.ToString());
 
-                if (user.Id == userId)
-                {
-                    mentionedSelf = true;
-                    continue;
-                }
-
-                await _databaseService.Query.IncrementKarma(user.Id.ToString());
-                sb.Append(user.GetUserPreferredName()).Append("**, **");
-            }
-
-            // Even if a user gives multiple karma in one message, we only add one.
+            // Even if a user gives multiple karma in one message, we only give one credit.
             var authorKarmaGiven = await _databaseService.Query.GetKarmaGiven(messageParam.Author.Id.ToString());
             await _databaseService.Query.UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
 
-            sb.Length -= 4; //Removes last instance of appended comma/startbold without convoluted tracking
-            //sb.Append("**"); // Already appended an endbold
             sb.Append(".");
-            if (mentionedSelf)
-                await messageParam.Channel.SendMessageAsync(
-                    $"{messageParam.Author.Mention} you can't give karma to yourself.").DeleteAfterTime(defaultDelTime);
 
             _canEditThanks.Remove(messageParam.Id);
-
-            //Don't give karma cooldown if user only mentioned himself or the bot or both
-            if ((mentionedSelf || mentionedBot) && mentions.Count == 1 ||
-                mentionedBot && mentionedSelf && mentions.Count == 2)
-                return;
             _thanksCooldown.AddCooldown(userId, _thanksCooldownTime);
+
             await messageParam.Channel.SendMessageAsync(sb.ToString());
             await _loggingService.LogChannelAndFile(sb + " in channel " + messageParam.Channel.Name);
         }

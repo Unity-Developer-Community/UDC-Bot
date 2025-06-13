@@ -106,6 +106,8 @@ public class BotSettings
     public ulong SubsNewsRoleId { get; set; }
     public ulong PublisherRoleId { get; set; }
     public ulong ModeratorRoleId { get; set; }
+    public ulong TipsUserRoleId { get; set; } // e.g., Helpers
+    public ulong TipsAuthorRoleId { get; set; } // e.g., Moderators
 
     #endregion // User Roles
 

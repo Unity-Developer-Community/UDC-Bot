@@ -161,4 +161,18 @@ public static class StringExtensions
 		}
 		return sb.ToString();
 	}
+
+    public static string ToBold(this string text)
+    {
+        return $"**{text}**";
+    }
+    
+    public static string[] ToBoldArray(this string[] texts)
+    {
+        var bolds = new string[texts.Length];
+        for (int i = 0; i < texts.Length; i++)
+            bolds[i] = texts[i].ToBold();
+        return bolds;
+    }
+
 }
