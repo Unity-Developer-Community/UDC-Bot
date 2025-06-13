@@ -275,7 +275,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (level <= 3)
             return;
 
-        var msg = Bold(messageParam.Author.GetUserPreferredName()) + " has leveled up!";
+        var msg = messageParam.Author.GetUserPreferredName().ToBold() + " has leveled up!";
         await messageParam.Channel.SendMessageAsync(msg).DeleteAfterTime(60);
         //TODO Add level up card
     }
@@ -436,19 +436,6 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         if (_canEditThanks.Contains(messageParam.Id)) await Thanks(messageParam);
     }
-
-    private string Bold(string text)
-    {
-        return $"**{text}**";
-    }
-    
-    private string[] ToBoldArray(string[] texts)
-    {
-        var bolds = new string[texts.Length];
-        for (int i = 0; i < texts.Length; i++)
-            bolds[i] = Bold(texts[i]);
-        return bolds;
-    }
     
     public async Task Thanks(SocketMessage messageParam)
     {
@@ -493,7 +480,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             //var mentionedSelf = false;
             //var mentionedBot = false;
             var sb = new StringBuilder();
-            sb.Append(Bold(messageParam.Author.GetUserPreferredName()));
+            sb.Append(messageParam.Author.GetUserPreferredName().ToBold());
             sb.Append(" gave karma to ");
             sb.Append(mentions.ToArray().ToUserPreferredNameArray().ToBoldArray().ToCommaList());
 
@@ -512,7 +499,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 }
 
                 await _databaseService.Query.IncrementKarma(user.Id.ToString());
-                sb.Append(Bold(user.GetUserPreferredName()).Append(", ");
+                sb.Append(user.GetUserPreferredName().ToBold().Append(", ");
             }
 
             //Don't give karma cooldown or credit if user only mentioned himself or the bot or both
