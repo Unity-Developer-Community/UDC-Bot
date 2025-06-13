@@ -167,7 +167,7 @@ public static class StringExtensions
         return $"**{text}**";
     }
     
-    private static string[] ToBoldArray(this string[] texts)
+    public static string[] ToBoldArray(this string[] texts)
     {
         var bolds = new string[texts.Length];
         for (int i = 0; i < texts.Length; i++)
