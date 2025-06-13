@@ -481,6 +481,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             sb.Append(messageParam.Author.GetUserPreferredName().ToBold());
             sb.Append(" gave karma to ");
             sb.Append(mentions.ToArray().ToUserPreferredNameArray().ToBoldArray().ToCommaList());
+            foreach (var mention in mentions)
+                await _databaseService.Query.IncrementKarma(mention.Id.ToString());
 
             // Even if a user gives multiple karma in one message, we only give one credit.
             var authorKarmaGiven = await _databaseService.Query.GetKarmaGiven(messageParam.Author.Id.ToString());
