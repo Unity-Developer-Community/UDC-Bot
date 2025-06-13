@@ -492,7 +492,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var sb = new StringBuilder();
             sb.Append(Bold(messageParam.Author.GetUserPreferredName()));
             sb.Append(" gave karma to ");
-            sb.Append(mentions.ToArray().ToCommaList());
+            sb.Append(mentions.ToMentionArray().ToCommaList());
 
             /*foreach (var user in mentions)
             {
