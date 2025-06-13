@@ -43,7 +43,6 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     private readonly int _thanksMinJoinTime;
 
     private readonly string _thanksRegex;
-    private readonly string _noThanksRegex;
     private readonly UpdateService _updateService;
 
     private readonly Dictionary<ulong, DateTime> _xpCooldown;
@@ -97,14 +96,13 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         */
         var sbThanks = new StringBuilder();
         var thx = userSettings.Thanks;
-        sbThanks.Append(@"(?i)\b(");
+        sbThanks.Append(@"(?i)(?<!\bno\s*)\b(");
         foreach (var t in thx)
             sbThanks.Append(t).Append("|");
         sbThanks.Length--; //Efficiently remove the final pipe that gets added in final loop, simplifying loop
         sbThanks.Append(@")\b");
 
         _thanksRegex = sbThanks.ToString();
-        _noThanksRegex = @"(?<!\bno\s*)" + _thanksRegex;
         _thanksCooldownTime = userSettings.ThanksCooldown;
         _thanksMinJoinTime = userSettings.ThanksMinJoinTime;
 
@@ -455,10 +453,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
         if (messageParam.Author.IsBot)
             return;
-        var match = Regex.Match(messageParam.Content, _noThanksRegex);
-        if (match.Success)
-            return;
-        match = Regex.Match(messageParam.Content, _thanksRegex);
+        var match = Regex.Match(messageParam.Content, _thanksRegex);
         if (!match.Success)
             return;
 
