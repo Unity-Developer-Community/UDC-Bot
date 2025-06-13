@@ -477,46 +477,16 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 return;
             }
 
-            //var mentionedSelf = false;
-            //var mentionedBot = false;
             var sb = new StringBuilder();
             sb.Append(messageParam.Author.GetUserPreferredName().ToBold());
             sb.Append(" gave karma to ");
             sb.Append(mentions.ToArray().ToUserPreferredNameArray().ToBoldArray().ToCommaList());
 
-            /*foreach (var user in mentions)
-            {
-                if (user.IsBot)
-                {
-                    mentionedBot = true;
-                    continue;
-                }
-
-                if (user.Id == userId)
-                {
-                    mentionedSelf = true;
-                    continue;
-                }
-
-                await _databaseService.Query.IncrementKarma(user.Id.ToString());
-                sb.Append(user.GetUserPreferredName().ToBold().Append(", ");
-            }
-
-            //Don't give karma cooldown or credit if user only mentioned himself or the bot or both
-            if ((mentionedSelf || mentionedBot) && mentions.Count == 1 ||
-                mentionedBot && mentionedSelf && mentions.Count == 2)
-                return;
-            */
-
             // Even if a user gives multiple karma in one message, we only give one credit.
             var authorKarmaGiven = await _databaseService.Query.GetKarmaGiven(messageParam.Author.Id.ToString());
             await _databaseService.Query.UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
 
-            //sb.Length -= 2; //Removes last instance of appended comma
             sb.Append(".");
-            //if (mentionedSelf)
-            //    await messageParam.Channel.SendMessageAsync(
-            //        $"{messageParam.Author.Mention} you can't give karma to yourself.").DeleteAfterTime(defaultDelTime);
 
             _canEditThanks.Remove(messageParam.Id);
             _thanksCooldown.AddCooldown(userId, _thanksCooldownTime);
