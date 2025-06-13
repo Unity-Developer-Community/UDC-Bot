@@ -517,7 +517,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var authorKarmaGiven = await _databaseService.Query.GetKarmaGiven(messageParam.Author.Id.ToString());
             await _databaseService.Query.UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
 
-            sb.Length -= 2; //Removes last instance of appended comma
+            //sb.Length -= 2; //Removes last instance of appended comma
             sb.Append(".");
             //if (mentionedSelf)
             //    await messageParam.Channel.SendMessageAsync(
