@@ -442,6 +442,14 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         return $"**{text}**";
     }
     
+    private string[] ToBoldArray(string[] texts)
+    {
+        var bolds = new string[texts.Length];
+        for (int i = 0; i < texts.Length; i++)
+            bolds[i] = Bold(texts[i]);
+        return bolds;
+    }
+    
     public async Task Thanks(SocketMessage messageParam)
     {
         //Get guild id
@@ -487,7 +495,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var sb = new StringBuilder();
             sb.Append(Bold(messageParam.Author.GetUserPreferredName()));
             sb.Append(" gave karma to ");
-            sb.Append(mentions.ToArray().ToMentionArray().ToCommaList());
+            sb.Append(mentions.ToArray().ToUserPreferredNameArray().ToBoldArray().ToCommaList());
 
             /*foreach (var user in mentions)
             {
