@@ -38,7 +38,7 @@ public static class WebUtil
             doc.LoadHtml(html);
             return doc;
         }
-        catch (Exception e)
+        catch (Exception _)
         {
             return null;
         }
@@ -55,7 +55,7 @@ public static class WebUtil
             var doc = await GetHtmlDocument(url);
             return doc.DocumentNode.SelectSingleNode(xpath);
         }
-        catch (Exception e)
+        catch (Exception _)
         {
             return null;
         }
@@ -71,7 +71,7 @@ public static class WebUtil
             var doc = await GetHtmlDocument(url);
             return doc.DocumentNode.SelectNodes(xpath);
         }
-        catch (Exception e)
+        catch (Exception _)
         {
             return null;
         }
@@ -87,7 +87,7 @@ public static class WebUtil
             var node = await GetHtmlNode(url, xpath);
             return WebUtility.HtmlDecode(node?.InnerText);
         }
-        catch (Exception e)
+        catch (Exception _)
         {
             return string.Empty;
         }
