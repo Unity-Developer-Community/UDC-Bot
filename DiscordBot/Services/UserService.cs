@@ -98,7 +98,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var thx = userSettings.Thanks;
         sbThanks.Append(@"(?i)(?<!\bno\s*)\b(");
         foreach (var t in thx)
-            sbThanks.Append(t).Append("|");
+            sbThanks.Append(t).Append('|');
         sbThanks.Length--; //Efficiently remove the final pipe that gets added in final loop, simplifying loop
         sbThanks.Append(@")\b");
 
