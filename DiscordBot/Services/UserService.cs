@@ -43,6 +43,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     private readonly int _thanksMinJoinTime;
 
     private readonly string _thanksRegex;
+    private readonly string _noThanksRegex;
     private readonly UpdateService _updateService;
 
     private readonly Dictionary<ulong, DateTime> _xpCooldown;
@@ -96,12 +97,14 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         */
         var sbThanks = new StringBuilder();
         var thx = userSettings.Thanks;
-        sbThanks.Append("(?i)\\b(");
-        foreach (var t in thx) sbThanks.Append(t).Append("|");
-
+        sbThanks.Append(@"(?i)\b(");
+        foreach (var t in thx)
+            sbThanks.Append(t).Append("|");
         sbThanks.Length--; //Efficiently remove the final pipe that gets added in final loop, simplifying loop
-        sbThanks.Append(")\\b");
+        sbThanks.Append(@")\b");
+
         _thanksRegex = sbThanks.ToString();
+        _noThanksRegex = @"(?<!\bno\s*)" + _thanksRegex;
         _thanksCooldownTime = userSettings.ThanksCooldown;
         _thanksMinJoinTime = userSettings.ThanksMinJoinTime;
 
@@ -274,7 +277,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (level <= 3)
             return;
 
-        await messageParam.Channel.SendMessageAsync($"**{messageParam.Author.GetUserPreferredName()}** has leveled up!").DeleteAfterTime(60);
+        var msg = Bold(messageParam.Author.GetUserPreferredName()) + " has leveled up!";
+        await messageParam.Channel.SendMessageAsync(msg).DeleteAfterTime(60);
         //TODO Add level up card
     }
 
@@ -451,12 +455,18 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
         if (messageParam.Author.IsBot)
             return;
-        var match = Regex.Match(messageParam.Content, _thanksRegex);
+        var match = Regex.Match(messageParam.Content, _noThanksRegex);
+        if (match.Success)
+            return;
+        match = Regex.Match(messageParam.Content, _thanksRegex);
         if (!match.Success)
             return;
+
+        var userId = messageParam.Author.Id;
         var mentions = messageParam.MentionedUsers;
         mentions = mentions.Distinct().ToList();
-        var userId = messageParam.Author.Id;
+        mentions.RemoveAll(who => who.IsBot || who.Id == userId);
+
         const int defaultDelTime = 120;
         if (mentions.Count > 0)
         {
@@ -478,12 +488,14 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 return;
             }
 
-            var mentionedSelf = false;
-            var mentionedBot = false;
+            //var mentionedSelf = false;
+            //var mentionedBot = false;
             var sb = new StringBuilder();
             sb.Append(Bold(messageParam.Author.GetUserPreferredName());
             sb.Append(" gave karma to ");
-            foreach (var user in mentions)
+            sb.Append(mentions.ToArray().ToCommaList());
+
+            /*foreach (var user in mentions)
             {
                 if (user.IsBot)
                 {
@@ -505,6 +517,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             if ((mentionedSelf || mentionedBot) && mentions.Count == 1 ||
                 mentionedBot && mentionedSelf && mentions.Count == 2)
                 return;
+            */
 
             // Even if a user gives multiple karma in one message, we only give one credit.
             var authorKarmaGiven = await _databaseService.Query.GetKarmaGiven(messageParam.Author.Id.ToString());
@@ -512,9 +525,9 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
             sb.Length -= 2; //Removes last instance of appended comma
             sb.Append(".");
-            if (mentionedSelf)
-                await messageParam.Channel.SendMessageAsync(
-                    $"{messageParam.Author.Mention} you can't give karma to yourself.").DeleteAfterTime(defaultDelTime);
+            //if (mentionedSelf)
+            //    await messageParam.Channel.SendMessageAsync(
+            //        $"{messageParam.Author.Mention} you can't give karma to yourself.").DeleteAfterTime(defaultDelTime);
 
             _canEditThanks.Remove(messageParam.Id);
             _thanksCooldown.AddCooldown(userId, _thanksCooldownTime);
