@@ -464,8 +464,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
         var userId = messageParam.Author.Id;
         var mentions = messageParam.MentionedUsers;
-        mentions = mentions.Distinct().ToList();
-        mentions.RemoveAll(who => who.IsBot || who.Id == userId);
+        mentions = mentioned.Distinct().Where(who => !who.IsBot && who.Id != userId)).ToList();
 
         const int defaultDelTime = 120;
         if (mentions.Count > 0)
