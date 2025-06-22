@@ -18,12 +18,26 @@ public class TipModule : ModuleBase
 	public TipService TipService { get; set; }
 
 	#endregion
-	
+
+	private bool IsAuthorized(IUser user)
+	{
+		if (user.HasRoleGroup(Settings.ModeratorRoleId))
+			return true;
+		if (user.HasRoleGroup(Settings.TipsUserRoleId))
+			return true;
+
+		return false;
+ 	}
+
 	[Command("Tip")]
 	[Summary("Find and provide pre-authored tips (images or text) by their keywords.")]
- 	/* for now */ [RequireModerator] /* maybe Helper too */
+ 	/* removing [RequireModerator] for custom check */
 	public async Task Tip(string keywords)
 	{
+		var user = Context.Message.Author;
+		if (!IsAuthorized(user))
+			return;
+
 		var tips = TipService.GetTips(keywords);
 		if (tips.Count == 0)
 		{
@@ -158,9 +172,13 @@ public class TipModule : ModuleBase
 	
 	[Command("ListTips")]
 	[Summary("List available tips by their keywords.")]
-	[RequireModerator]
+	/* removing [RequireModerator] for custom check */
 	public async Task ListTips()
 	{
+		var user = Context.Message.Author;
+		if (!IsAuthorized(user))
+			return;
+
  		List<Tip> tips = TipService.GetAllTips().OrderBy(t => t.Id).ToList();
    		int chunkCount = 10;
 	 	int chunkTime = 2000;
