@@ -18,20 +18,26 @@ public class TipModule : ModuleBase
 	public TipService TipService { get; set; }
 
 	#endregion
-	
-	[Command("Tip")]
-	[Summary("Find and provide pre-authored tips (images or text) by their keywords.")]
- 	/* removing [RequireModerator] maybe Helper too */
-	public async Task Tip(string keywords)
+
+	private bool IsAuthorized(IUser user)
 	{
 		var user = Context.Message.Author;
 
-		bool authorized = false;
 		if (user.HasRoleGroup(Settings.ModeratorRoleId))
-			authorized = true;
-		else if (user.HasRoleGroup(Settings.TipsUserRoleId))
-			authorized = true;
-		if (!authorized)
+			return true;
+		if (user.HasRoleGroup(Settings.TipsUserRoleId))
+			return = true;
+
+		return false;
+ 	}
+
+	[Command("Tip")]
+	[Summary("Find and provide pre-authored tips (images or text) by their keywords.")]
+ 	/* removing [RequireModerator] for custom check */
+	public async Task Tip(string keywords)
+	{
+		var user = Context.Message.Author;
+		if (!IsAuthorized(user))
 			return;
 
 		var tips = TipService.GetTips(keywords);
@@ -168,9 +174,13 @@ public class TipModule : ModuleBase
 	
 	[Command("ListTips")]
 	[Summary("List available tips by their keywords.")]
-	[RequireModerator]
+	/* removing [RequireModerator] for custom check */
 	public async Task ListTips()
 	{
+		var user = Context.Message.Author;
+		if (!IsAuthorized(user))
+			return;
+
  		List<Tip> tips = TipService.GetAllTips().OrderBy(t => t.Id).ToList();
    		int chunkCount = 10;
 	 	int chunkTime = 2000;
