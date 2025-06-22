@@ -21,9 +21,19 @@ public class TipModule : ModuleBase
 	
 	[Command("Tip")]
 	[Summary("Find and provide pre-authored tips (images or text) by their keywords.")]
- 	/* for now */ [RequireModerator] /* maybe Helper too */
+ 	/* removing [RequireModerator] maybe Helper too */
 	public async Task Tip(string keywords)
 	{
+		var user = Context.Message.Author;
+
+		bool authorized = false;
+		if (user.HasRoleGroup(Settings.ModeratorRoleId))
+			authorized = true;
+		else if (user.HasRoleGroup(Settings.TipUserRoleId))
+			authorized = true;
+		if (!authorized)
+			return;
+
 		var tips = TipService.GetTips(keywords);
 		if (tips.Count == 0)
 		{
