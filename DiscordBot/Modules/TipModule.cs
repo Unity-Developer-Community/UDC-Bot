@@ -29,7 +29,7 @@ public class TipModule : ModuleBase
 		bool authorized = false;
 		if (user.HasRoleGroup(Settings.ModeratorRoleId))
 			authorized = true;
-		else if (user.HasRoleGroup(Settings.TipUserRoleId))
+		else if (user.HasRoleGroup(Settings.TipsUserRoleId))
 			authorized = true;
 		if (!authorized)
 			return;
