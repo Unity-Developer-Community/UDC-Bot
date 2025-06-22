@@ -21,8 +21,6 @@ public class TipModule : ModuleBase
 
 	private bool IsAuthorized(IUser user)
 	{
-		var user = Context.Message.Author;
-
 		if (user.HasRoleGroup(Settings.ModeratorRoleId))
 			return true;
 		if (user.HasRoleGroup(Settings.TipsUserRoleId))
