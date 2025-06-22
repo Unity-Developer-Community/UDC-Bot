@@ -26,7 +26,7 @@ public class TipModule : ModuleBase
 		if (user.HasRoleGroup(Settings.ModeratorRoleId))
 			return true;
 		if (user.HasRoleGroup(Settings.TipsUserRoleId))
-			return = true;
+			return true;
 
 		return false;
  	}
