@@ -32,13 +32,14 @@ public class TipModule : ModuleBase
 	[Command("Tip")]
 	[Summary("Find and provide pre-authored tips (images or text) by their keywords.")]
  	/* removing [RequireModerator] for custom check */
-	public async Task Tip(string keywords)
+	public async Task Tip(params string[] keywords)
 	{
 		var user = Context.Message.Author;
 		if (!IsAuthorized(user))
 			return;
 
-		var tips = TipService.GetTips(keywords);
+		var terms = string.Join(",", keywords);
+		var tips = TipService.GetTips(terms);
 		if (tips.Count == 0)
 		{
 			await ReplyAsync("No tips for the keywords provided were found.");
