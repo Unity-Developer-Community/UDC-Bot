@@ -174,15 +174,29 @@ public class TipModule : ModuleBase
 	[Command("ListTips")]
 	[Summary("List available tips by their keywords.")]
 	/* removing [RequireModerator] for custom check */
-	public async Task ListTips()
+	public async Task ListTips(params string[] keywords)
 	{
 		var user = Context.Message.Author;
 		if (!IsAuthorized(user))
 			return;
 
- 		List<Tip> tips = TipService.GetAllTips().OrderBy(t => t.Id).ToList();
+		List<Tip> tips = null;
+  		if (keywords?.Length > 0)
+		{
+			var terms = string.Join(",", keywords);
+			tips = TipService.GetTips(terms);
+			if (tips.Count == 0)
+			{
+				await ReplyAsync("No tips for the keywords provided were found.");
+				return;
+			}
+		}
+		else
+  		{
+			tips = TipService.GetAllTips().OrderBy(t => t.Id).ToList();
+   		}
    		int chunkCount = 10;
-	 	int chunkTime = 2000;
+	 	int chunkTime = 1500;
    		bool first = true;
 
 		while (tips.Count > 0)
