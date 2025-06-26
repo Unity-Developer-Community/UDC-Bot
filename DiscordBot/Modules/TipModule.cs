@@ -32,13 +32,14 @@ public class TipModule : ModuleBase
 	[Command("Tip")]
 	[Summary("Find and provide pre-authored tips (images or text) by their keywords.")]
  	/* removing [RequireModerator] for custom check */
-	public async Task Tip(string keywords)
+	public async Task Tip(params string[] keywords)
 	{
 		var user = Context.Message.Author;
 		if (!IsAuthorized(user))
 			return;
 
-		var tips = TipService.GetTips(keywords);
+		var terms = string.Join(",", keywords);
+		var tips = TipService.GetTips(terms);
 		if (tips.Count == 0)
 		{
 			await ReplyAsync("No tips for the keywords provided were found.");
@@ -173,15 +174,29 @@ public class TipModule : ModuleBase
 	[Command("ListTips")]
 	[Summary("List available tips by their keywords.")]
 	/* removing [RequireModerator] for custom check */
-	public async Task ListTips()
+	public async Task ListTips(params string[] keywords)
 	{
 		var user = Context.Message.Author;
 		if (!IsAuthorized(user))
 			return;
 
- 		List<Tip> tips = TipService.GetAllTips().OrderBy(t => t.Id).ToList();
+		List<Tip> tips = null;
+  		if (keywords?.Length > 0)
+		{
+			var terms = string.Join(",", keywords);
+			tips = TipService.GetTips(terms);
+			if (tips.Count == 0)
+			{
+				await ReplyAsync("No tips for the keywords provided were found.");
+				return;
+			}
+		}
+		else
+  		{
+			tips = TipService.GetAllTips().OrderBy(t => t.Id).ToList();
+   		}
    		int chunkCount = 10;
-	 	int chunkTime = 2000;
+	 	int chunkTime = 1500;
    		bool first = true;
 
 		while (tips.Count > 0)
@@ -198,11 +213,11 @@ public class TipModule : ModuleBase
 			int chunk = 0;
 			while (tips.Count > 0 && chunk < chunkCount)
    			{
-				string keywords = string.Join("`, `", tips[0].Keywords.OrderBy(k => k));
+				string keywordlist = string.Join("`, `", tips[0].Keywords.OrderBy(k => k));
 				string images = String.Concat(
     					Enumerable.Repeat(" :frame_photo:",
 	 				tips[0].ImagePaths.Count).ToArray());
-				builder.AddField($"ID: {tips[0].Id} {images}", $"`{keywords}`");
+				builder.AddField($"ID: {tips[0].Id} {images}", $"`{keywordlist}`");
 				tips.RemoveAt(0);
 				chunk++;
 			}
