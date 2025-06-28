@@ -70,8 +70,8 @@ public class PublisherService
 			"",
 			"If this is NOT you, feel free to join the UDC Discord server " +
 			"to report @{name} to the @Administrators (and join our community if you like).",
-			"https://discord.gg/bu3bbby",
-		};
+			"https://discord.gg/bu3bbby"
+		});
 
         _verificationCodes[packageId] = code;
         var message = new MimeMessage();
