@@ -60,15 +60,25 @@ public class PublisherService
 
         var code = Convert.ToBase64String(random);
 
+		var body = string.Join('\n', new string[] {
+			$"Somebody named @{name} on the Unity Developer Community Discord server " +
+			"has requested the Publisher role on that server.",
+			"",
+			$"Here's your validation code: {code}",
+			"",
+			"If this is you, enter the command '!verify {packageID} {code}' to complete the process.",
+			"",
+			"If this is NOT you, feel free to join the UDC Discord server " +
+			"to report @{name} to the @Administrators (and join our community if you like).",
+			"https://discord.gg/bu3bbby",
+		};
+
         _verificationCodes[packageId] = code;
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress("Unity Developer Community", _settings.Email));
         message.To.Add(new MailboxAddress(name, email));
         message.Subject = "Unity Developer Community Package Validation";
-        message.Body = new TextPart("plain")
-        {
-            Text = @"Here's your validation code : " + code
-        };
+        message.Body = new TextPart("plain") { Text = body };
 
         using (var client = new SmtpClient())
         {
