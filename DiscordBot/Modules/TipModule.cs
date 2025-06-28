@@ -42,7 +42,7 @@ public class TipModule : ModuleBase
 		var tips = TipService.GetTips(terms);
 		if (tips.Count == 0)
 		{
-			await ReplyAsync("No tips for the keywords provided were found.");
+			await ReplyAsync("No tips for the keywords provided were found.").DeleteAfterSeconds(5);
 			return;
 		}
 
@@ -107,7 +107,7 @@ public class TipModule : ModuleBase
  		Tip tip = TipService.GetTip(tipId);
    		if (tip == null)
 	 	{
-			await Context.Channel.SendMessageAsync("No such tip found to be removed.");
+			await Context.Channel.SendMessageAsync("No such tip found to be removed.").DeleteAfterSeconds(5);
 			return;
    		}
  
@@ -122,43 +122,12 @@ public class TipModule : ModuleBase
  		Tip tip = TipService.GetTip(tipId);
    		if (tip == null)
 	 	{
-			await Context.Channel.SendMessageAsync("No such tip found to be replaced.");
+			await Context.Channel.SendMessageAsync("No such tip found to be replaced.").DeleteAfterSeconds(5);
 			return;
    		}
  
 		await TipService.ReplaceTip(Context.Message, tip, content);
 	}
-
-#if false
-	[Command("DumpTips")]
-	[Summary("For debugging, view the tip index.")]
-	[RequireModerator]
-	public async Task DumpTipDatabase()
-	{
- 		string json = TipService.DumpTipDatabase();
-   		string prefix = "Tip database index as JSON:\n";
-   		int chunkSize = 1800;
-	 	int chunkTime = 2000;
-   		while (!string.IsNullOrEmpty(json))
-	 	{
-   			string chunk = json;
-			if (json.Length > chunkSize)
-   			{
-				chunk =	json.Substring(0, chunkSize);
-				json = json.Substring(chunkSize);
-			}
-   			else
-	  		{
-	 			json = string.Empty;
- 			}
-			await Context.Channel.SendMessageAsync(
-				$"{prefix}```\n{chunk}\n```");
-			prefix = string.Empty;
-			if (!string.IsNullOrEmpty(json))
-				await Task.Delay(chunkTime);
-		}
-	}
-#endif
 
 	[Command("ReloadTips")]
 	[Summary("Reload the database of tips.")]
@@ -187,7 +156,7 @@ public class TipModule : ModuleBase
 			tips = TipService.GetTips(terms);
 			if (tips.Count == 0)
 			{
-				await ReplyAsync("No tips for the keywords provided were found.");
+				await ReplyAsync("No tips for the keywords provided were found.").DeleteAfterSeconds(5);
 				return;
 			}
 		}
