@@ -66,10 +66,10 @@ public class PublisherService
 			"",
 			$"Here's your validation code: {code}",
 			"",
-			"If this is you, enter the command '!verify {packageID} {code}' to complete the process.",
+			$"If this is you, enter the command '!verify {packageID} {code}' to complete the process.",
 			"",
 			"If this is NOT you, feel free to join the UDC Discord server " +
-			"to report @{name} to the @Administrators (and join our community if you like).",
+			$"to report @{name} to the @Administrators (and join our community if you like).",
 			"https://discord.gg/bu3bbby"
 		});
 
