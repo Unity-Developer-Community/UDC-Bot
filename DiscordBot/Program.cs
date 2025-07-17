@@ -74,6 +74,7 @@ public class Program
             _unityHelpService = _services.GetRequiredService<UnityHelpService>();
             _recruitService = _services.GetRequiredService<RecruitService>();
             _services.GetRequiredService<IntroductionWatcherService>();
+            _services.GetRequiredService<BirthdayAnnouncementService>();
             
             return Task.CompletedTask;
         };
@@ -108,6 +109,7 @@ public class Program
             .AddSingleton<TipService>()
             .AddSingleton<CannedResponseService>()
             .AddSingleton<UserExtendedService>()
+            .AddSingleton<BirthdayAnnouncementService>()
             .BuildServiceProvider();
 
     private static void DeserializeSettings()
