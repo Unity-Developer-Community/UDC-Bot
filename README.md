@@ -5,8 +5,124 @@ Join us on [Discord](https://discord.gg/bu3bbby) !
 
 The code is provided as-is and there will be no guaranteed support to help make it run.
 
+## Architecture
+
+This bot follows a **Service-Module** architecture pattern designed for maintainability and separation of concerns.
+
+### Services vs Modules
+
+**Services** (`/DiscordBot/Services/`) contain the core business logic and data operations:
+- Handle database interactions, API calls, and background tasks
+- Maintain state and provide reusable functionality
+- Examples: `UserService`, `DatabaseService`, `ModerationService`, `LoggingService`
+- Registered as singletons in the dependency injection container
+
+**Modules** (`/DiscordBot/Modules/`) handle Discord command interactions:
+- Expose functionality to users via chat commands
+- Use `[Command]` attributes to define command behavior
+- Receive services via dependency injection
+- Examples: `UserModule`, `TipModule`, `ModerationModule`
+
+### Dependency Injection
+
+The bot uses .NET's built-in dependency injection system:
+- Services are registered in `Program.cs` using `ConfigureServices()`
+- Modules receive services via public property injection
+- This allows for loose coupling and easier testing
+
+### Command System
+
+Commands are implemented using Discord.Net's command framework:
+- Commands use attributes like `[Command("commandname")]` and `[Summary("description")]`
+- Custom attributes provide authorization: `[RequireModerator]`, `[RequireAdmin]`
+- Command routing is handled by `CommandHandlingService`
+
+## Contributing
+
+### Adding a New Command
+
+1. **Choose the appropriate module** or create a new one in `/DiscordBot/Modules/`
+2. **Add the command method** with proper attributes:
+
+```csharp
+[Command("mycommand")]
+[Summary("Description of what this command does")]
+[RequireModerator] // Optional: Add permission requirements
+public async Task MyCommand(string parameter)
+{
+    // Your command logic here
+    await ReplyAsync("Command executed!");
+}
+```
+
+3. **Inject required services** via public properties:
+```csharp
+public UserService UserService { get; set; }
+public DatabaseService DatabaseService { get; set; }
+```
+
+### Creating a New Service
+
+1. **Create your service class** in `/DiscordBot/Services/`:
+```csharp
+public class MyNewService
+{
+    private readonly DatabaseService _databaseService;
+    
+    public MyNewService(DatabaseService databaseService)
+    {
+        _databaseService = databaseService;
+    }
+    
+    public async Task DoSomethingAsync()
+    {
+        // Your service logic here
+    }
+}
+```
+
+2. **Register the service** in `Program.cs` within `ConfigureServices()`:
+```csharp
+.AddSingleton<MyNewService>()
+```
+
+3. **Inject it into modules** that need it:
+```csharp
+public MyNewService MyNewService { get; set; }
+```
+
+### Custom Attributes
+
+Create custom precondition attributes in `/DiscordBot/Attributes/`:
+
+```csharp
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+public class RequireMyRoleAttribute : PreconditionAttribute
+{
+    public override Task<PreconditionResult> CheckPermissionsAsync(
+        ICommandContext context, CommandInfo command, IServiceProvider services)
+    {
+        var user = (SocketGuildUser)context.Message.Author;
+        var settings = services.GetRequiredService<BotSettings>();
+        
+        if (user.Roles.Any(x => x.Id == settings.MyRoleId))
+            return Task.FromResult(PreconditionResult.FromSuccess());
+            
+        return Task.FromResult(PreconditionResult.FromError("Access denied!"));
+    }
+}
+```
+
 # Table Of Contents
 <!-- Link to all the headers -->
+- [Architecture](#architecture)
+  - [Services vs Modules](#services-vs-modules)
+  - [Dependency Injection](#dependency-injection)
+  - [Command System](#command-system)
+- [Contributing](#contributing)
+  - [Adding a New Command](#adding-a-new-command)
+  - [Creating a New Service](#creating-a-new-service)
+  - [Custom Attributes](#custom-attributes)
 - [Compiling](#compiling)
   - [Dependencies](#dependencies)
 - [Running](#running)
