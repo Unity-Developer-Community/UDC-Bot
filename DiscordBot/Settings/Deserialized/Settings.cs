@@ -45,6 +45,14 @@ public class BotSettings
 
     #endregion // Service Enabling
 
+    #region Birthday Announcements
+    
+    public bool BirthdayAnnouncementEnabled { get; set; } = true;
+    public int BirthdayCheckIntervalMinutes { get; set; } = 240; // Check every 4 hours by default
+    public ChannelInfo BirthdayAnnouncementChannel { get; set; }
+    
+    #endregion // Birthday Announcements
+
     #endregion // Configuration
 
     #region Asset Publisher

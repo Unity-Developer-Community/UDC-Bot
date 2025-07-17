@@ -103,5 +103,12 @@
     "id": "0"
   },
   /* React Role Service */
-  "ReactRoleServiceEnabled": false
+  "ReactRoleServiceEnabled": false,
+  /* Birthday Announcement Service */
+  "BirthdayAnnouncementEnabled": true,
+  "BirthdayCheckIntervalMinutes": 240, // Check every 4 hours
+  "BirthdayAnnouncementChannel": {
+    "desc": "Channel for birthday announcements (e.g., #offtopic-chat)",
+    "id": "0"
+  }
 }
