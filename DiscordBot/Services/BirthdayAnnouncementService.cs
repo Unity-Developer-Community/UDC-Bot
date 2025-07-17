@@ -240,7 +240,8 @@ public class BirthdayAnnouncementService
             return $"{age}th";
         }
         
-        return age % 10 switch
+        var lastDigit = age % 10;
+        return lastDigit switch
         {
             1 => $"{age}st",
             2 => $"{age}nd", 
