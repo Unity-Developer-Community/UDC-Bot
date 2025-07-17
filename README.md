@@ -196,7 +196,7 @@ docker-compose up database
 **Full Docker deployment:**
 ```bash
 # Build and start everything
-docker-compose up --build
+docker-compose up --build --remove-orphans
 
 # Run in background
 docker-compose up -d
@@ -285,6 +285,7 @@ A: Verify these in order:
 
 **Q: "Unable to load the service index" or NuGet restore errors**
 A: This is usually a temporary network issue with package sources. Try:
+**Warning:** Clearing NuGet locals will remove all cached packages and temporary files. This may require re-downloading dependencies, which could take significant time on slower connections.
 ```bash
 dotnet nuget locals all --clear
 dotnet restore
