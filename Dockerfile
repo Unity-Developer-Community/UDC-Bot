@@ -16,8 +16,8 @@ WORKDIR /app/
 
 COPY --from=build /app/bin/Release/net6.0/ ./
 
-RUN echo "deb http://httpredir.debian.org/debian buster main contrib" > /etc/apt/sources.list
-RUN echo "deb http://security.debian.org/ buster/updates main contrib" >> /etc/apt/sources.list
+RUN echo "deb http://deb.debian.org/debian bullseye main contrib" > /etc/apt/sources.list
+RUN echo "deb http://security.debian.org/ bullseye-security main contrib" >> /etc/apt/sources.list
 RUN echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
 RUN apt update
 RUN apt install -y ttf-mscorefonts-installer
