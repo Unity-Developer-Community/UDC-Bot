@@ -1086,14 +1086,56 @@ public class UserModule : ModuleBase
     [Alias("bday")]
     public async Task Birthday()
     {
-        // URL to cell C15/"Next birthday" cell from Corn's google sheet
-        const string nextBirthday = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&range=C15:C15";
-        
-        var tableText = await WebUtil.GetHtmlNodeInnerText(nextBirthday, "/html/body/table/tr[2]/td");
-        var message = $"**{tableText}**";
+        try
+        {
+            var nextBirthday = await DatabaseService.Query.GetNextBirthday();
+            
+            if (nextBirthday?.Birthday == null)
+            {
+                await ReplyAsync("**No upcoming birthdays found!**").DeleteAfterTime(minutes: 3);
+                await Context.Message.DeleteAfterTime(minutes: 3);
+                return;
+            }
 
-        await ReplyAsync(message).DeleteAfterTime(minutes: 3);
-        await Context.Message.DeleteAfterTime(minutes: 3);
+            var user = await Context.Guild.GetUserAsync(ulong.Parse(nextBirthday.UserID));
+            var username = user?.Username ?? "Unknown User";
+            
+            var birthday = nextBirthday.Birthday.Value;
+            var today = DateTime.Today;
+            
+            // Calculate next occurrence of birthday
+            var nextOccurrence = new DateTime(today.Year, birthday.Month, birthday.Day);
+            if (nextOccurrence < today)
+            {
+                nextOccurrence = new DateTime(today.Year + 1, birthday.Month, birthday.Day);
+            }
+            
+            // Calculate days until birthday
+            var daysUntil = (nextOccurrence - today).Days;
+            
+            string message;
+            if (daysUntil == 0)
+            {
+                message = $"**{username}'s birthday is today! 🎉**";
+            }
+            else if (daysUntil == 1)
+            {
+                message = $"**{username}'s birthday is tomorrow! ({nextOccurrence:MMMM dd})**";
+            }
+            else
+            {
+                message = $"**{username}'s birthday is in {daysUntil} days! ({nextOccurrence:MMMM dd})**";
+            }
+
+            await ReplyAsync(message).DeleteAfterTime(minutes: 3);
+            await Context.Message.DeleteAfterTime(minutes: 3);
+        }
+        catch (Exception e)
+        {
+            await LoggingService.LogAction($"Error getting next birthday: {e.Message}", ExtendedLogSeverity.Warning);
+            await ReplyAsync("**Error fetching next birthday.**").DeleteAfterTime(minutes: 3);
+            await Context.Message.DeleteAfterTime(minutes: 3);
+        }
     }
 
     [Command("Birthday"), Priority(27)]
@@ -1101,79 +1143,181 @@ public class UserModule : ModuleBase
     [Alias("bday")]
     public async Task Birthday(IUser user)
     {
-        var searchName = user.Username;
-        // URL to columns B to D of Corn's google sheet
-        const string birthdayTable = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
-        var relevantNodes = await WebUtil.GetHtmlNodes(birthdayTable, "/html/body/table/tr");
+        try
+        {
+            var searchUser = await DatabaseService.GetOrAddUser(user as SocketGuildUser);
+            if (searchUser == null)
+            {
+                await ReplyAsync($"Sorry, I couldn't access **{user.Username}**'s data.").DeleteAfterSeconds(30);
+                await Context.Message.DeleteAfterTime(minutes: 3);
+                return;
+            }
+
+            var birthday = await DatabaseService.Query.GetBirthday(searchUser.UserID);
+            
+            if (birthday == null)
+            {
+                await ReplyAsync(
+                        $"Sorry, **{user.Username}** hasn't set their birthday yet. They can use `!setbirthday MM/DD/YYYY` to add it!")
+                    .DeleteAfterSeconds(30);
+            }
+            else
+            {
+                var provider = CultureInfo.InvariantCulture;
+                string birthdayString;
+                string ageString = "";
+                
+                // Check if year is meaningful (not 1900 which indicates no year specified)
+                if (birthday.Value.Year != 1900)
+                {
+                    birthdayString = birthday.Value.ToString("dd MMMM yyyy", provider);
+                    var age = CalculateAge(birthday.Value, DateTime.Today);
+                    if (age.HasValue)
+                    {
+                        ageString = $" ({age}yo)";
+                    }
+                }
+                else
+                {
+                    birthdayString = birthday.Value.ToString("dd MMMM", provider);
+                }
+
+                var message = $"**{user.Username}**'s birthdate: __**{birthdayString}**__{ageString}";
+                await ReplyAsync(message).DeleteAfterTime(minutes: 3);
+            }
+
+            await Context.Message.DeleteAfterTime(minutes: 3);
+        }
+        catch (Exception e)
+        {
+            await LoggingService.LogAction($"Error getting birthday for user {user.Id}: {e.Message}", ExtendedLogSeverity.Warning);
+            await ReplyAsync($"Sorry, I couldn't retrieve **{user.Username}**'s birthday.").DeleteAfterSeconds(30);
+            await Context.Message.DeleteAfterTime(minutes: 3);
+        }
+    }
+    
+    private int? CalculateAge(DateTime birthDate, DateTime today)
+    {
+        if (birthDate.Year == 1900 || birthDate.Year == today.Year)
+        {
+            return null; // No year information available or invalid year
+        }
         
-        var birthdate = default(DateTime);
-
-        HtmlNode matchedNode = null;
-        var matchedLength = int.MaxValue;
-
-        // XPath to each table row
-        foreach (var row in relevantNodes)
+        var age = today.Year - birthDate.Year;
+        if (today.Month < birthDate.Month || (today.Month == birthDate.Month && today.Day < birthDate.Day))
         {
-            // XPath to the name column (C)
-            var nameNode = row.SelectSingleNode("td[2]");
-            var name = nameNode.InnerText;
-            
-            if (!name.ToLower().Contains(searchName.ToLower()) || name.Length >= matchedLength)
-                continue;
-            
-            // Check for a "Closer" match
-            matchedNode = row;
-            matchedLength = name.Length;
-            // Nothing will match "Better" so we may as well break out
-            if (name.Length == searchName.Length) break;
+            age--;
+        }
+        
+        return age;
+    }
+
+    #endregion
+
+    #region Birthday Management
+    
+    [Command("SetBirthday")]
+    [Summary("Set your birthday. Syntax: !setbirthday MM/DD/YYYY or !setbirthday MM/DD")]
+    [Alias("setbday")]
+    public async Task SetBirthday(params string[] dateParams)
+    {
+        var dateString = string.Join(" ", dateParams);
+        var provider = CultureInfo.InvariantCulture;
+
+        if (!TryParseBirthdayInput(dateString, out var birthday))
+        {
+            await ReplyAsync("Invalid date format. Please use MM/DD/YYYY or MM/DD format (e.g., 03/15/1990 or 03/15).").DeleteAfterSeconds(30);
+            await Context.Message.DeleteAsync();
+            return;
         }
 
-        if (matchedNode != null)
+        try
         {
-            // XPath to the date column (B)
-            var dateNode = matchedNode.SelectSingleNode("td[1]");
-            // XPath to the year column (D)
-            var yearNode = matchedNode.SelectSingleNode("td[3]");
-
-            var provider = CultureInfo.InvariantCulture;
-            var wrongFormat = "M/d/yyyy";
-            //string rightFormat = "dd-MMMM-yyyy";
-
-            var dateString = dateNode.InnerText;
-            if (!yearNode.InnerText.Contains("&nbsp;")) dateString = dateString + "/" + yearNode.InnerText;
-
-            dateString = dateString.Trim();
-
-            try
+            var user = await DatabaseService.GetOrAddUser(Context.User as SocketGuildUser);
+            if (user == null)
             {
-                // Converting the birthdate from the wrong format to the right format WITH year
-                birthdate = DateTime.ParseExact(dateString, wrongFormat, provider);
+                await ReplyAsync("Failed to access your user data.").DeleteAfterSeconds(10);
+                await Context.Message.DeleteAsync();
+                return;
             }
-            catch (FormatException)
+
+            await DatabaseService.Query.UpdateBirthday(user.UserID, birthday);
+            var birthdayString = birthday.ToString("MMMM dd", provider);
+            if (birthday.Year != DateTime.Today.Year)
             {
-                // Converting the birthdate from the wrong format to the right format WITHOUT year
-                birthdate = DateTime.ParseExact(dateString, "M/d", provider);
+                birthdayString += $", {birthday.Year}";
             }
+            
+            await ReplyAsync($"Your birthday has been set to **{birthdayString}**! 🎂").DeleteAfterSeconds(30);
+            await Context.Message.DeleteAsync();
         }
-
-        // Business as usual
-        if (birthdate == default)
+        catch (Exception e)
         {
-            await ReplyAsync(
-                    $"Sorry, I couldn't find **{searchName}**'s birthday date. They can add it at https://docs.google.com/forms/d/e/1FAIpQLSfUglZtJ3pyMwhRk5jApYpvqT3EtKmLBXijCXYNwHY-v-lKxQ/viewform !")
-                .DeleteAfterSeconds(30);
+            await LoggingService.LogAction($"Error setting birthday for user {Context.User.Id}: {e.Message}", ExtendedLogSeverity.Warning);
+            await ReplyAsync("An error occurred while setting your birthday.").DeleteAfterSeconds(10);
+            await Context.Message.DeleteAsync();
         }
-        else
+    }
+
+    [Command("RemoveBirthday")]
+    [Summary("Remove your birthday from the database.")]
+    [Alias("removebday", "deletebirthday", "deletebday")]
+    public async Task RemoveBirthday()
+    {
+        try
         {
-            var date = birthdate.ToUnixTimestamp();
-            var message =
-                $"**{searchName}**'s birthdate: __**{birthdate.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture)}**__ " +
-                $"({(int)((DateTime.Now - birthdate).TotalDays / 365)}yo)";
+            var user = await DatabaseService.GetOrAddUser(Context.User as SocketGuildUser);
+            if (user == null)
+            {
+                await ReplyAsync("Failed to access your user data.").DeleteAfterSeconds(10);
+                await Context.Message.DeleteAsync();
+                return;
+            }
 
-            await ReplyAsync(message).DeleteAfterTime(minutes: 3);
+            var currentBirthday = await DatabaseService.Query.GetBirthday(user.UserID);
+            if (currentBirthday == null)
+            {
+                await ReplyAsync("You don't have a birthday set.").DeleteAfterSeconds(10);
+                await Context.Message.DeleteAsync();
+                return;
+            }
+
+            await DatabaseService.Query.UpdateBirthday(user.UserID, null);
+            await ReplyAsync("Your birthday has been removed.").DeleteAfterSeconds(30);
+            await Context.Message.DeleteAsync();
         }
-
-        await Context.Message.DeleteAfterTime(minutes: 3);
+        catch (Exception e)
+        {
+            await LoggingService.LogAction($"Error removing birthday for user {Context.User.Id}: {e.Message}", ExtendedLogSeverity.Warning);
+            await ReplyAsync("An error occurred while removing your birthday.").DeleteAfterSeconds(10);
+            await Context.Message.DeleteAsync();
+        }
+    }
+    
+    private bool TryParseBirthdayInput(string input, out DateTime birthday)
+    {
+        birthday = default;
+        
+        if (string.IsNullOrWhiteSpace(input))
+            return false;
+            
+        var provider = CultureInfo.InvariantCulture;
+        
+        // Try parsing with year first (MM/DD/YYYY)
+        if (DateTime.TryParseExact(input, "M/d/yyyy", provider, DateTimeStyles.None, out birthday))
+        {
+            return true;
+        }
+        
+        // Try parsing without year (MM/DD) - use current year as placeholder but will store only month/day
+        if (DateTime.TryParseExact(input, "M/d", provider, DateTimeStyles.None, out var tempDate))
+        {
+            // For dates without year, use a neutral year (like 1900) to indicate no year specified
+            birthday = new DateTime(1900, tempDate.Month, tempDate.Day);
+            return true;
+        }
+        
+        return false;
     }
 
     #endregion
