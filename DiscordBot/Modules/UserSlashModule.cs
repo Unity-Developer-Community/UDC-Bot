@@ -273,15 +273,11 @@ public class UserSlashModule : InteractionModuleBase
     [SlashCommand("duel", "Challenge another user to a duel!")]
     public async Task Duel(
         [Summary(description: "The user you want to duel")] IUser opponent,
-        [Summary(description: "Type of duel (normal or mute)")] string type = "normal")
+        [Summary(description: "Type of duel")]
+        [Choice("Normal", "normal")]
+        [Choice("Mute", "mute")]
+        string type = "normal")
     {
-        // Validate duel type
-        if (type != "normal" && type != "mute")
-        {
-            await Context.Interaction.RespondAsync("Invalid duel type! Use 'normal' or 'mute'.", ephemeral: true);
-            return;
-        }
-
         // Prevent self-dueling
         if (opponent.Id == Context.User.Id)
         {
@@ -403,6 +399,7 @@ public class UserSlashModule : InteractionModuleBase
             .WithColor(Color.Gold)
             .WithTitle("⚔️ Duel Results!")
             .WithDescription(flavorMessage)
+            .AddField("Winner", winner.Mention, inline: true)
             .Build();
 
         await Context.Interaction.ModifyOriginalResponseAsync(msg =>
@@ -411,47 +408,22 @@ public class UserSlashModule : InteractionModuleBase
             msg.Components = new ComponentBuilder().Build();
         });
 
-        // Handle mute duel
+        // Handle mute duel using Discord timeout
         if (type == "mute")
         {
             try
             {
                 var guildLoser = loser as IGuildUser;
-                if (guildLoser != null && !guildLoser.RoleIds.Contains(BotSettings.MutedRoleId))
+                if (guildLoser != null)
                 {
-                    var mutedRole = Context.Guild.GetRole(BotSettings.MutedRoleId);
-                    if (mutedRole != null)
-                    {
-                        await guildLoser.AddRoleAsync(mutedRole);
-                        
-                        // Add to muted users tracking with 10-minute duration
-                        UserService.MutedUsers.AddCooldown(loser.Id, minutes: 10, ignoreExisting: true);
-                        
-                        // Auto-unmute after 10 minutes
-                        _ = Task.Run(async () =>
-                        {
-                            await UserService.MutedUsers.AwaitCooldown(loser.Id);
-                            try
-                            {
-                                var currentLoser = await Context.Guild.GetUserAsync(loser.Id);
-                                if (currentLoser != null && currentLoser.RoleIds.Contains(BotSettings.MutedRoleId))
-                                {
-                                    await currentLoser.RemoveRoleAsync(mutedRole);
-                                }
-                            }
-                            catch
-                            {
-                                // Ignore errors during auto-unmute
-                            }
-                        });
-
-                        await Context.Interaction.FollowupAsync($"💀 {loser.Mention} has been muted for 10 minutes as the duel loser!", ephemeral: false);
-                    }
+                    // Use Discord's timeout feature for 10 minutes
+                    await guildLoser.SetTimeOutAsync(TimeSpan.FromMinutes(10));
+                    await Context.Interaction.FollowupAsync($"💀 {loser.Mention} has been timed out for 10 minutes as the duel loser!", ephemeral: false);
                 }
             }
             catch (Exception ex)
             {
-                await Context.Interaction.FollowupAsync("Failed to apply mute to the loser. Missing permissions?", ephemeral: true);
+                await Context.Interaction.FollowupAsync("Failed to timeout the loser. Missing permissions?", ephemeral: true);
             }
         }
     }
@@ -484,9 +456,17 @@ public class UserSlashModule : InteractionModuleBase
         // Remove from active duels
         _activeDuels.Remove(duelKey);
 
-        // Silent dismissal - just remove the message
+        // Edit the embed to show refusal instead of deleting
         await Context.Interaction.DeferAsync();
-        await Context.Interaction.DeleteOriginalResponseAsync();
+        await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+        {
+            msg.Content = string.Empty;
+            msg.Embed = new EmbedBuilder()
+                .WithColor(Color.LightGrey)
+                .WithDescription("🛡️ Duel challenge was refused.")
+                .Build();
+            msg.Components = new ComponentBuilder().Build();
+        });
     }
 
     #endregion
