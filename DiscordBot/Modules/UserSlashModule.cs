@@ -252,4 +252,242 @@ public class UserSlashModule : InteractionModuleBase
     }
 
     #endregion
+
+    #region Duel System
+
+    private static readonly Dictionary<string, ulong> _activeDuels = new Dictionary<string, ulong>();
+    private static readonly Random _random = new Random();
+
+    private static readonly string[] _normalWinMessages = 
+    {
+        "{winner} lands a solid hit on {loser} and wins the duel!",
+        "{winner} uses their sword to attack {loser}, but {loser} fails to dodge and {winner} wins!",
+        "{winner} outmaneuvers {loser} with a swift strike and claims victory!",
+        "{winner} blocks {loser}'s attack and counters with a decisive blow!",
+        "{winner} dodges {loser}'s clumsy swing and delivers the winning hit!",
+        "{winner} parries {loser}'s blade and strikes back to win the duel!",
+        "{winner} feints left, strikes right, and defeats {loser}!",
+        "{winner} overwhelms {loser} with superior technique and emerges victorious!"
+    };
+
+    [SlashCommand("duel", "Challenge another user to a duel!")]
+    public async Task Duel(
+        [Summary(description: "The user you want to duel")] IUser opponent,
+        [Summary(description: "Type of duel (normal or mute)")] string type = "normal")
+    {
+        // Validate duel type
+        if (type != "normal" && type != "mute")
+        {
+            await Context.Interaction.RespondAsync("Invalid duel type! Use 'normal' or 'mute'.", ephemeral: true);
+            return;
+        }
+
+        // Prevent self-dueling
+        if (opponent.Id == Context.User.Id)
+        {
+            await Context.Interaction.RespondAsync("You cannot duel yourself!", ephemeral: true);
+            return;
+        }
+
+        // Prevent dueling bots
+        if (opponent.IsBot)
+        {
+            await Context.Interaction.RespondAsync("You cannot duel a bot!", ephemeral: true);
+            return;
+        }
+
+        // Check for active duel
+        string duelKey = $"{Context.User.Id}_{opponent.Id}";
+        string reverseDuelKey = $"{opponent.Id}_{Context.User.Id}";
+        
+        if (_activeDuels.ContainsKey(duelKey) || _activeDuels.ContainsKey(reverseDuelKey))
+        {
+            await Context.Interaction.RespondAsync("There's already an active duel between you two!", ephemeral: true);
+            return;
+        }
+
+        // Store the duel with challenger's ID as value for timeout tracking
+        _activeDuels[duelKey] = Context.User.Id;
+
+        var embed = new EmbedBuilder()
+            .WithColor(Color.Orange)
+            .WithTitle("⚔️ Duel Challenge!")
+            .WithDescription($"{Context.User.Mention} has challenged {opponent.Mention} to a {type} duel!")
+            .WithFooter($"This challenge will expire in 60 seconds")
+            .Build();
+
+        var components = new ComponentBuilder()
+            .WithButton("⚔️ Accept", $"duel_accept:{duelKey}:{type}", ButtonStyle.Success)
+            .WithButton("🛡️ Refuse", $"duel_refuse:{duelKey}", ButtonStyle.Danger)
+            .Build();
+
+        await Context.Interaction.RespondAsync(embed: embed, components: components);
+
+        // Auto-timeout after 60 seconds
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(60000); // 60 seconds
+            if (_activeDuels.ContainsKey(duelKey))
+            {
+                _activeDuels.Remove(duelKey);
+                try
+                {
+                    await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+                    {
+                        msg.Content = string.Empty;
+                        msg.Embed = new EmbedBuilder()
+                            .WithColor(Color.LightGrey)
+                            .WithDescription("⏰ Duel challenge expired.")
+                            .Build();
+                        msg.Components = new ComponentBuilder().Build();
+                    });
+                }
+                catch
+                {
+                    // Ignore errors if message was already modified/deleted
+                }
+            }
+        });
+    }
+
+    [ComponentInteraction("duel_accept:*:*")]
+    public async Task DuelAccept(string duelKey, string type)
+    {
+        // Extract user IDs from the duel key
+        var userIds = duelKey.Split('_');
+        if (userIds.Length != 2 || !ulong.TryParse(userIds[0], out var challengerId) || !ulong.TryParse(userIds[1], out var opponentId))
+        {
+            await Context.Interaction.RespondAsync("Invalid duel data!", ephemeral: true);
+            return;
+        }
+
+        // Only the challenged user can accept
+        if (Context.User.Id != opponentId)
+        {
+            await Context.Interaction.RespondAsync("Only the challenged user can accept this duel!", ephemeral: true);
+            return;
+        }
+
+        // Check if duel is still active
+        if (!_activeDuels.ContainsKey(duelKey))
+        {
+            await Context.Interaction.RespondAsync("This duel is no longer active!", ephemeral: true);
+            return;
+        }
+
+        // Remove from active duels
+        _activeDuels.Remove(duelKey);
+
+        await Context.Interaction.DeferAsync();
+
+        // Get users
+        var challenger = await Context.Guild.GetUserAsync(challengerId);
+        var opponent = await Context.Guild.GetUserAsync(opponentId);
+
+        if (challenger == null || opponent == null)
+        {
+            await Context.Interaction.FollowupAsync("One of the duel participants is no longer available!");
+            return;
+        }
+
+        // Randomly select winner (50/50)
+        bool challengerWins = _random.Next(2) == 0;
+        var winner = challengerWins ? challenger : opponent;
+        var loser = challengerWins ? opponent : challenger;
+
+        // Generate flavor message
+        string flavorMessage = _normalWinMessages[_random.Next(_normalWinMessages.Length)];
+        flavorMessage = flavorMessage.Replace("{winner}", winner.Mention).Replace("{loser}", loser.Mention);
+
+        var resultEmbed = new EmbedBuilder()
+            .WithColor(Color.Gold)
+            .WithTitle("⚔️ Duel Results!")
+            .WithDescription(flavorMessage)
+            .Build();
+
+        await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+        {
+            msg.Embed = resultEmbed;
+            msg.Components = new ComponentBuilder().Build();
+        });
+
+        // Handle mute duel
+        if (type == "mute")
+        {
+            try
+            {
+                var guildLoser = loser as IGuildUser;
+                if (guildLoser != null && !guildLoser.RoleIds.Contains(BotSettings.MutedRoleId))
+                {
+                    var mutedRole = Context.Guild.GetRole(BotSettings.MutedRoleId);
+                    if (mutedRole != null)
+                    {
+                        await guildLoser.AddRoleAsync(mutedRole);
+                        
+                        // Add to muted users tracking with 10-minute duration
+                        UserService.MutedUsers.AddCooldown(loser.Id, minutes: 10, ignoreExisting: true);
+                        
+                        // Auto-unmute after 10 minutes
+                        _ = Task.Run(async () =>
+                        {
+                            await UserService.MutedUsers.AwaitCooldown(loser.Id);
+                            try
+                            {
+                                var currentLoser = await Context.Guild.GetUserAsync(loser.Id);
+                                if (currentLoser != null && currentLoser.RoleIds.Contains(BotSettings.MutedRoleId))
+                                {
+                                    await currentLoser.RemoveRoleAsync(mutedRole);
+                                }
+                            }
+                            catch
+                            {
+                                // Ignore errors during auto-unmute
+                            }
+                        });
+
+                        await Context.Interaction.FollowupAsync($"💀 {loser.Mention} has been muted for 10 minutes as the duel loser!", ephemeral: false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                await Context.Interaction.FollowupAsync("Failed to apply mute to the loser. Missing permissions?", ephemeral: true);
+            }
+        }
+    }
+
+    [ComponentInteraction("duel_refuse:*")]
+    public async Task DuelRefuse(string duelKey)
+    {
+        // Extract user IDs from the duel key
+        var userIds = duelKey.Split('_');
+        if (userIds.Length != 2 || !ulong.TryParse(userIds[0], out var challengerId) || !ulong.TryParse(userIds[1], out var opponentId))
+        {
+            await Context.Interaction.RespondAsync("Invalid duel data!", ephemeral: true);
+            return;
+        }
+
+        // Only the challenged user can refuse
+        if (Context.User.Id != opponentId)
+        {
+            await Context.Interaction.RespondAsync("Only the challenged user can refuse this duel!", ephemeral: true);
+            return;
+        }
+
+        // Check if duel is still active
+        if (!_activeDuels.ContainsKey(duelKey))
+        {
+            await Context.Interaction.RespondAsync("This duel is no longer active!", ephemeral: true);
+            return;
+        }
+
+        // Remove from active duels
+        _activeDuels.Remove(duelKey);
+
+        // Silent dismissal - just remove the message
+        await Context.Interaction.DeferAsync();
+        await Context.Interaction.DeleteOriginalResponseAsync();
+    }
+
+    #endregion
 }
