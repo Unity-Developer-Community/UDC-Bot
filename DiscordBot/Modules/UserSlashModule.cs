@@ -619,7 +619,7 @@ public class UserSlashModule : InteractionModuleBase
                     var challenger = await Context.Guild.GetUserAsync(gameData.ChallengerId);
                     var challengedUser = await Context.Guild.GetUserAsync(gameData.OpponentId);
                     
-                    string timeoutMessage = "⏰ Rock Paper Scissors challenge expired - no one made their choice in time!";
+                    string timeoutMessage = "⏰ Rock Paper Scissors challenge expired!";
 
                     await originalResponse.ModifyAsync(msg =>
                     {
