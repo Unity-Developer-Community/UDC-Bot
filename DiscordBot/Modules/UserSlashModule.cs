@@ -727,17 +727,15 @@ public class UserSlashModule : InteractionModuleBase
         {
             // Show that someone has made their choice
             string statusMessage;
-            if (game.ChallengerChoice != RPSChoice.None && game.OpponentChoice == RPSChoice.None)
+            if (game.ChallengerChoice == RPSChoice.None && game.OpponentChoice == RPSChoice.None)
             {
-                statusMessage = $"{challenger.Mention} has made their choice!\nWaiting for {opponent.Mention}...";
-            }
-            else if (game.ChallengerChoice == RPSChoice.None && game.OpponentChoice != RPSChoice.None)
-            {
-                statusMessage = $"{opponent.Mention} has made their choice!\nWaiting for {challenger.Mention}...";
+                statusMessage = "Waiting for both players to make their choices...";
             }
             else
             {
-                statusMessage = "Waiting for both players to make their choices...";
+                var playerReady = game.ChallengerChoice != RPSChoice.None ? challenger : opponent;
+                var playerWaiting = game.ChallengerChoice != RPSChoice.None ? opponent : challenger;
+                statusMessage = $"{playerReady.Mention} has made their choice!\nWaiting for {playerWaiting.Mention}...";
             }
 
             var updatedEmbed = new EmbedBuilder()
