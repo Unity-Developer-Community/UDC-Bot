@@ -431,9 +431,9 @@ public class UserSlashModule : InteractionModuleBase
                 var guildLoser = loser as IGuildUser;
                 if (guildLoser != null)
                 {
-                    // Use Discord's timeout feature for 10 minutes
-                    await guildLoser.SetTimeOutAsync(TimeSpan.FromMinutes(10));
-                    await Context.Interaction.FollowupAsync($"💀 {loser.Mention} has been timed out for 10 minutes as the duel loser!", ephemeral: false);
+                    // Use Discord's timeout feature for 5 minutes
+                    await guildLoser.SetTimeOutAsync(TimeSpan.FromMinutes(5), new RequestOptions { AuditLogReason = "Lost /duel" });
+                    await Context.Interaction.FollowupAsync($"💀 {loser.Mention} has been timed out for 5 minutes as the duel loser!", ephemeral: false);
                 }
             }
             catch (Exception ex)
