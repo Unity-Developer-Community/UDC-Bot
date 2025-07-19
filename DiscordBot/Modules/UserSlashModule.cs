@@ -711,9 +711,9 @@ public class UserSlashModule : InteractionModuleBase
             var resultEmbed = new EmbedBuilder()
                 .WithColor(Color.Gold)
                 .WithTitle("🎮 Rock Paper Scissors Results!")
-                .AddField($"{challenger.Mention}", $"{challengerEmoji} {game.ChallengerChoice}", inline: true)
+                .AddField($"{challenger.DisplayName}", $"{challengerEmoji} {game.ChallengerChoice}", inline: true)
                 .AddField("VS", "⚡", inline: true)
-                .AddField($"{opponent.Mention}", $"{opponentEmoji} {game.OpponentChoice}", inline: true)
+                .AddField($"{opponent.DisplayName}", $"{opponentEmoji} {game.OpponentChoice}", inline: true)
                 .AddField("Result", result, inline: false)
                 .Build();
 
