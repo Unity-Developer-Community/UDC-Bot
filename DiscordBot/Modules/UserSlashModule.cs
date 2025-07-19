@@ -318,15 +318,13 @@ public class UserSlashModule : InteractionModuleBase
             embed.AddField("", "The loser will be muted for 5 minutes.");
         }
 
-        embed.Build();
-
         var components = new ComponentBuilder()
             .WithButton("⚔️ Accept", $"duel_accept:{duelKey}:{type}", ButtonStyle.Success)
             .WithButton("🛡️ Refuse", $"duel_refuse:{duelKey}", ButtonStyle.Danger)
             .WithButton("❌ Cancel", $"duel_cancel:{duelKey}", ButtonStyle.Secondary)
             .Build();
 
-        await Context.Interaction.RespondAsync(embed: embed, components: components);
+        await Context.Interaction.RespondAsync(embed: embed.Build(), components: components);
 
         // Store the message reference for timeout
         var originalResponse = await Context.Interaction.GetOriginalResponseAsync();
