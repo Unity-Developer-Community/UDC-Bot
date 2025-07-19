@@ -294,45 +294,100 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     [ComponentInteraction("casino_reset_confirm_*")]
     public async Task ConfirmReset(string userId)
     {
-        if (Context.User.Id.ToString() != userId)
+        try
         {
-            await Context.Interaction.RespondAsync("🚫 You are not authorized to confirm this action.", ephemeral: true);
-            return;
+            await LoggingService.LogChannelAndFile($"Casino: ConfirmReset called by {Context.User.Username} (ID: {Context.User.Id}) - ExpectedUserId: {userId}");
+
+            if (Context.User.Id.ToString() != userId)
+            {
+                await Context.Interaction.RespondAsync("🚫 You are not authorized to confirm this action.", ephemeral: true);
+                return;
+            }
+
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            await CasinoService.ResetAllCasinoData();
+
+            var embed = new EmbedBuilder()
+                .WithTitle("🔄 Casino Reset Complete")
+                .WithDescription("All casino data has been permanently deleted.")
+                .WithColor(Color.Green)
+                .Build();
+
+            await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+            await LoggingService.LogChannelAndFile($"Casino: ConfirmReset completed successfully by admin {Context.User.Username}");
         }
-
-        await Context.Interaction.DeferAsync(ephemeral: true);
-
-        await CasinoService.ResetAllCasinoData();
-
-        var embed = new EmbedBuilder()
-            .WithTitle("🔄 Casino Reset Complete")
-            .WithDescription("All casino data has been permanently deleted.")
-            .WithColor(Color.Green)
-            .Build();
-
-        await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+        catch (Exception ex)
+        {
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in ConfirmReset for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: ConfirmReset Exception Details: {ex}");
+            
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while resetting casino data. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while resetting casino data. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in ConfirmReset");
+            }
+        }
     }
 
     [ComponentInteraction("casino_reset_cancel_*")]
     public async Task CancelReset(string userId)
     {
-        if (Context.User.Id.ToString() != userId)
+        try
         {
-            await Context.Interaction.RespondAsync("🚫 You are not authorized to cancel this action.", ephemeral: true);
-            return;
+            await LoggingService.LogChannelAndFile($"Casino: CancelReset called by {Context.User.Username} (ID: {Context.User.Id}) - ExpectedUserId: {userId}");
+
+            if (Context.User.Id.ToString() != userId)
+            {
+                await Context.Interaction.RespondAsync("🚫 You are not authorized to cancel this action.", ephemeral: true);
+                return;
+            }
+
+            var embed = new EmbedBuilder()
+                .WithTitle("❌ Reset Cancelled")
+                .WithDescription("Casino reset has been cancelled. No changes were made.")
+                .WithColor(Color.LightGrey)
+                .Build();
+
+            await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+            {
+                msg.Embed = embed;
+                msg.Components = new ComponentBuilder().Build();
+            });
+
+            await LoggingService.LogChannelAndFile($"Casino: CancelReset completed by admin {Context.User.Username}");
         }
-
-        var embed = new EmbedBuilder()
-            .WithTitle("❌ Reset Cancelled")
-            .WithDescription("Casino reset has been cancelled. No changes were made.")
-            .WithColor(Color.LightGrey)
-            .Build();
-
-        await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+        catch (Exception ex)
         {
-            msg.Embed = embed;
-            msg.Components = new ComponentBuilder().Build();
-        });
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in CancelReset for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: CancelReset Exception Details: {ex}");
+            
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while cancelling the reset. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while cancelling the reset. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in CancelReset");
+            }
+        }
     }
 
     #endregion
@@ -342,24 +397,52 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     [SlashCommand("blackjack", "Play a game of blackjack")]
     public async Task PlayBlackjack()
     {
-        if (!await CheckChannelPermissions()) return;
-
-        if (CasinoService.HasActiveGame(Context.User.Id))
+        try
         {
-            await Context.Interaction.RespondAsync("🎰 You already have an active game. Finish it before starting a new one.", ephemeral: true);
-            return;
-        }
+            await LoggingService.LogChannelAndFile($"Casino: PlayBlackjack called by {Context.User.Username} (ID: {Context.User.Id}) in channel {Context.Channel.Name}");
 
-        var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
-        
-        if (user.Tokens == 0)
+            if (!await CheckChannelPermissions()) return;
+
+            if (CasinoService.HasActiveGame(Context.User.Id))
+            {
+                await Context.Interaction.RespondAsync("🎰 You already have an active game. Finish it before starting a new one.", ephemeral: true);
+                return;
+            }
+
+            var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
+            
+            if (user.Tokens == 0)
+            {
+                await Context.Interaction.RespondAsync("💸 You don't have any tokens to bet with.", ephemeral: true);
+                return;
+            }
+
+            await Context.Interaction.RespondAsync(embed: CreateBettingEmbed(user.Tokens), 
+                components: CreateBettingComponents(1));
+
+            await LoggingService.LogChannelAndFile($"Casino: PlayBlackjack setup completed for {Context.User.Username} - Available tokens: {user.Tokens}");
+        }
+        catch (Exception ex)
         {
-            await Context.Interaction.RespondAsync("💸 You don't have any tokens to bet with.", ephemeral: true);
-            return;
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in PlayBlackjack for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: PlayBlackjack Exception Details: {ex}");
+            
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while setting up your blackjack game. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while setting up your blackjack game. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in PlayBlackjack");
+            }
         }
-
-        await Context.Interaction.RespondAsync(embed: CreateBettingEmbed(user.Tokens), 
-            components: CreateBettingComponents(1));
     }
 
     private Embed CreateBettingEmbed(ulong maxTokens)
@@ -393,106 +476,232 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     [ComponentInteraction("bet_add_*")]
     public async Task AdjustBet(string amount, string userId, string currentBetStr)
     {
-        if (Context.User.Id.ToString() != userId)
+        try
         {
-            await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
-            return;
+            await LoggingService.LogChannelAndFile($"Casino: AdjustBet called by {Context.User.Username} (ID: {Context.User.Id}) - Amount: {amount}, UserId: {userId}, CurrentBet: {currentBetStr}");
+
+            if (Context.User.Id.ToString() != userId)
+            {
+                await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
+                return;
+            }
+
+            var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
+            ulong currentBet = ulong.Parse(currentBetStr);
+            ulong adjustment = ulong.Parse(amount);
+            ulong newBet = Math.Min(currentBet + adjustment, user.Tokens);
+
+            var embed = new EmbedBuilder()
+                .WithTitle("🎰 Blackjack - Place Your Bet")
+                .WithDescription($"**Available Tokens:** {user.Tokens:N0}\n" +
+                               $"**Current Bet:** {newBet:N0} tokens\n\n" +
+                               "Use the buttons to adjust your bet, then start the game!")
+                .WithColor(Color.Blue)
+                .WithFooter("Game will timeout after 5 minutes of inactivity")
+                .Build();
+
+            await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+            {
+                msg.Embed = embed;
+                msg.Components = CreateBettingComponents(newBet);
+            });
+
+            await LoggingService.LogChannelAndFile($"Casino: AdjustBet completed successfully for {Context.User.Username} - New bet: {newBet}");
         }
-
-        var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
-        ulong currentBet = ulong.Parse(currentBetStr);
-        ulong adjustment = ulong.Parse(amount);
-        ulong newBet = Math.Min(currentBet + adjustment, user.Tokens);
-
-        var embed = new EmbedBuilder()
-            .WithTitle("🎰 Blackjack - Place Your Bet")
-            .WithDescription($"**Available Tokens:** {user.Tokens:N0}\n" +
-                           $"**Current Bet:** {newBet:N0} tokens\n\n" +
-                           "Use the buttons to adjust your bet, then start the game!")
-            .WithColor(Color.Blue)
-            .WithFooter("Game will timeout after 5 minutes of inactivity")
-            .Build();
-
-        await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+        catch (Exception ex)
         {
-            msg.Embed = embed;
-            msg.Components = CreateBettingComponents(newBet);
-        });
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in AdjustBet for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: AdjustBet Exception Details: {ex}");
+            
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while adjusting your bet. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while adjusting your bet. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                // If we can't respond, just log it
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in AdjustBet");
+            }
+        }
     }
 
     [ComponentInteraction("bet_allin_*")]
     public async Task AllInBet(string userId, string currentBetStr)
     {
-        if (Context.User.Id.ToString() != userId)
+        try
         {
-            await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
-            return;
+            await LoggingService.LogChannelAndFile($"Casino: AllInBet called by {Context.User.Username} (ID: {Context.User.Id}) - UserId: {userId}, CurrentBet: {currentBetStr}");
+
+            if (Context.User.Id.ToString() != userId)
+            {
+                await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
+                return;
+            }
+
+            var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
+
+            var embed = new EmbedBuilder()
+                .WithTitle("🎰 Blackjack - Place Your Bet")
+                .WithDescription($"**Available Tokens:** {user.Tokens:N0}\n" +
+                               $"**Current Bet:** {user.Tokens:N0} tokens (ALL IN!)\n\n" +
+                               "Use the buttons to adjust your bet, then start the game!")
+                .WithColor(Color.Orange)
+                .WithFooter("Game will timeout after 5 minutes of inactivity")
+                .Build();
+
+            await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+            {
+                msg.Embed = embed;
+                msg.Components = CreateBettingComponents(user.Tokens);
+            });
+
+            await LoggingService.LogChannelAndFile($"Casino: AllInBet completed successfully for {Context.User.Username} - All-in bet: {user.Tokens}");
         }
-
-        var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
-
-        var embed = new EmbedBuilder()
-            .WithTitle("🎰 Blackjack - Place Your Bet")
-            .WithDescription($"**Available Tokens:** {user.Tokens:N0}\n" +
-                           $"**Current Bet:** {user.Tokens:N0} tokens (ALL IN!)\n\n" +
-                           "Use the buttons to adjust your bet, then start the game!")
-            .WithColor(Color.Orange)
-            .WithFooter("Game will timeout after 5 minutes of inactivity")
-            .Build();
-
-        await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+        catch (Exception ex)
         {
-            msg.Embed = embed;
-            msg.Components = CreateBettingComponents(user.Tokens);
-        });
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in AllInBet for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: AllInBet Exception Details: {ex}");
+            
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while placing your all-in bet. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while placing your all-in bet. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in AllInBet");
+            }
+        }
     }
 
     [ComponentInteraction("cancel_bet_*")]
     public async Task CancelBetting(string userId)
     {
-        if (Context.User.Id.ToString() != userId)
+        try
         {
-            await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
-            return;
+            await LoggingService.LogChannelAndFile($"Casino: CancelBetting called by {Context.User.Username} (ID: {Context.User.Id}) - UserId: {userId}");
+
+            if (Context.User.Id.ToString() != userId)
+            {
+                await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
+                return;
+            }
+
+            var embed = new EmbedBuilder()
+                .WithTitle("🎰 Game Cancelled")
+                .WithDescription("You cancelled the blackjack game.")
+                .WithColor(Color.LightGrey)
+                .Build();
+
+            await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+            {
+                msg.Embed = embed;
+                msg.Components = new ComponentBuilder().Build();
+            });
+
+            await LoggingService.LogChannelAndFile($"Casino: CancelBetting completed successfully for {Context.User.Username}");
         }
-
-        var embed = new EmbedBuilder()
-            .WithTitle("🎰 Game Cancelled")
-            .WithDescription("You cancelled the blackjack game.")
-            .WithColor(Color.LightGrey)
-            .Build();
-
-        await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+        catch (Exception ex)
         {
-            msg.Embed = embed;
-            msg.Components = new ComponentBuilder().Build();
-        });
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in CancelBetting for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: CancelBetting Exception Details: {ex}");
+            
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while cancelling the game. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while cancelling the game. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in CancelBetting");
+            }
+        }
     }
 
     [ComponentInteraction("start_blackjack_*")]
     public async Task StartBlackjackGame(string userId, string betStr)
     {
-        if (Context.User.Id.ToString() != userId)
-        {
-            await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
-            return;
-        }
-
-        await Context.Interaction.DeferAsync();
-
-        ulong bet = ulong.Parse(betStr);
-        
         try
         {
+            await LoggingService.LogChannelAndFile($"Casino: StartBlackjackGame called by {Context.User.Username} (ID: {Context.User.Id}) - UserId: {userId}, Bet: {betStr}");
+
+            if (Context.User.Id.ToString() != userId)
+            {
+                await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
+                return;
+            }
+
+            await Context.Interaction.DeferAsync();
+
+            ulong bet = ulong.Parse(betStr);
+            
             var activeGame = await CasinoService.StartBlackjackGame(Context.User.Id, bet, 
                 await Context.Interaction.GetOriginalResponseAsync());
             
             await Context.Interaction.FollowupAsync(embed: CreateGameEmbed(activeGame), 
                 components: CreateGameComponents(activeGame));
+
+            await LoggingService.LogChannelAndFile($"Casino: StartBlackjackGame completed successfully for {Context.User.Username} - Bet: {bet}");
         }
         catch (InvalidOperationException ex)
         {
-            await Context.Interaction.FollowupAsync($"❌ {ex.Message}", ephemeral: true);
+            await LoggingService.LogChannelAndFile($"Casino: InvalidOperation in StartBlackjackGame for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Warning);
+            
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync($"❌ {ex.Message}", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync($"❌ {ex.Message}", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send InvalidOperation response to user {Context.User.Username} in StartBlackjackGame");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in StartBlackjackGame for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: StartBlackjackGame Exception Details: {ex}");
+            
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while starting the blackjack game. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while starting the blackjack game. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in StartBlackjackGame");
+            }
         }
     }
 
@@ -553,163 +762,253 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     [ComponentInteraction("bj_hit_*")]
     public async Task BlackjackHit(string userIdStr)
     {
-        ulong userId = ulong.Parse(userIdStr);
-        if (Context.User.Id != userId)
+        try
         {
-            await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
-            return;
-        }
+            await LoggingService.LogChannelAndFile($"Casino: BlackjackHit called by {Context.User.Username} (ID: {Context.User.Id}) - GameUserId: {userIdStr}");
 
-        var game = CasinoService.GetActiveGame(userId);
-        if (game == null)
-        {
-            await Context.Interaction.RespondAsync("❌ No active game found.", ephemeral: true);
-            return;
-        }
-
-        // Draw a card for the player
-        game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
-
-        if (game.BlackjackGame.IsPlayerBusted())
-        {
-            // Player busted, end game
-            var (result, payout) = await CasinoService.CompleteBlackjackGame(userId, BlackjackGameState.PlayerBusted);
-            await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+            ulong userId = ulong.Parse(userIdStr);
+            if (Context.User.Id != userId)
             {
-                msg.Embed = CreateEndGameEmbed(game, result, payout);
-                msg.Components = new ComponentBuilder().Build();
-            });
-        }
-        else
-        {
-            await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+                await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
+                return;
+            }
+
+            var game = CasinoService.GetActiveGame(userId);
+            if (game == null)
             {
-                msg.Embed = CreateGameEmbed(game);
-                msg.Components = CreateGameComponents(game);
-            });
+                await Context.Interaction.RespondAsync("❌ No active game found.", ephemeral: true);
+                await LoggingService.LogChannelAndFile($"Casino: BlackjackHit - No active game found for user {Context.User.Username}");
+                return;
+            }
+
+            // Draw a card for the player
+            game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
+
+            if (game.BlackjackGame.IsPlayerBusted())
+            {
+                // Player busted, end game
+                var (result, payout) = await CasinoService.CompleteBlackjackGame(userId, BlackjackGameState.PlayerBusted);
+                await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+                {
+                    msg.Embed = CreateEndGameEmbed(game, result, payout);
+                    msg.Components = new ComponentBuilder().Build();
+                });
+
+                await LoggingService.LogChannelAndFile($"Casino: BlackjackHit - Player {Context.User.Username} busted. Payout: {payout}");
+            }
+            else
+            {
+                await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+                {
+                    msg.Embed = CreateGameEmbed(game);
+                    msg.Components = CreateGameComponents(game);
+                });
+
+                await LoggingService.LogChannelAndFile($"Casino: BlackjackHit completed for {Context.User.Username} - New hand value: {game.BlackjackGame.GetPlayerValue()}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in BlackjackHit for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: BlackjackHit Exception Details: {ex}");
+            
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while drawing your card. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while drawing your card. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in BlackjackHit");
+            }
         }
     }
 
     [ComponentInteraction("bj_stand_*")]
     public async Task BlackjackStand(string userIdStr)
     {
-        ulong userId = ulong.Parse(userIdStr);
-        if (Context.User.Id != userId)
+        try
         {
-            await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
-            return;
-        }
+            await LoggingService.LogChannelAndFile($"Casino: BlackjackStand called by {Context.User.Username} (ID: {Context.User.Id}) - GameUserId: {userIdStr}");
 
-        await Context.Interaction.DeferAsync();
+            ulong userId = ulong.Parse(userIdStr);
+            if (Context.User.Id != userId)
+            {
+                await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
+                return;
+            }
 
-        var game = CasinoService.GetActiveGame(userId);
-        if (game == null)
-        {
-            await Context.Interaction.FollowupAsync("❌ No active game found.", ephemeral: true);
-            return;
-        }
+            await Context.Interaction.DeferAsync();
 
-        game.BlackjackGame.PlayerTurn = false;
+            var game = CasinoService.GetActiveGame(userId);
+            if (game == null)
+            {
+                await Context.Interaction.FollowupAsync("❌ No active game found.", ephemeral: true);
+                await LoggingService.LogChannelAndFile($"Casino: BlackjackStand - No active game found for user {Context.User.Username}");
+                return;
+            }
 
-        // Dealer's turn - reveal dealer's second card first
-        if (game.BlackjackGame.DealerCards.Count == 1)
-        {
-            game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
-        }
+            game.BlackjackGame.PlayerTurn = false;
 
-        await Context.Interaction.ModifyOriginalResponseAsync(msg =>
-        {
-            msg.Embed = CreateDealerTurnEmbed(game);
-            msg.Components = new ComponentBuilder().Build();
-        });
+            // Dealer's turn - reveal dealer's second card first
+            if (game.BlackjackGame.DealerCards.Count == 1)
+            {
+                game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
+            }
 
-        // Add delay for dramatic effect
-        await Task.Delay(2000);
-
-        // Dealer draws until 17 or higher
-        while (game.BlackjackGame.GetDealerValue() < 17)
-        {
-            await Task.Delay(2000);
-            game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
-            
             await Context.Interaction.ModifyOriginalResponseAsync(msg =>
             {
                 msg.Embed = CreateDealerTurnEmbed(game);
+                msg.Components = new ComponentBuilder().Build();
             });
+
+            // Add delay for dramatic effect
+            await Task.Delay(2000);
+
+            // Dealer draws until 17 or higher
+            while (game.BlackjackGame.GetDealerValue() < 17)
+            {
+                await Task.Delay(2000);
+                game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
+                
+                await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+                {
+                    msg.Embed = CreateDealerTurnEmbed(game);
+                });
+            }
+
+            await Task.Delay(1000);
+
+            // Determine winner
+            var dealerValue = game.BlackjackGame.GetDealerValue();
+            var playerValue = game.BlackjackGame.GetPlayerValue();
+            
+            BlackjackGameState result;
+            if (dealerValue > 21)
+                result = BlackjackGameState.DealerBusted;
+            else if (dealerValue > playerValue)
+                result = BlackjackGameState.DealerWins;
+            else if (playerValue > dealerValue)
+                result = BlackjackGameState.PlayerWins;
+            else
+                result = BlackjackGameState.Tie;
+
+            var (finalResult, payout) = await CasinoService.CompleteBlackjackGame(userId, result);
+
+            await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+            {
+                msg.Embed = CreateEndGameEmbed(game, finalResult, payout);
+            });
+
+            await LoggingService.LogChannelAndFile($"Casino: BlackjackStand completed for {Context.User.Username} - Result: {finalResult}, Payout: {payout}");
         }
-
-        await Task.Delay(1000);
-
-        // Determine winner
-        var dealerValue = game.BlackjackGame.GetDealerValue();
-        var playerValue = game.BlackjackGame.GetPlayerValue();
-        
-        BlackjackGameState result;
-        if (dealerValue > 21)
-            result = BlackjackGameState.DealerBusted;
-        else if (dealerValue > playerValue)
-            result = BlackjackGameState.DealerWins;
-        else if (playerValue > dealerValue)
-            result = BlackjackGameState.PlayerWins;
-        else
-            result = BlackjackGameState.Tie;
-
-        var (finalResult, payout) = await CasinoService.CompleteBlackjackGame(userId, result);
-
-        await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+        catch (Exception ex)
         {
-            msg.Embed = CreateEndGameEmbed(game, finalResult, payout);
-        });
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in BlackjackStand for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: BlackjackStand Exception Details: {ex}");
+            
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while processing your stand. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while processing your stand. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in BlackjackStand");
+            }
+        }
     }
 
     [ComponentInteraction("bj_double_*")]
     public async Task BlackjackDoubleDown(string userIdStr)
     {
-        ulong userId = ulong.Parse(userIdStr);
-        if (Context.User.Id != userId)
+        try
         {
-            await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
-            return;
-        }
+            await LoggingService.LogChannelAndFile($"Casino: BlackjackDoubleDown called by {Context.User.Username} (ID: {Context.User.Id}) - GameUserId: {userIdStr}");
 
-        var game = CasinoService.GetActiveGame(userId);
-        if (game == null)
-        {
-            await Context.Interaction.RespondAsync("❌ No active game found.", ephemeral: true);
-            return;
-        }
-
-        // Check if user has enough tokens to double
-        var user = await CasinoService.GetOrCreateCasinoUser(userId.ToString());
-        if (user.Tokens < game.Bet)
-        {
-            await Context.Interaction.RespondAsync("💸 Insufficient tokens to double down.", ephemeral: true);
-            return;
-        }
-
-        // Double the bet and deduct additional tokens
-        var originalBet = game.Bet;
-        game.Bet *= 2;
-        game.BlackjackGame.DoubleDown = true;
-        await CasinoService.UpdateUserTokens(userId.ToString(), -(long)originalBet, "blackjack_double", 
-            $"Double down additional bet: {originalBet} tokens");
-
-        // Draw exactly one more card
-        game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
-
-        if (game.BlackjackGame.IsPlayerBusted())
-        {
-            var (result, payout) = await CasinoService.CompleteBlackjackGame(userId, BlackjackGameState.PlayerBusted);
-            await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+            ulong userId = ulong.Parse(userIdStr);
+            if (Context.User.Id != userId)
             {
-                msg.Embed = CreateEndGameEmbed(game, result, payout);
-                msg.Components = new ComponentBuilder().Build();
-            });
+                await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
+                return;
+            }
+
+            var game = CasinoService.GetActiveGame(userId);
+            if (game == null)
+            {
+                await Context.Interaction.RespondAsync("❌ No active game found.", ephemeral: true);
+                await LoggingService.LogChannelAndFile($"Casino: BlackjackDoubleDown - No active game found for user {Context.User.Username}");
+                return;
+            }
+
+            // Check if user has enough tokens to double
+            var user = await CasinoService.GetOrCreateCasinoUser(userId.ToString());
+            if (user.Tokens < game.Bet)
+            {
+                await Context.Interaction.RespondAsync("💸 Insufficient tokens to double down.", ephemeral: true);
+                return;
+            }
+
+            // Double the bet and deduct additional tokens
+            var originalBet = game.Bet;
+            game.Bet *= 2;
+            game.BlackjackGame.DoubleDown = true;
+            await CasinoService.UpdateUserTokens(userId.ToString(), -(long)originalBet, "blackjack_double", 
+                $"Double down additional bet: {originalBet} tokens");
+
+            // Draw exactly one more card
+            game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
+
+            if (game.BlackjackGame.IsPlayerBusted())
+            {
+                var (result, payout) = await CasinoService.CompleteBlackjackGame(userId, BlackjackGameState.PlayerBusted);
+                await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+                {
+                    msg.Embed = CreateEndGameEmbed(game, result, payout);
+                    msg.Components = new ComponentBuilder().Build();
+                });
+
+                await LoggingService.LogChannelAndFile($"Casino: BlackjackDoubleDown - Player {Context.User.Username} busted after double down. Payout: {payout}");
+            }
+            else
+            {
+                // Automatically stand after double down
+                await BlackjackStand(userIdStr);
+                await LoggingService.LogChannelAndFile($"Casino: BlackjackDoubleDown completed for {Context.User.Username} - Auto-standing after double down");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            // Automatically stand after double down
-            await BlackjackStand(userIdStr);
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in BlackjackDoubleDown for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: BlackjackDoubleDown Exception Details: {ex}");
+            
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while processing your double down. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while processing your double down. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in BlackjackDoubleDown");
+            }
         }
     }
 

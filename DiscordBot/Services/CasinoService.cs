@@ -4,6 +4,7 @@ using Discord.WebSocket;
 using DiscordBot.Domain;
 using DiscordBot.Extensions;
 using DiscordBot.Settings;
+using DiscordBot.Services.Logging;
 
 namespace DiscordBot.Services;
 
@@ -37,20 +38,31 @@ public class CasinoService
 
     public async Task<CasinoUser> GetOrCreateCasinoUser(string userId)
     {
-        var user = await _databaseService.CasinoQuery.GetCasinoUser(userId);
-        if (user != null)
-            return user;
-
-        // Create new casino user with starting tokens
-        var newUser = new CasinoUser
+        try
         {
-            UserID = userId,
-            Tokens = _settings.CasinoStartingTokens,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+            var user = await _databaseService.CasinoQuery.GetCasinoUser(userId);
+            if (user != null)
+                return user;
 
-        return await _databaseService.CasinoQuery.InsertCasinoUser(newUser);
+            // Create new casino user with starting tokens
+            var newUser = new CasinoUser
+            {
+                UserID = userId,
+                Tokens = _settings.CasinoStartingTokens,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            var createdUser = await _databaseService.CasinoQuery.InsertCasinoUser(newUser);
+            await _loggingService.LogChannelAndFile($"{ServiceName}: Created new casino user {userId} with {_settings.CasinoStartingTokens} starting tokens");
+            return createdUser;
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in GetOrCreateCasinoUser for userId {userId}: {ex.Message}", ExtendedLogSeverity.Error);
+            await _loggingService.LogChannelAndFile($"{ServiceName}: GetOrCreateCasinoUser Exception Details: {ex}");
+            throw new InvalidOperationException($"Failed to get or create casino user: {ex.Message}", ex);
+        }
     }
 
     public async Task<bool> TransferTokens(string fromUserId, string toUserId, ulong amount, string reason = "gift")
@@ -74,16 +86,29 @@ public class CasinoService
 
     public async Task<bool> UpdateUserTokens(string userId, long deltaTokens, string transactionType, string description)
     {
-        var user = await GetOrCreateCasinoUser(userId);
-        var newBalance = (long)user.Tokens + deltaTokens;
-        
-        if (newBalance < 0)
-            return false;
+        try
+        {
+            var user = await GetOrCreateCasinoUser(userId);
+            var newBalance = (long)user.Tokens + deltaTokens;
+            
+            if (newBalance < 0)
+            {
+                await _loggingService.LogChannelAndFile($"{ServiceName}: UpdateUserTokens failed for userId {userId} - insufficient tokens. Current: {user.Tokens}, Delta: {deltaTokens}", ExtendedLogSeverity.Warning);
+                return false;
+            }
 
-        await _databaseService.CasinoQuery.UpdateTokens(userId, (ulong)newBalance, DateTime.UtcNow);
-        await RecordTransaction(userId, null, deltaTokens, transactionType, description);
-        
-        return true;
+            await _databaseService.CasinoQuery.UpdateTokens(userId, (ulong)newBalance, DateTime.UtcNow);
+            await RecordTransaction(userId, null, deltaTokens, transactionType, description);
+            
+            await _loggingService.LogChannelAndFile($"{ServiceName}: UpdateUserTokens completed for userId {userId} - Delta: {deltaTokens}, New balance: {newBalance}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in UpdateUserTokens for userId {userId}: {ex.Message}", ExtendedLogSeverity.Error);
+            await _loggingService.LogChannelAndFile($"{ServiceName}: UpdateUserTokens Exception Details: {ex}");
+            throw new InvalidOperationException($"Failed to update user tokens: {ex.Message}", ex);
+        }
     }
 
     public async Task SetUserTokens(string userId, ulong amount, string adminUserId)
@@ -151,63 +176,96 @@ public class CasinoService
 
     public async Task<ActiveGame> StartBlackjackGame(ulong userId, ulong bet, IUserMessage message)
     {
-        var user = await GetOrCreateCasinoUser(userId.ToString());
-        
-        if (user.Tokens < bet)
-            throw new InvalidOperationException("Insufficient tokens for bet");
-
-        if (HasActiveGame(userId))
-            throw new InvalidOperationException("User already has an active game");
-
-        var game = new ActiveGame
+        try
         {
-            UserId = userId,
-            GameType = "blackjack",
-            Bet = bet,
-            StartTime = DateTime.UtcNow,
-            ExpiryTime = DateTime.UtcNow.AddMinutes(_settings.CasinoGameTimeoutMinutes),
-            Message = message,
-            BlackjackGame = new BlackjackGame(),
-            IsCompleted = false
-        };
+            await _loggingService.LogChannelAndFile($"{ServiceName}: StartBlackjackGame called for userId {userId} with bet {bet}");
 
-        // Deal initial cards
-        game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
-        game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
-        game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
+            var user = await GetOrCreateCasinoUser(userId.ToString());
+            
+            if (user.Tokens < bet)
+            {
+                await _loggingService.LogChannelAndFile($"{ServiceName}: StartBlackjackGame failed - insufficient tokens for userId {userId}. Available: {user.Tokens}, Bet: {bet}");
+                throw new InvalidOperationException("Insufficient tokens for bet");
+            }
 
-        _activeGames.TryAdd(userId, game);
-        
-        // Deduct bet from user's tokens
-        await UpdateUserTokens(userId.ToString(), -(long)bet, "blackjack_bet", $"Blackjack bet: {bet} tokens");
+            if (HasActiveGame(userId))
+            {
+                await _loggingService.LogChannelAndFile($"{ServiceName}: StartBlackjackGame failed - user {userId} already has an active game");
+                throw new InvalidOperationException("User already has an active game");
+            }
 
-        return game;
+            var game = new ActiveGame
+            {
+                UserId = userId,
+                GameType = "blackjack",
+                Bet = bet,
+                StartTime = DateTime.UtcNow,
+                ExpiryTime = DateTime.UtcNow.AddMinutes(_settings.CasinoGameTimeoutMinutes),
+                Message = message,
+                BlackjackGame = new BlackjackGame(),
+                IsCompleted = false
+            };
+
+            // Deal initial cards
+            game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
+            game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
+            game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
+
+            _activeGames.TryAdd(userId, game);
+            
+            // Deduct bet from user's tokens
+            await UpdateUserTokens(userId.ToString(), -(long)bet, "blackjack_bet", $"Blackjack bet: {bet} tokens");
+
+            await _loggingService.LogChannelAndFile($"{ServiceName}: StartBlackjackGame completed successfully for userId {userId}");
+            return game;
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in StartBlackjackGame for userId {userId}: {ex.Message}", ExtendedLogSeverity.Error);
+            await _loggingService.LogChannelAndFile($"{ServiceName}: StartBlackjackGame Exception Details: {ex}");
+            throw;
+        }
     }
 
     public async Task<(BlackjackGameState result, long payout)> CompleteBlackjackGame(ulong userId, BlackjackGameState finalState)
     {
-        if (!_activeGames.TryGetValue(userId, out var activeGame))
-            throw new InvalidOperationException("No active game found for user");
-
-        activeGame.IsCompleted = true;
-        activeGame.BlackjackGame.State = finalState;
-
-        long payout = CalculateBlackjackPayout(activeGame.Bet, finalState);
-        
-        if (payout > 0)
+        try
         {
-            await UpdateUserTokens(userId.ToString(), payout, "blackjack_win", 
-                $"Blackjack win: {payout} tokens (bet: {activeGame.Bet})");
+            await _loggingService.LogChannelAndFile($"{ServiceName}: CompleteBlackjackGame called for userId {userId} with state {finalState}");
+
+            if (!_activeGames.TryGetValue(userId, out var activeGame))
+            {
+                await _loggingService.LogChannelAndFile($"{ServiceName}: CompleteBlackjackGame failed - no active game found for userId {userId}");
+                throw new InvalidOperationException("No active game found for user");
+            }
+
+            activeGame.IsCompleted = true;
+            activeGame.BlackjackGame.State = finalState;
+
+            long payout = CalculateBlackjackPayout(activeGame.Bet, finalState);
+            
+            if (payout > 0)
+            {
+                await UpdateUserTokens(userId.ToString(), payout, "blackjack_win", 
+                    $"Blackjack win: {payout} tokens (bet: {activeGame.Bet})");
+            }
+
+            // Clean up the game after a delay to allow message updates
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromMinutes(2));
+                _activeGames.TryRemove(userId, out _);
+            });
+
+            await _loggingService.LogChannelAndFile($"{ServiceName}: CompleteBlackjackGame completed for userId {userId} - Payout: {payout}");
+            return (finalState, payout);
         }
-
-        // Clean up the game after a delay to allow message updates
-        _ = Task.Run(async () =>
+        catch (Exception ex)
         {
-            await Task.Delay(TimeSpan.FromMinutes(2));
-            _activeGames.TryRemove(userId, out _);
-        });
-
-        return (finalState, payout);
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in CompleteBlackjackGame for userId {userId}: {ex.Message}", ExtendedLogSeverity.Error);
+            await _loggingService.LogChannelAndFile($"{ServiceName}: CompleteBlackjackGame Exception Details: {ex}");
+            throw;
+        }
     }
 
     private long CalculateBlackjackPayout(ulong bet, BlackjackGameState result)
