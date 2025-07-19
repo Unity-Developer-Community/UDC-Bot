@@ -255,7 +255,7 @@ public class UserSlashModule : InteractionModuleBase
 
     #region Duel System
 
-    private static readonly Dictionary<string, ulong> _activeDuels = new Dictionary<string, ulong>();
+    private static readonly Dictionary<string, (ulong challengerId, ulong opponentId)> _activeDuels = new Dictionary<string, (ulong, ulong)>();
     private static readonly Random _random = new Random();
 
     private static readonly string[] _normalWinMessages = 
@@ -302,8 +302,8 @@ public class UserSlashModule : InteractionModuleBase
             return;
         }
 
-        // Store the duel with challenger's ID as value for timeout tracking
-        _activeDuels[duelKey] = Context.User.Id;
+        // Store the duel with both user IDs for timeout tracking
+        _activeDuels[duelKey] = (Context.User.Id, opponent.Id);
 
         var embed = new EmbedBuilder()
             .WithColor(Color.Orange)
@@ -315,25 +315,38 @@ public class UserSlashModule : InteractionModuleBase
         var components = new ComponentBuilder()
             .WithButton("⚔️ Accept", $"duel_accept:{duelKey}:{type}", ButtonStyle.Success)
             .WithButton("🛡️ Refuse", $"duel_refuse:{duelKey}", ButtonStyle.Danger)
+            .WithButton("❌ Cancel", $"duel_cancel:{duelKey}", ButtonStyle.Secondary)
             .Build();
 
         await Context.Interaction.RespondAsync(embed: embed, components: components);
 
+        // Store the message reference for timeout
+        var originalResponse = await Context.Interaction.GetOriginalResponseAsync();
+        
         // Auto-timeout after 60 seconds
         _ = Task.Run(async () =>
         {
             await Task.Delay(60000); // 60 seconds
             if (_activeDuels.ContainsKey(duelKey))
             {
+                var (challengerId, opponentId) = _activeDuels[duelKey];
                 _activeDuels.Remove(duelKey);
+                
                 try
                 {
-                    await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+                    var challenger = await Context.Guild.GetUserAsync(challengerId);
+                    var challengedUser = await Context.Guild.GetUserAsync(opponentId);
+                    
+                    string timeoutMessage = challengedUser != null 
+                        ? $"⏰ Duel challenge to {challengedUser.Mention} expired."
+                        : "⏰ Duel challenge expired.";
+
+                    await originalResponse.ModifyAsync(msg =>
                     {
                         msg.Content = string.Empty;
                         msg.Embed = new EmbedBuilder()
                             .WithColor(Color.LightGrey)
-                            .WithDescription("⏰ Duel challenge expired.")
+                            .WithDescription(timeoutMessage)
                             .Build();
                         msg.Components = new ComponentBuilder().Build();
                     });
@@ -464,6 +477,47 @@ public class UserSlashModule : InteractionModuleBase
             msg.Embed = new EmbedBuilder()
                 .WithColor(Color.LightGrey)
                 .WithDescription("🛡️ Duel challenge was refused.")
+                .Build();
+            msg.Components = new ComponentBuilder().Build();
+        });
+    }
+
+    [ComponentInteraction("duel_cancel:*")]
+    public async Task DuelCancel(string duelKey)
+    {
+        // Extract user IDs from the duel key
+        var userIds = duelKey.Split('_');
+        if (userIds.Length != 2 || !ulong.TryParse(userIds[0], out var challengerId) || !ulong.TryParse(userIds[1], out var opponentId))
+        {
+            await Context.Interaction.RespondAsync("Invalid duel data!", ephemeral: true);
+            return;
+        }
+
+        // Only the challenger can cancel
+        if (Context.User.Id != challengerId)
+        {
+            await Context.Interaction.RespondAsync("Only the challenger can cancel this duel!", ephemeral: true);
+            return;
+        }
+
+        // Check if duel is still active
+        if (!_activeDuels.ContainsKey(duelKey))
+        {
+            await Context.Interaction.RespondAsync("This duel is no longer active!", ephemeral: true);
+            return;
+        }
+
+        // Remove from active duels
+        _activeDuels.Remove(duelKey);
+
+        // Edit the embed to show cancellation
+        await Context.Interaction.DeferAsync();
+        await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+        {
+            msg.Content = string.Empty;
+            msg.Embed = new EmbedBuilder()
+                .WithColor(Color.LightGrey)
+                .WithDescription("❌ Duel challenge was cancelled by the challenger.")
                 .Build();
             msg.Components = new ComponentBuilder().Build();
         });
