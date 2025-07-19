@@ -1,0 +1,49 @@
+using DiscordBot.Domain;
+using Insight.Database;
+
+namespace DiscordBot.Extensions;
+
+public interface ICasinoRepo
+{
+    // Casino User Operations
+    [Sql($@"
+    INSERT INTO {CasinoProps.CasinoTableName} ({CasinoProps.UserID}, {CasinoProps.Tokens}, {CasinoProps.CreatedAt}, {CasinoProps.UpdatedAt}) 
+    VALUES (@{CasinoProps.UserID}, @{CasinoProps.Tokens}, @{CasinoProps.CreatedAt}, @{CasinoProps.UpdatedAt});
+    SELECT * FROM {CasinoProps.CasinoTableName} WHERE {CasinoProps.UserID} = @{CasinoProps.UserID}")]
+    Task<CasinoUser> InsertCasinoUser(CasinoUser user);
+
+    [Sql($"SELECT * FROM {CasinoProps.CasinoTableName} WHERE {CasinoProps.UserID} = @userId")]
+    Task<CasinoUser> GetCasinoUser(string userId);
+
+    [Sql($"SELECT * FROM {CasinoProps.CasinoTableName} ORDER BY {CasinoProps.Tokens} DESC LIMIT @limit")]
+    Task<IList<CasinoUser>> GetTopTokenHolders(int limit);
+
+    [Sql($"UPDATE {CasinoProps.CasinoTableName} SET {CasinoProps.Tokens} = @tokens, {CasinoProps.UpdatedAt} = @updatedAt WHERE {CasinoProps.UserID} = @userId")]
+    Task UpdateTokens(string userId, ulong tokens, DateTime updatedAt);
+
+    [Sql($"DELETE FROM {CasinoProps.CasinoTableName} WHERE {CasinoProps.UserID} = @userId")]
+    Task DeleteCasinoUser(string userId);
+
+    [Sql($"DELETE FROM {CasinoProps.CasinoTableName}")]
+    Task ClearAllCasinoUsers();
+
+    // Token Transaction Operations
+    [Sql($@"
+    INSERT INTO {CasinoProps.TransactionTableName} ({CasinoProps.TransactionUserID}, {CasinoProps.TargetUserID}, {CasinoProps.Amount}, {CasinoProps.TransactionType}, {CasinoProps.Description}, {CasinoProps.TransactionCreatedAt}) 
+    VALUES (@{CasinoProps.TransactionUserID}, @{CasinoProps.TargetUserID}, @{CasinoProps.Amount}, @{CasinoProps.TransactionType}, @{CasinoProps.Description}, @{CasinoProps.TransactionCreatedAt});
+    SELECT * FROM {CasinoProps.TransactionTableName} WHERE {CasinoProps.TransactionId} = LAST_INSERT_ID()")]
+    Task<TokenTransaction> InsertTransaction(TokenTransaction transaction);
+
+    [Sql($"SELECT * FROM {CasinoProps.TransactionTableName} WHERE {CasinoProps.TransactionUserID} = @userId ORDER BY {CasinoProps.TransactionCreatedAt} DESC LIMIT @limit")]
+    Task<IList<TokenTransaction>> GetUserTransactionHistory(string userId, int limit);
+
+    [Sql($"SELECT * FROM {CasinoProps.TransactionTableName} ORDER BY {CasinoProps.TransactionCreatedAt} DESC LIMIT @limit")]
+    Task<IList<TokenTransaction>> GetRecentTransactions(int limit);
+
+    [Sql($"DELETE FROM {CasinoProps.TransactionTableName}")]
+    Task ClearAllTransactions();
+
+    // Test connection
+    [Sql($"SELECT COUNT(*) FROM {CasinoProps.CasinoTableName}")]
+    Task<long> TestCasinoConnection();
+}

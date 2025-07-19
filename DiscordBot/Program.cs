@@ -110,6 +110,7 @@ public class Program
             .AddSingleton<CannedResponseService>()
             .AddSingleton<UserExtendedService>()
             .AddSingleton<BirthdayAnnouncementService>()
+            .AddSingleton<CasinoService>()
             .BuildServiceProvider();
 
     private static void DeserializeSettings()

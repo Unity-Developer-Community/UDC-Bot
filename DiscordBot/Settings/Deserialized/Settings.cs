@@ -157,6 +157,15 @@ public class BotSettings
 
     #endregion // API Keys
 
+    #region Casino Settings
+
+    public bool CasinoEnabled { get; set; } = true;
+    public ulong CasinoStartingTokens { get; set; } = 1000;
+    public List<ulong> CasinoAllowedChannels { get; set; } = new List<ulong>();
+    public int CasinoGameTimeoutMinutes { get; set; } = 5;
+    
+    #endregion // Casino Settings
+
     #region Other
 
     public string AssetStoreFrontPage { get; set; }
