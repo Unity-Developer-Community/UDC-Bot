@@ -438,6 +438,7 @@ public class UserSlashModule : InteractionModuleBase
             catch (Exception ex)
             {
                 await LoggingService.LogChannelAndFile($"Failed to timeout the loser of the duel: {ex.Message}", ExtendedLogSeverity.Error);
+                await Context.Interaction.FollowupAsync("Failed to timeout the loser.", ephemeral: false);
             }
         }
     }
