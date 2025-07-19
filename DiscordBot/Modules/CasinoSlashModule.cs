@@ -261,8 +261,8 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             .Build();
 
         var components = new ComponentBuilder()
-            .WithButton("❌ Cancel", $"casino_reset_cancel_{Context.User.Id}", ButtonStyle.Secondary)
-            .WithButton("⚠️ CONFIRM RESET", $"casino_reset_confirm_{Context.User.Id}", ButtonStyle.Danger)
+            .WithButton("❌ Cancel", $"casino_reset_cancel:{Context.User.Id}", ButtonStyle.Secondary)
+            .WithButton("⚠️ CONFIRM RESET", $"casino_reset_confirm:{Context.User.Id}", ButtonStyle.Danger)
             .Build();
 
         await Context.Interaction.RespondAsync(embed: embed, components: components, ephemeral: true);
@@ -291,7 +291,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         });
     }
 
-    [ComponentInteraction("casino_reset_confirm_*")]
+    [ComponentInteraction("casino_reset_confirm:*")]
     public async Task ConfirmReset(string userId)
     {
         try
@@ -340,7 +340,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    [ComponentInteraction("casino_reset_cancel_*")]
+    [ComponentInteraction("casino_reset_cancel:*")]
     public async Task CancelReset(string userId)
     {
         try
@@ -460,12 +460,12 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     private MessageComponent CreateBettingComponents(ulong currentBet)
     {
         return new ComponentBuilder()
-            .WithButton("+1", $"bet_add_1_{Context.User.Id}_{currentBet}", ButtonStyle.Secondary, new Emoji("1️⃣"))
-            .WithButton("+10", $"bet_add_10_{Context.User.Id}_{currentBet}", ButtonStyle.Secondary, new Emoji("🔟"))
-            .WithButton("+100", $"bet_add_100_{Context.User.Id}_{currentBet}", ButtonStyle.Secondary, new Emoji("💯"))
-            .WithButton("All In", $"bet_allin_{Context.User.Id}_{currentBet}", ButtonStyle.Primary, new Emoji("💰"))
-            .WithButton("Start Game", $"start_blackjack_{Context.User.Id}_{currentBet}", ButtonStyle.Success, new Emoji("🎮"), row: 1)
-            .WithButton("Cancel", $"cancel_bet_{Context.User.Id}", ButtonStyle.Danger, new Emoji("❌"), row: 1)
+            .WithButton("+1", $"bet_add:1:{Context.User.Id}:{currentBet}", ButtonStyle.Secondary, new Emoji("1️⃣"))
+            .WithButton("+10", $"bet_add:10:{Context.User.Id}:{currentBet}", ButtonStyle.Secondary, new Emoji("🔟"))
+            .WithButton("+100", $"bet_add:100:{Context.User.Id}:{currentBet}", ButtonStyle.Secondary, new Emoji("💯"))
+            .WithButton("All In", $"bet_allin:{Context.User.Id}:{currentBet}", ButtonStyle.Primary, new Emoji("💰"))
+            .WithButton("Start Game", $"start_blackjack:{Context.User.Id}:{currentBet}", ButtonStyle.Success, new Emoji("🎮"), row: 1)
+            .WithButton("Cancel", $"cancel_bet:{Context.User.Id}", ButtonStyle.Danger, new Emoji("❌"), row: 1)
             .Build();
     }
 
@@ -473,7 +473,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
     #region Betting Component Interactions
 
-    [ComponentInteraction("bet_add_*_*_*")]
+    [ComponentInteraction("bet_add:*:*:*")]
     public async Task AdjustBet(string amount, string userId, string currentBetStr)
     {
         try
@@ -532,7 +532,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    [ComponentInteraction("bet_allin_*_*")]
+    [ComponentInteraction("bet_allin:*:*")]
     public async Task AllInBet(string userId, string currentBetStr)
     {
         try
@@ -587,7 +587,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    [ComponentInteraction("cancel_bet_*")]
+    [ComponentInteraction("cancel_bet:*")]
     public async Task CancelBetting(string userId)
     {
         try
@@ -637,7 +637,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    [ComponentInteraction("start_blackjack_*_*")]
+    [ComponentInteraction("start_blackjack:*:*")]
     public async Task StartBlackjackGame(string userId, string betStr)
     {
         try
