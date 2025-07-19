@@ -352,9 +352,9 @@ public class UserSlashModule : InteractionModuleBase
                         msg.Components = new ComponentBuilder().Build();
                     });
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Ignore errors if message was already modified/deleted
+                    await LoggingService.LogChannelAndFile($"Failed to modify duel timeout message: {ex.Message}", ExtendedLogSeverity.Warning);
                 }
             }
         });
