@@ -704,7 +704,7 @@ public class UserSlashModule : InteractionModuleBase
             // Game is complete, determine winner
             _activeRPSGames.TryRemove(gameKey, out _);
             
-            string result = DetermineRPSWinner(game.ChallengerChoice, game.OpponentChoice);
+            string result = DetermineRPSWinner(game.ChallengerChoice, game.OpponentChoice, challenger, opponent);
             string challengerEmoji = GetRPSEmoji(game.ChallengerChoice);
             string opponentEmoji = GetRPSEmoji(game.OpponentChoice);
 
@@ -762,7 +762,7 @@ public class UserSlashModule : InteractionModuleBase
         }
     }
 
-    private string DetermineRPSWinner(RPSChoice challengerChoice, RPSChoice opponentChoice)
+    private string DetermineRPSWinner(RPSChoice challengerChoice, RPSChoice opponentChoice, IGuildUser challenger, IGuildUser opponent)
     {
         if (challengerChoice == opponentChoice)
         {
@@ -773,14 +773,8 @@ public class UserSlashModule : InteractionModuleBase
                              (challengerChoice == RPSChoice.Paper && opponentChoice == RPSChoice.Rock) ||
                              (challengerChoice == RPSChoice.Scissors && opponentChoice == RPSChoice.Paper);
 
-        if (challengerWins)
-        {
-            return "🏆 Challenger wins!";
-        }
-        else
-        {
-            return "🏆 Opponent wins!";
-        }
+        var winner = challengerWins ? challenger : opponent;
+        return $"🏆 {winner.DisplayName} wins!";
     }
 
     private string GetRPSEmoji(RPSChoice choice)
