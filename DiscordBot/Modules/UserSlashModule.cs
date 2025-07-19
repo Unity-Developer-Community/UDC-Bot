@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Discord.Interactions;
 using DiscordBot.Services;
 using DiscordBot.Settings;
@@ -256,7 +257,7 @@ public class UserSlashModule : InteractionModuleBase
 
     #region Duel System
 
-    private static readonly Dictionary<string, (ulong challengerId, ulong opponentId)> _activeDuels = new Dictionary<string, (ulong, ulong)>();
+    private static readonly ConcurrentDictionary<string, (ulong challengerId, ulong opponentId)> _activeDuels = new ConcurrentDictionary<string, (ulong, ulong)>();
     private static readonly Random _random = new Random();
 
     private static readonly string[] _normalWinMessages = 
