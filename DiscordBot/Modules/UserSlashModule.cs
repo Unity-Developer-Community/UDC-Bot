@@ -13,6 +13,7 @@ public class UserSlashModule : InteractionModuleBase
     public CommandHandlingService CommandHandlingService { get; set; }
     public UserService UserService { get; set; }
     public BotSettings BotSettings { get; set; }
+    public ILoggingService LoggingService { get; set; }
 
     #endregion
 
@@ -436,7 +437,7 @@ public class UserSlashModule : InteractionModuleBase
             }
             catch (Exception ex)
             {
-                await Context.Interaction.FollowupAsync("Failed to timeout the loser. Missing permissions?", ephemeral: true);
+                await LoggingService.LogChannelAndFile($"Failed to timeout the loser of the duel: {ex.Message}", ExtendedLogSeverity.Error);
             }
         }
     }
