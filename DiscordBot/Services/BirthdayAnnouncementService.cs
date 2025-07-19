@@ -157,7 +157,7 @@ public class BirthdayAnnouncementService
                 var age = CalculateAge(userRecord.Birthday.Value, DateTime.Today);
                 birthdays.Add(new BirthdayInfo 
                 { 
-                    Name = user.Username, 
+                    Name = user.DisplayName ?? user.Username, 
                     BirthDate = userRecord.Birthday.Value, 
                     Age = age,
                     UserId = userId,

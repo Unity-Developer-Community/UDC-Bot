@@ -125,6 +125,10 @@ public interface IServerUserRepo
     LIMIT 1")]
     Task<ServerUser> GetNextBirthday();
     
+    /// <summary>Get all users whose birthday is on a specific month and day (ignoring year)</summary>
+    [Sql($"SELECT {UserProps.UserID}, {UserProps.Birthday} FROM {UserProps.TableName} WHERE {UserProps.Birthday} IS NOT NULL AND MONTH({UserProps.Birthday}) = @month AND DAY({UserProps.Birthday}) = @day")]
+    Task<IList<ServerUser>> GetBirthdaysOnDate(int month, int day);
+    
     #endregion // Birthday Queries
 
     /// <summary>Returns a count of {Props.TableName} in the Table, otherwise it fails. </summary>

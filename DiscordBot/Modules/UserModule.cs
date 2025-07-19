@@ -1097,17 +1097,17 @@ public class UserModule : ModuleBase
                 return;
             }
 
-            var user = await Context.Guild.GetUserAsync(ulong.Parse(nextBirthday.UserID));
-            var username = user?.Username ?? "Unknown User";
+            // Get all users with birthdays on the same date as the next birthday
+            var nextBirthdayDate = nextBirthday.Birthday.Value;
+            var allBirthdaysOnDate = await DatabaseService.Query.GetBirthdaysOnDate(nextBirthdayDate.Month, nextBirthdayDate.Day);
             
-            var birthday = nextBirthday.Birthday.Value;
             var today = DateTime.Today;
             
             // Calculate next occurrence of birthday
-            var nextOccurrence = new DateTime(today.Year, birthday.Month, birthday.Day);
+            var nextOccurrence = new DateTime(today.Year, nextBirthdayDate.Month, nextBirthdayDate.Day);
             if (nextOccurrence < today)
             {
-                nextOccurrence = new DateTime(today.Year + 1, birthday.Month, birthday.Day);
+                nextOccurrence = new DateTime(today.Year + 1, nextBirthdayDate.Month, nextBirthdayDate.Day);
             }
             
             // Calculate days until birthday
@@ -1116,15 +1116,67 @@ public class UserModule : ModuleBase
             string message;
             if (daysUntil == 0)
             {
-                message = $"**{username}'s birthday is today! 🎉**";
+                if (allBirthdaysOnDate.Count == 1)
+                {
+                    var user = await Context.Guild.GetUserAsync(ulong.Parse(allBirthdaysOnDate[0].UserID));
+                    var displayName = user?.DisplayName ?? user?.Username ?? "Unknown User";
+                    message = $"**{displayName}'s birthday is today! 🎉**";
+                }
+                else
+                {
+                    var names = new List<string>();
+                    foreach (var birthday in allBirthdaysOnDate)
+                    {
+                        var user = await Context.Guild.GetUserAsync(ulong.Parse(birthday.UserID));
+                        var displayName = user?.DisplayName ?? user?.Username ?? "Unknown User";
+                        names.Add(displayName);
+                    }
+                    message = $"**{string.Join(" and ", names)} have birthdays today! 🎉**";
+                }
             }
             else if (daysUntil == 1)
             {
-                message = $"**{username}'s birthday is tomorrow! ({nextOccurrence:MMMM dd})**";
+                if (allBirthdaysOnDate.Count == 1)
+                {
+                    var user = await Context.Guild.GetUserAsync(ulong.Parse(allBirthdaysOnDate[0].UserID));
+                    var displayName = user?.DisplayName ?? user?.Username ?? "Unknown User";
+                    message = $"**{displayName}'s birthday is tomorrow! ({nextOccurrence:MMMM dd})**";
+                }
+                else
+                {
+                    var names = new List<string>();
+                    foreach (var birthday in allBirthdaysOnDate)
+                    {
+                        var user = await Context.Guild.GetUserAsync(ulong.Parse(birthday.UserID));
+                        var displayName = user?.DisplayName ?? user?.Username ?? "Unknown User";
+                        names.Add(displayName);
+                    }
+                    message = $"**{string.Join(" and ", names)} have birthdays tomorrow! ({nextOccurrence:MMMM dd})**";
+                }
             }
             else
             {
-                message = $"**{username}'s birthday is in {daysUntil} days! ({nextOccurrence:MMMM dd})**";
+                if (allBirthdaysOnDate.Count == 1)
+                {
+                    var user = await Context.Guild.GetUserAsync(ulong.Parse(allBirthdaysOnDate[0].UserID));
+                    var displayName = user?.DisplayName ?? user?.Username ?? "Unknown User";
+                    var age = CalculateAge(allBirthdaysOnDate[0].Birthday.Value, nextOccurrence);
+                    var ageString = age.HasValue ? $" (turns {age})" : "";
+                    message = $"**{displayName}'s birthday is in {daysUntil} days! ({nextOccurrence:MMMM dd}){ageString}**";
+                }
+                else
+                {
+                    var nameWithAges = new List<string>();
+                    foreach (var birthday in allBirthdaysOnDate)
+                    {
+                        var user = await Context.Guild.GetUserAsync(ulong.Parse(birthday.UserID));
+                        var displayName = user?.DisplayName ?? user?.Username ?? "Unknown User";
+                        var age = CalculateAge(birthday.Birthday.Value, nextOccurrence);
+                        var ageString = age.HasValue ? $" (turns {age})" : "";
+                        nameWithAges.Add($"{displayName}{ageString}");
+                    }
+                    message = $"**{string.Join(" and ", nameWithAges)} have birthdays in {daysUntil} days! ({nextOccurrence:MMMM dd})**";
+                }
             }
 
             await ReplyAsync(message).DeleteAfterTime(minutes: 3);
@@ -1155,10 +1207,13 @@ public class UserModule : ModuleBase
 
             var birthday = await DatabaseService.Query.GetBirthday(searchUser.UserID);
             
+            var guildUser = await Context.Guild.GetUserAsync(user.Id);
+            var displayName = guildUser?.DisplayName ?? user.Username;
+            
             if (birthday == null)
             {
                 await ReplyAsync(
-                        $"Sorry, **{user.Username}** hasn't set their birthday yet. They can use `!setbirthday MM/DD/YYYY` to add it!")
+                        $"Sorry, **{displayName}** hasn't set their birthday yet. They can use `!setbirthday MM/DD/YYYY` to add it!")
                     .DeleteAfterSeconds(30);
             }
             else
@@ -1182,7 +1237,7 @@ public class UserModule : ModuleBase
                     birthdayString = birthday.Value.ToString("dd MMMM", provider);
                 }
 
-                var message = $"**{user.Username}**'s birthdate: __**{birthdayString}**__{ageString}";
+                var message = $"**{displayName}**'s birthdate: __**{birthdayString}**__{ageString}";
                 await ReplyAsync(message).DeleteAfterTime(minutes: 3);
             }
 
@@ -1191,7 +1246,9 @@ public class UserModule : ModuleBase
         catch (Exception e)
         {
             await LoggingService.LogAction($"Error getting birthday for user {user.Id}: {e.Message}", ExtendedLogSeverity.Warning);
-            await ReplyAsync($"Sorry, I couldn't retrieve **{user.Username}**'s birthday.").DeleteAfterSeconds(30);
+            var guildUser = await Context.Guild.GetUserAsync(user.Id);
+            var displayName = guildUser?.DisplayName ?? user.Username;
+            await ReplyAsync($"Sorry, I couldn't retrieve **{displayName}**'s birthday.").DeleteAfterSeconds(30);
             await Context.Message.DeleteAfterTime(minutes: 3);
         }
     }
