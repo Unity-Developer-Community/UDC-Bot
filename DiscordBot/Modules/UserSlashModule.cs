@@ -315,7 +315,7 @@ public class UserSlashModule : InteractionModuleBase
 
         if (type == "mute")
         {
-            embed.AddField("", "The loser will be muted for 5 minutes.");
+            embed.AddField("Risk", "The loser will be muted for 5 minutes.");
         }
 
         var components = new ComponentBuilder()
