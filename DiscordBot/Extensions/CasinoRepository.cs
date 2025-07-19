@@ -32,7 +32,7 @@ public interface ICasinoRepo
     INSERT INTO {CasinoProps.TransactionTableName} ({CasinoProps.TransactionUserID}, {CasinoProps.TargetUserID}, {CasinoProps.Amount}, {CasinoProps.TransactionType}, {CasinoProps.Description}, {CasinoProps.TransactionCreatedAt}) 
     VALUES (@{CasinoProps.TransactionUserID}, @{CasinoProps.TargetUserID}, @{CasinoProps.Amount}, @{CasinoProps.TransactionType}, @{CasinoProps.Description}, @{CasinoProps.TransactionCreatedAt});
     SELECT * FROM {CasinoProps.TransactionTableName} WHERE {CasinoProps.TransactionId} = LAST_INSERT_ID()")]
-    Task<TokenTransaction> InsertTransaction(TokenTransaction transaction);
+    Task<TokenTransaction> InsertTransaction(TokenTransaction tokenTransaction);
 
     [Sql($"SELECT * FROM {CasinoProps.TransactionTableName} WHERE {CasinoProps.TransactionUserID} = @userId ORDER BY {CasinoProps.TransactionCreatedAt} DESC LIMIT @limit")]
     Task<IList<TokenTransaction>> GetUserTransactionHistory(string userId, int limit);
