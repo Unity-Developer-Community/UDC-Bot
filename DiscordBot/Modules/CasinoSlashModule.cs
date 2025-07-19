@@ -473,7 +473,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
     #region Betting Component Interactions
 
-    [ComponentInteraction("bet_add_*")]
+    [ComponentInteraction("bet_add_*_*_*")]
     public async Task AdjustBet(string amount, string userId, string currentBetStr)
     {
         try
@@ -532,7 +532,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    [ComponentInteraction("bet_allin_*")]
+    [ComponentInteraction("bet_allin_*_*")]
     public async Task AllInBet(string userId, string currentBetStr)
     {
         try
@@ -637,7 +637,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    [ComponentInteraction("start_blackjack_*")]
+    [ComponentInteraction("start_blackjack_*_*")]
     public async Task StartBlackjackGame(string userId, string betStr)
     {
         try
