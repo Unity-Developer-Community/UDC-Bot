@@ -332,7 +332,7 @@ public class UserSlashModule : InteractionModuleBase
             if (_activeDuels.ContainsKey(duelKey))
             {
                 var (challengerId, opponentId) = _activeDuels[duelKey];
-                _activeDuels.Remove(duelKey);
+                _activeDuels.TryRemove(duelKey, out _);
                 
                 try
                 {
@@ -387,7 +387,7 @@ public class UserSlashModule : InteractionModuleBase
         }
 
         // Remove from active duels
-        _activeDuels.Remove(duelKey);
+        _activeDuels.TryRemove(duelKey, out _);
 
         await Context.Interaction.DeferAsync();
 
@@ -470,7 +470,7 @@ public class UserSlashModule : InteractionModuleBase
         }
 
         // Remove from active duels
-        _activeDuels.Remove(duelKey);
+        _activeDuels.TryRemove(duelKey, out _);
 
         // Edit the embed to show refusal instead of deleting
         await Context.Interaction.DeferAsync();
@@ -511,7 +511,7 @@ public class UserSlashModule : InteractionModuleBase
         }
 
         // Remove from active duels
-        _activeDuels.Remove(duelKey);
+        _activeDuels.TryRemove(duelKey, out _);
 
         // Edit the embed to show cancellation
         await Context.Interaction.DeferAsync();
