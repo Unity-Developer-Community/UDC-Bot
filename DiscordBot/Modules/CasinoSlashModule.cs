@@ -688,10 +688,11 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
 
         // Double the bet and deduct additional tokens
+        var originalBet = game.Bet;
         game.Bet *= 2;
         game.BlackjackGame.DoubleDown = true;
-        await CasinoService.UpdateUserTokens(userId.ToString(), -(long)game.Bet, "blackjack_double", 
-            $"Double down additional bet: {game.Bet / 2} tokens");
+        await CasinoService.UpdateUserTokens(userId.ToString(), -(long)originalBet, "blackjack_double", 
+            $"Double down additional bet: {originalBet} tokens");
 
         // Draw exactly one more card
         game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
