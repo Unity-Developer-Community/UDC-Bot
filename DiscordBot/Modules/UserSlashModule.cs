@@ -310,9 +310,15 @@ public class UserSlashModule : InteractionModuleBase
         var embed = new EmbedBuilder()
             .WithColor(Color.Orange)
             .WithTitle("⚔️ Duel Challenge!")
-            .WithDescription($"{Context.User.Mention} has challenged {opponent.Mention} to a {type} duel!")
-            .WithFooter($"This challenge will expire in 60 seconds")
-            .Build();
+            .WithDescription($"{Context.User.Mention} has challenged {opponent.Mention} to a duel!")
+            .WithFooter($"This challenge will expire in 60 seconds");
+
+        if (type == "mute")
+        {
+            embed.AddField("", "The loser will be muted for 5 minutes.");
+        }
+
+        embed.Build();
 
         var components = new ComponentBuilder()
             .WithButton("⚔️ Accept", $"duel_accept:{duelKey}:{type}", ButtonStyle.Success)
