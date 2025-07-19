@@ -592,7 +592,7 @@ public class UserSlashModule : InteractionModuleBase
             .WithColor(Color.Blue)
             .WithTitle("🎮 Rock Paper Scissors Challenge!")
             .WithDescription($"{Context.User.Mention} has challenged {opponent.Mention} to Rock Paper Scissors!")
-            .AddField("How to Play", "Both players choose Rock 🪨, Paper 📄, or Scissors ✂️. You can change your choice until both players have decided.")
+            .AddField("How to Play", "Both players choose Rock 🪨, Paper 📄, or Scissors ✂️.\nYou can change your choice until both players have decided.")
             .WithFooter("This challenge will expire in 5 minutes");
 
         var components = new ComponentBuilder()
@@ -729,11 +729,11 @@ public class UserSlashModule : InteractionModuleBase
             string statusMessage;
             if (game.ChallengerChoice != RPSChoice.None && game.OpponentChoice == RPSChoice.None)
             {
-                statusMessage = $"{challenger.Mention} has made their choice! Waiting for {opponent.Mention}...";
+                statusMessage = $"{challenger.Mention} has made their choice!\nWaiting for {opponent.Mention}...";
             }
             else if (game.ChallengerChoice == RPSChoice.None && game.OpponentChoice != RPSChoice.None)
             {
-                statusMessage = $"{opponent.Mention} has made their choice! Waiting for {challenger.Mention}...";
+                statusMessage = $"{opponent.Mention} has made their choice!\nWaiting for {challenger.Mention}...";
             }
             else
             {
@@ -745,7 +745,7 @@ public class UserSlashModule : InteractionModuleBase
                 .WithTitle("🎮 Rock Paper Scissors Challenge!")
                 .WithDescription($"{challenger.Mention} vs {opponent.Mention}")
                 .AddField("Status", statusMessage)
-                .AddField("How to Play", "Both players choose Rock 🪨, Paper 📄, or Scissors ✂️. You can change your choice until both players have decided.")
+                .AddField("How to Play", "Both players choose Rock 🪨, Paper 📄, or Scissors ✂️.\nYou can change your choice until both players have decided.")
                 .WithFooter("This challenge will expire in 5 minutes");
 
             var components = new ComponentBuilder()
