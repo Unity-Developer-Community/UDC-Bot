@@ -534,4 +534,260 @@ public class UserSlashModule : InteractionModuleBase
     }
 
     #endregion
+
+    #region Rock Paper Scissors System
+
+    public enum RPSChoice
+    {
+        None = 0,
+        Rock = 1,
+        Paper = 2,
+        Scissors = 3
+    }
+
+    public class RPSGame
+    {
+        public ulong ChallengerId { get; set; }
+        public ulong OpponentId { get; set; }
+        public RPSChoice ChallengerChoice { get; set; } = RPSChoice.None;
+        public RPSChoice OpponentChoice { get; set; } = RPSChoice.None;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    private static readonly ConcurrentDictionary<string, RPSGame> _activeRPSGames = new ConcurrentDictionary<string, RPSGame>();
+
+    [SlashCommand("rps", "Challenge another user to Rock Paper Scissors!")]
+    public async Task RockPaperScissors([Summary(description: "The user you want to challenge")] IUser opponent)
+    {
+        // Prevent self-playing
+        if (opponent.Id == Context.User.Id)
+        {
+            await Context.Interaction.RespondAsync("You cannot challenge yourself to Rock Paper Scissors!", ephemeral: true);
+            return;
+        }
+
+        // Prevent challenging bots
+        if (opponent.IsBot)
+        {
+            await Context.Interaction.RespondAsync("You cannot challenge a bot to Rock Paper Scissors!", ephemeral: true);
+            return;
+        }
+
+        // Check for active game
+        string gameKey = $"{Context.User.Id}_{opponent.Id}";
+        string reverseGameKey = $"{opponent.Id}_{Context.User.Id}";
+        
+        if (_activeRPSGames.ContainsKey(gameKey) || _activeRPSGames.ContainsKey(reverseGameKey))
+        {
+            await Context.Interaction.RespondAsync("There's already an active Rock Paper Scissors game between you two!", ephemeral: true);
+            return;
+        }
+
+        // Create the game
+        var game = new RPSGame
+        {
+            ChallengerId = Context.User.Id,
+            OpponentId = opponent.Id
+        };
+        _activeRPSGames[gameKey] = game;
+
+        var embed = new EmbedBuilder()
+            .WithColor(Color.Blue)
+            .WithTitle("🎮 Rock Paper Scissors Challenge!")
+            .WithDescription($"{Context.User.Mention} has challenged {opponent.Mention} to Rock Paper Scissors!")
+            .AddField("How to Play", "Both players choose Rock 🪨, Paper 📄, or Scissors ✂️.\nYou can change your choice until both players have decided.")
+            .WithFooter("This challenge will expire in 5 minutes");
+
+        var components = new ComponentBuilder()
+            .WithButton("🪨 Rock", $"rps_rock:{gameKey}", ButtonStyle.Primary)
+            .WithButton("📄 Paper", $"rps_paper:{gameKey}", ButtonStyle.Primary)
+            .WithButton("✂️ Scissors", $"rps_scissors:{gameKey}", ButtonStyle.Primary)
+            .Build();
+
+        await Context.Interaction.RespondAsync(embed: embed.Build(), components: components);
+
+        // Store the message reference for timeout
+        var originalResponse = await Context.Interaction.GetOriginalResponseAsync();
+        
+        // Auto-timeout after 5 minutes
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(300000); // 5 minutes
+            if (_activeRPSGames.TryGetValue(gameKey, out var gameData))
+            {
+                _activeRPSGames.TryRemove(gameKey, out _);
+                
+                try
+                {
+                    var challenger = await Context.Guild.GetUserAsync(gameData.ChallengerId);
+                    var challengedUser = await Context.Guild.GetUserAsync(gameData.OpponentId);
+                    
+                    string timeoutMessage = "⏰ Rock Paper Scissors challenge expired!";
+
+                    await originalResponse.ModifyAsync(msg =>
+                    {
+                        msg.Content = string.Empty;
+                        msg.Embed = new EmbedBuilder()
+                            .WithColor(Color.LightGrey)
+                            .WithTitle("🎮 Game Expired")
+                            .WithDescription(timeoutMessage)
+                            .Build();
+                        msg.Components = new ComponentBuilder().Build();
+                    });
+                }
+                catch (Exception ex)
+                {
+                    await LoggingService.LogChannelAndFile($"Failed to modify RPS timeout message: {ex.Message}", ExtendedLogSeverity.Warning);
+                }
+            }
+        });
+    }
+
+    [ComponentInteraction("rps_rock:*")]
+    public async Task RPSRock(string gameKey)
+    {
+        await HandleRPSChoice(gameKey, RPSChoice.Rock);
+    }
+
+    [ComponentInteraction("rps_paper:*")]
+    public async Task RPSPaper(string gameKey)
+    {
+        await HandleRPSChoice(gameKey, RPSChoice.Paper);
+    }
+
+    [ComponentInteraction("rps_scissors:*")]
+    public async Task RPSScissors(string gameKey)
+    {
+        await HandleRPSChoice(gameKey, RPSChoice.Scissors);
+    }
+
+    private async Task HandleRPSChoice(string gameKey, RPSChoice choice)
+    {
+        // Check if game is still active
+        if (!_activeRPSGames.TryGetValue(gameKey, out var game))
+        {
+            await Context.Interaction.RespondAsync("This Rock Paper Scissors game is no longer active!", ephemeral: true);
+            return;
+        }
+
+        // Check if user is part of this game
+        if (Context.User.Id != game.ChallengerId && Context.User.Id != game.OpponentId)
+        {
+            await Context.Interaction.RespondAsync("Only the players in this game can make choices!", ephemeral: true);
+            return;
+        }
+
+        // Update the player's choice
+        bool isChallenger = Context.User.Id == game.ChallengerId;
+        if (isChallenger)
+        {
+            game.ChallengerChoice = choice;
+        }
+        else
+        {
+            game.OpponentChoice = choice;
+        }
+
+        await Context.Interaction.DeferAsync();
+
+        // Get user references
+        var challenger = await Context.Guild.GetUserAsync(game.ChallengerId);
+        var opponent = await Context.Guild.GetUserAsync(game.OpponentId);
+
+        if (challenger == null || opponent == null)
+        {
+            await Context.Interaction.FollowupAsync("One of the players is no longer available!");
+            _activeRPSGames.TryRemove(gameKey, out _);
+            return;
+        }
+
+        // Check if both players have made their choice
+        if (game.ChallengerChoice != RPSChoice.None && game.OpponentChoice != RPSChoice.None)
+        {
+            // Game is complete, determine winner
+            _activeRPSGames.TryRemove(gameKey, out _);
+            
+            string result = DetermineRPSWinner(game.ChallengerChoice, game.OpponentChoice, challenger, opponent);
+            string challengerEmoji = GetRPSEmoji(game.ChallengerChoice);
+            string opponentEmoji = GetRPSEmoji(game.OpponentChoice);
+
+            var resultEmbed = new EmbedBuilder()
+                .WithColor(Color.Gold)
+                .WithTitle("🎮 Rock Paper Scissors Results!")
+                .AddField($"{challenger.DisplayName}", $"{challengerEmoji} {game.ChallengerChoice}", inline: true)
+                .AddField("VS", "⚡", inline: true)
+                .AddField($"{opponent.DisplayName}", $"{opponentEmoji} {game.OpponentChoice}", inline: true)
+                .AddField("Result", result, inline: false)
+                .Build();
+
+            await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+            {
+                msg.Embed = resultEmbed;
+                msg.Components = new ComponentBuilder().Build();
+            });
+        }
+        else
+        {
+            // Show that someone has made their choice
+            string statusMessage;
+            if (game.ChallengerChoice == RPSChoice.None && game.OpponentChoice == RPSChoice.None)
+            {
+                statusMessage = "Waiting for both players to make their choices...";
+            }
+            else
+            {
+                var playerReady = game.ChallengerChoice != RPSChoice.None ? challenger : opponent;
+                var playerWaiting = game.ChallengerChoice != RPSChoice.None ? opponent : challenger;
+                statusMessage = $"{playerReady.Mention} has made their choice!\nWaiting for {playerWaiting.Mention}...";
+            }
+
+            var updatedEmbed = new EmbedBuilder()
+                .WithColor(Color.Orange)
+                .WithTitle("🎮 Rock Paper Scissors Challenge!")
+                .WithDescription($"{challenger.Mention} vs {opponent.Mention}")
+                .AddField("Status", statusMessage)
+                .AddField("How to Play", "Both players choose Rock 🪨, Paper 📄, or Scissors ✂️.\nYou can change your choice until both players have decided.")
+                .WithFooter("This challenge will expire in 5 minutes");
+
+            var components = new ComponentBuilder()
+                .WithButton("🪨 Rock", $"rps_rock:{gameKey}", ButtonStyle.Primary)
+                .WithButton("📄 Paper", $"rps_paper:{gameKey}", ButtonStyle.Primary)
+                .WithButton("✂️ Scissors", $"rps_scissors:{gameKey}", ButtonStyle.Primary)
+                .Build();
+
+            await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+            {
+                msg.Embed = updatedEmbed.Build();
+                msg.Components = components;
+            });
+        }
+    }
+
+    private string DetermineRPSWinner(RPSChoice challengerChoice, RPSChoice opponentChoice, IGuildUser challenger, IGuildUser opponent)
+    {
+        if (challengerChoice == opponentChoice)
+        {
+            return "🤝 It's a tie! Great minds think alike.";
+        }
+
+        bool challengerWins = (challengerChoice == RPSChoice.Rock && opponentChoice == RPSChoice.Scissors) ||
+                             (challengerChoice == RPSChoice.Paper && opponentChoice == RPSChoice.Rock) ||
+                             (challengerChoice == RPSChoice.Scissors && opponentChoice == RPSChoice.Paper);
+
+        var winner = challengerWins ? challenger : opponent;
+        return $"🏆 {winner.Mention} wins!";
+    }
+
+    private string GetRPSEmoji(RPSChoice choice)
+    {
+        return choice switch
+        {
+            RPSChoice.Rock => "🪨",
+            RPSChoice.Paper => "📄",
+            RPSChoice.Scissors => "✂️",
+            _ => "❓"
+        };
+    }
+
+    #endregion
 }
