@@ -75,6 +75,43 @@ public class BlackjackGame
     public bool IsDealerBusted() => GetDealerValue() > 21;
     public bool IsPlayerBlackjack() => PlayerCards.Count == 2 && GetPlayerValue() == 21;
     public bool IsDealerBlackjack() => DealerCards.Count == 2 && GetDealerValue() == 21;
+
+    public bool IsDealerSoft17()
+    {
+        if (GetDealerValue() != 17) return false;
+
+        // A soft 17 means we have 17 with at least one Ace counted as 11
+        // We can detect this by checking if reducing any Ace from 11 to 1 would give us 7
+        int value = 0;
+        int acesAs11 = 0;
+
+        foreach (var card in DealerCards)
+        {
+            if (card.Value == 1) // Ace
+            {
+                value += 11;
+                acesAs11++;
+            }
+            else if (card.Value > 10)
+            {
+                value += 10;
+            }
+            else
+            {
+                value += card.Value;
+            }
+        }
+
+        // Convert Aces from 11 to 1 while over 21
+        while (value > 21 && acesAs11 > 0)
+        {
+            value -= 10; // Convert an ace from 11 to 1
+            acesAs11--;
+        }
+
+        // If we have exactly 17 and still have aces counting as 11, it's soft 17
+        return value == 17 && acesAs11 > 0;
+    }
 }
 
 public enum BlackjackGameState
@@ -102,7 +139,7 @@ public class Card
             13 => "K",
             _ => Value.ToString()
         };
-        
+
         string suitEmoji = Suit switch
         {
             "Hearts" => "♥️",

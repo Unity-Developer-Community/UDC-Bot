@@ -607,7 +607,8 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                 "• **Bust/Loss:** Lose your bet", false)
             .AddField("⚡ **Special Rules**",
                 "• If you hit exactly 21 (not blackjack), the dealer automatically plays\n" +
-                "• Dealer continues to hit until 17 or more, then stands\n" +
+                "• Dealer hits until 17 or more, after which they stand\n" +
+                "• Dealer hits on a \"soft 17\" (17 with an Ace counted as 11)\n" +
                 "• Games expire after 5 minutes of inactivity", false)
             .WithFooter("Good luck at the tables! 🍀")
             .Build();
@@ -1154,8 +1155,8 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                 msg.Components = new ComponentBuilder().Build();
             });
 
-            // Dealer draws until 17 or higher
-            while (game.BlackjackGame.GetDealerValue() < 17)
+            // Dealer draws until 17 or higher, but hits on soft 17
+            while (game.BlackjackGame.GetDealerValue() < 17 || game.BlackjackGame.IsDealerSoft17())
             {
                 // Add delay so the user has the time to see what's happening
                 await Task.Delay(1000);
