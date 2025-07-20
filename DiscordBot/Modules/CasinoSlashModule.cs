@@ -1141,6 +1141,15 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
             await Context.Interaction.ModifyOriginalResponseAsync(msg =>
             {
+                msg.Embed = CreateDealerTurnEmbed(game, showDealerHand: false);
+                msg.Components = new ComponentBuilder().Build();
+            });
+
+            // Add delay for the reveal of the dealer's second card
+            await Task.Delay(1000);
+
+            await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+            {
                 msg.Embed = CreateDealerTurnEmbed(game);
                 msg.Components = new ComponentBuilder().Build();
             });
@@ -1287,9 +1296,9 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
     #region Game Display Helpers
 
-    private Embed CreateDealerTurnEmbed(ActiveGame game)
+    private Embed CreateDealerTurnEmbed(ActiveGame game, bool showDealerHand = true)
     {
-        var description = BuildGameDescription(game, showDealerHand: true);
+        var description = BuildGameDescription(game, showDealerHand);
         description += "🤖 **Dealer's turn...**";
 
         return new EmbedBuilder()
