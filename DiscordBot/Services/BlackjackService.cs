@@ -86,8 +86,7 @@ public class BlackjackService
             // Replace any existing game (completed or not) with the new one
             _activeGames.AddOrUpdate(userId, game, (key, oldGame) => game);
 
-            // Deduct bet from user's tokens
-            await _casinoService.UpdateUserTokens(userId.ToString(), -(long)bet, "blackjack_bet", $"Blackjack bet: {bet} tokens");
+            // Note: We don't deduct the bet upfront anymore - only when the player loses
 
             return game;
         }
@@ -120,10 +119,23 @@ public class BlackjackService
 
             long payout = CalculateBlackjackPayout(game.Bet, finalState);
 
-            if (payout > 0)
+            // Handle token transactions based on game outcome
+            if (finalState == BlackjackGameState.PlayerWins || finalState == BlackjackGameState.DealerBusted)
             {
-                await _casinoService.UpdateUserTokens(game.UserId.ToString(), payout, "blackjack_win",
-                    $"Blackjack win: {payout} tokens (bet: {game.Bet})");
+                // Player wins - give them the winnings (bet amount)
+                await _casinoService.UpdateUserTokens(game.UserId.ToString(), (long)game.Bet, "blackjack_win",
+                    $"Blackjack win: {game.Bet} tokens");
+            }
+            else if (finalState == BlackjackGameState.Tie)
+            {
+                // Tie - no money changes hands, payout is 0
+                payout = 0;
+            }
+            else
+            {
+                // Player loses - deduct the bet
+                await _casinoService.UpdateUserTokens(game.UserId.ToString(), -(long)game.Bet, "blackjack_loss",
+                    $"Blackjack loss: {game.Bet} tokens");
             }
 
             // Clean up the game after a delay to allow message updates
@@ -152,10 +164,10 @@ public class BlackjackService
     {
         return result switch
         {
-            BlackjackGameState.PlayerWins => (long)(bet * 2), // Return bet + winnings
-            BlackjackGameState.Tie => (long)bet, // Return just the bet
-            BlackjackGameState.DealerBusted => (long)(bet * 2), // Return bet + winnings
-            _ => 0 // Loss cases: player busted, dealer wins
+            BlackjackGameState.PlayerWins => (long)bet, // Win the bet amount
+            BlackjackGameState.DealerBusted => (long)bet, // Win the bet amount
+            BlackjackGameState.Tie => 0, // No payout on tie
+            _ => -(long)bet // Loss cases: player busted, dealer wins
         };
     }
 
@@ -165,16 +177,12 @@ public class BlackjackService
         {
             if (!game.IsCompleted)
             {
-                // Return the bet to the user since game expired
-                await _casinoService.UpdateUserTokens(userId.ToString(), (long)game.Bet, "blackjack_expired",
-                    "Game expired - bet returned");
-
                 // Update the message to show expiry
                 if (game.Message != null)
                 {
                     var embed = new EmbedBuilder()
                         .WithTitle("🎰 Game Expired")
-                        .WithDescription("This game has expired after 5 minutes of inactivity. Your bet has been returned.")
+                        .WithDescription("This game has expired after 5 minutes of inactivity.")
                         .WithColor(Color.Orange)
                         .Build();
 

@@ -44,6 +44,7 @@ public class CasinoService
             };
 
             var createdUser = await _databaseService.CasinoQuery.InsertCasinoUser(newUser);
+            await RecordTransaction(userId, null, (long)_settings.CasinoStartingTokens, "initial", "Initial casino user creation");
             await _loggingService.LogChannelAndFile($"{ServiceName}: Created new casino user {userId} with {_settings.CasinoStartingTokens} starting tokens");
             return createdUser;
         }

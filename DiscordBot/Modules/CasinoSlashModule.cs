@@ -1333,7 +1333,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         };
 
         description += resultText + "\n";
-        description += payout > 0 ? $"💰 **Won: {payout:N0} tokens**" : "💸 **No payout**";
+        description += payout > 0 ? $"💰 **Won: {payout:N0} tokens**" : $"💸 **Lost: {Math.Abs(payout):N0} tokens**";
 
         Color embedColor = result switch
         {
