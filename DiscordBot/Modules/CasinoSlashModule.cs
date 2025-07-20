@@ -931,24 +931,38 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
     #region Game Component Creation
 
-    private Embed CreateGameEmbed(ActiveGame game)
+    private string BuildGameDescription(ActiveGame game, bool showDealerHand = true)
     {
         var blackjack = game.BlackjackGame;
         var playerCards = string.Join(" ", blackjack.PlayerCards.Select(c => c.GetDisplayName()));
-        var dealerCards = blackjack.DealerCards.Count > 0 ? blackjack.DealerCards[0].GetDisplayName() + " ?" : "";
+
+        string dealerCards;
+        if (showDealerHand)
+        {
+            dealerCards = string.Join(" ", blackjack.DealerCards.Select(c => c.GetDisplayName()));
+        }
+        else
+        {
+            dealerCards = blackjack.DealerCards.Count > 0 ? blackjack.DealerCards[0].GetDisplayName() + " ?" : "";
+        }
 
         var description = $"**Your Bet:** {game.Bet:N0} tokens\n\n";
         description += $"**Your Cards:** {playerCards} (Value: {blackjack.GetPlayerValue()})\n";
-        description += $"**Dealer Cards:** {dealerCards}\n\n";
+        description += $"**Dealer Cards:** {dealerCards}";
 
-        if (blackjack.IsPlayerBlackjack())
+        if (showDealerHand)
         {
-            description += "🎉 **BLACKJACK!** You got 21!\n";
+            description += $" (Value: {blackjack.GetDealerValue()})";
         }
-        else if (blackjack.IsPlayerBusted())
-        {
-            description += "💥 **BUSTED!** You went over 21.\n";
-        }
+
+        description += "\n\n";
+        return description;
+    }
+
+    private Embed CreateGameEmbed(ActiveGame game)
+    {
+        var blackjack = game.BlackjackGame;
+        var description = BuildGameDescription(game, showDealerHand: false);
 
         return new EmbedBuilder()
             .WithTitle("🃏 Blackjack Game")
@@ -1236,17 +1250,11 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
     private Embed CreateDealerTurnEmbed(ActiveGame game)
     {
-        var blackjack = game.BlackjackGame;
-        var playerCards = string.Join(" ", blackjack.PlayerCards.Select(c => c.GetDisplayName()));
-        var dealerCards = string.Join(" ", blackjack.DealerCards.Select(c => c.GetDisplayName()));
-
-        var description = $"**Your Bet:** {game.Bet:N0} tokens\n\n";
-        description += $"**Your Cards:** {playerCards} (Value: {blackjack.GetPlayerValue()})\n";
-        description += $"**Dealer Cards:** {dealerCards} (Value: {blackjack.GetDealerValue()})\n\n";
+        var description = BuildGameDescription(game, showDealerHand: true);
         description += "🤖 **Dealer's turn...**";
 
         return new EmbedBuilder()
-            .WithTitle("🃏 Blackjack Game - Dealer's Turn")
+            .WithTitle("🃏 Blackjack - Dealer's Turn")
             .WithDescription(description)
             .WithColor(Color.Orange)
             .Build();
@@ -1255,12 +1263,12 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     private Embed CreateEndGameEmbed(ActiveGame game, BlackjackGameState result, long payout)
     {
         var blackjack = game.BlackjackGame;
-        var playerCards = string.Join(" ", blackjack.PlayerCards.Select(c => c.GetDisplayName()));
-        var dealerCards = string.Join(" ", blackjack.DealerCards.Select(c => c.GetDisplayName()));
+        var description = BuildGameDescription(game, showDealerHand: true);
 
-        var description = $"**Your Bet:** {game.Bet:N0} tokens\n\n";
-        description += $"**Your Cards:** {playerCards} (Value: {blackjack.GetPlayerValue()})\n";
-        description += $"**Dealer Cards:** {dealerCards} (Value: {blackjack.GetDealerValue()})\n\n";
+        if (blackjack.IsPlayerBlackjack())
+        {
+            description += "🃏 **BLACKJACK!** ";
+        }
 
         string resultText = result switch
         {
@@ -1283,7 +1291,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         };
 
         return new EmbedBuilder()
-            .WithTitle("🃏 Blackjack Game - Final Result")
+            .WithTitle("🃏 Blackjack - Result")
             .WithDescription(description)
             .WithColor(embedColor)
             .WithFooter("Thanks for playing! Start a new game anytime.")
