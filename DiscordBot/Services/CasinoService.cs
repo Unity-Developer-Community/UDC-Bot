@@ -1,10 +1,6 @@
 using System.Collections.Concurrent;
-using Discord;
-using Discord.WebSocket;
 using DiscordBot.Domain;
-using DiscordBot.Extensions;
 using DiscordBot.Settings;
-using DiscordBot.Services.Logging;
 
 namespace DiscordBot.Services;
 
@@ -168,8 +164,11 @@ public class CasinoService
 
     public ActiveGame GetActiveGame(ulong userId)
     {
-        _activeGames.TryGetValue(userId, out var game);
-        return game;
+        if (_activeGames.TryGetValue(userId, out var game) && !game.IsCompleted)
+        {
+            return game;
+        }
+        return null;
     }
 
     public async Task<ActiveGame> StartBlackjackGame(ulong userId, ulong bet, IUserMessage message)
@@ -207,7 +206,8 @@ public class CasinoService
             game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
             game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
 
-            _activeGames.TryAdd(userId, game);
+            // Replace any existing game (completed or not) with the new one
+            _activeGames.AddOrUpdate(userId, game, (key, oldGame) => game);
 
             // Deduct bet from user's tokens
             await UpdateUserTokens(userId.ToString(), -(long)bet, "blackjack_bet", $"Blackjack bet: {bet} tokens");
@@ -222,40 +222,50 @@ public class CasinoService
         }
     }
 
-    public async Task<(BlackjackGameState result, long payout)> CompleteBlackjackGame(ulong userId, BlackjackGameState finalState)
+    public async Task<(BlackjackGameState result, long payout)> CompleteBlackjackGame(ActiveGame game, BlackjackGameState finalState)
     {
         try
         {
-
-            if (!_activeGames.TryGetValue(userId, out var activeGame))
+            if (game == null)
             {
-                await _loggingService.LogChannelAndFile($"{ServiceName}: CompleteBlackjackGame failed - no active game found for userId {userId}");
-                throw new InvalidOperationException("No active game found for user");
+                await _loggingService.LogChannelAndFile($"{ServiceName}: CompleteBlackjackGame failed - game parameter is null");
+                throw new InvalidOperationException("Game parameter cannot be null");
             }
 
-            activeGame.IsCompleted = true;
-            activeGame.BlackjackGame.State = finalState;
+            if (game.IsCompleted)
+            {
+                // Return the existing result rather than throwing an error
+                return (game.BlackjackGame.State, CalculateBlackjackPayout(game.Bet, game.BlackjackGame.State));
+            }
 
-            long payout = CalculateBlackjackPayout(activeGame.Bet, finalState);
+            game.IsCompleted = true;
+            game.BlackjackGame.State = finalState;
+
+            long payout = CalculateBlackjackPayout(game.Bet, finalState);
 
             if (payout > 0)
             {
-                await UpdateUserTokens(userId.ToString(), payout, "blackjack_win",
-                    $"Blackjack win: {payout} tokens (bet: {activeGame.Bet})");
+                await UpdateUserTokens(game.UserId.ToString(), payout, "blackjack_win",
+                    $"Blackjack win: {payout} tokens (bet: {game.Bet})");
             }
 
             // Clean up the game after a delay to allow message updates
             _ = Task.Run(async () =>
             {
-                await Task.Delay(TimeSpan.FromMinutes(2));
-                _activeGames.TryRemove(userId, out _);
+                await Task.Delay(TimeSpan.FromMinutes(1));
+
+                // Remove the completed game
+                if (_activeGames.TryGetValue(game.UserId, out var gameToRemove) && gameToRemove.IsCompleted)
+                {
+                    _activeGames.TryRemove(game.UserId, out _);
+                }
             });
 
             return (finalState, payout);
         }
         catch (Exception ex)
         {
-            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in CompleteBlackjackGame for userId {userId}: {ex.Message}", ExtendedLogSeverity.Error);
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in CompleteBlackjackGame for userId {game?.UserId}: {ex.Message}", ExtendedLogSeverity.Error);
             await _loggingService.LogChannelAndFile($"{ServiceName}: CompleteBlackjackGame Exception Details: {ex}");
             throw;
         }

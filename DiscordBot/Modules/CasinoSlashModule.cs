@@ -991,17 +991,18 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             if (game == null)
             {
                 await Context.Interaction.RespondAsync("❌ No active game found.", ephemeral: true);
-                await LoggingService.LogChannelAndFile($"Casino: BlackjackHit - No active game found for user {Context.User.Username}");
+                await LoggingService.LogChannelAndFile($"Casino: BlackjackHit - No active game found for user {Context.User.Username} (ID: {userId}). HasActiveGame: {CasinoService.HasActiveGame(userId)}");
                 return;
             }
 
             // Draw a card for the player
-            game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
+            var newCard = game.BlackjackGame.Deck.DrawCard();
+            game.BlackjackGame.PlayerCards.Add(newCard);
 
             if (game.BlackjackGame.IsPlayerBusted())
             {
                 // Player busted, end game
-                var (result, payout) = await CasinoService.CompleteBlackjackGame(userId, BlackjackGameState.PlayerBusted);
+                var (result, payout) = await CasinoService.CompleteBlackjackGame(game, BlackjackGameState.PlayerBusted);
                 await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
                 {
                     msg.Embed = CreateEndGameEmbed(game, result, payout);
@@ -1061,7 +1062,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             if (game == null)
             {
                 await Context.Interaction.FollowupAsync("❌ No active game found.", ephemeral: true);
-                await LoggingService.LogChannelAndFile($"Casino: BlackjackStand - No active game found for user {Context.User.Username}");
+                await LoggingService.LogChannelAndFile($"Casino: BlackjackStand - No active game found for user {Context.User.Username} (ID: {userId}). HasActiveGame: {CasinoService.HasActiveGame(userId)}");
                 return;
             }
 
@@ -1110,7 +1111,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             else
                 result = BlackjackGameState.Tie;
 
-            var (finalResult, payout) = await CasinoService.CompleteBlackjackGame(userId, result);
+            var (finalResult, payout) = await CasinoService.CompleteBlackjackGame(game, result);
 
             await Context.Interaction.ModifyOriginalResponseAsync(msg =>
             {
@@ -1182,7 +1183,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
             if (game.BlackjackGame.IsPlayerBusted())
             {
-                var (result, payout) = await CasinoService.CompleteBlackjackGame(userId, BlackjackGameState.PlayerBusted);
+                var (result, payout) = await CasinoService.CompleteBlackjackGame(game, BlackjackGameState.PlayerBusted);
                 await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
                 {
                     msg.Embed = CreateEndGameEmbed(game, result, payout);
