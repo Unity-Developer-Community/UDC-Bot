@@ -263,7 +263,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                     });
                 }
 
-                await LoggingService.LogChannelAndFile($"Casino: DisplayTransactionHistory completed for {Context.User.Username} - Page: {page}, UserId: {queryUserId}, IsAdmin: {isAdminRequest}");
             }
             catch (Exception ex)
             {
@@ -378,6 +377,8 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     {
         if (!await CheckChannelPermissions()) return;
 
+        await LoggingService.LogChannelAndFile($"Casino: ResetCasino called by {Context.User.Username} (ID: {Context.User.Id})");
+
         var embed = new EmbedBuilder()
             .WithTitle("⚠️ Casino Reset Confirmation")
             .WithDescription("**WARNING:** This will permanently delete:\n" +
@@ -427,8 +428,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         {
             await Context.Interaction.DeferAsync(ephemeral: true);
 
-            await LoggingService.LogChannelAndFile($"Casino: ConfirmReset called by {Context.User.Username} (ID: {Context.User.Id}) - ExpectedUserId: {userId}");
-
             if (Context.User.Id.ToString() != userId)
             {
                 await Context.Interaction.RespondAsync("🚫 You are not authorized to confirm this action.", ephemeral: true);
@@ -475,7 +474,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         try
         {
             await Context.Interaction.DeferAsync(ephemeral: true);
-            await LoggingService.LogChannelAndFile($"Casino: CancelReset called by {Context.User.Username} (ID: {Context.User.Id}) - ExpectedUserId: {userId}");
 
             if (Context.User.Id.ToString() != userId)
             {
@@ -529,7 +527,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     {
         try
         {
-            await LoggingService.LogChannelAndFile($"Casino: PlayBlackjack called by {Context.User.Username} (ID: {Context.User.Id}) in channel {Context.Channel.Name}");
 
             if (!await CheckChannelPermissions()) return;
 
@@ -550,7 +547,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             await Context.Interaction.RespondAsync(embed: CreateBettingEmbed(user.Tokens, 1),
                 components: CreateBettingComponents(1));
 
-            await LoggingService.LogChannelAndFile($"Casino: PlayBlackjack setup completed for {Context.User.Username} - Available tokens: {user.Tokens}");
         }
         catch (Exception ex)
         {
@@ -612,7 +608,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     {
         try
         {
-            await LoggingService.LogChannelAndFile($"Casino: AdjustBet called by {Context.User.Username} (ID: {Context.User.Id}) - Amount: {amount}, UserId: {userId}, CurrentBet: {currentBetStr}");
 
             if (Context.User.Id.ToString() != userId)
             {
@@ -633,7 +628,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                 msg.Components = CreateBettingComponents(newBet);
             });
 
-            await LoggingService.LogChannelAndFile($"Casino: AdjustBet completed successfully for {Context.User.Username} - New bet: {newBet}");
         }
         catch (Exception ex)
         {
@@ -664,7 +658,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     {
         try
         {
-            await LoggingService.LogChannelAndFile($"Casino: AllInBet called by {Context.User.Username} (ID: {Context.User.Id}) - UserId: {userId}, CurrentBet: {currentBetStr}");
 
             if (Context.User.Id.ToString() != userId)
             {
@@ -682,7 +675,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                 msg.Components = CreateBettingComponents(user.Tokens);
             });
 
-            await LoggingService.LogChannelAndFile($"Casino: AllInBet completed successfully for {Context.User.Username} - All-in bet: {user.Tokens}");
         }
         catch (Exception ex)
         {
@@ -712,7 +704,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     {
         try
         {
-            await LoggingService.LogChannelAndFile($"Casino: CancelBetting called by {Context.User.Username} (ID: {Context.User.Id}) - UserId: {userId}");
 
             if (Context.User.Id.ToString() != userId)
             {
@@ -732,7 +723,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                 msg.Components = new ComponentBuilder().Build();
             });
 
-            await LoggingService.LogChannelAndFile($"Casino: CancelBetting completed successfully for {Context.User.Username}");
         }
         catch (Exception ex)
         {
@@ -772,7 +762,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     {
         try
         {
-            await LoggingService.LogChannelAndFile($"Casino: ShowCustomBetModal called by {Context.User.Username} (ID: {Context.User.Id}) - UserId: {userId}, CurrentBet: {currentBetStr}");
 
             if (Context.User.Id.ToString() != userId)
             {
@@ -784,7 +773,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
             await Context.Interaction.RespondWithModalAsync<CustomBetModal>($"custom_bet_modal");
 
-            await LoggingService.LogChannelAndFile($"Casino: ShowCustomBetModal completed for {Context.User.Username}");
         }
         catch (Exception ex)
         {
@@ -839,7 +827,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                 msg.Components = CreateBettingComponents(customBet);
             });
 
-            await LoggingService.LogChannelAndFile($"Casino: HandleCustomBetModal completed successfully for {Context.User.Username} - Custom bet: {customBet}");
         }
         catch (Exception ex)
         {
@@ -869,7 +856,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     {
         try
         {
-            await LoggingService.LogChannelAndFile($"Casino: StartBlackjackGame called by {Context.User.Username} (ID: {Context.User.Id}) - UserId: {userId}, Bet: {betStr}");
 
             if (Context.User.Id.ToString() != userId)
             {
@@ -887,7 +873,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             await Context.Interaction.FollowupAsync(embed: CreateGameEmbed(activeGame),
                 components: CreateGameComponents(activeGame));
 
-            await LoggingService.LogChannelAndFile($"Casino: StartBlackjackGame completed successfully for {Context.User.Username} - Bet: {bet}");
         }
         catch (InvalidOperationException ex)
         {
@@ -991,7 +976,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     {
         try
         {
-            await LoggingService.LogChannelAndFile($"Casino: BlackjackHit called by {Context.User.Username} (ID: {Context.User.Id}) - GameUserId: {userIdStr}");
 
             ulong userId = ulong.Parse(userIdStr);
             if (Context.User.Id != userId)
@@ -1021,7 +1005,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                     msg.Components = new ComponentBuilder().Build();
                 });
 
-                await LoggingService.LogChannelAndFile($"Casino: BlackjackHit - Player {Context.User.Username} busted. Payout: {payout}");
             }
             else
             {
@@ -1031,7 +1014,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                     msg.Components = CreateGameComponents(game);
                 });
 
-                await LoggingService.LogChannelAndFile($"Casino: BlackjackHit completed for {Context.User.Username} - New hand value: {game.BlackjackGame.GetPlayerValue()}");
             }
         }
         catch (Exception ex)
@@ -1062,7 +1044,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     {
         try
         {
-            await LoggingService.LogChannelAndFile($"Casino: BlackjackStand called by {Context.User.Username} (ID: {Context.User.Id}) - GameUserId: {userIdStr}");
 
             ulong userId = ulong.Parse(userIdStr);
             if (Context.User.Id != userId)
@@ -1133,7 +1114,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                 msg.Embed = CreateEndGameEmbed(game, finalResult, payout);
             });
 
-            await LoggingService.LogChannelAndFile($"Casino: BlackjackStand completed for {Context.User.Username} - Result: {finalResult}, Payout: {payout}");
         }
         catch (Exception ex)
         {
@@ -1163,7 +1143,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     {
         try
         {
-            await LoggingService.LogChannelAndFile($"Casino: BlackjackDoubleDown called by {Context.User.Username} (ID: {Context.User.Id}) - GameUserId: {userIdStr}");
 
             ulong userId = ulong.Parse(userIdStr);
             if (Context.User.Id != userId)
@@ -1207,13 +1186,11 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                     msg.Components = new ComponentBuilder().Build();
                 });
 
-                await LoggingService.LogChannelAndFile($"Casino: BlackjackDoubleDown - Player {Context.User.Username} busted after double down. Payout: {payout}");
             }
             else
             {
                 // Automatically stand after double down
                 await BlackjackStand(userIdStr);
-                await LoggingService.LogChannelAndFile($"Casino: BlackjackDoubleDown completed for {Context.User.Username} - Auto-standing after double down");
             }
         }
         catch (Exception ex)
