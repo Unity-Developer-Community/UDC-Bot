@@ -446,25 +446,22 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         var playerCards = string.Join(" ", blackjack.PlayerCards.Select(c => c.GetDisplayName()));
 
         string dealerCards;
+        int dealerValue;
         if (showDealerHand)
         {
             dealerCards = string.Join(" ", blackjack.DealerCards.Select(c => c.GetDisplayName()));
+            dealerValue = blackjack.GetDealerValue();
         }
         else
         {
             dealerCards = blackjack.DealerCards.Count > 0 ? blackjack.DealerCards[0].GetDisplayName() + " ?" : "";
+            dealerValue = blackjack.DealerCards.Count > 0 ? BlackjackHelper.CalculateHandValue(new List<Card> { blackjack.DealerCards[0] }) : 0;
         }
 
         var description = $"**Your Bet:** {game.Bet:N0} tokens\n\n";
         description += $"**Your Cards:** {playerCards} (Value: {blackjack.GetPlayerValue()})\n";
-        description += $"**Dealer Cards:** {dealerCards}";
+        description += $"**Dealer Cards:** {dealerCards} (Value: {dealerValue}{(showDealerHand ? "" : "?")})\n\n";
 
-        if (showDealerHand)
-        {
-            description += $" (Value: {blackjack.GetDealerValue()})";
-        }
-
-        description += "\n\n";
         return description;
     }
 
