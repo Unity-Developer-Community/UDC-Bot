@@ -571,6 +571,50 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
+    [SlashCommand("blackjack-rules", "Learn how to play blackjack")]
+    public async Task BlackjackRules()
+    {
+        if (!await CheckChannelPermissions()) return;
+
+        var embed = new EmbedBuilder()
+            .WithTitle("🃏 Blackjack Rules")
+            .WithColor(Color.Blue)
+            .WithDescription("**Objective:** Get as close to 21 as possible without going over, while beating the dealer's hand.\nType `/casino blackjack` to start playing!")
+            .AddField("🎯 **Card Values**",
+                "• **Number cards (2-10):** Face value\n" +
+                "• **Face cards (J, Q, K):** 10 points\n" +
+                "• **Ace:** 11 or 1 (whichever is better)", false)
+            .AddField("🎮 **How to Play**",
+                "1. Place your bet using the betting buttons\n" +
+                "2. You and the dealer each get 2 cards\n" +
+                "3. Your cards are shown, dealer shows only 1 card\n" +
+                "4. Choose your action: **Hit**, **Stand**, or **Double Down**", false)
+            .AddField("🔥 **Actions**",
+                "• **Hit:** Take another card\n" +
+                "• **Stand:** Keep your current hand and pass the turn to the dealer\n" +
+                "• **Double Down:** Double your bet, take exactly 1 more card, then stand", false)
+            .AddField("🏆 **Winning Conditions**",
+                "• **Blackjack:** 21 with first 2 cards (Ace + 10-value card)\n" +
+                "• **Regular Win:** Your total is closer to 21 than dealer's\n" +
+                "• **Dealer Bust:** Dealer goes over 21\n" +
+                "• **Push/Tie:** Same total as dealer", false)
+            .AddField("💥 **Losing Conditions**",
+                "• **Bust:** Your total goes over 21\n" +
+                "• **Dealer Wins:** Dealer's total is closer to 21 than yours", false)
+            .AddField("💰 **Payouts**",
+                "• **Win/Dealer Bust:** 2x your bet\n" +
+                "• **Push/Tie:** Get your bet back\n" +
+                "• **Bust/Loss:** Lose your bet", false)
+            .AddField("⚡ **Special Rules**",
+                "• If you hit exactly 21 (not blackjack), the dealer automatically plays\n" +
+                "• Dealer continues to hit until 17 or more, then stands\n" +
+                "• Games expire after 5 minutes of inactivity", false)
+            .WithFooter("Good luck at the tables! 🍀")
+            .Build();
+
+        await Context.Interaction.RespondAsync(embed: embed, ephemeral: true);
+    }
+
     private Embed CreateBettingEmbed(ulong maxTokens, ulong currentBet)
     {
         var betDescription = currentBet == maxTokens ? $"{currentBet:N0} tokens (ALL IN!)" : $"{currentBet:N0} tokens";
