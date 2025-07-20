@@ -1,4 +1,3 @@
-using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Domain;
@@ -291,11 +290,13 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         });
     }
 
-    [ComponentInteraction("casino_reset_confirm:*")]
+    [ComponentInteraction("casino_reset_confirm:*", true)]
     public async Task ConfirmReset(string userId)
     {
         try
         {
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
             await LoggingService.LogChannelAndFile($"Casino: ConfirmReset called by {Context.User.Username} (ID: {Context.User.Id}) - ExpectedUserId: {userId}");
 
             if (Context.User.Id.ToString() != userId)
@@ -340,11 +341,12 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    [ComponentInteraction("casino_reset_cancel:*")]
+    [ComponentInteraction("casino_reset_cancel:*", true)]
     public async Task CancelReset(string userId)
     {
         try
         {
+            await Context.Interaction.DeferAsync(ephemeral: true);
             await LoggingService.LogChannelAndFile($"Casino: CancelReset called by {Context.User.Username} (ID: {Context.User.Id}) - ExpectedUserId: {userId}");
 
             if (Context.User.Id.ToString() != userId)
@@ -405,7 +407,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
             if (CasinoService.HasActiveGame(Context.User.Id))
             {
-                await Context.Interaction.RespondAsync("🎰 You already have an active game. Finish it before starting a new one.", ephemeral: true);
+                await Context.Interaction.RespondAsync("🃏 You already have an active game. Finish it before starting a new one.", ephemeral: true);
                 return;
             }
 
@@ -448,7 +450,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
     private Embed CreateBettingEmbed(ulong maxTokens)
     {
         return new EmbedBuilder()
-            .WithTitle("🎰 Blackjack - Place Your Bet")
+            .WithTitle("🃏 Blackjack - Place Your Bet")
             .WithDescription($"**Available Tokens:** {maxTokens:N0}\n" +
                            $"**Current Bet:** 1 token\n\n" +
                            "Use the buttons to adjust your bet, then start the game!")
@@ -473,7 +475,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
     #region Betting Component Interactions
 
-    [ComponentInteraction("bet_add:*:*:*")]
+    [ComponentInteraction("bet_add:*:*:*", true)]
     public async Task AdjustBet(string amount, string userId, string currentBetStr)
     {
         try
@@ -492,7 +494,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             ulong newBet = Math.Min(currentBet + adjustment, user.Tokens);
 
             var embed = new EmbedBuilder()
-                .WithTitle("🎰 Blackjack - Place Your Bet")
+                .WithTitle("🃏 Blackjack - Place Your Bet")
                 .WithDescription($"**Available Tokens:** {user.Tokens:N0}\n" +
                                $"**Current Bet:** {newBet:N0} tokens\n\n" +
                                "Use the buttons to adjust your bet, then start the game!")
@@ -532,7 +534,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    [ComponentInteraction("bet_allin:*:*")]
+    [ComponentInteraction("bet_allin:*:*", true)]
     public async Task AllInBet(string userId, string currentBetStr)
     {
         try
@@ -548,7 +550,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
 
             var embed = new EmbedBuilder()
-                .WithTitle("🎰 Blackjack - Place Your Bet")
+                .WithTitle("🃏 Blackjack - Place Your Bet")
                 .WithDescription($"**Available Tokens:** {user.Tokens:N0}\n" +
                                $"**Current Bet:** {user.Tokens:N0} tokens (ALL IN!)\n\n" +
                                "Use the buttons to adjust your bet, then start the game!")
@@ -587,7 +589,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    [ComponentInteraction("cancel_bet:*")]
+    [ComponentInteraction("cancel_bet:*", true)]
     public async Task CancelBetting(string userId)
     {
         try
@@ -601,7 +603,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             }
 
             var embed = new EmbedBuilder()
-                .WithTitle("🎰 Game Cancelled")
+                .WithTitle("🃏 Game Cancelled")
                 .WithDescription("You cancelled the blackjack game.")
                 .WithColor(Color.LightGrey)
                 .Build();
@@ -637,7 +639,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    [ComponentInteraction("start_blackjack:*:*")]
+    [ComponentInteraction("start_blackjack:*:*", true)]
     public async Task StartBlackjackGame(string userId, string betStr)
     {
         try
@@ -759,7 +761,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
     #region Game Action Interactions
 
-    [ComponentInteraction("bj_hit_*")]
+    [ComponentInteraction("bj_hit_*", true)]
     public async Task BlackjackHit(string userIdStr)
     {
         try
@@ -830,7 +832,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    [ComponentInteraction("bj_stand_*")]
+    [ComponentInteraction("bj_stand_*", true)]
     public async Task BlackjackStand(string userIdStr)
     {
         try
@@ -931,7 +933,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    [ComponentInteraction("bj_double_*")]
+    [ComponentInteraction("bj_double_*", true)]
     public async Task BlackjackDoubleDown(string userIdStr)
     {
         try
