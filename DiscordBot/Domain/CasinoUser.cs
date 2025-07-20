@@ -7,6 +7,7 @@ public class CasinoUser
     public ulong Tokens { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public DateTime LastDailyReward { get; set; }
 }
 
 public class TokenTransaction
@@ -31,7 +32,8 @@ public static class CasinoProps
     public const string Tokens = nameof(CasinoUser.Tokens);
     public const string CreatedAt = nameof(CasinoUser.CreatedAt);
     public const string UpdatedAt = nameof(CasinoUser.UpdatedAt);
-    
+    public const string LastDailyReward = nameof(CasinoUser.LastDailyReward);
+
     // TokenTransaction properties
     public const string TransactionId = nameof(TokenTransaction.Id);
     public const string TransactionUserID = nameof(TokenTransaction.UserID);

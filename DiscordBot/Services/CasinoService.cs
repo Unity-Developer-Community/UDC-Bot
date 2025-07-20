@@ -40,7 +40,8 @@ public class CasinoService
                 UserID = userId,
                 Tokens = _settings.CasinoStartingTokens,
                 CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow,
+                LastDailyReward = DateTime.UtcNow // Set to now so user has to wait for next daily reward
             };
 
             var createdUser = await _databaseService.CasinoQuery.InsertCasinoUser(newUser);
@@ -146,6 +147,46 @@ public class CasinoService
             return true; // If no restrictions, allow all channels
 
         return _settings.CasinoAllowedChannels.Contains(channelId);
+    }
+
+    #endregion
+
+    #region Daily Rewards
+
+    public async Task<(bool success, ulong tokensAwarded, ulong newBalance, DateTime nextRewardTime)> TryClaimDailyReward(string userId)
+    {
+        try
+        {
+            var user = await GetOrCreateCasinoUser(userId);
+            var now = DateTime.UtcNow;
+            var nextRewardTime = user.LastDailyReward.AddSeconds(_settings.CasinoDailyRewardIntervalSeconds);
+
+            if (now < nextRewardTime)
+            {
+                return (false, 0, user.Tokens, nextRewardTime);
+            }
+
+            // User can claim daily reward
+            var tokensAwarded = _settings.CasinoDailyRewardTokens;
+            var newBalance = user.Tokens + tokensAwarded;
+            await _databaseService.CasinoQuery.UpdateTokensAndDailyReward(userId, newBalance, now, now);
+            await RecordTransaction(userId, null, (long)tokensAwarded, "daily_reward", "Daily reward claimed");
+
+            await _loggingService.LogChannelAndFile($"{ServiceName}: User {userId} claimed daily reward of {tokensAwarded} tokens");
+            return (true, tokensAwarded, newBalance, now.AddSeconds(_settings.CasinoDailyRewardIntervalSeconds));
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in TryClaimDailyReward for userId {userId}: {ex.Message}", ExtendedLogSeverity.Error);
+            await _loggingService.LogChannelAndFile($"{ServiceName}: TryClaimDailyReward Exception Details: {ex}");
+            throw new InvalidOperationException($"Failed to claim daily reward: {ex.Message}", ex);
+        }
+    }
+
+    public async Task<DateTime> GetNextDailyRewardTime(string userId)
+    {
+        var user = await GetOrCreateCasinoUser(userId);
+        return user.LastDailyReward.AddSeconds(_settings.CasinoDailyRewardIntervalSeconds);
     }
 
     #endregion

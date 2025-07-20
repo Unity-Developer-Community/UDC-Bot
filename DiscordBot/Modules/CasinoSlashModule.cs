@@ -366,6 +366,66 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         }
 
         #endregion
+
+        [SlashCommand("daily", "Claim your daily token reward")]
+        public async Task Daily()
+        {
+            if (!await CheckChannelPermissions()) return;
+
+            try
+            {
+                await Context.Interaction.DeferAsync(ephemeral: true);
+
+                var result = await CasinoService.TryClaimDailyReward(Context.User.Id.ToString());
+
+                if (result.success)
+                {
+                    var embed = new EmbedBuilder()
+                        .WithTitle("🎁 Daily Reward Claimed!")
+                        .WithDescription($"You have received **{result.tokensAwarded:N0}** daily tokens!")
+                        .AddField("💰 New Balance", $"{result.newBalance:N0} tokens", true)
+                        .WithColor(Color.Gold)
+                        .WithCurrentTimestamp()
+                        .Build();
+
+                    await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+                    await LoggingService.LogChannelAndFile($"Casino: {Context.User.Username} claimed daily reward of {result.tokensAwarded} tokens");
+                }
+                else
+                {
+                    var nextRewardTime = await CasinoService.GetNextDailyRewardTime(Context.User.Id.ToString());
+
+                    var embed = new EmbedBuilder()
+                        .WithTitle("⏰ Daily Reward Not Available")
+                        .WithDescription($"You have already claimed your daily reward!\n\nNext reward available: {TimestampTag.FromDateTime(nextRewardTime, TimestampTagStyles.Relative)}")
+                        .WithColor(Color.Orange)
+                        .Build();
+
+                    await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                await LoggingService.LogChannelAndFile($"Casino: ERROR in Daily command for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+                await LoggingService.LogChannelAndFile($"Casino: Daily Exception Details: {ex}");
+
+                try
+                {
+                    if (!Context.Interaction.HasResponded)
+                    {
+                        await Context.Interaction.RespondAsync("❌ An error occurred while processing your daily reward. Please try again.", ephemeral: true);
+                    }
+                    else
+                    {
+                        await Context.Interaction.FollowupAsync("❌ An error occurred while processing your daily reward. Please try again.", ephemeral: true);
+                    }
+                }
+                catch
+                {
+                    await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in Daily command");
+                }
+            }
+        }
     }
 
     #endregion

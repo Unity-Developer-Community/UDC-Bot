@@ -7,8 +7,8 @@ public interface ICasinoRepo
 {
     // Casino User Operations
     [Sql($@"
-    INSERT INTO {CasinoProps.CasinoTableName} ({CasinoProps.UserID}, {CasinoProps.Tokens}, {CasinoProps.CreatedAt}, {CasinoProps.UpdatedAt}) 
-    VALUES (@{CasinoProps.UserID}, @{CasinoProps.Tokens}, @{CasinoProps.CreatedAt}, @{CasinoProps.UpdatedAt});
+    INSERT INTO {CasinoProps.CasinoTableName} ({CasinoProps.UserID}, {CasinoProps.Tokens}, {CasinoProps.CreatedAt}, {CasinoProps.UpdatedAt}, {CasinoProps.LastDailyReward}) 
+    VALUES (@{CasinoProps.UserID}, @{CasinoProps.Tokens}, @{CasinoProps.CreatedAt}, @{CasinoProps.UpdatedAt}, @{CasinoProps.LastDailyReward});
     SELECT * FROM {CasinoProps.CasinoTableName} WHERE {CasinoProps.UserID} = @{CasinoProps.UserID}")]
     Task<CasinoUser> InsertCasinoUser(CasinoUser user);
 
@@ -20,6 +20,9 @@ public interface ICasinoRepo
 
     [Sql($"UPDATE {CasinoProps.CasinoTableName} SET {CasinoProps.Tokens} = @tokens, {CasinoProps.UpdatedAt} = @updatedAt WHERE {CasinoProps.UserID} = @userId")]
     Task UpdateTokens(string userId, ulong tokens, DateTime updatedAt);
+
+    [Sql($"UPDATE {CasinoProps.CasinoTableName} SET {CasinoProps.Tokens} = @tokens, {CasinoProps.UpdatedAt} = @updatedAt, {CasinoProps.LastDailyReward} = @lastDailyReward WHERE {CasinoProps.UserID} = @userId")]
+    Task UpdateTokensAndDailyReward(string userId, ulong tokens, DateTime updatedAt, DateTime lastDailyReward);
 
     [Sql($"DELETE FROM {CasinoProps.CasinoTableName} WHERE {CasinoProps.UserID} = @userId")]
     Task DeleteCasinoUser(string userId);

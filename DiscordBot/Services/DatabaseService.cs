@@ -139,8 +139,9 @@ public class DatabaseService
                         $"`{CasinoProps.Id}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
                         $"`{CasinoProps.UserID}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
                         $"`{CasinoProps.Tokens}` bigint(20) UNSIGNED NOT NULL DEFAULT 1000, " +
-                        $"`{CasinoProps.CreatedAt}` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
-                        $"`{CasinoProps.UpdatedAt}` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, " +
+                        $"`{CasinoProps.CreatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                        $"`{CasinoProps.UpdatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, " +
+                        $"`{CasinoProps.LastDailyReward}` timestamp NOT NULL DEFAULT '1970-01-01 00:00:01', " +
                         $"PRIMARY KEY (`{CasinoProps.Id}`), " +
                         $"UNIQUE KEY `{CasinoProps.UserID}` (`{CasinoProps.UserID}`) " +
                         $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
@@ -154,7 +155,7 @@ public class DatabaseService
                         $"`{CasinoProps.Amount}` bigint(20) NOT NULL, " +
                         $"`{CasinoProps.TransactionType}` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL, " +
                         $"`{CasinoProps.Description}` text COLLATE utf8mb4_unicode_ci, " +
-                        $"`{CasinoProps.TransactionCreatedAt}` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                        $"`{CasinoProps.TransactionCreatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
                         $"PRIMARY KEY (`{CasinoProps.TransactionId}`), " +
                         $"KEY `idx_user_created` (`{CasinoProps.TransactionUserID}`, `{CasinoProps.TransactionCreatedAt}`) " +
                         $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
