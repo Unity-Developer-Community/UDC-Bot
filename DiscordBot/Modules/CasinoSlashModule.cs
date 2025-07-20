@@ -165,58 +165,112 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
             await Context.Interaction.DeferAsync(ephemeral: true);
 
-            // Check if requesting another user's history
-            var userId = Context.User.Id.ToString();
-            var isAdminRequest = targetUser != null && targetUser.Id != Context.User.Id;
+            await DisplayTransactionHistory(userId: null, page: 1, targetUser: targetUser, isInitialCall: true);
+        }
 
-            if (isAdminRequest)
+        private async Task DisplayTransactionHistory(string userId = null, int page = 1, SocketGuildUser targetUser = null, bool isInitialCall = false)
+        {
+            try
             {
-                var guildUser = Context.User as SocketGuildUser;
-                if (guildUser == null || !guildUser.GuildPermissions.Administrator)
+                // Determine the actual user ID to query
+                var queryUserId = userId ?? Context.User.Id.ToString();
+                var isAdminRequest = targetUser != null && targetUser.Id != Context.User.Id;
+
+                // Validate permissions for admin requests
+                if (isAdminRequest || (userId != null && Context.User.Id.ToString() != userId))
                 {
-                    await Context.Interaction.FollowupAsync("🚫 Only administrators can view other users' transaction history.", ephemeral: true);
+                    var guildUser = Context.User as SocketGuildUser;
+                    if (guildUser == null || !guildUser.GuildPermissions.Administrator)
+                    {
+                        var message = "🚫 Only administrators can view other users' transaction history.";
+                        if (isInitialCall)
+                            await Context.Interaction.FollowupAsync(message, ephemeral: true);
+                        else
+                            await Context.Interaction.FollowupAsync(message, ephemeral: true);
+                        return;
+                    }
+
+                    if (isAdminRequest)
+                        queryUserId = targetUser.Id.ToString();
+                }
+
+                const int transactionsPerPage = 5;
+
+                // Get total transaction count
+                var allTransactions = await CasinoService.GetUserTransactionHistory(queryUserId, int.MaxValue);
+                var totalTransactions = allTransactions.Count;
+
+                if (totalTransactions == 0)
+                {
+                    var noHistoryText = isAdminRequest ?
+                        $"📜 No transaction history found for {targetUser.DisplayName}." :
+                        "📜 No transaction history found.";
+
+                    if (isInitialCall)
+                        await Context.Interaction.FollowupAsync(noHistoryText, ephemeral: true);
+                    else
+                        await Context.Interaction.FollowupAsync(noHistoryText, ephemeral: true);
                     return;
                 }
-                userId = targetUser.Id.ToString();
+
+                var totalPages = (int)Math.Ceiling(totalTransactions / (double)transactionsPerPage);
+                page = Math.Max(1, Math.Min(page, totalPages)); // Clamp page to valid range
+
+                var transactions = allTransactions.Skip((page - 1) * transactionsPerPage).Take(transactionsPerPage).ToList();
+
+                // Get user info for display
+                var displayUser = targetUser ?? Context.Guild.GetUser(ulong.Parse(queryUserId));
+                var displayName = displayUser?.DisplayName ?? "Unknown User";
+
+                var embed = new EmbedBuilder()
+                    .WithTitle($"📜 {(isAdminRequest ? $"{displayName}'s " : "Your ")}Transaction History")
+                    .WithColor(Color.Blue)
+                    .WithFooter($"Page {page}/{totalPages} • {totalTransactions} total transactions");
+
+                foreach (var transaction in transactions)
+                {
+                    var amountText = transaction.Amount >= 0 ? $"+{transaction.Amount}" : transaction.Amount.ToString();
+                    var emoji = transaction.Amount >= 0 ? "📈" : "📉";
+                    var timestamp = new TimestampTag(transaction.CreatedAt);
+                    embed.AddField($"{emoji} {transaction.TransactionType}",
+                        $"{amountText} tokens - {transaction.Description}\n*{timestamp}*",
+                        false);
+                }
+
+                var components = CreateHistoryNavigationComponents(queryUserId, page, totalPages, isAdminRequest);
+
+                if (isInitialCall)
+                {
+                    await Context.Interaction.FollowupAsync(embed: embed.Build(), components: components, ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+                    {
+                        msg.Embed = embed.Build();
+                        msg.Components = components;
+                    });
+                }
+
+                await LoggingService.LogChannelAndFile($"Casino: DisplayTransactionHistory completed for {Context.User.Username} - Page: {page}, UserId: {queryUserId}, IsAdmin: {isAdminRequest}");
             }
-
-            const int transactionsPerPage = 5;
-
-            // Get total transaction count first
-            var allTransactions = await CasinoService.GetUserTransactionHistory(userId, int.MaxValue);
-            var totalTransactions = allTransactions.Count;
-
-            if (totalTransactions == 0)
+            catch (Exception ex)
             {
-                var noHistoryText = isAdminRequest ?
-                    $"📜 No transaction history found for {targetUser.DisplayName}." :
-                    "📜 No transaction history found.";
-                await Context.Interaction.FollowupAsync(noHistoryText, ephemeral: true);
-                return;
+                await LoggingService.LogChannelAndFile($"Casino: ERROR in DisplayTransactionHistory for user {Context.User.Username}: {ex.Message}", ExtendedLogSeverity.Error);
+
+                var errorMessage = "❌ An error occurred while displaying transaction history. Please try again.";
+                try
+                {
+                    if (isInitialCall)
+                        await Context.Interaction.FollowupAsync(errorMessage, ephemeral: true);
+                    else
+                        await Context.Interaction.FollowupAsync(errorMessage, ephemeral: true);
+                }
+                catch
+                {
+                    await LoggingService.LogChannelAndFile($"Casino: Failed to send error response in DisplayTransactionHistory");
+                }
             }
-
-            var totalPages = (int)Math.Ceiling(totalTransactions / (double)transactionsPerPage);
-
-            var transactions = allTransactions.Take(transactionsPerPage).ToList();
-
-            var embed = new EmbedBuilder()
-                .WithTitle($"📜 {(isAdminRequest ? $"{targetUser.DisplayName}'s " : "Your ")}Transaction History")
-                .WithColor(Color.Blue)
-                .WithFooter($"Page {1}/{totalPages} • {totalTransactions} total transactions");
-
-            foreach (var transaction in transactions)
-            {
-                var amountText = transaction.Amount >= 0 ? $"+{transaction.Amount}" : transaction.Amount.ToString();
-                var emoji = transaction.Amount >= 0 ? "📈" : "📉";
-                var toto = new TimestampTag(transaction.CreatedAt);
-                embed.AddField($"{emoji} {transaction.TransactionType}",
-                    $"{amountText} tokens - {transaction.Description}\n*{toto}*",
-                    false);
-            }
-
-            var components = CreateHistoryNavigationComponents(userId, 1, totalPages, isAdminRequest);
-
-            await Context.Interaction.FollowupAsync(embed: embed.Build(), components: components, ephemeral: true);
         }
 
         private MessageComponent CreateHistoryNavigationComponents(string userId, int currentPage, int totalPages, bool isAdminRequest)
@@ -241,82 +295,16 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         [ComponentInteraction("history_nav:*:*:*", true)]
         public async Task NavigateHistory(string userId, string pageStr, string requestType)
         {
-            try
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            if (!int.TryParse(pageStr, out int page))
             {
-                await Context.Interaction.DeferAsync(ephemeral: true);
-
-                var page = int.Parse(pageStr);
-                var isAdminRequest = requestType == "admin";
-
-                // Verify permissions
-                if (isAdminRequest)
-                {
-                    var guildUser = Context.User as SocketGuildUser;
-                    if (guildUser == null || !guildUser.GuildPermissions.Administrator)
-                    {
-                        await Context.Interaction.FollowupAsync("🚫 Only administrators can view other users' transaction history.", ephemeral: true);
-                        return;
-                    }
-                }
-                else if (Context.User.Id.ToString() != userId)
-                {
-                    await Context.Interaction.FollowupAsync("🚫 You can only view your own transaction history.", ephemeral: true);
-                    return;
-                }
-
-                const int transactionsPerPage = 5;
-
-                // Get total transaction count
-                var allTransactions = await CasinoService.GetUserTransactionHistory(userId, int.MaxValue);
-                var totalTransactions = allTransactions.Count;
-                var totalPages = (int)Math.Ceiling(totalTransactions / (double)transactionsPerPage);
-
-                page = Math.Max(1, Math.Min(page, totalPages)); // Clamp page to valid range
-
-                var transactions = allTransactions.Skip((page - 1) * transactionsPerPage).Take(transactionsPerPage).ToList();
-
-                // Get user info for display
-                var targetUser = Context.Guild.GetUser(ulong.Parse(userId));
-                var displayName = targetUser?.DisplayName ?? "Unknown User";
-
-                var embed = new EmbedBuilder()
-                    .WithTitle($"📜 {(isAdminRequest ? $"{displayName}'s " : "Your ")}Transaction History")
-                    .WithColor(Color.Blue)
-                    .WithFooter($"Page {page}/{totalPages} • {totalTransactions} total transactions");
-
-                foreach (var transaction in transactions)
-                {
-                    var amountText = transaction.Amount >= 0 ? $"+{transaction.Amount}" : transaction.Amount.ToString();
-                    var emoji = transaction.Amount >= 0 ? "📈" : "📉";
-                    var toto = new TimestampTag(transaction.CreatedAt);
-                    embed.AddField($"{emoji} {transaction.TransactionType}",
-                        $"{amountText} tokens - {transaction.Description}\n*{toto} UTC*",
-                        false);
-                }
-
-                var components = CreateHistoryNavigationComponents(userId, page, totalPages, isAdminRequest);
-
-                await Context.Interaction.ModifyOriginalResponseAsync(msg =>
-                {
-                    msg.Embed = embed.Build();
-                    msg.Components = components;
-                });
-
-                await LoggingService.LogChannelAndFile($"Casino: NavigateHistory completed for {Context.User.Username} - Page: {page}, UserId: {userId}, IsAdmin: {isAdminRequest}");
+                await Context.Interaction.FollowupAsync("❌ Invalid page number.", ephemeral: true);
+                return;
             }
-            catch (Exception ex)
-            {
-                await LoggingService.LogChannelAndFile($"Casino: ERROR in NavigateHistory for user {Context.User.Username}: {ex.Message}", ExtendedLogSeverity.Error);
 
-                try
-                {
-                    await Context.Interaction.FollowupAsync("❌ An error occurred while navigating transaction history. Please try again.", ephemeral: true);
-                }
-                catch
-                {
-                    await LoggingService.LogChannelAndFile($"Casino: Failed to send error response in NavigateHistory");
-                }
-            }
+            var isAdminRequest = requestType == "admin";
+            await DisplayTransactionHistory(userId: userId, page: page, targetUser: null, isInitialCall: false);
         }
 
         #region Admin Commands
