@@ -205,6 +205,7 @@ public class CasinoService
             game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
             game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
             game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
+            game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
 
             // Replace any existing game (completed or not) with the new one
             _activeGames.AddOrUpdate(userId, game, (key, oldGame) => game);
