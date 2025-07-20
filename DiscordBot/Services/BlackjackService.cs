@@ -12,7 +12,7 @@ public class BlackjackService
     private readonly CasinoService _casinoService;
     private readonly ILoggingService _loggingService;
     private readonly BotSettings _settings;
-    private readonly ConcurrentDictionary<ulong, ActiveGame> _activeGames;
+    private readonly ConcurrentDictionary<ulong, ActiveGame<BlackjackGame>> _activeGames;
     private readonly Timer _gameCleanupTimer;
 
     public BlackjackService(CasinoService casinoService, ILoggingService loggingService, BotSettings settings)
@@ -20,7 +20,7 @@ public class BlackjackService
         _casinoService = casinoService;
         _loggingService = loggingService;
         _settings = settings;
-        _activeGames = new ConcurrentDictionary<ulong, ActiveGame>();
+        _activeGames = new ConcurrentDictionary<ulong, ActiveGame<BlackjackGame>>();
 
         // Setup cleanup timer for expired games (run every minute)
         _gameCleanupTimer = new Timer(CleanupExpiredGames, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
@@ -38,7 +38,7 @@ public class BlackjackService
         return _activeGames.ContainsKey(userId) && !_activeGames[userId].IsCompleted;
     }
 
-    public ActiveGame GetActiveGame(ulong userId)
+    public ActiveGame<BlackjackGame> GetActiveGame(ulong userId)
     {
         if (_activeGames.TryGetValue(userId, out var game) && !game.IsCompleted)
         {
@@ -47,7 +47,7 @@ public class BlackjackService
         return null;
     }
 
-    public async Task<ActiveGame> StartBlackjackGame(ulong userId, ulong bet, IUserMessage message)
+    public async Task<ActiveGame<BlackjackGame>> StartBlackjackGame(ulong userId, ulong bet, IUserMessage message)
     {
         try
         {
@@ -65,23 +65,17 @@ public class BlackjackService
                 throw new InvalidOperationException("User already has an active game");
             }
 
-            var game = new ActiveGame
+            var game = new ActiveGame<BlackjackGame>
             {
                 UserId = userId,
-                GameType = "blackjack",
                 Bet = bet,
                 StartTime = DateTime.UtcNow,
                 ExpiryTime = DateTime.UtcNow.AddMinutes(_settings.CasinoGameTimeoutMinutes),
                 Message = message,
-                BlackjackGame = new BlackjackGame(),
-                IsCompleted = false
+                Game = new BlackjackGame(),
             };
 
-            // Deal initial cards (standard blackjack: player gets 2, dealer gets 2)
-            game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
-            game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard()); // Dealer's up card (visible)
-            game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
-            game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard()); // Dealer's hole card (hidden)
+            game.Game.StartGame();
 
             // Replace any existing game (completed or not) with the new one
             _activeGames.AddOrUpdate(userId, game, (key, oldGame) => game);
@@ -98,7 +92,7 @@ public class BlackjackService
         }
     }
 
-    public async Task<(BlackjackGameState result, long payout)> CompleteBlackjackGame(ActiveGame game, BlackjackGameState finalState)
+    public async Task<(BlackjackGameState result, long payout)> CompleteBlackjackGame(ActiveGame<BlackjackGame> game, BlackjackGameState finalState)
     {
         try
         {
@@ -111,11 +105,18 @@ public class BlackjackService
             if (game.IsCompleted)
             {
                 // Return the existing result rather than throwing an error
-                return (game.BlackjackGame.State, CalculateBlackjackPayout(game.Bet, game.BlackjackGame.State));
+                return (finalState, CalculateBlackjackPayout(game.Bet, finalState));
             }
 
-            game.IsCompleted = true;
-            game.BlackjackGame.State = finalState;
+            game.Game.State = finalState switch
+            {
+                BlackjackGameState.PlayerBusted => GameState.Lost,
+                BlackjackGameState.DealerBusted => GameState.Won,
+                BlackjackGameState.PlayerWins => GameState.Won,
+                BlackjackGameState.DealerWins => GameState.Lost,
+                BlackjackGameState.Tie => GameState.Tie,
+                _ => GameState.InProgress
+            };
 
             long payout = CalculateBlackjackPayout(game.Bet, finalState);
 

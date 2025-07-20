@@ -2,31 +2,36 @@ using Discord;
 
 namespace DiscordBot.Domain;
 
-public class ActiveGame
+public class BlackjackGame : CasinoGame
 {
-    public ulong UserId { get; set; }
-    public string GameType { get; set; }
-    public ulong Bet { get; set; }
-    public DateTime StartTime { get; set; }
-    public DateTime ExpiryTime { get; set; }
-    public IUserMessage Message { get; set; }
-    public BlackjackGame BlackjackGame { get; set; }
-    public bool IsCompleted { get; set; }
-}
+    // Interface properties
+    public override string GameName => "Blackjack";
 
-public class BlackjackGame
-{
     public List<Card> PlayerCards { get; set; } = new List<Card>();
     public List<Card> DealerCards { get; set; } = new List<Card>();
     public BlackjackDeck Deck { get; set; }
-    public BlackjackGameState State { get; set; }
+
     public bool PlayerTurn { get; set; } = true;
     public bool DoubleDown { get; set; } = false;
 
     public BlackjackGame()
     {
         Deck = new BlackjackDeck();
-        State = BlackjackGameState.InProgress;
+        State = GameState.NotStarted;
+    }
+
+    public override void StartGame()
+    {
+        State = GameState.InProgress;
+        // Reset deck and player/dealer hands
+        Deck.Reset();
+        PlayerCards.Clear();
+        DealerCards.Clear();
+        // Deal initial cards
+        PlayerCards.Add(Deck.DrawCard());
+        DealerCards.Add(Deck.DrawCard());
+        PlayerCards.Add(Deck.DrawCard());
+        DealerCards.Add(Deck.DrawCard());
     }
 
     public int GetPlayerValue()
@@ -50,16 +55,6 @@ public class BlackjackGame
     }
 }
 
-public enum BlackjackGameState
-{
-    InProgress,
-    PlayerWins,
-    DealerWins,
-    Tie,
-    PlayerBusted,
-    DealerBusted
-}
-
 /// <summary>
 /// Blackjack-specific deck that handles auto-reshuffling
 /// </summary>
@@ -70,6 +65,11 @@ public class BlackjackDeck
     public BlackjackDeck()
     {
         _deck = new Deck(shuffle: true);
+    }
+
+    public void Reset(bool shuffle = true)
+    {
+        _deck.Reset(shuffle);
     }
 
     public Card DrawCard()
@@ -151,4 +151,16 @@ public static class BlackjackHelper
     {
         return CalculateHandValue(cards) > 21;
     }
+}
+
+/// <summary>
+/// Blackjack-specific game states for detailed game logic
+/// </summary>
+public enum BlackjackGameState
+{
+    PlayerWins,
+    DealerWins,
+    Tie,
+    PlayerBusted,
+    DealerBusted
 }

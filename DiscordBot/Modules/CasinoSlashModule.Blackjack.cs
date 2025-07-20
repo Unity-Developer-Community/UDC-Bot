@@ -381,7 +381,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 await Context.Interaction.GetOriginalResponseAsync());
 
             // Check for immediate blackjack (21 with first 2 cards)
-            if (activeGame.BlackjackGame.IsPlayerBlackjack())
+            if (activeGame.Game.IsPlayerBlackjack())
             {
                 var (result, payout) = await BlackjackService.CompleteBlackjackGame(activeGame, BlackjackGameState.PlayerWins);
                 await Context.Interaction.FollowupAsync(embed: CreateEndGameEmbed(activeGame, result, payout),
@@ -440,9 +440,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
     #region Game Component Creation
 
-    private string BuildGameDescription(ActiveGame game, bool showDealerHand = true)
+    private string BuildGameDescription(ActiveGame<BlackjackGame> game, bool showDealerHand = true)
     {
-        var blackjack = game.BlackjackGame;
+        var blackjack = game.Game;
         var playerCards = string.Join(" ", blackjack.PlayerCards.Select(c => c.GetDisplayName()));
 
         string dealerCards;
@@ -468,9 +468,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         return description;
     }
 
-    private Embed CreateGameEmbed(ActiveGame game)
+    private Embed CreateGameEmbed(ActiveGame<BlackjackGame> game)
     {
-        var blackjack = game.BlackjackGame;
+        var blackjack = game.Game;
         var description = BuildGameDescription(game, showDealerHand: false);
 
         return new EmbedBuilder()
@@ -481,9 +481,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             .Build();
     }
 
-    private async Task<MessageComponent> CreateGameComponents(ActiveGame game)
+    private async Task<MessageComponent> CreateGameComponents(ActiveGame<BlackjackGame> game)
     {
-        if (game.BlackjackGame.IsPlayerBusted() || game.BlackjackGame.IsPlayerBlackjack() || !game.BlackjackGame.PlayerTurn)
+        if (game.Game.IsPlayerBusted() || game.Game.IsPlayerBlackjack() || !game.Game.PlayerTurn)
         {
             return new ComponentBuilder().Build(); // No buttons if game is over or not player's turn
         }
@@ -492,7 +492,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             .WithButton("Hit", $"bj_hit_{game.UserId}", ButtonStyle.Primary, new Emoji("👊"))
             .WithButton("Stand", $"bj_stand_{game.UserId}", ButtonStyle.Secondary, new Emoji("✋"));
 
-        if (!game.BlackjackGame.DoubleDown)
+        if (!game.Game.DoubleDown)
         {
             // Check if user has enough tokens to double down
             var user = await CasinoService.GetOrCreateCasinoUser(game.UserId.ToString());
@@ -528,10 +528,10 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             }
 
             // Draw a card for the player
-            var newCard = game.BlackjackGame.Deck.DrawCard();
-            game.BlackjackGame.PlayerCards.Add(newCard);
+            var newCard = game.Game.Deck.DrawCard();
+            game.Game.PlayerCards.Add(newCard);
 
-            if (game.BlackjackGame.IsPlayerBusted())
+            if (game.Game.IsPlayerBusted())
             {
                 // Player busted, end game
                 var (result, payout) = await BlackjackService.CompleteBlackjackGame(game, BlackjackGameState.PlayerBusted);
@@ -541,7 +541,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                     msg.Components = new ComponentBuilder().Build();
                 });
             }
-            else if (game.BlackjackGame.GetPlayerValue() == 21)
+            else if (game.Game.GetPlayerValue() == 21)
             {
                 // Player hit 21, automatically proceed to dealer's turn (same as standing)
                 await BlackjackStand(userIdStr);
@@ -600,7 +600,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 return;
             }
 
-            game.BlackjackGame.PlayerTurn = false;
+            game.Game.PlayerTurn = false;
 
             await Context.Interaction.ModifyOriginalResponseAsync(msg =>
             {
@@ -618,11 +618,11 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             });
 
             // Dealer draws until 17 or higher, but hits on soft 17
-            while (game.BlackjackGame.GetDealerValue() < 17 || game.BlackjackGame.IsDealerSoft17())
+            while (game.Game.GetDealerValue() < 17 || game.Game.IsDealerSoft17())
             {
                 // Add delay so the user has the time to see what's happening
                 await Task.Delay(1000);
-                game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
+                game.Game.DealerCards.Add(game.Game.Deck.DrawCard());
 
                 await Context.Interaction.ModifyOriginalResponseAsync(msg =>
                 {
@@ -633,8 +633,8 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             await Task.Delay(1000);
 
             // Determine winner
-            var dealerValue = game.BlackjackGame.GetDealerValue();
-            var playerValue = game.BlackjackGame.GetPlayerValue();
+            var dealerValue = game.Game.GetDealerValue();
+            var playerValue = game.Game.GetPlayerValue();
 
             BlackjackGameState result;
             if (dealerValue > 21)
@@ -706,12 +706,12 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
             // Double the bet (we'll deduct the full amount only if the player loses)
             game.Bet *= 2;
-            game.BlackjackGame.DoubleDown = true;
+            game.Game.DoubleDown = true;
 
             // Draw exactly one more card
-            game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
+            game.Game.PlayerCards.Add(game.Game.Deck.DrawCard());
 
-            if (game.BlackjackGame.IsPlayerBusted())
+            if (game.Game.IsPlayerBusted())
             {
                 var (result, payout) = await BlackjackService.CompleteBlackjackGame(game, BlackjackGameState.PlayerBusted);
                 await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
@@ -753,7 +753,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
     #region Game Display Helpers
 
-    private Embed CreateDealerTurnEmbed(ActiveGame game, bool showDealerHand = true)
+    private Embed CreateDealerTurnEmbed(ActiveGame<BlackjackGame> game, bool showDealerHand = true)
     {
         var description = BuildGameDescription(game, showDealerHand);
         description += "🤖 **Dealer's turn...**";
@@ -765,9 +765,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             .Build();
     }
 
-    private Embed CreateEndGameEmbed(ActiveGame game, BlackjackGameState result, long payout)
+    private Embed CreateEndGameEmbed(ActiveGame<BlackjackGame> game, BlackjackGameState result, long payout)
     {
-        var blackjack = game.BlackjackGame;
+        var blackjack = game.Game;
         var description = BuildGameDescription(game, showDealerHand: true);
 
         if (blackjack.IsPlayerBlackjack())
