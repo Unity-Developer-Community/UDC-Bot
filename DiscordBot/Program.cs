@@ -15,7 +15,7 @@ namespace DiscordBot;
 public class Program
 {
     private bool _isInitialized = false;
-    
+
     private static Rules _rules;
     private static BotSettings _settings;
     private static UserSettings _userSettings;
@@ -47,13 +47,13 @@ public class Program
 
         await _client.LoginAsync(TokenType.Bot, _settings.Token);
         await _client.StartAsync();
-        
+
         _client.Ready += () =>
         {
             // Ready can be called additional times if the bot disconnects for long enough,
             // so we need to make sure we only initialize commands and such for the bot once if it manages to re-establish connection
             if (_isInitialized) return Task.CompletedTask;
-            
+
             _interactionService = new InteractionService(_client);
             _commandService = new CommandService(new CommandServiceConfig
             {
@@ -70,12 +70,12 @@ public class Program
 
             LoggingService.LogToConsole("Bot is connected.", ExtendedLogSeverity.Positive);
             _isInitialized = true;
-                
+
             _unityHelpService = _services.GetRequiredService<UnityHelpService>();
             _recruitService = _services.GetRequiredService<RecruitService>();
             _services.GetRequiredService<IntroductionWatcherService>();
             _services.GetRequiredService<BirthdayAnnouncementService>();
-            
+
             return Task.CompletedTask;
         };
 
@@ -111,6 +111,7 @@ public class Program
             .AddSingleton<UserExtendedService>()
             .AddSingleton<BirthdayAnnouncementService>()
             .AddSingleton<CasinoService>()
+            .AddSingleton<BlackjackService>()
             .BuildServiceProvider();
 
     private static void DeserializeSettings()
