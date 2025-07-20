@@ -178,8 +178,6 @@ public class CasinoService
     {
         try
         {
-            await _loggingService.LogChannelAndFile($"{ServiceName}: StartBlackjackGame called for userId {userId} with bet {bet}");
-
             var user = await GetOrCreateCasinoUser(userId.ToString());
             
             if (user.Tokens < bet)
@@ -216,7 +214,6 @@ public class CasinoService
             // Deduct bet from user's tokens
             await UpdateUserTokens(userId.ToString(), -(long)bet, "blackjack_bet", $"Blackjack bet: {bet} tokens");
 
-            await _loggingService.LogChannelAndFile($"{ServiceName}: StartBlackjackGame completed successfully for userId {userId}");
             return game;
         }
         catch (Exception ex)
@@ -231,7 +228,6 @@ public class CasinoService
     {
         try
         {
-            await _loggingService.LogChannelAndFile($"{ServiceName}: CompleteBlackjackGame called for userId {userId} with state {finalState}");
 
             if (!_activeGames.TryGetValue(userId, out var activeGame))
             {
@@ -257,7 +253,6 @@ public class CasinoService
                 _activeGames.TryRemove(userId, out _);
             });
 
-            await _loggingService.LogChannelAndFile($"{ServiceName}: CompleteBlackjackGame completed for userId {userId} - Payout: {payout}");
             return (finalState, payout);
         }
         catch (Exception ex)
