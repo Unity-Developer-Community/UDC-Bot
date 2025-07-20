@@ -1086,24 +1086,16 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
             game.BlackjackGame.PlayerTurn = false;
 
-            // Dealer's turn - reveal dealer's second card first
-            if (game.BlackjackGame.DealerCards.Count == 1)
-            {
-                game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
-            }
-
             await Context.Interaction.ModifyOriginalResponseAsync(msg =>
             {
                 msg.Embed = CreateDealerTurnEmbed(game);
                 msg.Components = new ComponentBuilder().Build();
             });
 
-            // Add delay for dramatic effect
-            await Task.Delay(2000);
-
             // Dealer draws until 17 or higher
             while (game.BlackjackGame.GetDealerValue() < 17)
             {
+                // Add delay so the user has the time to see what's happening
                 await Task.Delay(2000);
                 game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
 
