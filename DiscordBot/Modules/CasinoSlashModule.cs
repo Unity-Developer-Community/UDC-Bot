@@ -1105,7 +1105,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             while (game.BlackjackGame.GetDealerValue() < 17)
             {
                 // Add delay so the user has the time to see what's happening
-                await Task.Delay(2000);
+                await Task.Delay(1000);
                 game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
 
                 await Context.Interaction.ModifyOriginalResponseAsync(msg =>
