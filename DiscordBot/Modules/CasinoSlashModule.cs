@@ -871,7 +871,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                 await Context.Interaction.GetOriginalResponseAsync());
 
             await Context.Interaction.FollowupAsync(embed: CreateGameEmbed(activeGame),
-                components: CreateGameComponents(activeGame));
+                components: await CreateGameComponents(activeGame));
 
         }
         catch (InvalidOperationException ex)
@@ -948,7 +948,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             .Build();
     }
 
-    private MessageComponent CreateGameComponents(ActiveGame game)
+    private async Task<MessageComponent> CreateGameComponents(ActiveGame game)
     {
         if (game.BlackjackGame.IsPlayerBusted() || game.BlackjackGame.IsPlayerBlackjack() || !game.BlackjackGame.PlayerTurn)
         {
@@ -961,7 +961,10 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
         if (game.BlackjackGame.PlayerCards.Count == 2 && !game.BlackjackGame.DoubleDown)
         {
-            builder.WithButton("Double Down", $"bj_double_{game.UserId}", ButtonStyle.Success, new Emoji("⬆️"));
+            // Check if user has enough tokens to double down
+            var user = await CasinoService.GetOrCreateCasinoUser(game.UserId.ToString());
+            var hasEnoughTokens = user.Tokens >= game.Bet;
+            builder.WithButton("Double Down", $"bj_double_{game.UserId}", ButtonStyle.Success, new Emoji("⬆️"), disabled: !hasEnoughTokens);
         }
 
         return builder.Build();
@@ -1008,10 +1011,10 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             }
             else
             {
-                await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+                await ((SocketMessageComponent)Context.Interaction).UpdateAsync(async msg =>
                 {
                     msg.Embed = CreateGameEmbed(game);
-                    msg.Components = CreateGameComponents(game);
+                    msg.Components = await CreateGameComponents(game);
                 });
 
             }
