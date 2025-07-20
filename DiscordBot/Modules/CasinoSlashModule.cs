@@ -1035,13 +1035,8 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             }
             else if (game.BlackjackGame.GetPlayerValue() == 21)
             {
-                // Player hit 21, auto-win
-                var (result, payout) = await CasinoService.CompleteBlackjackGame(game, BlackjackGameState.PlayerWins);
-                await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
-                {
-                    msg.Embed = CreateEndGameEmbed(game, result, payout);
-                    msg.Components = new ComponentBuilder().Build();
-                });
+                // Player hit 21, automatically proceed to dealer's turn (same as standing)
+                await BlackjackStand(userIdStr);
             }
             else
             {
