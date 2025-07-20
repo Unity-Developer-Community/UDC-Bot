@@ -142,7 +142,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             for (int i = 0; i < topUsers.Count; i++)
             {
                 var user = Context.Guild.GetUser(ulong.Parse(topUsers[i].UserID));
-                var username = user?.Username ?? "Unknown User";
+                var username = user?.DisplayName ?? "Unknown User";
                 var medal = i switch
                 {
                     0 => "🥇",
