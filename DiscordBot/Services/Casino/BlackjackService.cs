@@ -119,8 +119,7 @@ public class BlackjackService
             if (finalState == BlackjackGameState.PlayerWins || finalState == BlackjackGameState.DealerBusted)
             {
                 // Player wins - give them the winnings (bet amount)
-                await _casinoService.UpdateUserTokens(game.UserId.ToString(), (long)game.Bet, "blackjack_win",
-                    $"Blackjack win: {game.Bet} tokens");
+                await _casinoService.UpdateUserTokens(game.UserId.ToString(), (long)game.Bet, TransactionType.Game);
             }
             else if (finalState == BlackjackGameState.Tie)
             {
@@ -130,8 +129,7 @@ public class BlackjackService
             else
             {
                 // Player loses - deduct the bet
-                await _casinoService.UpdateUserTokens(game.UserId.ToString(), -(long)game.Bet, "blackjack_loss",
-                    $"Blackjack loss: {game.Bet} tokens");
+                await _casinoService.UpdateUserTokens(game.UserId.ToString(), -(long)game.Bet, TransactionType.Game);
             }
 
             // Clean up the game after a delay to allow message updates

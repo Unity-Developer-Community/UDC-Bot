@@ -1,5 +1,6 @@
 using Discord.Interactions;
 using Discord.WebSocket;
+using DiscordBot.Domain;
 using DiscordBot.Services;
 using DiscordBot.Settings;
 
@@ -243,9 +244,8 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 {
                     var amountText = transaction.Amount >= 0 ? $"+{transaction.Amount}" : transaction.Amount.ToString();
                     var emoji = transaction.Amount >= 0 ? "📈" : "📉";
-                    var timestamp = new TimestampTag(transaction.CreatedAt);
-                    embed.AddField($"{emoji} {transaction.TransactionType}",
-                        $"{amountText} tokens - {transaction.Description}\n*{timestamp}*",
+                    embed.AddField($"{emoji} {transaction.Type.ToString()}",
+                        $"{amountText} tokens - \n*{TimestampTag.FromDateTime(transaction.CreatedAt)}*",
                         false);
                 }
 
@@ -352,8 +352,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
             await Context.Interaction.DeferAsync(ephemeral: true);
 
-            await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), (long)amount, "admin_add",
-                $"Admin added {amount} tokens ({Context.User.Username})");
+            await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), (long)amount, TransactionType.AdminAdd);
 
             var embed = new EmbedBuilder()
                 .WithTitle("⚙️ Admin: Tokens Added")
