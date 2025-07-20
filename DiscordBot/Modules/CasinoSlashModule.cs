@@ -550,7 +550,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                 return;
             }
 
-            await Context.Interaction.RespondAsync(embed: CreateBettingEmbed(user.Tokens), 
+            await Context.Interaction.RespondAsync(embed: CreateBettingEmbed(user.Tokens, 1),
                 components: CreateBettingComponents(1));
 
             await LoggingService.LogChannelAndFile($"Casino: PlayBlackjack setup completed for {Context.User.Username} - Available tokens: {user.Tokens}");
@@ -578,14 +578,17 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
-    private Embed CreateBettingEmbed(ulong maxTokens)
+    private Embed CreateBettingEmbed(ulong maxTokens, ulong currentBet)
     {
+        var betDescription = currentBet == maxTokens ? $"{currentBet:N0} tokens (ALL IN!)" : $"{currentBet:N0} tokens";
+        var color = currentBet == maxTokens ? Color.Orange : Color.Blue;
+
         return new EmbedBuilder()
             .WithTitle("🃏 Blackjack - Place Your Bet")
             .WithDescription($"**Available Tokens:** {maxTokens:N0}\n" +
-                           $"**Current Bet:** 1 token\n\n" +
+                           $"**Current Bet:** {betDescription}\n\n" +
                            "Use the buttons to adjust your bet, then start the game!")
-            .WithColor(Color.Blue)
+            .WithColor(color)
             .WithFooter("Game will timeout after 5 minutes of inactivity")
             .Build();
     }
@@ -625,14 +628,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             ulong adjustment = ulong.Parse(amount);
             ulong newBet = Math.Min(currentBet + adjustment, user.Tokens);
 
-            var embed = new EmbedBuilder()
-                .WithTitle("🃏 Blackjack - Place Your Bet")
-                .WithDescription($"**Available Tokens:** {user.Tokens:N0}\n" +
-                               $"**Current Bet:** {newBet:N0} tokens\n\n" +
-                               "Use the buttons to adjust your bet, then start the game!")
-                .WithColor(Color.Blue)
-                .WithFooter("Game will timeout after 5 minutes of inactivity")
-                .Build();
+            var embed = CreateBettingEmbed(user.Tokens, newBet);
 
             await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
             {
@@ -681,14 +677,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
             var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
 
-            var embed = new EmbedBuilder()
-                .WithTitle("🃏 Blackjack - Place Your Bet")
-                .WithDescription($"**Available Tokens:** {user.Tokens:N0}\n" +
-                               $"**Current Bet:** {user.Tokens:N0} tokens (ALL IN!)\n\n" +
-                               "Use the buttons to adjust your bet, then start the game!")
-                .WithColor(Color.Orange)
-                .WithFooter("Game will timeout after 5 minutes of inactivity")
-                .Build();
+            var embed = CreateBettingEmbed(user.Tokens, user.Tokens);
 
             await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
             {
@@ -844,14 +833,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                 return;
             }
 
-            var embed = new EmbedBuilder()
-                .WithTitle("🃏 Blackjack - Place Your Bet")
-                .WithDescription($"**Available Tokens:** {user.Tokens:N0}\n" +
-                               $"**Current Bet:** {customBet:N0} tokens\n\n" +
-                               "Use the buttons to adjust your bet, then start the game!")
-                .WithColor(Color.Blue)
-                .WithFooter("Game will timeout after 5 minutes of inactivity")
-                .Build();
+            var embed = CreateBettingEmbed(user.Tokens, customBet);
 
             await Context.Interaction.DeferAsync();
             await Context.Interaction.ModifyOriginalResponseAsync(msg =>
