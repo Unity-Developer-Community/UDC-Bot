@@ -11,7 +11,7 @@ namespace DiscordBot.Services;
 public class CasinoService
 {
     private const string ServiceName = "CasinoService";
-    
+
     private readonly DatabaseService _databaseService;
     private readonly ILoggingService _loggingService;
     private readonly BotSettings _settings;
@@ -24,10 +24,10 @@ public class CasinoService
         _loggingService = loggingService;
         _settings = settings;
         _activeGames = new ConcurrentDictionary<ulong, ActiveGame>();
-        
+
         // Setup cleanup timer for expired games (run every minute)
         _gameCleanupTimer = new Timer(CleanupExpiredGames, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
-        
+
         Task.Run(async () =>
         {
             await _loggingService.LogAction($"{ServiceName}: Casino service initialized.", ExtendedLogSeverity.Positive);
@@ -90,17 +90,15 @@ public class CasinoService
         {
             var user = await GetOrCreateCasinoUser(userId);
             var newBalance = (long)user.Tokens + deltaTokens;
-            
+
             if (newBalance < 0)
             {
-                await _loggingService.LogChannelAndFile($"{ServiceName}: UpdateUserTokens failed for userId {userId} - insufficient tokens. Current: {user.Tokens}, Delta: {deltaTokens}", ExtendedLogSeverity.Warning);
                 return false;
             }
 
             await _databaseService.CasinoQuery.UpdateTokens(userId, (ulong)newBalance, DateTime.UtcNow);
             await RecordTransaction(userId, null, deltaTokens, transactionType, description);
-            
-            await _loggingService.LogChannelAndFile($"{ServiceName}: UpdateUserTokens completed for userId {userId} - Delta: {deltaTokens}, New balance: {newBalance}");
+
             return true;
         }
         catch (Exception ex)
@@ -152,10 +150,10 @@ public class CasinoService
     {
         if (!_settings.CasinoEnabled)
             return false;
-            
+
         if (_settings.CasinoAllowedChannels.Count == 0)
             return true; // If no restrictions, allow all channels
-            
+
         return _settings.CasinoAllowedChannels.Contains(channelId);
     }
 
@@ -179,7 +177,7 @@ public class CasinoService
         try
         {
             var user = await GetOrCreateCasinoUser(userId.ToString());
-            
+
             if (user.Tokens < bet)
             {
                 await _loggingService.LogChannelAndFile($"{ServiceName}: StartBlackjackGame failed - insufficient tokens for userId {userId}. Available: {user.Tokens}, Bet: {bet}");
@@ -210,7 +208,7 @@ public class CasinoService
             game.BlackjackGame.PlayerCards.Add(game.BlackjackGame.Deck.DrawCard());
 
             _activeGames.TryAdd(userId, game);
-            
+
             // Deduct bet from user's tokens
             await UpdateUserTokens(userId.ToString(), -(long)bet, "blackjack_bet", $"Blackjack bet: {bet} tokens");
 
@@ -239,10 +237,10 @@ public class CasinoService
             activeGame.BlackjackGame.State = finalState;
 
             long payout = CalculateBlackjackPayout(activeGame.Bet, finalState);
-            
+
             if (payout > 0)
             {
-                await UpdateUserTokens(userId.ToString(), payout, "blackjack_win", 
+                await UpdateUserTokens(userId.ToString(), payout, "blackjack_win",
                     $"Blackjack win: {payout} tokens (bet: {activeGame.Bet})");
             }
 
@@ -281,7 +279,7 @@ public class CasinoService
             if (!game.IsCompleted)
             {
                 // Return the bet to the user since game expired
-                await UpdateUserTokens(userId.ToString(), (long)game.Bet, "blackjack_expired", 
+                await UpdateUserTokens(userId.ToString(), (long)game.Bet, "blackjack_expired",
                     "Game expired - bet returned");
 
                 // Update the message to show expiry
@@ -313,7 +311,7 @@ public class CasinoService
     private async void CleanupExpiredGames(object state)
     {
         var expiredGames = _activeGames.Values.Where(g => DateTime.UtcNow > g.ExpiryTime && !g.IsCompleted).ToList();
-        
+
         foreach (var game in expiredGames)
         {
             await ExpireGame(game.UserId);
@@ -328,10 +326,10 @@ public class CasinoService
     {
         await _databaseService.CasinoQuery.ClearAllCasinoUsers();
         await _databaseService.CasinoQuery.ClearAllTransactions();
-        
+
         // Clear all active games
         _activeGames.Clear();
-        
+
         await _loggingService.LogChannelAndFile($"{ServiceName}: All casino data has been reset.");
     }
 
