@@ -870,8 +870,18 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             var activeGame = await CasinoService.StartBlackjackGame(Context.User.Id, bet,
                 await Context.Interaction.GetOriginalResponseAsync());
 
-            await Context.Interaction.FollowupAsync(embed: CreateGameEmbed(activeGame),
-                components: await CreateGameComponents(activeGame));
+            // Check for immediate blackjack (21 with first 2 cards)
+            if (activeGame.BlackjackGame.IsPlayerBlackjack())
+            {
+                var (result, payout) = await CasinoService.CompleteBlackjackGame(activeGame, BlackjackGameState.PlayerWins);
+                await Context.Interaction.FollowupAsync(embed: CreateEndGameEmbed(activeGame, result, payout),
+                    components: new ComponentBuilder().Build());
+            }
+            else
+            {
+                await Context.Interaction.FollowupAsync(embed: CreateGameEmbed(activeGame),
+                    components: await CreateGameComponents(activeGame));
+            }
 
         }
         catch (InvalidOperationException ex)
@@ -1008,7 +1018,16 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                     msg.Embed = CreateEndGameEmbed(game, result, payout);
                     msg.Components = new ComponentBuilder().Build();
                 });
-
+            }
+            else if (game.BlackjackGame.GetPlayerValue() == 21)
+            {
+                // Player hit 21, auto-win
+                var (result, payout) = await CasinoService.CompleteBlackjackGame(game, BlackjackGameState.PlayerWins);
+                await ((SocketMessageComponent)Context.Interaction).UpdateAsync(msg =>
+                {
+                    msg.Embed = CreateEndGameEmbed(game, result, payout);
+                    msg.Components = new ComponentBuilder().Build();
+                });
             }
             else
             {
@@ -1017,7 +1036,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                     msg.Embed = CreateGameEmbed(game);
                     msg.Components = await CreateGameComponents(game);
                 });
-
             }
         }
         catch (Exception ex)
