@@ -436,8 +436,6 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                 return;
             }
 
-            await Context.Interaction.DeferAsync(ephemeral: true);
-
             await CasinoService.ResetAllCasinoData();
 
             var embed = new EmbedBuilder()
