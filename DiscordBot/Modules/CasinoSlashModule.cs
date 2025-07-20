@@ -465,9 +465,10 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             .WithButton("+1", $"bet_add:1:{Context.User.Id}:{currentBet}", ButtonStyle.Secondary, new Emoji("1️⃣"))
             .WithButton("+10", $"bet_add:10:{Context.User.Id}:{currentBet}", ButtonStyle.Secondary, new Emoji("🔟"))
             .WithButton("+100", $"bet_add:100:{Context.User.Id}:{currentBet}", ButtonStyle.Secondary, new Emoji("💯"))
+            .WithButton("Custom", $"bet_custom:{Context.User.Id}:{currentBet}", ButtonStyle.Secondary, new Emoji("✏️"))
             .WithButton("All In", $"bet_allin:{Context.User.Id}:{currentBet}", ButtonStyle.Primary, new Emoji("💰"))
             .WithButton("Start Game", $"start_blackjack:{Context.User.Id}:{currentBet}", ButtonStyle.Success, new Emoji("🎮"), row: 1)
-            .WithButton("Cancel", $"cancel_bet:{Context.User.Id}", ButtonStyle.Danger, new Emoji("❌"), row: 1)
+            .WithButton("Cancel", $"cancel_bet:{Context.User.Id}", ButtonStyle.Danger, new Emoji("✖️"), row: 1)
             .Build();
     }
 
@@ -635,6 +636,120 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             catch
             {
                 await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in CancelBetting");
+            }
+        }
+    }
+
+    // Defines the modal that will be sent.
+    public class CustomBetModal : IModal
+    {
+        public string Title => "Set Custom Bet Amount";
+        // Strings with the ModalTextInput attribute will automatically become components.
+        [InputLabel("Bet Amount")]
+        [ModalTextInput("bet_amount", placeholder: "Enter amount", maxLength: 20)]
+        public string BetAmount { get; set; }
+    }
+
+    [ComponentInteraction("bet_custom:*:*", true)]
+    public async Task ShowCustomBetModal(string userId, string currentBetStr)
+    {
+        try
+        {
+            await LoggingService.LogChannelAndFile($"Casino: ShowCustomBetModal called by {Context.User.Username} (ID: {Context.User.Id}) - UserId: {userId}, CurrentBet: {currentBetStr}");
+
+            if (Context.User.Id.ToString() != userId)
+            {
+                await Context.Interaction.RespondAsync("🚫 This is not your game.", ephemeral: true);
+                return;
+            }
+
+            var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
+
+            await Context.Interaction.RespondWithModalAsync<CustomBetModal>($"custom_bet_modal");
+
+            await LoggingService.LogChannelAndFile($"Casino: ShowCustomBetModal completed for {Context.User.Username}");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in ShowCustomBetModal for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: ShowCustomBetModal Exception Details: {ex}");
+
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while opening the custom bet modal. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while opening the custom bet modal. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in ShowCustomBetModal");
+            }
+        }
+    }
+
+    [ModalInteraction("custom_bet_modal", true)]
+    public async Task HandleCustomBetModal(CustomBetModal modal)
+    {
+        try
+        {
+            var betAmountStr = modal.BetAmount.Trim();
+
+            if (!ulong.TryParse(betAmountStr, out ulong customBet) || customBet == 0)
+            {
+                await Context.Interaction.RespondAsync("❌ Please enter a valid number greater than 0.", ephemeral: true);
+                return;
+            }
+
+            var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
+
+            if (customBet > user.Tokens)
+            {
+                await Context.Interaction.RespondAsync($"❌ You only have {user.Tokens:N0} tokens available.", ephemeral: true);
+                return;
+            }
+
+            var embed = new EmbedBuilder()
+                .WithTitle("🃏 Blackjack - Place Your Bet")
+                .WithDescription($"**Available Tokens:** {user.Tokens:N0}\n" +
+                               $"**Current Bet:** {customBet:N0} tokens\n\n" +
+                               "Use the buttons to adjust your bet, then start the game!")
+                .WithColor(Color.Blue)
+                .WithFooter("Game will timeout after 5 minutes of inactivity")
+                .Build();
+
+            await Context.Interaction.DeferAsync();
+            await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+            {
+                msg.Embed = embed;
+                msg.Components = CreateBettingComponents(customBet);
+            });
+
+            await LoggingService.LogChannelAndFile($"Casino: HandleCustomBetModal completed successfully for {Context.User.Username} - Custom bet: {customBet}");
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in HandleCustomBetModal for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: HandleCustomBetModal Exception Details: {ex}");
+
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while processing your custom bet. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while processing your custom bet. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in HandleCustomBetModal");
             }
         }
     }
