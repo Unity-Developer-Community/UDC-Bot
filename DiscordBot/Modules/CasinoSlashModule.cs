@@ -10,21 +10,21 @@ namespace DiscordBot.Modules;
 public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 {
     #region Dependency Injection
-    
+
     public CasinoService CasinoService { get; set; }
     public ILoggingService LoggingService { get; set; }
     public BotSettings BotSettings { get; set; }
-    
+
     #endregion
 
     #region Channel Permission Check
-    
+
     private async Task<bool> CheckChannelPermissions()
     {
         if (!CasinoService.IsChannelAllowed(Context.Channel.Id))
         {
             await Context.Interaction.RespondAsync(
-                "🚫 Casino commands are not allowed in this channel.", 
+                "🚫 Casino commands are not allowed in this channel.",
                 ephemeral: true);
             return false;
         }
@@ -47,7 +47,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             if (!CasinoService.IsChannelAllowed(Context.Channel.Id))
             {
                 await Context.Interaction.RespondAsync(
-                    "🚫 Casino commands are not allowed in this channel.", 
+                    "🚫 Casino commands are not allowed in this channel.",
                     ephemeral: true);
                 return false;
             }
@@ -62,7 +62,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             await Context.Interaction.DeferAsync(ephemeral: true);
 
             var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
-            
+
             var embed = new EmbedBuilder()
                 .WithTitle("🪙 Your Token Balance")
                 .WithDescription($"You have **{user.Tokens:N0}** tokens")
@@ -128,7 +128,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             await Context.Interaction.DeferAsync();
 
             var topUsers = await CasinoService.GetLeaderboard(10);
-            
+
             if (topUsers.Count == 0)
             {
                 await Context.Interaction.FollowupAsync("📊 No users found in the casino system yet.");
@@ -146,7 +146,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
                 var medal = i switch
                 {
                     0 => "🥇",
-                    1 => "🥈", 
+                    1 => "🥈",
                     2 => "🥉",
                     _ => $"{i + 1}."
                 };
@@ -353,7 +353,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
 
             await Context.Interaction.DeferAsync(ephemeral: true);
 
-            await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), (long)amount, "admin_add", 
+            await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), (long)amount, "admin_add",
                 $"Admin added {amount} tokens ({Context.User.Username})");
 
             var embed = new EmbedBuilder()
@@ -451,7 +451,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         {
             await LoggingService.LogChannelAndFile($"Casino: ERROR in ConfirmReset for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
             await LoggingService.LogChannelAndFile($"Casino: ConfirmReset Exception Details: {ex}");
-            
+
             try
             {
                 if (!Context.Interaction.HasResponded)
@@ -502,7 +502,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         {
             await LoggingService.LogChannelAndFile($"Casino: ERROR in CancelReset for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
             await LoggingService.LogChannelAndFile($"Casino: CancelReset Exception Details: {ex}");
-            
+
             try
             {
                 if (!Context.Interaction.HasResponded)
@@ -541,7 +541,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             }
 
             var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
-            
+
             if (user.Tokens == 0)
             {
                 await Context.Interaction.RespondAsync("💸 You don't have any tokens to bet with.", ephemeral: true);
@@ -557,7 +557,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         {
             await LoggingService.LogChannelAndFile($"Casino: ERROR in PlayBlackjack for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
             await LoggingService.LogChannelAndFile($"Casino: PlayBlackjack Exception Details: {ex}");
-            
+
             try
             {
                 if (!Context.Interaction.HasResponded)
@@ -640,7 +640,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         {
             await LoggingService.LogChannelAndFile($"Casino: ERROR in AdjustBet for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
             await LoggingService.LogChannelAndFile($"Casino: AdjustBet Exception Details: {ex}");
-            
+
             try
             {
                 if (!Context.Interaction.HasResponded)
@@ -689,7 +689,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         {
             await LoggingService.LogChannelAndFile($"Casino: ERROR in AllInBet for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
             await LoggingService.LogChannelAndFile($"Casino: AllInBet Exception Details: {ex}");
-            
+
             try
             {
                 if (!Context.Interaction.HasResponded)
@@ -739,7 +739,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         {
             await LoggingService.LogChannelAndFile($"Casino: ERROR in CancelBetting for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
             await LoggingService.LogChannelAndFile($"Casino: CancelBetting Exception Details: {ex}");
-            
+
             try
             {
                 if (!Context.Interaction.HasResponded)
@@ -881,11 +881,11 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             await Context.Interaction.DeferAsync();
 
             ulong bet = ulong.Parse(betStr);
-            
-            var activeGame = await CasinoService.StartBlackjackGame(Context.User.Id, bet, 
+
+            var activeGame = await CasinoService.StartBlackjackGame(Context.User.Id, bet,
                 await Context.Interaction.GetOriginalResponseAsync());
-            
-            await Context.Interaction.FollowupAsync(embed: CreateGameEmbed(activeGame), 
+
+            await Context.Interaction.FollowupAsync(embed: CreateGameEmbed(activeGame),
                 components: CreateGameComponents(activeGame));
 
             await LoggingService.LogChannelAndFile($"Casino: StartBlackjackGame completed successfully for {Context.User.Username} - Bet: {bet}");
@@ -893,7 +893,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         catch (InvalidOperationException ex)
         {
             await LoggingService.LogChannelAndFile($"Casino: InvalidOperation in StartBlackjackGame for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Warning);
-            
+
             try
             {
                 if (!Context.Interaction.HasResponded)
@@ -914,7 +914,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         {
             await LoggingService.LogChannelAndFile($"Casino: ERROR in StartBlackjackGame for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
             await LoggingService.LogChannelAndFile($"Casino: StartBlackjackGame Exception Details: {ex}");
-            
+
             try
             {
                 if (!Context.Interaction.HasResponded)
@@ -1039,7 +1039,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         {
             await LoggingService.LogChannelAndFile($"Casino: ERROR in BlackjackHit for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
             await LoggingService.LogChannelAndFile($"Casino: BlackjackHit Exception Details: {ex}");
-            
+
             try
             {
                 if (!Context.Interaction.HasResponded)
@@ -1104,7 +1104,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             {
                 await Task.Delay(2000);
                 game.BlackjackGame.DealerCards.Add(game.BlackjackGame.Deck.DrawCard());
-                
+
                 await Context.Interaction.ModifyOriginalResponseAsync(msg =>
                 {
                     msg.Embed = CreateDealerTurnEmbed(game);
@@ -1116,7 +1116,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             // Determine winner
             var dealerValue = game.BlackjackGame.GetDealerValue();
             var playerValue = game.BlackjackGame.GetPlayerValue();
-            
+
             BlackjackGameState result;
             if (dealerValue > 21)
                 result = BlackjackGameState.DealerBusted;
@@ -1140,7 +1140,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         {
             await LoggingService.LogChannelAndFile($"Casino: ERROR in BlackjackStand for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
             await LoggingService.LogChannelAndFile($"Casino: BlackjackStand Exception Details: {ex}");
-            
+
             try
             {
                 if (!Context.Interaction.HasResponded)
@@ -1193,7 +1193,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             var originalBet = game.Bet;
             game.Bet *= 2;
             game.BlackjackGame.DoubleDown = true;
-            await CasinoService.UpdateUserTokens(userId.ToString(), -(long)originalBet, "blackjack_double", 
+            await CasinoService.UpdateUserTokens(userId.ToString(), -(long)originalBet, "blackjack_double",
                 $"Double down additional bet: {originalBet} tokens");
 
             // Draw exactly one more card
@@ -1221,7 +1221,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         {
             await LoggingService.LogChannelAndFile($"Casino: ERROR in BlackjackDoubleDown for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
             await LoggingService.LogChannelAndFile($"Casino: BlackjackDoubleDown Exception Details: {ex}");
-            
+
             try
             {
                 if (!Context.Interaction.HasResponded)
