@@ -16,6 +16,9 @@ public class Card
 
     public string GetDisplayName()
     {
+        // Handle Jokers specially
+        if (Suit == CardSuit.Joker) return Suit.GetEmoji();
+
         string cardName = Value switch
         {
             1 => "A",
@@ -50,7 +53,8 @@ public enum CardSuit
     Hearts,
     Diamonds,
     Clubs,
-    Spades
+    Spades,
+    Joker  // Special suit for jokers
 }
 
 /// <summary>
@@ -64,6 +68,7 @@ public static class CardSuitExtensions
         CardSuit.Diamonds => "♦️",
         CardSuit.Clubs => "♣️",
         CardSuit.Spades => "♠️",
+        CardSuit.Joker => "🃏",
         _ => ""
     };
 
@@ -81,10 +86,10 @@ public class Deck
     public int CardsRemaining => _cards.Count;
     public bool IsEmpty => _cards.Count == 0;
 
-    public Deck(bool shuffle = true)
+    public Deck(bool shuffle = true, int jokerCount = 0)
     {
         _random = new Random();
-        InitializeStandardDeck();
+        InitializeStandardDeck(jokerCount);
         if (shuffle)
         {
             Shuffle();
@@ -104,10 +109,14 @@ public class Deck
         }
     }
 
-    private void InitializeStandardDeck()
+    /// <summary>
+    /// Initializes a standard deck of 52 cards with optional jokers.
+    /// </summary>
+    /// <param name="jokerCount">Number of jokers to include in the deck.</param>
+    private void InitializeStandardDeck(int jokerCount = 0)
     {
         _cards = new List<Card>();
-        var suits = Enum.GetValues<CardSuit>();
+        var suits = Enum.GetValues<CardSuit>().Where(s => s != CardSuit.Joker);
 
         foreach (CardSuit suit in suits)
         {
@@ -115,6 +124,12 @@ public class Deck
             {
                 _cards.Add(new Card(value, suit));
             }
+        }
+
+        // Add specified number of jokers
+        for (int i = 1; i <= jokerCount; i++)
+        {
+            _cards.Add(new Card(i, CardSuit.Joker)); // Joker with unique value
         }
     }
 
@@ -165,11 +180,11 @@ public class Deck
     }
 
     /// <summary>
-    /// Reset deck to a full standard 52-card deck and shuffle
+    /// Reset deck to a full standard deck and shuffle
     /// </summary>
-    public void Reset(bool shuffle = true)
+    public void Reset(bool shuffle = true, int jokerCount = 0)
     {
-        InitializeStandardDeck();
+        InitializeStandardDeck(jokerCount);
         if (shuffle)
         {
             Shuffle();
