@@ -983,7 +983,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
             .WithButton("Hit", $"bj_hit_{game.UserId}", ButtonStyle.Primary, new Emoji("👊"))
             .WithButton("Stand", $"bj_stand_{game.UserId}", ButtonStyle.Secondary, new Emoji("✋"));
 
-        if (game.BlackjackGame.PlayerCards.Count == 2 && !game.BlackjackGame.DoubleDown)
+        if (!game.BlackjackGame.DoubleDown)
         {
             // Check if user has enough tokens to double down
             var user = await CasinoService.GetOrCreateCasinoUser(game.UserId.ToString());
