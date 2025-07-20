@@ -24,11 +24,6 @@ public class BlackjackService
 
         // Setup cleanup timer for expired games (run every minute)
         _gameCleanupTimer = new Timer(CleanupExpiredGames, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
-
-        Task.Run(async () =>
-        {
-            await _loggingService.LogAction($"{ServiceName}: Blackjack service initialized.", ExtendedLogSeverity.Positive);
-        });
     }
 
     #region Game Management

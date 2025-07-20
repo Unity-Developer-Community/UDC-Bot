@@ -17,11 +17,6 @@ public class CasinoService
         _databaseService = databaseService;
         _loggingService = loggingService;
         _settings = settings;
-
-        Task.Run(async () =>
-        {
-            await _loggingService.LogAction($"{ServiceName}: Casino service initialized.", ExtendedLogSeverity.Positive);
-        });
     }
 
     #region Token Management
