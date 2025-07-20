@@ -1013,7 +1013,7 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         var description = BuildGameDescription(game, showDealerHand: false);
 
         return new EmbedBuilder()
-            .WithTitle("🃏 Blackjack Game")
+            .WithTitle("🃏 Blackjack - Your Turn")
             .WithDescription(description)
             .WithColor(blackjack.IsPlayerBusted() ? Color.Red : Color.Blue)
             .WithFooter($"Game expires in {(game.ExpiryTime - DateTime.UtcNow).Minutes + 1} minutes")
