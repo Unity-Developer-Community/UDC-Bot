@@ -18,99 +18,35 @@ public class BlackjackGame
 {
     public List<Card> PlayerCards { get; set; } = new List<Card>();
     public List<Card> DealerCards { get; set; } = new List<Card>();
-    public Deck Deck { get; set; }
+    public BlackjackDeck Deck { get; set; }
     public BlackjackGameState State { get; set; }
     public bool PlayerTurn { get; set; } = true;
     public bool DoubleDown { get; set; } = false;
 
     public BlackjackGame()
     {
-        Deck = new Deck();
+        Deck = new BlackjackDeck();
         State = BlackjackGameState.InProgress;
     }
 
     public int GetPlayerValue()
     {
-        return CalculateHandValue(PlayerCards);
+        return BlackjackHelper.CalculateHandValue(PlayerCards);
     }
 
     public int GetDealerValue()
     {
-        return CalculateHandValue(DealerCards);
+        return BlackjackHelper.CalculateHandValue(DealerCards);
     }
 
-    private int CalculateHandValue(List<Card> cards)
-    {
-        int value = 0;
-        int aces = 0;
-
-        foreach (var card in cards)
-        {
-            if (card.Value == 1) // Ace
-            {
-                aces++;
-                value += 11;
-            }
-            else if (card.Value > 10)
-            {
-                value += 10;
-            }
-            else
-            {
-                value += card.Value;
-            }
-        }
-
-        // Handle Aces (convert from 11 to 1 if needed)
-        while (value > 21 && aces > 0)
-        {
-            value -= 10;
-            aces--;
-        }
-
-        return value;
-    }
-
-    public bool IsPlayerBusted() => GetPlayerValue() > 21;
-    public bool IsDealerBusted() => GetDealerValue() > 21;
-    public bool IsPlayerBlackjack() => PlayerCards.Count == 2 && GetPlayerValue() == 21;
-    public bool IsDealerBlackjack() => DealerCards.Count == 2 && GetDealerValue() == 21;
+    public bool IsPlayerBusted() => BlackjackHelper.IsBusted(PlayerCards);
+    public bool IsDealerBusted() => BlackjackHelper.IsBusted(DealerCards);
+    public bool IsPlayerBlackjack() => BlackjackHelper.IsBlackjack(PlayerCards);
+    public bool IsDealerBlackjack() => BlackjackHelper.IsBlackjack(DealerCards);
 
     public bool IsDealerSoft17()
     {
-        if (GetDealerValue() != 17) return false;
-
-        // A soft 17 means we have 17 with at least one Ace counted as 11
-        // We can detect this by checking if reducing any Ace from 11 to 1 would give us 7
-        int value = 0;
-        int acesAs11 = 0;
-
-        foreach (var card in DealerCards)
-        {
-            if (card.Value == 1) // Ace
-            {
-                value += 11;
-                acesAs11++;
-            }
-            else if (card.Value > 10)
-            {
-                value += 10;
-            }
-            else
-            {
-                value += card.Value;
-            }
-        }
-
-        // Convert Aces from 11 to 1 while over 21
-        while (value > 21 && acesAs11 > 0)
-        {
-            value -= 10; // Convert an ace from 11 to 1
-            acesAs11--;
-        }
-
-        // If we have exactly 17 and still have aces counting as 11, it's soft 17
-        return value == 17 && acesAs11 > 0;
+        return BlackjackHelper.IsSoft17(DealerCards);
     }
 }
 
@@ -124,81 +60,95 @@ public enum BlackjackGameState
     DealerBusted
 }
 
-public class Card
+/// <summary>
+/// Blackjack-specific deck that handles auto-reshuffling
+/// </summary>
+public class BlackjackDeck
 {
-    public int Value { get; set; } // 1 = Ace, 11-13 = Jack/Queen/King
-    public string Suit { get; set; } // Hearts, Diamonds, Clubs, Spades
+    private Deck _deck;
 
-    public string GetDisplayName()
+    public BlackjackDeck()
     {
-        string cardName = Value switch
-        {
-            1 => "A",
-            11 => "J",
-            12 => "Q",
-            13 => "K",
-            _ => Value.ToString()
-        };
-
-        string suitEmoji = Suit switch
-        {
-            "Hearts" => "♥️",
-            "Diamonds" => "♦️",
-            "Clubs" => "♣️",
-            "Spades" => "♠️",
-            _ => ""
-        };
-
-        return $"{cardName}{suitEmoji}";
-    }
-}
-
-public class Deck
-{
-    private List<Card> _cards;
-    private Random _random;
-
-    public Deck()
-    {
-        _random = new Random();
-        InitializeDeck();
-        Shuffle();
-    }
-
-    private void InitializeDeck()
-    {
-        _cards = new List<Card>();
-        string[] suits = { "Hearts", "Diamonds", "Clubs", "Spades" };
-
-        foreach (string suit in suits)
-        {
-            for (int value = 1; value <= 13; value++)
-            {
-                _cards.Add(new Card { Value = value, Suit = suit });
-            }
-        }
-    }
-
-    public void Shuffle()
-    {
-        for (int i = 0; i < _cards.Count; i++)
-        {
-            int randomIndex = _random.Next(i, _cards.Count);
-            (_cards[i], _cards[randomIndex]) = (_cards[randomIndex], _cards[i]);
-        }
+        _deck = new Deck(shuffle: true);
     }
 
     public Card DrawCard()
     {
-        if (_cards.Count == 0)
+        // Auto-reshuffle when deck is empty (common in blackjack)
+        if (_deck.IsEmpty)
         {
-            // Reshuffle if deck is empty
-            InitializeDeck();
-            Shuffle();
+            _deck.Reset(shuffle: true);
         }
 
-        var card = _cards[0];
-        _cards.RemoveAt(0);
-        return card;
+        return _deck.DrawCard();
+    }
+
+    public int CardsRemaining => _deck.CardsRemaining;
+}
+
+/// <summary>
+/// Blackjack-specific card value calculations
+/// </summary>
+public static class BlackjackHelper
+{
+    public static int CalculateHandValue(List<Card> cards)
+    {
+        var (value, _) = CalculateHandValueWithAceInfo(cards);
+        return value;
+    }
+
+    /// <summary>
+    /// Checks if the hand is a soft 17 (a 17 with an Ace counted as 11).
+    /// </summary>
+    /// <returns>
+    /// True if the hand is a soft 17 (i.e., an Ace and a 6), false otherwise.
+    /// </returns>
+    public static bool IsSoft17(List<Card> cards)
+    {
+        var (value, acesAs11) = CalculateHandValueWithAceInfo(cards);
+        return value == 17 && acesAs11 > 0;
+    }
+
+    /// <summary>
+    /// Calculates the total value of a hand of cards, taking into account Aces as either 1 or 11.
+    /// </summary>
+    /// <returns>
+    /// value: The total value of the hand.
+    /// acesAs11: The number of Aces counted as 11 in the total value.
+    /// </returns>
+    private static (int value, int acesAs11) CalculateHandValueWithAceInfo(List<Card> cards)
+    {
+        int value = 0;
+        int acesAs11 = 0;
+
+        foreach (var card in cards)
+        {
+            if (card.Value == 1) // Ace
+            {
+                acesAs11++;
+                value += 11;
+            }
+            else if (card.Value > 10) value += 10; // Face cards are worth 10
+            else value += card.Value;
+        }
+
+        // Handle Aces (convert from 11 to 1 if needed)
+        while (value > 21 && acesAs11 > 0)
+        {
+            value -= 10; // Convert ace from 11 to 1
+            acesAs11--;
+        }
+
+        return (value, acesAs11);
+    }
+
+    public static bool IsBlackjack(List<Card> cards)
+    {
+        return cards.Count == 2 && CalculateHandValue(cards) == 21;
+    }
+
+    public static bool IsBusted(List<Card> cards)
+    {
+        return CalculateHandValue(cards) > 21;
     }
 }
