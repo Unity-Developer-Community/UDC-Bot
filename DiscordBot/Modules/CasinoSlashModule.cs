@@ -158,8 +158,19 @@ public class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
 
         [SlashCommand("history", "View your recent token transactions")]
-        public async Task TokenHistory(
-            [Summary("user", "User to view history for (Admin only)")] SocketGuildUser targetUser = null)
+        public async Task TokenHistory()
+        {
+            if (!await CheckChannelPermissions()) return;
+
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            await DisplayTransactionHistory(userId: null, page: 1, targetUser: null, isInitialCall: true);
+        }
+
+        [SlashCommand("history-admin", "View transaction history for any user (Admin only)")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task TokenHistoryAdmin(
+            [Summary("user", "User to view history for")] SocketGuildUser targetUser)
         {
             if (!await CheckChannelPermissions()) return;
 
