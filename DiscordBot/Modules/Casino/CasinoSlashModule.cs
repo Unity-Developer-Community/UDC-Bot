@@ -69,7 +69,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 .WithTitle("🪙 Your Token Balance")
                 .WithDescription($"You have **{user.Tokens:N0}** tokens")
                 .WithColor(Color.Gold)
-                .WithFooter("Use '/casino tokens gift' to send tokens to other users")
+                .WithFooter("Use `/casino tokens gift` to send tokens to other users")
                 .Build();
 
             await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
@@ -210,6 +210,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 var allTransactions = await CasinoService.GetUserTransactionHistory(queryUserId, int.MaxValue);
                 var totalTransactions = allTransactions.Count;
 
+                // Should not happen since any user we interact with gets at least the initial tokens as transaction
                 if (totalTransactions == 0)
                 {
                     var noHistoryText = isAdminRequest ?
@@ -235,6 +236,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 var embed = new EmbedBuilder()
                     .WithTitle($"📜 {(isAdminRequest ? $"{displayName}'s " : "Your ")}Transaction History")
                     .WithColor(Color.Blue)
+                    .WithDescription($"Current balance: **{(await CasinoService.GetOrCreateCasinoUser(queryUserId)).Tokens:N0} tokens**")
                     .WithFooter($"Page {page}/{totalPages} • {totalTransactions} total transactions");
 
                 foreach (var transaction in transactions)
