@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Linq;
 using Discord.Interactions;
+using Discord.WebSocket;
 using DiscordBot.Services;
 using DiscordBot.Settings;
 
@@ -15,6 +17,7 @@ public class UserSlashModule : InteractionModuleBase
     public UserService UserService { get; set; }
     public BotSettings BotSettings { get; set; }
     public ILoggingService LoggingService { get; set; }
+    public DatabaseService DatabaseService { get; set; }
 
     #endregion
 
@@ -120,6 +123,110 @@ public class UserSlashModule : InteractionModuleBase
     {
         await Context.Interaction.RespondAsync(text: BotSettings.Invite, ephemeral: true);
     }
+
+    #region Profile
+
+    [SlashCommand("profile", "Display your profile or another user's profile")]
+    public async Task Profile([Summary(description: "User to display profile for (optional)")] IUser user = null)
+    {
+        await Context.Interaction.DeferAsync();
+
+        // Default to the command executor if no user is specified
+        var targetUser = user ?? Context.User;
+        
+        try
+        {
+            var embed = await GenerateProfileEmbed(targetUser);
+            if (embed == null)
+            {
+                await Context.Interaction.FollowupAsync("Failed to generate profile. User data might not exist yet.", ephemeral: true);
+                return;
+            }
+
+            await Context.Interaction.FollowupAsync(embed: embed);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogChannelAndFile($"Error generating profile embed for {targetUser.Username}: {ex.Message}", ExtendedLogSeverity.Error);
+            await Context.Interaction.FollowupAsync("An error occurred while generating the profile.", ephemeral: true);
+        }
+    }
+
+    private async Task<Embed> GenerateProfileEmbed(IUser user)
+    {
+        var userData = await DatabaseService.Query.GetUser(user.Id.ToString());
+        if (userData == null)
+        {
+            return null;
+        }
+
+        var guildUser = (Context.Guild as SocketGuild)?.GetUser(user.Id);
+        var displayName = guildUser?.DisplayName ?? user.Username;
+        var username = user.Username;
+
+        // Get ranks
+        var xpRank = await DatabaseService.Query.GetLevelRank(userData.UserID, userData.Level);
+        var karmaRank = await DatabaseService.Query.GetKarmaRank(userData.UserID, userData.Karma);
+
+        // Calculate XP for current level
+        var xpLow = GetXpLow(userData.Level);
+        var xpHigh = GetXpHigh(userData.Level);
+        var xpShown = (uint)(userData.Exp - xpLow);
+        var maxXpShown = (uint)(xpHigh - xpLow);
+        var xpPercentage = maxXpShown > 0 ? (float)xpShown / maxXpShown : 0f;
+
+        // Get main role color (highest position role)
+        var mainRole = guildUser?.Roles.Where(r => r.Id != Context.Guild.EveryoneRole.Id)
+                                      .OrderByDescending(r => r.Position)
+                                      .FirstOrDefault() ?? Context.Guild.EveryoneRole;
+
+        var embed = new EmbedBuilder()
+            .WithTitle($"🎮 {displayName}'s Profile")
+            .WithColor(mainRole.Color.RawValue != 0 ? mainRole.Color : Color.Blue)
+            .WithThumbnailUrl(user.GetAvatarUrl(ImageFormat.Auto, 256) ?? user.GetDefaultAvatarUrl())
+            .WithTimestamp(DateTimeOffset.UtcNow);
+
+        // User Info
+        embed.AddField("👤 User Info", 
+            $"**Username:** {username}\n" +
+            $"**Display Name:** {displayName}\n" +
+            $"**Main Role:** {mainRole.Name}", 
+            inline: false);
+
+        // Level & XP Info
+        embed.AddField("📈 Level & Experience", 
+            $"**Level:** {userData.Level} (Rank #{xpRank})\n" +
+            $"**Total XP:** {userData.Exp:N0}\n" +
+            $"**Current Level XP:** {xpShown:N0} / {maxXpShown:N0} ({xpPercentage:P1})", 
+            inline: true);
+
+        // Karma Info
+        embed.AddField("⭐ Karma", 
+            $"**Total Karma:** {userData.Karma} (Rank #{karmaRank})\n" +
+            $"**Weekly:** {userData.KarmaWeekly}\n" +
+            $"**Monthly:** {userData.KarmaMonthly}\n" +
+            $"**Karma Given:** {userData.KarmaGiven}", 
+            inline: true);
+
+        // Additional Info
+        if (!string.IsNullOrEmpty(userData.DefaultCity))
+        {
+            embed.AddField("📍 Location", userData.DefaultCity, inline: true);
+        }
+
+        // Placeholder for future achievements (issue #341)
+        // embed.AddField("🏆 Achievements", "Coming soon!", inline: false);
+
+        embed.WithFooter($"User ID: {user.Id} | Profile generated");
+
+        return embed.Build();
+    }
+
+    // Helper methods for XP calculations (copied from UserService)
+    private double GetXpLow(uint level) => 70d - 139.5d * (level + 1d) + 69.5 * Math.Pow(level + 1d, 2d);
+    private double GetXpHigh(uint level) => 70d - 139.5d * (level + 2d) + 69.5 * Math.Pow(level + 2d, 2d);
+
+    #endregion // Profile
 
     #region Moderation
 
