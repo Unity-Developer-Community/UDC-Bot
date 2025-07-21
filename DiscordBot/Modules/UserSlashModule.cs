@@ -215,7 +215,8 @@ public class UserSlashModule : InteractionModuleBase
         }
 
         // Placeholder for future achievements (issue #341)
-        // embed.AddField("🏆 Achievements", "Coming soon!", inline: false);
+        // TODO: When achievement/badge system is implemented, add:
+        // embed.AddField("🏆 Achievements", achievementsList, inline: false);
 
         embed.WithFooter($"User ID: {user.Id} | Profile generated");
 
