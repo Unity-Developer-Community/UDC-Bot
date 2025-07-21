@@ -1,3 +1,5 @@
+using Newtonsoft.Json;
+
 namespace DiscordBot.Domain;
 
 public class CasinoUser
@@ -14,9 +16,25 @@ public class TokenTransaction
 {
     public int Id { get; set; }
     public string UserID { get; set; }
-    public string TargetUserID { get; set; } // For gifts, null for other transactions
     public long Amount { get; set; } // Can be negative for spending
     public TransactionType Type { get; set; } // Enum for transaction types
+
+    private Dictionary<string, string> _details;
+
+    [JsonIgnore]
+    public Dictionary<string, string> Details
+    {
+        get => _details;
+        set => _details = value;
+    }
+
+    // This property will be mapped to the database JSON column
+    public string DetailsJson
+    {
+        get => Details != null && Details.Any() ? JsonConvert.SerializeObject(Details) : null;
+        set => Details = !string.IsNullOrEmpty(value) ? JsonConvert.DeserializeObject<Dictionary<string, string>>(value) : new Dictionary<string, string>();
+    }
+
     public DateTime CreatedAt { get; set; }
 }
 
@@ -26,8 +44,7 @@ public enum TransactionType
     DailyReward,
     Gift,
     Game,
-    AdminAdd,
-    AdminSet
+    Admin,
 }
 
 public static class CasinoProps
@@ -46,8 +63,8 @@ public static class CasinoProps
     // TokenTransaction properties
     public const string TransactionId = nameof(TokenTransaction.Id);
     public const string TransactionUserID = nameof(TokenTransaction.UserID);
-    public const string TargetUserID = nameof(TokenTransaction.TargetUserID);
     public const string Amount = nameof(TokenTransaction.Amount);
     public const string TransactionType = nameof(TokenTransaction.Type);
+    public const string Details = nameof(TokenTransaction.DetailsJson);
     public const string TransactionCreatedAt = nameof(TokenTransaction.CreatedAt);
 }

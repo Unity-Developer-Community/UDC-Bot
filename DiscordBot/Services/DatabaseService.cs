@@ -151,9 +151,9 @@ public class DatabaseService
                         $"CREATE TABLE `{CasinoProps.TransactionTableName}` (" +
                         $"`{CasinoProps.TransactionId}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
                         $"`{CasinoProps.TransactionUserID}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
-                        $"`{CasinoProps.TargetUserID}` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL, " +
                         $"`{CasinoProps.Amount}` bigint(20) NOT NULL, " +
                         $"`{CasinoProps.TransactionType}` int(11) NOT NULL, " + // Changed to int for enum
+                        $"`{CasinoProps.Details}` json DEFAULT NULL, " + // JSON column for transaction details
                         $"`{CasinoProps.TransactionCreatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
                         $"PRIMARY KEY (`{CasinoProps.TransactionId}`), " +
                         $"KEY `idx_user_created` (`{CasinoProps.TransactionUserID}`, `{CasinoProps.TransactionCreatedAt}`) " +

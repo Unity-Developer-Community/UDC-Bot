@@ -32,8 +32,8 @@ public interface ICasinoRepo
 
     // Token Transaction Operations
     [Sql($@"
-    INSERT INTO {CasinoProps.TransactionTableName} ({CasinoProps.TransactionUserID}, {CasinoProps.TargetUserID}, {CasinoProps.Amount}, {CasinoProps.TransactionType}, {CasinoProps.TransactionCreatedAt}) 
-    VALUES (@{CasinoProps.TransactionUserID}, @{CasinoProps.TargetUserID}, @{CasinoProps.Amount}, @{CasinoProps.TransactionType}, @{CasinoProps.TransactionCreatedAt});
+    INSERT INTO {CasinoProps.TransactionTableName} ({CasinoProps.TransactionUserID}, {CasinoProps.Amount}, {CasinoProps.TransactionType}, {CasinoProps.Details}, {CasinoProps.TransactionCreatedAt}) 
+    VALUES (@{CasinoProps.TransactionUserID}, @{CasinoProps.Amount}, @{CasinoProps.TransactionType}, @{CasinoProps.Details}, @{CasinoProps.TransactionCreatedAt});
     SELECT * FROM {CasinoProps.TransactionTableName} WHERE {CasinoProps.TransactionId} = LAST_INSERT_ID()")]
     Task<TokenTransaction> InsertTransaction(TokenTransaction tokenTransaction);
 

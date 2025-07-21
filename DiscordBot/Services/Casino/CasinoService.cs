@@ -40,7 +40,7 @@ public class CasinoService
             };
 
             var createdUser = await _databaseService.CasinoQuery.InsertCasinoUser(newUser);
-            await RecordTransaction(userId, null, (long)_settings.CasinoStartingTokens, TransactionType.TokenInitialisation);
+            await RecordTransaction(userId, (long)_settings.CasinoStartingTokens, TransactionType.TokenInitialisation);
             await _loggingService.LogChannelAndFile($"{ServiceName}: Created new casino user {userId} with {_settings.CasinoStartingTokens} starting tokens");
             return createdUser;
         }
@@ -52,7 +52,7 @@ public class CasinoService
         }
     }
 
-    public async Task<bool> TransferTokens(string fromUserId, string toUserId, ulong amount, string reason = "gift")
+    public async Task<bool> TransferTokens(string fromUserId, string toUserId, ulong amount)
     {
         var fromUser = await GetOrCreateCasinoUser(fromUserId);
         var toUser = await GetOrCreateCasinoUser(toUserId);
@@ -65,13 +65,19 @@ public class CasinoService
         await _databaseService.CasinoQuery.UpdateTokens(toUserId, toUser.Tokens + amount, DateTime.UtcNow);
 
         // Record transactions
-        await RecordTransaction(fromUserId, toUserId, -(long)amount, TransactionType.Gift);
-        await RecordTransaction(toUserId, fromUserId, (long)amount, TransactionType.Gift);
+        await RecordTransaction(fromUserId, -(long)amount, TransactionType.Gift, new Dictionary<string, string>
+        {
+            ["to"] = toUserId,
+        });
+        await RecordTransaction(toUserId, (long)amount, TransactionType.Gift, new Dictionary<string, string>
+        {
+            ["from"] = fromUserId
+        });
 
         return true;
     }
 
-    public async Task<bool> UpdateUserTokens(string userId, long deltaTokens, TransactionType transactionType)
+    public async Task<bool> UpdateUserTokens(string userId, long deltaTokens, TransactionType transactionType, Dictionary<string, string> details = null)
     {
         try
         {
@@ -84,7 +90,7 @@ public class CasinoService
             }
 
             await _databaseService.CasinoQuery.UpdateTokens(userId, (ulong)newBalance, DateTime.UtcNow);
-            await RecordTransaction(userId, null, deltaTokens, transactionType);
+            await RecordTransaction(userId, deltaTokens, transactionType, details);
 
             return true;
         }
@@ -99,7 +105,12 @@ public class CasinoService
     public async Task SetUserTokens(string userId, ulong amount, string adminUserId)
     {
         await _databaseService.CasinoQuery.UpdateTokens(userId, amount, DateTime.UtcNow);
-        await RecordTransaction(userId, null, (long)amount, TransactionType.AdminSet);
+
+        await RecordTransaction(userId, (long)amount, TransactionType.Admin, new Dictionary<string, string>
+        {
+            ["admin"] = adminUserId,
+            ["action"] = "set"
+        });
     }
 
     public async Task<List<CasinoUser>> GetLeaderboard(int limit = 10)
@@ -115,15 +126,15 @@ public class CasinoService
         return transactions.ToList();
     }
 
-    private async Task RecordTransaction(string userId, string targetUserId, long amount, TransactionType type)
+    private async Task RecordTransaction(string userId, long amount, TransactionType type, Dictionary<string, string> details = null)
     {
         var transaction = new TokenTransaction
         {
             UserID = userId,
-            TargetUserID = targetUserId,
             Amount = amount,
             Type = type,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            Details = details
         };
 
         await _databaseService.CasinoQuery.InsertTransaction(transaction);
@@ -165,7 +176,7 @@ public class CasinoService
             var tokensAwarded = _settings.CasinoDailyRewardTokens;
             var newBalance = user.Tokens + tokensAwarded;
             await _databaseService.CasinoQuery.UpdateTokensAndDailyReward(userId, newBalance, now, now);
-            await RecordTransaction(userId, null, (long)tokensAwarded, TransactionType.DailyReward);
+            await RecordTransaction(userId, (long)tokensAwarded, TransactionType.DailyReward);
 
             await _loggingService.LogChannelAndFile($"{ServiceName}: User {userId} claimed daily reward of {tokensAwarded} tokens");
             return (true, tokensAwarded, newBalance, now.AddSeconds(_settings.CasinoDailyRewardIntervalSeconds));

@@ -196,10 +196,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                     if (guildUser == null || !guildUser.GuildPermissions.Administrator)
                     {
                         var message = "🚫 Only administrators can view other users' transaction history.";
-                        if (isInitialCall)
-                            await Context.Interaction.FollowupAsync(message, ephemeral: true);
-                        else
-                            await Context.Interaction.FollowupAsync(message, ephemeral: true);
+                        await Context.Interaction.FollowupAsync(message, ephemeral: true);
                         return;
                     }
 
@@ -243,9 +240,10 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 foreach (var transaction in transactions)
                 {
                     var amountText = transaction.Amount >= 0 ? $"+{transaction.Amount}" : transaction.Amount.ToString();
-                    var emoji = transaction.Amount >= 0 ? "📈" : "📉";
-                    embed.AddField($"{emoji} {transaction.Type.ToString()}",
-                        $"{amountText} tokens - \n*{TimestampTag.FromDateTime(transaction.CreatedAt)}*",
+                    var (emoji, title, description) = FormatTransactionDisplay(transaction);
+
+                    embed.AddField($"{emoji} {title}",
+                        $"{amountText} tokens - *{TimestampTag.FromDateTime(transaction.CreatedAt)}*\n{description}",
                         false);
                 }
 
@@ -318,6 +316,71 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             await DisplayTransactionHistory(userId: userId, page: page, targetUser: null, isInitialCall: false);
         }
 
+        private (string emoji, string title, string description) FormatTransactionDisplay(TokenTransaction transaction)
+        {
+            return transaction.Type switch
+            {
+                TransactionType.TokenInitialisation => ("🎯", "Account Created", ""),
+                TransactionType.DailyReward => ("📅", "Daily Reward", ""),
+                TransactionType.Gift => GetGiftDisplay(transaction),
+                TransactionType.Game => GetGameDisplay(transaction),
+                TransactionType.Admin => GetAdminDisplay(transaction),
+                _ => ("❓", transaction.Type.ToString(), "")
+            };
+        }
+
+        private (string emoji, string title, string description) GetGiftDisplay(TokenTransaction transaction)
+        {
+            SocketGuildUser user = null;
+            var userId = transaction.Details.GetValueOrDefault(transaction.Amount >= 0 ? "from" : "to", null);
+            if (userId != null) user = Context.Guild.GetUser(ulong.Parse(userId));
+
+            string title = transaction.Amount > 0 ? "Gift Received" : "Gift Sent";
+            if (user != null) title = transaction.Amount > 0 ? $"Gift from {user.DisplayName}" : $"Gift to {user.DisplayName}";
+
+            return ("🎁", title, "");
+        }
+
+        private (string emoji, string title, string description) GetGameDisplay(TokenTransaction transaction)
+        {
+            var gameName = transaction.Details?.GetValueOrDefault("game", null);
+
+            string emoji = transaction.Amount >= 0 ? "📈" : "📉";
+            string title = transaction.Amount >= 0 ? "Won" : "Lost";
+            if (gameName != null) title += $" {CapitalizeFirst(gameName)}";
+
+            return (emoji, title, "");
+        }
+
+        private (string emoji, string title, string description) GetAdminDisplay(TokenTransaction transaction)
+        {
+            var adminId = transaction.Details?.GetValueOrDefault("admin", null);
+            var action = transaction.Details?.GetValueOrDefault("action", null);
+            SocketGuildUser admin = null;
+            if (adminId != null) admin = Context.Guild.GetUser(ulong.Parse(adminId));
+
+            string title = action switch {
+                "add" => "Tokens Added",
+                "set" => "Tokens Set",
+                _ => $"UNKNOWN ACTION: {action}"
+            };
+            string description = action switch {
+                "set" => "This override past transactions",
+                _ => ""
+            };
+            
+            if (admin != null) title += $" by Admin {admin.DisplayName}";
+
+            return ("⚙️", title, description);
+        }
+
+        private string CapitalizeFirst(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
+            return char.ToUpper(input[0]) + input.Substring(1).ToLower();
+        }
+
         #region Admin Commands
 
         [SlashCommand("set", "Set a user's token balance (Admin only)")]
@@ -352,7 +415,11 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
             await Context.Interaction.DeferAsync(ephemeral: true);
 
-            await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), (long)amount, TransactionType.AdminAdd);
+            await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), (long)amount, TransactionType.Admin, new Dictionary<string, string>
+            {
+                ["admin"] = Context.User.Id.ToString(),
+                ["action"] = "add"
+            });
 
             var embed = new EmbedBuilder()
                 .WithTitle("⚙️ Admin: Tokens Added")

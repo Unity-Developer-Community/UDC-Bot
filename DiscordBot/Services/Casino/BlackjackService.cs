@@ -115,22 +115,10 @@ public class BlackjackService
 
             long payout = CalculateBlackjackPayout(game.Bet, finalState);
 
-            // Handle token transactions based on game outcome
-            if (finalState == BlackjackGameState.PlayerWins || finalState == BlackjackGameState.DealerBusted)
+            await _casinoService.UpdateUserTokens(game.UserId.ToString(), payout, TransactionType.Game, new Dictionary<string, string>
             {
-                // Player wins - give them the winnings (bet amount)
-                await _casinoService.UpdateUserTokens(game.UserId.ToString(), (long)game.Bet, TransactionType.Game);
-            }
-            else if (finalState == BlackjackGameState.Tie)
-            {
-                // Tie - no money changes hands, payout is 0
-                payout = 0;
-            }
-            else
-            {
-                // Player loses - deduct the bet
-                await _casinoService.UpdateUserTokens(game.UserId.ToString(), -(long)game.Bet, TransactionType.Game);
-            }
+                { "game", game.GameName },
+            });
 
             // Clean up the game after a delay to allow message updates
             _ = Task.Run(async () =>
