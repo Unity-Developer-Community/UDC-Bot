@@ -40,11 +40,8 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
         get
         {
             if (State != GameState.InProgress) return null;
-            
-            var playersNotDiscarded = Players.Where(p => !GameData[p].HasDiscarded).ToList();
-            if (!playersNotDiscarded.Any()) return null;
-            
-            return playersNotDiscarded.FirstOrDefault();
+
+            return Players.Where(p => !GameData[p].HasDiscarded).FirstOrDefault();
         }
     }
 
