@@ -111,7 +111,7 @@ public interface IBadgeRepo
     [Sql($@"
     SELECT COUNT(*) FROM {UserBadgeProps.TableName}
     WHERE {UserBadgeProps.UserID} = @userId AND {UserBadgeProps.BadgeId} = @badgeId")]
-    Task<int> CheckUserHasBadge(string userId, int badgeId);
+    Task<long> CheckUserHasBadge(string userId, int badgeId);
     
     [Sql($@"
     SELECT ub.{UserBadgeProps.UserID}, ub.{UserBadgeProps.AwardedAt}, ub.{UserBadgeProps.AwardedBy}
