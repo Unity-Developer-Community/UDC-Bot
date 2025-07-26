@@ -46,6 +46,9 @@ public interface ICasinoRepo
     [Sql($"DELETE FROM {CasinoProps.TransactionTableName}")]
     Task ClearAllTransactions();
 
+    [Sql($"SELECT * FROM {CasinoProps.TransactionTableName} WHERE {CasinoProps.TransactionType} = 'Game' ORDER BY {CasinoProps.TransactionCreatedAt} DESC")]
+    Task<IList<TokenTransaction>> GetAllGameTransactions();
+
     // Test connection
     [Sql($"SELECT COUNT(*) FROM {CasinoProps.CasinoTableName}")]
     Task<long> TestCasinoConnection();

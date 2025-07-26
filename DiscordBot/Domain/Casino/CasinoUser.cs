@@ -47,6 +47,19 @@ public enum TransactionType
     Admin,
 }
 
+public class GameStatistics
+{
+    public string GameName { get; set; }
+    public int TotalGames { get; set; }
+    public int Wins { get; set; }
+    public int Losses { get; set; }
+    public double WinPercentage { get; set; }
+    public long TotalWinAmount { get; set; }
+    public long TotalLossAmount { get; set; }
+    public long NetProfit { get; set; }
+    public double AverageProfit { get; set; }
+}
+
 public static class CasinoProps
 {
     public const string CasinoTableName = "casino_users";

@@ -142,6 +142,67 @@ public class CasinoService
 
     #endregion
 
+    #region Game Statistics
+
+    public async Task<List<GameStatistics>> GetGameStatistics()
+    {
+        try
+        {
+            var gameTransactions = await _databaseService.CasinoQuery.GetAllGameTransactions();
+            
+            // Group transactions by game type
+            var gameGroups = gameTransactions
+                .Where(t => t.Details != null && t.Details.ContainsKey("game"))
+                .GroupBy(t => t.Details["game"])
+                .ToList();
+
+            var statistics = new List<GameStatistics>();
+
+            foreach (var group in gameGroups)
+            {
+                var gameName = group.Key;
+                var transactions = group.ToList();
+                
+                var wins = transactions.Where(t => t.Amount > 0).ToList();
+                var losses = transactions.Where(t => t.Amount < 0).ToList();
+                
+                var totalWins = wins.Count;
+                var totalLosses = losses.Count;
+                var totalGames = totalWins + totalLosses;
+                
+                var winPercentage = totalGames > 0 ? (double)totalWins / totalGames * 100 : 0;
+                
+                var totalWinAmount = wins.Sum(t => t.Amount);
+                var totalLossAmount = losses.Sum(t => Math.Abs(t.Amount)); // Make positive for display
+                var netProfit = totalWinAmount - totalLossAmount;
+                var averageProfit = totalGames > 0 ? (double)netProfit / totalGames : 0;
+
+                statistics.Add(new GameStatistics
+                {
+                    GameName = gameName,
+                    TotalGames = totalGames,
+                    Wins = totalWins,
+                    Losses = totalLosses,
+                    WinPercentage = winPercentage,
+                    TotalWinAmount = totalWinAmount,
+                    TotalLossAmount = totalLossAmount,
+                    NetProfit = netProfit,
+                    AverageProfit = averageProfit
+                });
+            }
+
+            return statistics.OrderByDescending(s => s.TotalGames).ToList();
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in GetGameStatistics: {ex.Message}", ExtendedLogSeverity.Error);
+            await _loggingService.LogChannelAndFile($"{ServiceName}: GetGameStatistics Exception Details: {ex}");
+            throw new InvalidOperationException($"Failed to get game statistics: {ex.Message}", ex);
+        }
+    }
+
+    #endregion
+
     #region Channel Permissions
 
     public bool IsChannelAllowed(ulong channelId)
