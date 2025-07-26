@@ -58,8 +58,6 @@ public class DatabaseService
 
     public IServerUserRepo Query => CreateQuery();
     public IBadgeRepo BadgeQuery => CreateBadgeQuery();
-
-    public IServerUserRepo Query => CreateQuery();
     public ICasinoRepo CasinoQuery => CreateCasinoQuery();
 
     public DatabaseService(ILoggingService logging, BotSettings settings)
