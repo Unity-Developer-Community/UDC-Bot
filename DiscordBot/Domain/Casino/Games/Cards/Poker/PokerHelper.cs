@@ -46,10 +46,10 @@ public static class PokerHelper
 
         // Check for flush
         bool isFlush = cards.All(c => c.Suit == cards[0].Suit);
-        
+
         // Check for straight
         bool isStraight = IsStraight(sortedCards);
-        
+
         // Special case: A-2-3-4-5 straight (wheel)
         bool isWheelStraight = IsWheelStraight(sortedCards);
         if (isWheelStraight)
@@ -141,15 +141,24 @@ public static class PokerHelper
     /// </summary>
     public static int CompareHands(PokerHand hand1, PokerHand hand2)
     {
+        // Null checks
+        if (hand1 == null && hand2 == null) return 0;
+        if (hand1 == null) return -1;
+        if (hand2 == null) return 1;
+
         // First compare by rank
         if (hand1.Rank != hand2.Rank)
             return hand1.Rank.CompareTo(hand2.Rank);
 
         // If ranks are equal, compare kicker values
-        for (int i = 0; i < Math.Min(hand1.KickerValues.Count, hand2.KickerValues.Count); i++)
+        // Ensure KickerValues are not null
+        var kickers1 = hand1.KickerValues ?? [];
+        var kickers2 = hand2.KickerValues ?? [];
+
+        for (int i = 0; i < Math.Min(kickers1.Count, kickers2.Count); i++)
         {
-            if (hand1.KickerValues[i] != hand2.KickerValues[i])
-                return hand1.KickerValues[i].CompareTo(hand2.KickerValues[i]);
+            if (kickers1[i] != kickers2[i])
+                return kickers1[i].CompareTo(kickers2[i]);
         }
 
         return 0; // Hands are exactly equal
@@ -163,12 +172,16 @@ public static class PokerHelper
     {
         if (!playerHands.Any()) return [];
 
+        // Filter out any null hands first
+        var validHands = playerHands.Where(ph => ph.hand != null).ToList();
+        if (!validHands.Any()) return [];
+
         // Find the best hand(s)
-        var bestHand = playerHands.OrderByDescending(ph => ph.hand, new PokerHandComparer()).First().hand;
-        var winners = playerHands.Where(ph => CompareHands(ph.hand, bestHand) == 0).ToList();
+        var bestHand = validHands.OrderByDescending(ph => ph.hand, new PokerHandComparer()).First().hand;
+        var winners = validHands.Where(ph => CompareHands(ph.hand, bestHand) == 0).ToList();
 
         // Calculate each winner's share (equal split for ties)
-        decimal share = 1.0m / winners.Count;
+        decimal share = winners.Count > 0 ? 1.0m / winners.Count : 0;
 
         return winners.Select(w => (w.player, w.hand, share)).ToList();
     }
@@ -230,7 +243,7 @@ public class PokerHandComparer : IComparer<PokerHand>
         if (x == null && y == null) return 0;
         if (x == null) return -1;
         if (y == null) return 1;
-        
+
         return PokerHelper.CompareHands(x, y);
     }
 }
