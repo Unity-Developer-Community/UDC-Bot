@@ -31,7 +31,6 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
     public override bool HasPrivateHands => true;
 
     public Deck Deck { get; set; } = new Deck();
-    private int _currentPlayerIndex = 0;
 
     /// <summary>
     /// The current player is the next player who hasn't discarded yet
@@ -80,7 +79,6 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
             }
         }
 
-        _currentPlayerIndex = 0;
     }
 
     #endregion
@@ -140,9 +138,6 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
         // Reset selection and mark as discarded
         playerData.SelectedForDiscard = [false, false, false, false, false];
         playerData.HasDiscarded = true;
-
-        // Move to next player
-        _currentPlayerIndex++;
     }
 
     public override void DoPlayerAction(GamePlayer player, PokerPlayerAction action)
