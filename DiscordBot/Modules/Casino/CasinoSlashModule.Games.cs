@@ -96,8 +96,15 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             return;
         }
 
-        // Join the game
-        gameSession.AddPlayer(Context.User.Id, 1);
+        try
+        {
+            await GameService.JoinGame(gameSession, Context.User.Id);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await FollowupAsync(ex.Message, ephemeral: true);
+            return;
+        }
 
         await GenerateResponse(gameSession);
         // await FollowupAsync("You have joined the game.", ephemeral: true);

@@ -47,6 +47,14 @@ public class GameService
         _activeSessions.Remove(session);
     }
 
+    public async Task JoinGame(IDiscordGameSession session, ulong userId)
+    {
+        var user = await _casinoService.GetOrCreateCasinoUser(userId.ToString());
+        if (user.Tokens < 1) throw new InvalidOperationException("You must have at least 1 token.");
+
+        session.AddPlayer(userId, 1);
+    }
+
     public async Task SetBet(IDiscordGameSession session, ulong userId, ulong bet)
     {
         var user = await _casinoService.GetOrCreateCasinoUser(userId.ToString());
