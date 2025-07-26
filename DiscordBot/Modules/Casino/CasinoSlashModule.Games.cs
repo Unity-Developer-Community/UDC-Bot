@@ -107,7 +107,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     public async Task CreateGameSession(CasinoGame game,
     [Summary("seats", "Number of seats for the game (minimum 1)")]
     [MinValue(1)]
-    int seats)
+    int seats = 0)
     {
         try
         {

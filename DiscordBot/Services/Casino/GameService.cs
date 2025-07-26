@@ -44,7 +44,7 @@ public class GameService
     public IDiscordGameSession CreateGameSession(CasinoGame game, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild)
     {
         var gameInstance = GetGameInstance(game);
-        var session = CreateDiscordGameSession(game, gameInstance, maxSeats, client, user, guild);
+        var session = CreateDiscordGameSession(game, gameInstance, maxSeats == 0 ? gameInstance.MaxPlayers : maxSeats, client, user, guild);
         _activeSessions.Add(session);
         return session;
     }
