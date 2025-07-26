@@ -26,7 +26,7 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
     public Deck Deck { get; set; } = new Deck();
 
     public List<Card> DealerCards { get; set; } = [];
-    private List<BlackjackPlayerAction> DealerActions { get; set; } = [];
+    public List<BlackjackPlayerAction> DealerActions { get; } = [];
 
     /// <summary>
     /// The current player is the next player in the list that:
