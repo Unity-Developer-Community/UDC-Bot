@@ -7,7 +7,6 @@ using DiscordBot.Services;
 namespace DiscordBot.Modules;
 
 [Group("badge", "Badge management commands")]
-[RequireUserPermission(GuildPermission.Administrator)]
 public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
 {
     #region Dependency Injection
@@ -18,9 +17,11 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
     #endregion
 
     [SlashCommand("create", "Create a new badge")]
+    [RequireUserPermission(GuildPermission.Administrator)]
     public async Task CreateBadge(
         [Summary("title", "The title of the badge")] string title,
-        [Summary("description", "The description of the badge")] string description)
+        [Summary("description", "The description of the badge")] string description,
+        [Summary("public", "Whether the badge is public (default: true)")] bool isPublic = true)
     {
         await Context.Interaction.DeferAsync(ephemeral: true);
 
@@ -36,7 +37,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             return;
         }
 
-        var createdBadge = await BadgeService.CreateBadge(title, description);
+        var createdBadge = await BadgeService.CreateBadge(title, description, isPublic);
         
         if (createdBadge != null)
         {
@@ -45,6 +46,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
                 .WithDescription($"**{createdBadge.Title}**")
                 .AddField("Description", createdBadge.Description)
                 .AddField("Badge ID", createdBadge.Id.ToString())
+                .AddField("Visibility", createdBadge.IsPublic ? "Public" : "Private")
                 .AddField("Created", createdBadge.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss UTC"))
                 .WithColor(Color.Green)
                 .WithTimestamp(DateTimeOffset.UtcNow)
@@ -58,7 +60,60 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
     }
 
+    [SlashCommand("edit", "Edit an existing badge")]
+    [RequireUserPermission(GuildPermission.Administrator)]
+    public async Task EditBadge(
+        [Summary("badge", "The title of the badge to edit")] string badgeTitle,
+        [Summary("title", "New title for the badge")] string newTitle,
+        [Summary("description", "New description for the badge")] string newDescription,
+        [Summary("public", "Whether the badge should be public")] bool isPublic = true)
+    {
+        await Context.Interaction.DeferAsync(ephemeral: true);
+
+        if (string.IsNullOrWhiteSpace(newTitle) || newTitle.Length > 100)
+        {
+            await Context.Interaction.FollowupAsync("Badge title must be between 1 and 100 characters.", ephemeral: true);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newDescription) || newDescription.Length > 500)
+        {
+            await Context.Interaction.FollowupAsync("Badge description must be between 1 and 500 characters.", ephemeral: true);
+            return;
+        }
+
+        var existingBadge = await BadgeService.GetBadgeByTitle(badgeTitle);
+        if (existingBadge == null)
+        {
+            await Context.Interaction.FollowupAsync($"❌ Badge '{badgeTitle}' not found.", ephemeral: true);
+            return;
+        }
+
+        var updatedBadge = await BadgeService.UpdateBadge(existingBadge.Id, newTitle, newDescription, isPublic);
+        
+        if (updatedBadge != null)
+        {
+            var embed = new EmbedBuilder()
+                .WithTitle("✏️ Badge Updated Successfully")
+                .WithDescription($"**{updatedBadge.Title}**")
+                .AddField("Description", updatedBadge.Description)
+                .AddField("Badge ID", updatedBadge.Id.ToString())
+                .AddField("Visibility", updatedBadge.IsPublic ? "Public" : "Private")
+                .AddField("Updated", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC"))
+                .WithColor(Color.Blue)
+                .WithTimestamp(DateTimeOffset.UtcNow)
+                .Build();
+
+            await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+        }
+        else
+        {
+            await Context.Interaction.FollowupAsync("❌ Failed to update badge. The new title may already be in use.", ephemeral: true);
+        }
+    }
+
     [SlashCommand("assign", "Assign a badge to a user")]
+    [RequireUserPermission(GuildPermission.Administrator)]
     public async Task AssignBadge(
         [Summary("user", "The user to assign the badge to")] SocketGuildUser user,
         [Summary("badge", "The title of the badge to assign")] string badgeTitle)
@@ -127,6 +182,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
     }
 
     [SlashCommand("remove", "Remove a badge from a user")]
+    [RequireUserPermission(GuildPermission.Administrator)]
     public async Task RemoveBadge(
         [Summary("user", "The user to remove the badge from")] SocketGuildUser user,
         [Summary("badge", "The title of the badge to remove")] string badgeTitle)
@@ -171,13 +227,15 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
     [SlashCommand("list", "List all available badges")]
     public async Task ListBadges()
     {
-        await Context.Interaction.DeferAsync(ephemeral: true);
+        await Context.Interaction.DeferAsync(ephemeral: false);
 
-        var badges = await BadgeService.GetAllBadges();
+        var user = Context.User as SocketGuildUser;
+        var isAdmin = BadgeService.IsUserAdmin(user);
+        var badges = await BadgeService.GetAllBadges(isAdmin);
         
         if (!badges.Any())
         {
-            await Context.Interaction.FollowupAsync("📭 No badges have been created yet.", ephemeral: true);
+            await Context.Interaction.FollowupAsync("📭 No badges have been created yet.", ephemeral: false);
             return;
         }
 
@@ -191,7 +249,8 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
 
         foreach (var badge in badges)
         {
-            var badgeInfo = $"**{badge.Title}** (ID: {badge.Id})\n{badge.Description}\n\n";
+            var visibilityIndicator = isAdmin && !badge.IsPublic ? " 🔒" : "";
+            var badgeInfo = $"**{badge.Title}**{visibilityIndicator} (ID: {badge.Id})\n{badge.Description}\n\n";
             
             if (description.Length + badgeInfo.Length > maxFieldValue)
             {
@@ -209,28 +268,37 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             embed.AddField("Badges", description.TrimEnd(), false);
         }
 
-        embed.WithFooter($"Total badges: {badges.Count}");
+        var footerText = $"Total badges: {badges.Count}";
+        if (isAdmin)
+        {
+            var publicCount = badges.Count(b => b.IsPublic);
+            var privateCount = badges.Count - publicCount;
+            footerText += $" (Public: {publicCount}, Private: {privateCount})";
+        }
+        embed.WithFooter(footerText);
 
-        await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: true);
+        await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: false);
     }
 
     [SlashCommand("view", "View badges of a specific user")]
     public async Task ViewUserBadges(
         [Summary("user", "The user whose badges you want to view")] SocketGuildUser user)
     {
-        await Context.Interaction.DeferAsync(ephemeral: true);
+        await Context.Interaction.DeferAsync(ephemeral: false);
 
         if (user == null)
         {
-            await Context.Interaction.FollowupAsync("❌ User not found.", ephemeral: true);
+            await Context.Interaction.FollowupAsync("❌ User not found.", ephemeral: false);
             return;
         }
 
-        var userBadges = await BadgeService.GetUserBadges(user);
+        var requestingUser = Context.User as SocketGuildUser;
+        var isAdmin = BadgeService.IsUserAdmin(requestingUser);
+        var userBadges = await BadgeService.GetUserBadges(user, isAdmin);
         
         if (!userBadges.Any())
         {
-            await Context.Interaction.FollowupAsync($"📭 {user.Mention} has no badges yet.", ephemeral: true);
+            await Context.Interaction.FollowupAsync($"📭 {user.Mention} has no badges yet.", ephemeral: false);
             return;
         }
 
@@ -248,7 +316,8 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             var awardedBy = Context.Guild.GetUser(Convert.ToUInt64(userBadge.AwardedBy));
             var awardedByName = awardedBy?.DisplayName ?? "Unknown";
             
-            var badgeInfo = $"**{userBadge.Badge.Title}**\n{userBadge.Badge.Description}\n*Awarded by {awardedByName} on {userBadge.AwardedAt:yyyy-MM-dd}*\n\n";
+            var visibilityIndicator = isAdmin && !userBadge.Badge.IsPublic ? " 🔒" : "";
+            var badgeInfo = $"**{userBadge.Badge.Title}**{visibilityIndicator}\n{userBadge.Badge.Description}\n*Awarded by {awardedByName} on {userBadge.AwardedAt:yyyy-MM-dd}*\n\n";
             
             if (description.Length + badgeInfo.Length > maxFieldValue)
             {
@@ -266,8 +335,18 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             embed.AddField("Badges", description.TrimEnd(), false);
         }
 
-        embed.WithFooter($"Total badges: {userBadges.Count}");
+        var footerText = $"Total badges: {userBadges.Count}";
+        if (isAdmin)
+        {
+            var publicCount = userBadges.Count(ub => ub.Badge.IsPublic);
+            var privateCount = userBadges.Count - publicCount;
+            if (privateCount > 0)
+            {
+                footerText += $" (Public: {publicCount}, Private: {privateCount})";
+            }
+        }
+        embed.WithFooter(footerText);
 
-        await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: true);
+        await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: false);
     }
 }

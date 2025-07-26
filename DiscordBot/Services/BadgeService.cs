@@ -20,7 +20,7 @@ public class BadgeService
     /// <summary>
     /// Creates a new badge with the specified title and description.
     /// </summary>
-    public async Task<Badge> CreateBadge(string title, string description)
+    public async Task<Badge> CreateBadge(string title, string description, bool isPublic = true)
     {
         try
         {
@@ -36,13 +36,14 @@ public class BadgeService
             {
                 Title = title,
                 Description = description,
+                IsPublic = isPublic,
                 CreatedAt = DateTime.UtcNow
             };
 
             var createdBadge = await _databaseService.BadgeQuery.CreateBadge(badge);
             
             await _logging.Log(LogBehaviour.File,
-                $"Badge '{title}' created successfully with ID {createdBadge.Id}.", ExtendedLogSeverity.Positive);
+                $"Badge '{title}' created successfully with ID {createdBadge.Id} (Public: {isPublic}).", ExtendedLogSeverity.Positive);
             
             return createdBadge;
         }
@@ -55,13 +56,66 @@ public class BadgeService
     }
 
     /// <summary>
-    /// Gets all badges from the database.
+    /// Updates an existing badge with new title, description, and/or visibility.
     /// </summary>
-    public async Task<IList<Badge>> GetAllBadges()
+    public async Task<Badge> UpdateBadge(int badgeId, string title, string description, bool isPublic)
     {
         try
         {
-            return await _databaseService.BadgeQuery.GetAllBadges();
+            var existingBadge = await _databaseService.BadgeQuery.GetBadge(badgeId);
+            if (existingBadge == null)
+            {
+                await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
+                    $"Badge update failed: Badge with ID {badgeId} not found.", ExtendedLogSeverity.Warning);
+                return null;
+            }
+
+            // Check if title conflicts with another badge (if title is being changed)
+            if (existingBadge.Title != title)
+            {
+                var conflictingBadge = await _databaseService.BadgeQuery.GetBadgeByTitle(title);
+                if (conflictingBadge != null && conflictingBadge.Id != badgeId)
+                {
+                    await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
+                        $"Badge update failed: Badge with title '{title}' already exists.", ExtendedLogSeverity.Warning);
+                    return null;
+                }
+            }
+
+            existingBadge.Title = title;
+            existingBadge.Description = description;
+            existingBadge.IsPublic = isPublic;
+
+            await _databaseService.BadgeQuery.UpdateBadge(existingBadge);
+            
+            await _logging.Log(LogBehaviour.File,
+                $"Badge ID {badgeId} updated successfully: '{title}' (Public: {isPublic}).", ExtendedLogSeverity.Positive);
+            
+            return existingBadge;
+        }
+        catch (Exception e)
+        {
+            await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
+                $"Error updating badge ID {badgeId}: {e}", ExtendedLogSeverity.Error);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Gets all badges from the database.
+    /// </summary>
+    public async Task<IList<Badge>> GetAllBadges(bool isAdmin = false)
+    {
+        try
+        {
+            if (isAdmin)
+            {
+                return await _databaseService.BadgeQuery.GetAllBadges();
+            }
+            else
+            {
+                return await _databaseService.BadgeQuery.GetPublicBadges();
+            }
         }
         catch (Exception e)
         {
@@ -192,14 +246,21 @@ public class BadgeService
     /// <summary>
     /// Gets all badges for a specific user.
     /// </summary>
-    public async Task<IList<UserBadge>> GetUserBadges(SocketGuildUser user)
+    public async Task<IList<UserBadge>> GetUserBadges(SocketGuildUser user, bool isAdmin = false)
     {
         if (user == null)
             return new List<UserBadge>();
 
         try
         {
-            return await _databaseService.BadgeQuery.GetUserBadges(user.Id.ToString());
+            if (isAdmin)
+            {
+                return await _databaseService.BadgeQuery.GetUserBadges(user.Id.ToString());
+            }
+            else
+            {
+                return await _databaseService.BadgeQuery.GetUserPublicBadges(user.Id.ToString());
+            }
         }
         catch (Exception e)
         {
@@ -227,5 +288,13 @@ public class BadgeService
                 $"Error retrieving holders for badge '{badge.Title}': {e}", ExtendedLogSeverity.Error);
             return new List<UserBadge>();
         }
+    }
+
+    /// <summary>
+    /// Checks if the user has administrator permissions.
+    /// </summary>
+    public bool IsUserAdmin(SocketGuildUser user)
+    {
+        return user?.GuildPermissions.Administrator == true;
     }
 }

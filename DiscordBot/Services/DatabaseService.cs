@@ -265,6 +265,21 @@ public class DatabaseService
             await _logging.LogAction(
                 $"DatabaseService: Connected to badge tables successfully. {badgeCount} badges in database.",
                 ExtendedLogSeverity.Positive);
+                
+            // Check if IsPublic column exists, if not add it (for existing installations)
+            try
+            {
+                c.ExecuteSql($"SELECT {BadgeProps.IsPublic} FROM {BadgeProps.TableName} LIMIT 1");
+            }
+            catch
+            {
+                // Column doesn't exist, add it
+                await _logging.LogAction("DatabaseService: Adding IsPublic column to badges table.",
+                    ExtendedLogSeverity.LowWarning);
+                c.ExecuteSql($"ALTER TABLE `{BadgeProps.TableName}` ADD COLUMN `{BadgeProps.IsPublic}` tinyint(1) NOT NULL DEFAULT 1");
+                await _logging.LogAction("DatabaseService: IsPublic column added successfully.",
+                    ExtendedLogSeverity.Positive);
+            }
         }
         catch
         {
@@ -278,6 +293,7 @@ public class DatabaseService
                     $"`{BadgeProps.Id}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
                     $"`{BadgeProps.Title}` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL, " +
                     $"`{BadgeProps.Description}` text COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                    $"`{BadgeProps.IsPublic}` tinyint(1) NOT NULL DEFAULT 1, " +
                     $"`{BadgeProps.CreatedAt}` datetime NOT NULL, " +
                     $"PRIMARY KEY (`{BadgeProps.Id}`), " +
                     $"UNIQUE KEY `{BadgeProps.Title}` (`{BadgeProps.Title}`) " +
