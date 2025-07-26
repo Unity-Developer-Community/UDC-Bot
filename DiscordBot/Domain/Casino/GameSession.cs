@@ -126,7 +126,7 @@ public class GameSession<TGame> : IGameSession
     public void RemovePlayerAI()
     {
         if (Game.State != GameState.NotStarted) return; // Cannot remove players after the game has started
-        var player = Players.FirstOrDefault(p => p.IsAI); // Find the first AI player
+        var player = Players.LastOrDefault(p => p.IsAI); // Find the last AI player
         if (player != null) Players.Remove(player);
     }
 
