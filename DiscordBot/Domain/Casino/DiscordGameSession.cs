@@ -7,6 +7,7 @@ public class ButtonMetadataAttribute : Attribute
 {
     public string? Emoji { get; set; }
     public ButtonStyle Style { get; set; } = ButtonStyle.Primary;
+    public string Label { get; set; } = string.Empty;
 }
 
 public interface IDiscordGameSession : IGameSession
@@ -185,7 +186,7 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
             components.WithButton(new ButtonBuilder
             {
                 CustomId = $"action:{Id}:{action}",
-                Label = action.ToString(),
+                Label = attr?.Label ?? action.ToString(),
                 Emote = string.IsNullOrEmpty(attr?.Emoji) ? null : new Emoji(attr.Emoji),
                 Style = attr?.Style ?? ButtonStyle.Primary,
             });

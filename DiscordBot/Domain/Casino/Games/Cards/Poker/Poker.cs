@@ -5,11 +5,17 @@ namespace DiscordBot.Domain;
 /// </summary>
 public enum PokerPlayerAction
 {
+    [ButtonMetadata(Emoji = "1️⃣", Style = ButtonStyle.Primary, Label = "Select Card 1")]
     SelectCard1,
+    [ButtonMetadata(Emoji = "2️⃣", Style = ButtonStyle.Primary, Label = "Select Card 2")]
     SelectCard2,
+    [ButtonMetadata(Emoji = "3️⃣", Style = ButtonStyle.Primary, Label = "Select Card 3")]
     SelectCard3,
+    [ButtonMetadata(Emoji = "4️⃣", Style = ButtonStyle.Primary, Label = "Select Card 4")]
     SelectCard4,
+    [ButtonMetadata(Emoji = "5️⃣", Style = ButtonStyle.Primary, Label = "Select Card 5")]
     SelectCard5,
+    [ButtonMetadata(Emoji = "✅", Style = ButtonStyle.Success, Label = "Confirm Discard")]
     ConfirmDiscard
 }
 
