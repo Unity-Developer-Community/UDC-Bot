@@ -18,6 +18,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     public GameService GameService { get; set; }
 
     #endregion
+    #region Helper Methods
 
     private async Task GenerateResponse(IDiscordGameSession gameSession)
     {
@@ -45,6 +46,54 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         }
     }
 
+    /// <summary>
+    /// Continues the game session by processing AI and dealer actions and checking if the game should finish.
+    /// </summary>
+    private async Task ContinueGame(IDiscordGameSession gameSession)
+    {
+        try
+        {
+            // Handle AI player actions
+            var hasAIAction = gameSession.HasNextAIAction();
+            while (hasAIAction)
+            {
+                Console.WriteLine($"Processing AI action for game session {gameSession.Id}");
+                await Task.Delay(1000);
+                await gameSession.DoNextAIAction();
+                await GenerateResponse(gameSession);
+
+                hasAIAction = gameSession.HasNextAIAction();
+            }
+
+            // Handle Dealer actions
+            var hasDealerAction = gameSession.HasNextDealerAction();
+            while (hasDealerAction)
+            {
+                Console.WriteLine($"Processing dealer action for game session {gameSession.Id}");
+                await Task.Delay(1000);
+                await gameSession.DoNextDealerAction();
+                await GenerateResponse(gameSession);
+
+                hasDealerAction = gameSession.HasNextDealerAction();
+            }
+
+            // Check if the game should finish
+            if (gameSession.ShouldFinish())
+            {
+                Console.WriteLine($"Finalizing game session {gameSession.Id}");
+                await Task.Delay(2000);
+                await GameService.EndGame(gameSession);
+                await GenerateResponse(gameSession);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogAction($"Error in ContinueGame: {ex.Message} {ex.StackTrace}", ExtendedLogSeverity.Error);
+            await FollowupAsync($"An error occurred while continuing the game: {ex.Message}", ephemeral: true);
+        }
+    }
+
+    #endregion
     #region Games Commands
 
     [SlashCommand("rules", "Learn how to play blackjack")]
@@ -101,6 +150,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         try
         {
             await GameService.JoinGame(gameSession, Context.User.Id);
+            await GenerateResponse(gameSession);
+            await Task.Delay(500);
+            await ContinueGame(gameSession);
         }
         catch (InvalidOperationException ex)
         {
@@ -127,8 +179,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
             // Leave the game
             gameSession.RemovePlayer(Context.User.Id);
-
             await GenerateResponse(gameSession);
+            await Task.Delay(500);
+            await ContinueGame(gameSession);
 
             if (gameSession.State == GameState.Abandoned) GameService.RemoveGameSession(gameSession);
         }
@@ -157,8 +210,10 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             if (player == null) return;
 
             gameSession.SetPlayerReady(Context.User.Id, !player.IsReady);
-
             await GenerateResponse(gameSession);
+            await Task.Delay(500);
+            await ContinueGame(gameSession);
+
         }
         catch (Exception ex)
         {
@@ -180,8 +235,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         }
 
         gameSession.AddPlayerAI();
-
         await GenerateResponse(gameSession);
+        await Task.Delay(500);
+        await ContinueGame(gameSession);
     }
 
     [ComponentInteraction("ai_remove:*", true)]
@@ -296,36 +352,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             gameSession.DoPlayerAction(Context.User.Id, parsedAction);
             await GenerateResponse(gameSession);
 
-            // Handle AI player actions
-            var hasAIAction = gameSession.HasNextAIAction();
-            while (hasAIAction)
-            {
-                await Task.Delay(1000);
-                await gameSession.DoNextAIAction();
-                await GenerateResponse(gameSession);
-
-                hasAIAction = gameSession.HasNextAIAction();
-            }
-
-            // Handle Dealer actions
-            var hasDealerAction = gameSession.HasNextDealerAction();
-            while (hasDealerAction)
-            {
-                await Task.Delay(1000);
-                await gameSession.DoNextDealerAction();
-                await GenerateResponse(gameSession);
-
-                hasDealerAction = gameSession.HasNextDealerAction();
-            }
-
-            // Check if the game should finish
-            if (gameSession.ShouldFinish())
-            {
-                await Task.Delay(2000);
-                await GameService.EndGame(gameSession);
-            }
-
-            await GenerateResponse(gameSession);
+            await ContinueGame(gameSession);
         }
         catch (Exception ex)
         {
