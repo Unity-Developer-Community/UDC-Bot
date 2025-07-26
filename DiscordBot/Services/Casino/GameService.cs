@@ -54,6 +54,11 @@ public class GameService
         return _activeSessions.FirstOrDefault(s => s.Id.ToString() == id);
     }
 
+    public IReadOnlyList<IDiscordGameSession> GetActiveSessions()
+    {
+        return _activeSessions.AsReadOnly();
+    }
+
     public void RemoveGameSession(IDiscordGameSession session)
     {
         _activeSessions.Remove(session);

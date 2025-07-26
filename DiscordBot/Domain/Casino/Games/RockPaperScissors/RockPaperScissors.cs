@@ -110,6 +110,12 @@ public class RockPaperScissors : ACasinoGame<RockPaperScissorsPlayerData, RockPa
         GameData[player].Choice = action;
     }
 
+    public override RockPaperScissorsPlayerAction GetDefaultAction(GamePlayer player)
+    {
+        // Default action for timeout is a random choice, but we'll use Rock as the standard default
+        return RockPaperScissorsPlayerAction.Rock;
+    }
+
     protected override AIAction? GetNextAIAction()
     {
         // AI can randomly choose Rock, Paper, or Scissors

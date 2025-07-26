@@ -54,7 +54,7 @@ public class PokerDiscordGameSession : DiscordGameSession<Poker>
             .WithTitle($"🃏 {GameName} Game")
             .WithDescription(description)
             .WithColor(Color.Blue)
-            .AddField("Current Player", GetCurrentPlayerName(), true);
+            .AddField("Current Player", GetCurrentPlayerWithTimer(), true);
 
         return embed.Build();
     }

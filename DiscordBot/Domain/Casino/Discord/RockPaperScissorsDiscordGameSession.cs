@@ -70,7 +70,7 @@ public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperS
     {
         var description = GenerateGameDescription();
 
-        var waitingFor = Game.CurrentPlayer != null ? $"Waiting for {GetCurrentPlayerName()}" : "All choices made - revealing results...";
+        var waitingFor = Game.CurrentPlayer != null ? $"Waiting for {GetCurrentPlayerWithTimer()}" : "All choices made - revealing results...";
 
         return new EmbedBuilder()
             .WithTitle($"Game of {Game.Emoji} {GameName}")

@@ -71,7 +71,7 @@ public class BlackjackDiscordGameSession : DiscordGameSession<Blackjack>
         return new EmbedBuilder()
             .WithTitle($"Game of {Game.Emoji} {GameName}")
             .WithDescription(description)
-            .AddField("CurrentPlayer", GetCurrentPlayerName(), true)
+            .AddField("Current Player", GetCurrentPlayerWithTimer(), true)
             .Build();
     }
 

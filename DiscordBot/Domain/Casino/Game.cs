@@ -62,6 +62,11 @@ public interface ICasinoGame
 
     public void DoPlayerAction(GamePlayer player, Enum action);
 
+    /// <summary>
+    /// Gets the default action to perform when a player times out
+    /// </summary>
+    public Enum GetDefaultAction(GamePlayer player);
+
     // Dealer stuff
     public bool HasNextDealerAction();
     public Task DoNextDealerAction();
@@ -170,6 +175,15 @@ public abstract class ACasinoGame<TPlayerData, TPlayerAction> : ICasinoGame
 
 
     public abstract void DoPlayerAction(GamePlayer player, TPlayerAction action);
+
+    /// <summary>
+    /// Gets the default action to perform when a player times out.
+    /// Override this in specific games to provide appropriate default actions.
+    /// </summary>
+    public abstract TPlayerAction GetDefaultAction(GamePlayer player);
+
+    // Implementation of interface method
+    Enum ICasinoGame.GetDefaultAction(GamePlayer player) => GetDefaultAction(player);
 
     #endregion
     #region Dealer Actions

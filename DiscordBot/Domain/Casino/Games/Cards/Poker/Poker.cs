@@ -174,6 +174,12 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
         }
     }
 
+    public override PokerPlayerAction GetDefaultAction(GamePlayer player)
+    {
+        // Default action for timeout is to keep all cards (ConfirmDiscard without selecting any)
+        return PokerPlayerAction.ConfirmDiscard;
+    }
+
     #endregion
 
     #region Show Hand Implementation
