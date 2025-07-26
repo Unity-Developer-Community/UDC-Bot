@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using DiscordBot.Domain;
 using DiscordBot.Settings;
 
@@ -36,7 +35,7 @@ public class CasinoService
                 Tokens = _settings.CasinoStartingTokens,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                LastDailyReward = DateTime.UtcNow // Set to now so user has to wait for next daily reward
+                LastDailyReward = DateTime.UtcNow.AddDays(-1) // Set to a past date so user can claim their first daily reward immediately
             };
 
             var createdUser = await _databaseService.CasinoQuery.InsertCasinoUser(newUser);
