@@ -5,7 +5,7 @@ namespace DiscordBot.Domain;
 public class CasinoUser
 {
     public int Id { get; set; }
-    public string UserID { get; set; }
+    public required string UserID { get; set; }
     public ulong Tokens { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -15,21 +15,21 @@ public class CasinoUser
 public class TokenTransaction
 {
     public int Id { get; set; }
-    public string UserID { get; set; }
+    public required string UserID { get; set; }
     public long Amount { get; set; } // Can be negative for spending
     public TransactionType Type { get; set; } // Enum for transaction types
 
-    private Dictionary<string, string> _details;
+    private Dictionary<string, string>? _details;
 
     [JsonIgnore]
-    public Dictionary<string, string> Details
+    public Dictionary<string, string>? Details
     {
         get => _details;
         set => _details = value;
     }
 
     // This property will be mapped to the database JSON column
-    public string DetailsJson
+    public string? DetailsJson
     {
         get => Details != null && Details.Any() ? JsonConvert.SerializeObject(Details) : null;
         set => Details = !string.IsNullOrEmpty(value) ? JsonConvert.DeserializeObject<Dictionary<string, string>>(value) : new Dictionary<string, string>();
@@ -49,7 +49,7 @@ public enum TransactionType
 
 public class GameStatistics
 {
-    public string GameName { get; set; }
+    public string? GameName { get; set; }
     public int TotalGames { get; set; }
     public int Wins { get; set; }
     public int Losses { get; set; }
@@ -62,14 +62,14 @@ public class GameStatistics
 
 public class GameLeaderboardEntry
 {
-    public string UserID { get; set; }
+    public required string UserID { get; set; }
     public int TotalGames { get; set; }
     public int Wins { get; set; }
     public int Losses { get; set; }
     public double WinPercentage { get; set; }
     public long NetProfit { get; set; }
     public double Score { get; set; }
-    public string GameName { get; set; } // null for global leaderboard
+    public string? GameName { get; set; } // null for global leaderboard
 }
 
 public static class CasinoProps

@@ -76,7 +76,7 @@ public class CasinoService
         return true;
     }
 
-    public async Task<bool> UpdateUserTokens(string userId, long deltaTokens, TransactionType transactionType, Dictionary<string, string> details = null)
+    public async Task<bool> UpdateUserTokens(string userId, long deltaTokens, TransactionType transactionType, Dictionary<string, string>? details = null)
     {
         try
         {
@@ -125,7 +125,7 @@ public class CasinoService
         return transactions.ToList();
     }
 
-    private async Task RecordTransaction(string userId, long amount, TransactionType type, Dictionary<string, string> details = null)
+    private async Task RecordTransaction(string userId, long amount, TransactionType type, Dictionary<string, string>? details = null)
     {
         var transaction = new TokenTransaction
         {
@@ -153,7 +153,7 @@ public class CasinoService
             var gameGroups = gameTransactions
                 .Where(t => t.UserID == user.Id.ToString())
                 .Where(t => t.Details != null && t.Details.ContainsKey("game"))
-                .GroupBy(t => t.Details["game"])
+                .GroupBy(t => t.Details?["game"])
                 .ToList();
 
             var statistics = new List<GameStatistics>();
@@ -201,7 +201,7 @@ public class CasinoService
         }
     }
 
-    public async Task<List<GameLeaderboardEntry>> GetGameLeaderboard(string gameName = null, int limit = 10)
+    public async Task<List<GameLeaderboardEntry>> GetGameLeaderboard(string? gameName = null, int limit = 10)
     {
         try
         {
