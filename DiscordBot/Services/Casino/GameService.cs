@@ -28,11 +28,19 @@ public class GameService
         };
     }
 
+    private IDiscordGameSession CreateDiscordGameSession(CasinoGame game, ICasinoGame gameInstance, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild)
+    {
+        return game switch
+        {
+            CasinoGame.Blackjack => new BlackjackDiscordGameSession((Blackjack)gameInstance, maxSeats, client, user, guild),
+            _ => throw new ArgumentOutOfRangeException(nameof(game), $"Unknown game session type: {game}")
+        };
+    }
+
     public IDiscordGameSession CreateGameSession(CasinoGame game, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild)
     {
         var gameInstance = GetGameInstance(game);
-        // var session = new DiscordGameSession<ICasinoGame>(gameInstance, maxSeats, client, user, guild);
-        var session = new BlackjackDiscordGameSession(new Blackjack(), maxSeats, client, user, guild);
+        var session = CreateDiscordGameSession(game, gameInstance, maxSeats, client, user, guild);
         _activeSessions.Add(session);
         return session;
     }
