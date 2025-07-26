@@ -406,20 +406,28 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
             try
             {
-                var gameName = game?.ToString().ToLower();
+                // Map enum to actual game name stored in database
+                var gameName = game?.ToString() switch
+                {
+                    "Blackjack" => "Blackjack",
+                    "RockPaperScissors" => "Rock Paper Scissors",
+                    "Poker" => "Poker",
+                    _ => null
+                };
+                
                 var leaderboard = await CasinoService.GetGameLeaderboard(gameName, 10);
 
                 if (leaderboard.Count == 0)
                 {
                     var noDataMessage = game.HasValue 
-                        ? $"📊 No players found for {CapitalizeFirst(gameName)} yet."
+                        ? $"📊 No players found for {gameName} yet."
                         : "📊 No game data found yet. Play some casino games to generate leaderboards!";
                     await Context.Interaction.FollowupAsync(noDataMessage);
                     return;
                 }
 
                 var title = game.HasValue 
-                    ? $"🏆 {CapitalizeFirst(gameName)} Leaderboard" 
+                    ? $"🏆 {gameName} Leaderboard" 
                     : "🏆 Global Game Leaderboard";
 
                 var embed = new EmbedBuilder()
@@ -451,7 +459,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 }
 
                 var footerText = game.HasValue 
-                    ? $"Showing top {leaderboard.Count} {CapitalizeFirst(gameName)} players"
+                    ? $"Showing top {leaderboard.Count} {gameName} players"
                     : $"Showing top {leaderboard.Count} players across all games";
                 embed.WithFooter(footerText);
 

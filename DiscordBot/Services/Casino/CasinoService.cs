@@ -236,7 +236,9 @@ public class CasinoService
                 if (totalGames == 0) continue; // Skip users with no games
 
                 var winPercentage = (double)totalWins / totalGames * 100;
-                var netProfit = wins.Sum(t => t.Amount) + losses.Sum(t => t.Amount); // losses are negative
+                var totalWinAmount = wins.Sum(t => t.Amount);
+                var totalLossAmount = losses.Sum(t => Math.Abs(t.Amount)); // Make positive for calculation
+                var netProfit = totalWinAmount - totalLossAmount;
 
                 // Calculate score using the suggested formula: winrate × log10(totalGames)
                 // Use log10(totalGames + 1) to handle the case where totalGames = 1 (log10(1) = 0)
