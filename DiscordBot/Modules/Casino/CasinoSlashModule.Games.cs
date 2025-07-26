@@ -50,7 +50,8 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     [SlashCommand("rules", "Learn how to play blackjack")]
     public async Task Rules(CasinoGame game)
     {
-        var gameSession = GameService.CreateGameSession(game, 5, Context.Client, Context.User, Context.Guild);
+        await DeferAsync(ephemeral: true);
+        var gameSession = GameService.CreateGameSession(game, 2, Context.Client, Context.User, Context.Guild);
         await FollowupAsync(embed: gameSession.GenerateRules(), ephemeral: true);
         GameService.RemoveGameSession(gameSession); // Remove the session since it's just for rules
     }
@@ -294,7 +295,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             // Parse the action based on the game type
             var actionType = gameSession.ActionType;
             var parsedAction = (Enum)Enum.Parse(actionType, action);
-            
+
             gameSession.DoPlayerAction(Context.User.Id, parsedAction);
             await GenerateResponse(gameSession);
 

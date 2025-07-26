@@ -98,7 +98,7 @@ public class BlackjackDiscordGameSession : DiscordGameSession<Blackjack>
 
     public override Embed GenerateRules()
     {
-        return GenerateRules()
+        return base.GenerateRules()
         .ToEmbedBuilder()
         .WithDescription("**Objective:** Get as close to 21 as possible without going over, while beating the dealer's hand.\nType `/casino blackjack` to start playing!")
             .AddField("🎯 **Card Values**",
