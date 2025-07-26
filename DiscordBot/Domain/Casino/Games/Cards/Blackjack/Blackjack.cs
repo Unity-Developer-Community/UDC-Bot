@@ -70,7 +70,7 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
     {
         State = GameState.InProgress;
 
-        // Create a new deck for the game. The deck contains 52 cards for each player and dealer
+        // Create a new deck for the game. The deck contains one standard 52-card deck per player
         Deck = new Deck(times: Players.Count * 1);
         Deck.Shuffle();
         foreach (var player in Players)

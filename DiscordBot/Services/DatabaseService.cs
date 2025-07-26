@@ -9,8 +9,8 @@ namespace DiscordBot.Services;
 
 public class DatabaseService
 {
-    private const string ServiceName = "DatabaseService"; 
-    
+    private const string ServiceName = "DatabaseService";
+
     private readonly ILoggingService _logging;
     private string ConnectionString { get; }
 
@@ -41,7 +41,7 @@ public class DatabaseService
             return null;
         }
     }
-    
+
     public IServerUserRepo Query => CreateQuery();
     public ICasinoRepo CasinoQuery => CreateCasinoQuery();
 
@@ -71,7 +71,7 @@ public class DatabaseService
                 await _logging.LogAction(
                     $"{ServiceName}: Connected to database successfully. {userCount} users in database.",
                     ExtendedLogSeverity.Positive);
-                
+
                 // Not sure on best practice for if column is missing, full blown migrations seem overkill
                 var defaultCityExists = await c.ColumnExists(UserProps.TableName, UserProps.DefaultCity);
                 if (!defaultCityExists)
@@ -101,7 +101,7 @@ public class DatabaseService
                         $"ALTER TABLE `{UserProps.TableName}` ADD PRIMARY KEY (`ID`,`{UserProps.UserID}`), ADD UNIQUE KEY `{UserProps.UserID}` (`{UserProps.UserID}`)");
                     c.ExecuteSql(
                         $"ALTER TABLE `{UserProps.TableName}` MODIFY `ID` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1");
-                    
+
                     // "DefaultCity" Nullable - Weather, BDay, Temp, Time, etc. Optional for users to set their own city (Added - Jan 2024)
                     c.ExecuteSql(
                         $"ALTER TABLE `{UserProps.TableName}` ADD `{UserProps.DefaultCity}` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER `{UserProps.Level}`");
@@ -152,7 +152,7 @@ public class DatabaseService
                         $"`{CasinoProps.TransactionId}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
                         $"`{CasinoProps.TransactionUserID}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
                         $"`{CasinoProps.Amount}` bigint(20) NOT NULL, " +
-                        $"`{CasinoProps.TransactionType}` int(11) NOT NULL, " + // Changed to int for enum
+                        $"`{CasinoProps.TransactionType}` int(11) NOT NULL, " +
                         $"`{CasinoProps.Details}` json DEFAULT NULL, " + // JSON column for transaction details
                         $"`{CasinoProps.TransactionCreatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
                         $"PRIMARY KEY (`{CasinoProps.TransactionId}`), " +
@@ -188,7 +188,7 @@ public class DatabaseService
                 await _logging.LogAction($"SQL Exception: Failed to generate leaderboard events.\nMessage: {e}",
                     ExtendedLogSeverity.Warning);
             }
-            
+
         });
     }
 

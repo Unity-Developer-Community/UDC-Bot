@@ -370,7 +370,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             };
             string description = action switch
             {
-                "set" => "This override past transactions",
+                "set" => "This overrides past transactions",
                 _ => ""
             };
 

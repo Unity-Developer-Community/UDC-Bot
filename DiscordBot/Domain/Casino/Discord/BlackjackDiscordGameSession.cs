@@ -1,4 +1,3 @@
-using System.Configuration;
 using Discord.WebSocket;
 using DiscordBot.Domain;
 
@@ -8,7 +7,7 @@ public class BlackjackDiscordGameSession : DiscordGameSession<Blackjack>
         : base(game, maxSeats, client, user, guild)
     { }
 
-    private string GetCurrentPlayerName()
+    private new string GetCurrentPlayerName()
     {
         if (Game.CurrentPlayer == null) return "Dealer";
         return GetPlayerName((DiscordGamePlayer)Game.CurrentPlayer);
