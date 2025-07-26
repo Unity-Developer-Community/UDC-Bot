@@ -9,6 +9,12 @@ public interface IGameSession
     public string GameName { get; }
     public Type ActionType { get; }
 
+    // Timeout properties
+    public TimeSpan PlayerTurnTimeout { get; }
+    public DateTime? CurrentPlayerTurnStartTime { get; }
+    public TimeSpan? TimeRemaining { get; }
+    public bool IsCurrentPlayerTimedOut { get; }
+
     public DiscordGamePlayer? GetPlayer(ulong userId);
     public bool AddPlayer(ulong userId, ulong bet);
     public bool AddPlayerAI();
@@ -26,6 +32,11 @@ public interface IGameSession
 
     public bool ShouldFinish();
     public IReadOnlyList<(DiscordGamePlayer player, long payout)> EndGame();
+
+    // Timeout methods
+    public void UpdateCurrentPlayerTurnStartTime();
+    public Enum GetDefaultActionForCurrentPlayer();
+    public Task HandlePlayerTimeout();
 }
 
 /// <summary>
@@ -43,6 +54,11 @@ public class GameSession<TGame> : IGameSession
 
     // Game instance - strongly typed
     protected TGame Game { get; init; }
+
+    // Timeout properties
+    public TimeSpan PlayerTurnTimeout { get; private set; } = TimeSpan.FromMinutes(2); // Default 2 minutes
+    public DateTime? CurrentPlayerTurnStartTime { get; private set; }
+    private DiscordGamePlayer? _lastCurrentPlayer;
     public GameState State => Game.State;
 
     // Constructor
@@ -63,7 +79,49 @@ public class GameSession<TGame> : IGameSession
     public int PlayerCount => Players.Count;
     public bool CanJoin => Game.State == GameState.NotStarted && PlayerCount < MaxSeats;
     public bool AllPlayersReady => Players.Count >= Game.MinPlayers && Players.All(p => p.IsReady);
-    public DiscordGamePlayer? CurrentPlayer => (DiscordGamePlayer?)Game.CurrentPlayer;
+    public DiscordGamePlayer? CurrentPlayer
+    {
+        get
+        {
+            var currentPlayer = (DiscordGamePlayer?)Game.CurrentPlayer;
+            
+            // If current player changed, update turn start time
+            if (currentPlayer != _lastCurrentPlayer)
+            {
+                _lastCurrentPlayer = currentPlayer;
+                if (currentPlayer != null && Game.State == GameState.InProgress)
+                {
+                    CurrentPlayerTurnStartTime = DateTime.UtcNow;
+                }
+                else
+                {
+                    CurrentPlayerTurnStartTime = null;
+                }
+            }
+            
+            return currentPlayer;
+        }
+    }
+
+    // Timeout properties
+    public TimeSpan? TimeRemaining
+    {
+        get
+        {
+            if (CurrentPlayerTurnStartTime == null || CurrentPlayer == null || CurrentPlayer.IsAI) 
+                return null;
+                
+            var elapsed = DateTime.UtcNow - CurrentPlayerTurnStartTime.Value;
+            var remaining = PlayerTurnTimeout - elapsed;
+            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+        }
+    }
+
+    public bool IsCurrentPlayerTimedOut => 
+        CurrentPlayer != null && 
+        !CurrentPlayer.IsAI && 
+        CurrentPlayerTurnStartTime.HasValue && 
+        DateTime.UtcNow - CurrentPlayerTurnStartTime.Value >= PlayerTurnTimeout;
     /// <summary>
     /// <list> Checks if the game can start:
     /// <item>• Game state is NotStarted</item>
@@ -179,6 +237,32 @@ public class GameSession<TGame> : IGameSession
     public bool HasNextAIAction() => Game.HasNextAIAction();
 
     public async Task DoNextAIAction() => await Game.DoNextAIAction();
+
+    #endregion
+
+    #region Timeout Management
+
+    public void UpdateCurrentPlayerTurnStartTime()
+    {
+        if (CurrentPlayer != null && Game.State == GameState.InProgress)
+        {
+            CurrentPlayerTurnStartTime = DateTime.UtcNow;
+        }
+    }
+
+    public Enum GetDefaultActionForCurrentPlayer()
+    {
+        if (CurrentPlayer == null) throw new InvalidOperationException("No current player to get default action for");
+        return Game.GetDefaultAction(CurrentPlayer);
+    }
+
+    public async Task HandlePlayerTimeout()
+    {
+        if (CurrentPlayer == null) return;
+        
+        var defaultAction = GetDefaultActionForCurrentPlayer();
+        Game.DoPlayerAction(CurrentPlayer, defaultAction);
+    }
 
     #endregion
 }

@@ -76,6 +76,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 hasDealerAction = gameSession.HasNextDealerAction();
             }
 
+            // Update turn start time after AI/dealer actions
+            gameSession.UpdateCurrentPlayerTurnStartTime();
+
             // Check if the game should finish
             if (gameSession.ShouldFinish())
             {
@@ -371,6 +374,10 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             var parsedAction = (Enum)Enum.Parse(actionType, action);
 
             gameSession.DoPlayerAction(Context.User.Id, parsedAction);
+            
+            // Update turn start time for the next player
+            gameSession.UpdateCurrentPlayerTurnStartTime();
+            
             await GenerateResponse(gameSession);
 
             await ContinueGame(gameSession);

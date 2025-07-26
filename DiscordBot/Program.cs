@@ -75,6 +75,7 @@ public class Program
             _recruitService = _services.GetRequiredService<RecruitService>();
             _services.GetRequiredService<IntroductionWatcherService>();
             _services.GetRequiredService<BirthdayAnnouncementService>();
+            _services.GetRequiredService<GameTimeoutService>(); // Initialize timeout monitoring
 
             return Task.CompletedTask;
         };
@@ -112,6 +113,7 @@ public class Program
             .AddSingleton<BirthdayAnnouncementService>()
             .AddSingleton<CasinoService>()
             .AddSingleton<GameService>()
+            .AddSingleton<GameTimeoutService>()
             .BuildServiceProvider();
 
     private static void DeserializeSettings()

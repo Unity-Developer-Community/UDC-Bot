@@ -184,6 +184,12 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
         }
     }
 
+    public override BlackjackPlayerAction GetDefaultAction(GamePlayer player)
+    {
+        // Default action for timeout is Stand - this is the safest conservative play
+        return BlackjackPlayerAction.Stand;
+    }
+
     #endregion
     #region Dealer
 
