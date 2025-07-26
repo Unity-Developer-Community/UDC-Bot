@@ -179,7 +179,7 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
             {
                 CustomId = $"action:{Id}:{action}",
                 Label = action.ToString(),
-                Emote = attr?.Emoji ?? new Emoji(attr?.Emoji),
+                Emote = string.IsNullOrEmpty(attr?.Emoji) ? null : new Emoji(attr.Emoji),
                 Style = attr?.Style ?? ButtonStyle.Primary,
             });
         }
