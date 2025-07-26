@@ -111,7 +111,7 @@ public class Program
             .AddSingleton<UserExtendedService>()
             .AddSingleton<BirthdayAnnouncementService>()
             .AddSingleton<CasinoService>()
-            .AddSingleton<BlackjackService>()
+            .AddSingleton<GameService>()
             .BuildServiceProvider();
 
     private static void DeserializeSettings()

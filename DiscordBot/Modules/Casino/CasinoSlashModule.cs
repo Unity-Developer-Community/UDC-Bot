@@ -12,7 +12,6 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     #region Dependency Injection
 
     public CasinoService CasinoService { get; set; }
-    public BlackjackService BlackjackService { get; set; }
     public ILoggingService LoggingService { get; set; }
     public BotSettings BotSettings { get; set; }
 
@@ -40,7 +39,6 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     public class TokenCommands : InteractionModuleBase<SocketInteractionContext>
     {
         public CasinoService CasinoService { get; set; }
-        public BlackjackService BlackjackService { get; set; }
         public ILoggingService LoggingService { get; set; }
         public BotSettings BotSettings { get; set; }
 
@@ -361,16 +359,18 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             SocketGuildUser admin = null;
             if (adminId != null) admin = Context.Guild.GetUser(ulong.Parse(adminId));
 
-            string title = action switch {
+            string title = action switch
+            {
                 "add" => "Tokens Added",
                 "set" => "Tokens Set",
                 _ => $"UNKNOWN ACTION: {action}"
             };
-            string description = action switch {
+            string description = action switch
+            {
                 "set" => "This override past transactions",
                 _ => ""
             };
-            
+
             if (admin != null) title += $" by Admin {admin.DisplayName}";
 
             return ("⚙️", title, description);
@@ -564,7 +564,6 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             }
 
             await CasinoService.ResetAllCasinoData();
-            BlackjackService.ClearAllGames();
 
             var embed = new EmbedBuilder()
                 .WithTitle("🔄 Casino Reset Complete")
