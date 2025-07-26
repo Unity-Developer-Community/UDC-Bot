@@ -56,7 +56,7 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
         foreach (var player in Players)
         {
             var result = Game.GetPlayerGameResult(player);
-            var payout = Game.CalculatePayout(player);
+            var payout = Game.CalculatePayout(player, GetTotalPot);
             var resultEmoji = result switch
             {
                 GamePlayerResult.Won => "🏆",

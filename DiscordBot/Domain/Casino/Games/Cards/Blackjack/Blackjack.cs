@@ -101,7 +101,7 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
         return GamePlayerResult.NoResult;
     }
 
-    public override long CalculatePayout(GamePlayer player)
+    public override long CalculatePayout(GamePlayer player, ulong _totalPot)
     {
         return player.Result switch
         {

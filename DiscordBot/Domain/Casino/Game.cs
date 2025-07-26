@@ -46,7 +46,7 @@ public interface ICasinoGame
     public IReadOnlyList<(GamePlayer player, long payout)> EndGame();
 
     public abstract GamePlayerResult GetPlayerGameResult(GamePlayer player);
-    public abstract long CalculatePayout(GamePlayer player);
+    public abstract long CalculatePayout(GamePlayer player, ulong totalPot);
 
     Type ActionType { get; }
 
@@ -122,12 +122,13 @@ public abstract class ACasinoGame<TPlayerData, TPlayerAction> : ICasinoGame
         State = GameState.Finished;
         Players.ForEach(p => p.Result = GetPlayerGameResult(p));
         FinalizeGame(Players); // hook for game-specific logic
-        return Players.Select(p => (p, CalculatePayout(p))).ToList();
+        return Players.Select(p => (p, CalculatePayout(p, GetTotalPot))).ToList();
     }
     // Default implementation does nothing, override in specific games if needed
     protected virtual void FinalizeGame(List<GamePlayer> players) { }
     public abstract GamePlayerResult GetPlayerGameResult(GamePlayer player);
-    public abstract long CalculatePayout(GamePlayer player);
+    protected ulong GetTotalPot => (ulong)Players.Sum(p => (long)p.Bet);
+    public abstract long CalculatePayout(GamePlayer player, ulong totalPot);
 
     /// <summary>
     /// Determines if the game should enter the FINISHED state. <br />

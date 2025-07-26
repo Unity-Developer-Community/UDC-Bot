@@ -71,11 +71,11 @@ public class RockPaperScissors : ACasinoGame<RockPaperScissorsPlayerData, RockPa
         return playerWins ? GamePlayerResult.Won : GamePlayerResult.Lost;
     }
 
-    public override long CalculatePayout(GamePlayer player)
+    public override long CalculatePayout(GamePlayer player, ulong totalPot)
     {
         return player.Result switch
         {
-            GamePlayerResult.Won => (long)player.Bet, // Winner gets their bet back plus opponent's bet
+            GamePlayerResult.Won => (long)totalPot - (long)player.Bet, // Winner gets the total pot minus their bet
             GamePlayerResult.Lost => -(long)player.Bet, // Loser loses their bet
             GamePlayerResult.Tie => 0, // Tie gets bet back (no loss, no gain)
             _ => 0
