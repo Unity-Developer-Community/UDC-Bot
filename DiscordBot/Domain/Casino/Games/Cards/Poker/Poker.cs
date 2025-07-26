@@ -255,7 +255,13 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
 
     #region AI Actions (Not implemented yet)
 
-    protected override AIAction? GetNextAIAction() => null;
+    protected override AIAction? GetNextAIAction()
+    {
+        return new AIAction
+        {
+            Execute = () => { DoPlayerAction(CurrentPlayer!, PokerPlayerAction.ConfirmDiscard); return Task.CompletedTask; },
+        };
+    }
 
     #endregion
 }
