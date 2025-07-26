@@ -43,7 +43,8 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
             return Players
                 .Where(p => GameData[p].Actions.LastOrDefault() != BlackjackPlayerAction.Stand &&
                             GameData[p].Actions.LastOrDefault() != BlackjackPlayerAction.DoubleDown &&
-                            !IsPlayerBusted(p))
+                            !IsPlayerBusted(p) &&
+                            !IsPlayerBlackjack(p))
                 .OrderBy(p => GameData[p].Actions.Count)
                 .FirstOrDefault();
         }
