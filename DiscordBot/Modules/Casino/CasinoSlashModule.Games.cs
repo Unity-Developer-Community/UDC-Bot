@@ -8,6 +8,7 @@ namespace DiscordBot.Modules;
 public enum CasinoGame
 {
     Blackjack,
+    RockPaperScissors,
 }
 
 public partial class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
@@ -290,7 +291,11 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
         try
         {
-            gameSession.DoPlayerAction(Context.User.Id, Enum.Parse<BlackjackPlayerAction>(action));
+            // Parse the action based on the game type
+            var actionType = gameSession.ActionType;
+            var parsedAction = (Enum)Enum.Parse(actionType, action);
+            
+            gameSession.DoPlayerAction(Context.User.Id, parsedAction);
             await GenerateResponse(gameSession);
 
             // Handle AI player actions

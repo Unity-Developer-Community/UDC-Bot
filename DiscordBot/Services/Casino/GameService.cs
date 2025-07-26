@@ -24,6 +24,7 @@ public class GameService
         return game switch
         {
             CasinoGame.Blackjack => new Blackjack(),
+            CasinoGame.RockPaperScissors => new RockPaperScissors(),
             _ => throw new ArgumentOutOfRangeException(nameof(game), $"Unknown game: {game}")
         };
     }
@@ -33,6 +34,7 @@ public class GameService
         return game switch
         {
             CasinoGame.Blackjack => new BlackjackDiscordGameSession((Blackjack)gameInstance, maxSeats, client, user, guild),
+            CasinoGame.RockPaperScissors => new RockPaperScissorsDiscordGameSession((RockPaperScissors)gameInstance, maxSeats, client, user, guild),
             _ => throw new ArgumentOutOfRangeException(nameof(game), $"Unknown game session type: {game}")
         };
     }

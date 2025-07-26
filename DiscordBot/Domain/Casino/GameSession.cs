@@ -7,6 +7,7 @@ public interface IGameSession
     public GameState State { get; }
     public DiscordGamePlayer? CurrentPlayer { get; }
     public string GameName { get; }
+    public Type ActionType { get; }
 
     public DiscordGamePlayer? GetPlayer(ulong userId);
     public bool AddPlayer(ulong userId, ulong bet);
@@ -57,6 +58,7 @@ public class GameSession<TGame> : IGameSession
 
     // Convenience properties
     public string GameName => Game.Name;
+    public Type ActionType => Game.ActionType;
     public bool IsCompleted => Game.IsCompleted;
     public int PlayerCount => Players.Count;
     public bool CanJoin => Game.State == GameState.NotStarted && PlayerCount < MaxSeats;
