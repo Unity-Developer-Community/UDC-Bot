@@ -158,6 +158,7 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
                 // Buttons for adding/removing AI players
                 new ActionRowBuilder()
                     .WithButton("Add AI", $"ai_add:{Id}", ButtonStyle.Success, new Emoji("🤖"))
+                    .WithButton("Add FULL AI", $"ai_add_full:{Id}", ButtonStyle.Success, new Emoji("🤖"))
                     .WithButton("Remove AI", $"ai_remove:{Id}", ButtonStyle.Danger, new Emoji("❌")),
                 // Buttons for betting
                 new ActionRowBuilder()

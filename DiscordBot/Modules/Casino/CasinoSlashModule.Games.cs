@@ -238,6 +238,29 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         await ContinueGame(gameSession);
     }
 
+    [ComponentInteraction("ai_add_full:*", true)]
+    public async Task AddAIPlayerFull(string id)
+    {
+        await DeferAsync();
+
+        var gameSession = GameService.GetActiveSession(id);
+        if (gameSession == null)
+        {
+            await FollowupAsync("Game session not found.", ephemeral: true);
+            return;
+        }
+
+        // Add AI player to fill the game to maximum seats
+        bool couldAddAI;
+        do
+        {
+            couldAddAI = gameSession.AddPlayerAI();
+        } while (couldAddAI);
+        await GenerateResponse(gameSession);
+        await Task.Delay(500);
+        await ContinueGame(gameSession);
+    }
+
     [ComponentInteraction("ai_remove:*", true)]
     public async Task RemoveAIPlayer(string id)
     {
