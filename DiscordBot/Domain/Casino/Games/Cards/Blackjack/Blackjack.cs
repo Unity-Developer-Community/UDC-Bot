@@ -68,6 +68,7 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
 
         // Create a new deck for the game. The deck contains 52 cards for each player and dealer
         Deck = new Deck(times: Players.Count * 1);
+        Deck.Shuffle();
         foreach (var player in Players)
         {
             GameData[player].PlayerCards.Clear();
