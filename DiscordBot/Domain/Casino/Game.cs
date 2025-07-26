@@ -161,7 +161,7 @@ public abstract class ACasinoGame<TPlayerData, TPlayerAction> : ICasinoGame
     // For games that need dealer actions in the AI flow
     protected virtual AIAction? GetNextDealerAction() => null;
 
-    public bool HasNextDealerAction() => HasDealer && CanDealerAct() && GetNextDealerAction() != null;
+    public bool HasNextDealerAction() => State == GameState.InProgress && HasDealer && CanDealerAct() && GetNextDealerAction() != null;
 
     public async Task DoNextDealerAction()
     {
@@ -175,7 +175,7 @@ public abstract class ACasinoGame<TPlayerData, TPlayerAction> : ICasinoGame
     // For games that need dealer actions in the AI flow
     protected virtual AIAction? GetNextAIAction() => null;
 
-    public bool HasNextAIAction() => CurrentPlayer?.IsAI == true && GetNextAIAction() != null;
+    public bool HasNextAIAction() => State == GameState.InProgress && CurrentPlayer?.IsAI == true && GetNextAIAction() != null;
 
     public async Task DoNextAIAction()
     {

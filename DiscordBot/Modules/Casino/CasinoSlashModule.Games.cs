@@ -57,7 +57,6 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             var hasAIAction = gameSession.HasNextAIAction();
             while (hasAIAction)
             {
-                Console.WriteLine($"Processing AI action for game session {gameSession.Id}");
                 await Task.Delay(1000);
                 await gameSession.DoNextAIAction();
                 await GenerateResponse(gameSession);
@@ -69,7 +68,6 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             var hasDealerAction = gameSession.HasNextDealerAction();
             while (hasDealerAction)
             {
-                Console.WriteLine($"Processing dealer action for game session {gameSession.Id}");
                 await Task.Delay(1000);
                 await gameSession.DoNextDealerAction();
                 await GenerateResponse(gameSession);
@@ -80,7 +78,6 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             // Check if the game should finish
             if (gameSession.ShouldFinish())
             {
-                Console.WriteLine($"Finalizing game session {gameSession.Id}");
                 await Task.Delay(2000);
                 await GameService.EndGame(gameSession);
                 await GenerateResponse(gameSession);
