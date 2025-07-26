@@ -26,13 +26,7 @@ public class RockPaperScissors : ACasinoGame<RockPaperScissorsPlayerData, RockPa
     /// <summary>
     /// The current player is any player who hasn't made their choice yet
     /// </summary>
-    public override GamePlayer? CurrentPlayer
-    {
-        get
-        {
-            return Players.FirstOrDefault(p => !GameData[p].HasMadeChoice);
-        }
-    }
+    public override GamePlayer? CurrentPlayer => Players.FirstOrDefault(p => !GameData[p].HasMadeChoice);
 
     #region Start Game
 
@@ -57,24 +51,22 @@ public class RockPaperScissors : ACasinoGame<RockPaperScissorsPlayerData, RockPa
     {
         if (Players.Count != 2) return GamePlayerResult.NoResult;
 
-        var player1 = Players[0];
-        var player2 = Players[1];
-        var choice1 = GameData[player1].Choice;
-        var choice2 = GameData[player2].Choice;
+        var opponent = Players.FirstOrDefault(p => p != player);
+        if (opponent == null) return GamePlayerResult.NoResult;
 
-        if (!choice1.HasValue || !choice2.HasValue) return GamePlayerResult.NoResult;
+        var choicePlayer = GameData[player].Choice;
+        var choiceOpponent = GameData[opponent].Choice;
+
+        if (!choicePlayer.HasValue || !choiceOpponent.HasValue) return GamePlayerResult.NoResult;
 
         // If it's a tie
-        if (choice1 == choice2)
+        if (choicePlayer == choiceOpponent)
             return GamePlayerResult.Tie;
 
         // Determine winner based on Rock Paper Scissors rules
-        var playerChoice = GameData[player].Choice!.Value;
-        var opponentChoice = GameData[Players.First(p => p != player)].Choice!.Value;
-
-        bool playerWins = (playerChoice == RockPaperScissorsPlayerAction.Rock && opponentChoice == RockPaperScissorsPlayerAction.Scissors) ||
-                         (playerChoice == RockPaperScissorsPlayerAction.Paper && opponentChoice == RockPaperScissorsPlayerAction.Rock) ||
-                         (playerChoice == RockPaperScissorsPlayerAction.Scissors && opponentChoice == RockPaperScissorsPlayerAction.Paper);
+        bool playerWins = (choicePlayer == RockPaperScissorsPlayerAction.Rock && choiceOpponent == RockPaperScissorsPlayerAction.Scissors) ||
+                         (choicePlayer == RockPaperScissorsPlayerAction.Paper && choiceOpponent == RockPaperScissorsPlayerAction.Rock) ||
+                         (choicePlayer == RockPaperScissorsPlayerAction.Scissors && choiceOpponent == RockPaperScissorsPlayerAction.Paper);
 
         return playerWins ? GamePlayerResult.Won : GamePlayerResult.Lost;
     }
