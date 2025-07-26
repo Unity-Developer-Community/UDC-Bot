@@ -523,7 +523,6 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
                 var embed = new EmbedBuilder()
                     .WithTitle("🎮 Casino Game Statistics")
-                    .WithDescription("Statistics based on all completed games across all users")
                     .WithColor(Color.Purple)
                     .WithCurrentTimestamp();
 
@@ -533,13 +532,12 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                     var winRateIcon = game.WinPercentage >= 50 ? "📈" : "📉";
                     var profitIcon = game.NetProfit >= 0 ? "💰" : "💸";
 
-                    var fieldValue = $"**Games Played:** {game.TotalGames:N0}\n" +
-                                   $"**Wins:** {game.Wins:N0} | **Losses:** {game.Losses:N0}\n" +
-                                   $"{winRateIcon} **Win Rate:** {game.WinPercentage:F1}%\n" +
-                                   $"{profitIcon} **Net Profit:** {game.NetProfit:+0;-0;0} tokens\n" +
-                                   $"**Avg Profit/Game:** {game.AverageProfit:+0.0;-0.0;0.0} tokens";
+                    var fieldValue = $"* **Wins:** {game.Wins:N0} | **Losses:** {game.Losses:N0} | ***Total:*** {game.TotalGames:N0}\n" +
+                                   $"* {winRateIcon} **Win Rate:** {game.WinPercentage:F1}%\n" +
+                                   $"* {profitIcon} **Net Profit:** {game.NetProfit:+0;-0;0} tokens\n" +
+                                   $"* **Avg Profit/Game:** {game.AverageProfit:+0.0;-0.0;0.0} tokens";
 
-                    embed.AddField($"🎯 {gameDisplayName}", fieldValue, false);
+                    embed.AddField($"{gameDisplayName}", fieldValue, false);
                 }
 
                 embed.WithFooter($"Total games tracked: {statistics.Sum(s => s.TotalGames):N0}");
