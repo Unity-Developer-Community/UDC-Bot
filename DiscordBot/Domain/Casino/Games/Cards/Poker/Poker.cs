@@ -202,13 +202,14 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
         if (player.Result != GamePlayerResult.NoResult) return player.Result;
 
         // Evaluate all hands if not done yet
-        if (GameData[player].FinalHand == null)
+        foreach (var p in Players.Where(p => GameData[p].FinalHand == null))
         {
-            GameData[player].FinalHand = PokerHelper.EvaluateHand(GameData[player].PlayerCards);
+            GameData[p].FinalHand = PokerHelper.EvaluateHand(GameData[p].PlayerCards);
         }
 
-        // Determine winners
-        var allHands = Players.Select(p => (p, GameData[p].FinalHand!)).ToList();
+        // Determine winners - only include players with valid hands
+        var allHands = Players.Where(p => GameData[p].FinalHand != null)
+                              .Select(p => (p, GameData[p].FinalHand!)).ToList();
         var winners = PokerHelper.DetermineWinners(allHands);
 
         return winners.Any(w => w.player == player) ? GamePlayerResult.Won : GamePlayerResult.Lost;
@@ -221,13 +222,14 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
             return -(long)player.Bet;
 
         // Calculate winner's share
-        var allHands = Players.Select(p => (p, GameData[p].FinalHand!)).ToList();
+        var allHands = Players.Where(p => GameData[p].FinalHand != null)
+                              .Select(p => (p, GameData[p].FinalHand!)).ToList();
         var winners = PokerHelper.DetermineWinners(allHands);
         var winner = winners.FirstOrDefault(w => w.player == player);
 
         if (winner.player != null)
         {
-            // Winner gets their share of the total pot minus their bet
+            // Winner gets their share of the total pot minus their original bet
             var winnings = (long)(totalPot * (ulong)winner.share);
             return winnings - (long)player.Bet;
         }

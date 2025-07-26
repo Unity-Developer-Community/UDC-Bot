@@ -79,7 +79,7 @@ public static class PokerHelper
             {
                 hand.Rank = PokerHandRank.StraightFlush;
                 hand.Description = isWheelStraight ? "Straight Flush (Wheel)" : "Straight Flush";
-                hand.KickerValues = [sortedCards[0].Value]; // High card of straight
+                hand.KickerValues = [isWheelStraight ? 5 : GetPokerValue(sortedCards[0].Value)]; // High card of straight (5 for wheel)
             }
         }
         else if (valueGroups[0].Count() == 4)
@@ -104,7 +104,7 @@ public static class PokerHelper
         {
             hand.Rank = PokerHandRank.Straight;
             hand.Description = isWheelStraight ? "Straight (Wheel)" : "Straight";
-            hand.KickerValues = [GetPokerValue(sortedCards[0].Value)]; // High card of straight
+            hand.KickerValues = [isWheelStraight ? 5 : GetPokerValue(sortedCards[0].Value)]; // High card of straight (5 for wheel)
         }
         else if (valueGroups[0].Count() == 3)
         {
@@ -129,7 +129,7 @@ public static class PokerHelper
         else
         {
             hand.Rank = PokerHandRank.HighCard;
-            hand.Description = $"{GetCardName(sortedCards[0].Value)} High";
+            hand.Description = $"{GetCardName(GetPokerValue(sortedCards[0].Value))} High";
             hand.KickerValues = sortedCards.Select(c => GetPokerValue(c.Value)).ToList();
         }
 
