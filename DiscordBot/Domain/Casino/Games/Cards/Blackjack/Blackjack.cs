@@ -93,8 +93,8 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
     public override GamePlayerResult GetPlayerGameResult(GamePlayer player)
     {
         if (IsPlayerBlackjack(player)) return GamePlayerResult.Won;
-        else if (IsDealerBusted()) return GamePlayerResult.Won;
         else if (IsPlayerBusted(player)) return GamePlayerResult.Lost;
+        else if (IsDealerBusted()) return GamePlayerResult.Won;
         else if (GetPlayerValue(player) > GetDealerValue()) return GamePlayerResult.Won;
         else if (GetPlayerValue(player) < GetDealerValue()) return GamePlayerResult.Lost;
         else if (GetPlayerValue(player) == GetDealerValue()) return GamePlayerResult.Tie;
