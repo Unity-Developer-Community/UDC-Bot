@@ -9,6 +9,7 @@ public enum CasinoGame
 {
     Blackjack,
     RockPaperScissors,
+    Poker,
 }
 
 public partial class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
@@ -359,6 +360,43 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     }
 
     #endregion
+
+    [ComponentInteraction("show_hand:*", true)]
+    public async Task ShowHand(string id)
+    {
+        try
+        {
+            await DeferAsync(ephemeral: true);
+
+            var gameSession = GameService.GetActiveSession(id);
+            if (gameSession == null)
+            {
+                await FollowupAsync("Game session not found.", ephemeral: true);
+                return;
+            }
+
+            var player = gameSession.GetPlayer(Context.User.Id);
+            if (player == null)
+            {
+                await FollowupAsync("You are not in this game.", ephemeral: true);
+                return;
+            }
+
+            if (!gameSession.GameName.Equals("Poker", StringComparison.OrdinalIgnoreCase))
+            {
+                await FollowupAsync("This game does not have private hands.", ephemeral: true);
+                return;
+            }
+
+            var handInfo = gameSession.ShowHand(player);
+            await FollowupAsync(handInfo, ephemeral: true);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogChannelAndFile($"Failed to show hand: {ex.Message} {ex.StackTrace}", ExtendedLogSeverity.Warning);
+            await FollowupAsync($"Failed to show hand: {ex.Message}", ephemeral: true);
+        }
+    }
 
     [ComponentInteraction("reload:*", true)]
     public async Task Reload(string id)

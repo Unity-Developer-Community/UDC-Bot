@@ -5,6 +5,7 @@ public interface IDiscordGameSession : IGameSession
 {
     public Task<(Embed, MessageComponent)> GenerateEmbedAndButtons();
     public Embed GenerateRules();
+    public string ShowHand(GamePlayer player);
 }
 
 public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGameSession
@@ -159,6 +160,19 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
     private MessageComponent GenerateInProgressButtons()
     {
         var components = new ComponentBuilder();
+        
+        // Add Show Hand button for games with private hands
+        if (Game.HasPrivateHands)
+        {
+            components.WithButton(new ButtonBuilder
+            {
+                CustomId = $"show_hand:{Id}",
+                Label = "Show Hand",
+                Style = ButtonStyle.Secondary,
+                Emote = new Emoji("👁️")
+            });
+        }
+        
         var values = Enum.GetValues(Game.ActionType).Cast<Enum>().ToList();
         foreach (var action in values)
         {
@@ -231,6 +245,11 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
             .WithColor(Color.Blue);
 
         return embed.Build();
+    }
+
+    public virtual string ShowHand(GamePlayer player)
+    {
+        return Game.ShowHand(player);
     }
 
     #endregion

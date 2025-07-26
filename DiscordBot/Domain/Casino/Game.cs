@@ -36,6 +36,16 @@ public interface ICasinoGame
     List<GamePlayer> Players { get; }
 
     /// <summary>
+    /// Indicates whether this game has private hands that should not be shown publicly
+    /// </summary>
+    bool HasPrivateHands { get; }
+
+    /// <summary>
+    /// Returns a string representation of the player's private hand for ephemeral display
+    /// </summary>
+    string ShowHand(GamePlayer player);
+
+    /// <summary>
     /// Starts the game with the given players.<br />
     /// This method should be called after all players are added and ready.
     /// </summary>
@@ -88,6 +98,16 @@ public abstract class ACasinoGame<TPlayerData, TPlayerAction> : ICasinoGame
     public bool IsCompleted => State == GameState.Finished || State == GameState.Abandoned;
     public Dictionary<GamePlayer, TPlayerData> GameData { get; set; } = [];
     public List<GamePlayer> Players => GameData.Keys.ToList();
+
+    /// <summary>
+    /// Override this to indicate if the game has private hands
+    /// </summary>
+    public virtual bool HasPrivateHands => false;
+
+    /// <summary>
+    /// Override this to provide player's private hand information
+    /// </summary>
+    public virtual string ShowHand(GamePlayer player) => "This game does not have private hands.";
 
     #region Start Game
 
