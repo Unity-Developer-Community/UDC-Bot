@@ -90,8 +90,6 @@ public class RockPaperScissors : ACasinoGame<RockPaperScissorsPlayerData, RockPa
         };
     }
 
-    public override bool ShouldFinish() => Players.All(p => GameData[p].HasMadeChoice);
-
     #endregion
 
     #region Player Actions

@@ -129,7 +129,11 @@ public abstract class ACasinoGame<TPlayerData, TPlayerAction> : ICasinoGame
     public abstract GamePlayerResult GetPlayerGameResult(GamePlayer player);
     public abstract long CalculatePayout(GamePlayer player);
 
-    public abstract bool ShouldFinish();
+    /// <summary>
+    /// Determines if the game should enter the FINISHED state. <br />
+    /// The default implementation checks if the game is IN_PROGRESS and all players have finished playing.
+    /// </summary>
+    public virtual bool ShouldFinish() => State == GameState.InProgress && CurrentPlayer == null;
 
     #endregion
     #region Player Actions

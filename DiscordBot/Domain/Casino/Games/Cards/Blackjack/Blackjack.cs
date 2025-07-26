@@ -112,7 +112,7 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
         };
     }
 
-    public override bool ShouldFinish() => CurrentPlayer == null && !CanDealerAct();
+    public override bool ShouldFinish() => base.ShouldFinish() && !CanDealerAct();
 
     #endregion
     #region Player Actions
