@@ -157,10 +157,12 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
                         IsDisabled = Players.Count == 0
                     }),
                 // Buttons for adding/removing AI players
+#if DEBUG
                 new ActionRowBuilder()
                     .WithButton("Add AI", $"ai_add:{Id}", ButtonStyle.Success, new Emoji("🤖"))
                     .WithButton("Add FULL AI", $"ai_add_full:{Id}", ButtonStyle.Success, new Emoji("🤖"))
                     .WithButton("Remove AI", $"ai_remove:{Id}", ButtonStyle.Danger, new Emoji("❌")),
+#endif
                 // Buttons for betting
                 new ActionRowBuilder()
                     .WithButton("+1", $"bet_add:{Id}:1", ButtonStyle.Secondary, new Emoji("1️⃣"))
