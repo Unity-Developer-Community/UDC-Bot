@@ -188,7 +188,7 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
             components.WithButton(new ButtonBuilder
             {
                 CustomId = $"action:{Id}:{action}",
-                Label = attr?.Label ?? action.ToString(),
+                Label = string.IsNullOrEmpty(attr?.Label) ? action.ToString() : attr.Label,
                 Emote = string.IsNullOrEmpty(attr?.Emoji) ? null : new Emoji(attr.Emoji),
                 Style = attr?.Style ?? ButtonStyle.Primary,
             });
