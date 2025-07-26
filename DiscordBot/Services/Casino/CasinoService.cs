@@ -144,14 +144,15 @@ public class CasinoService
 
     #region Game Statistics
 
-    public async Task<List<GameStatistics>> GetGameStatistics()
+    public async Task<List<GameStatistics>> GetGameStatistics(IUser user)
     {
         try
         {
-            var gameTransactions = await _databaseService.CasinoQuery.GetAllGameTransactions();
-            
+            var gameTransactions = await _databaseService.CasinoQuery.GetTransactionsOfType(TransactionType.Game);
+
             // Group transactions by game type
             var gameGroups = gameTransactions
+                .Where(t => t.UserID == user.Id.ToString())
                 .Where(t => t.Details != null && t.Details.ContainsKey("game"))
                 .GroupBy(t => t.Details["game"])
                 .ToList();
@@ -162,16 +163,16 @@ public class CasinoService
             {
                 var gameName = group.Key;
                 var transactions = group.ToList();
-                
+
                 var wins = transactions.Where(t => t.Amount > 0).ToList();
                 var losses = transactions.Where(t => t.Amount < 0).ToList();
-                
+
                 var totalWins = wins.Count;
                 var totalLosses = losses.Count;
                 var totalGames = totalWins + totalLosses;
-                
+
                 var winPercentage = totalGames > 0 ? (double)totalWins / totalGames * 100 : 0;
-                
+
                 var totalWinAmount = wins.Sum(t => t.Amount);
                 var totalLossAmount = losses.Sum(t => Math.Abs(t.Amount)); // Make positive for display
                 var netProfit = totalWinAmount - totalLossAmount;

@@ -387,8 +387,8 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         {
             if (string.IsNullOrEmpty(input))
                 return input;
-            
-            return string.Join(" ", input.Split(' ').Select(word => 
+
+            return string.Join(" ", input.Split(' ').Select(word =>
                 string.IsNullOrEmpty(word) ? word : char.ToUpper(word[0]) + word.Substring(1).ToLower()));
         }
 
@@ -511,9 +511,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
             try
             {
-                await Context.Interaction.DeferAsync();
+                await Context.Interaction.DeferAsync(ephemeral: true);
 
-                var statistics = await CasinoService.GetGameStatistics();
+                var statistics = await CasinoService.GetGameStatistics(Context.User);
 
                 if (statistics.Count == 0)
                 {
@@ -527,29 +527,29 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                     .WithColor(Color.Purple)
                     .WithCurrentTimestamp();
 
-                foreach (var stat in statistics)
+                foreach (var game in statistics)
                 {
-                    var gameDisplayName = CapitalizeWords(stat.GameName);
-                    var winRateIcon = stat.WinPercentage >= 50 ? "📈" : "📉";
-                    var profitIcon = stat.NetProfit >= 0 ? "💰" : "💸";
+                    var gameDisplayName = CapitalizeWords(game.GameName);
+                    var winRateIcon = game.WinPercentage >= 50 ? "📈" : "📉";
+                    var profitIcon = game.NetProfit >= 0 ? "💰" : "💸";
 
-                    var fieldValue = $"**Games Played:** {stat.TotalGames:N0}\n" +
-                                   $"**Wins:** {stat.Wins:N0} | **Losses:** {stat.Losses:N0}\n" +
-                                   $"{winRateIcon} **Win Rate:** {stat.WinPercentage:F1}%\n" +
-                                   $"{profitIcon} **Net Profit:** {stat.NetProfit:+0;-0;0} tokens\n" +
-                                   $"**Avg Profit/Game:** {stat.AverageProfit:+0.0;-0.0;0.0} tokens";
+                    var fieldValue = $"**Games Played:** {game.TotalGames:N0}\n" +
+                                   $"**Wins:** {game.Wins:N0} | **Losses:** {game.Losses:N0}\n" +
+                                   $"{winRateIcon} **Win Rate:** {game.WinPercentage:F1}%\n" +
+                                   $"{profitIcon} **Net Profit:** {game.NetProfit:+0;-0;0} tokens\n" +
+                                   $"**Avg Profit/Game:** {game.AverageProfit:+0.0;-0.0;0.0} tokens";
 
                     embed.AddField($"🎯 {gameDisplayName}", fieldValue, false);
                 }
 
                 embed.WithFooter($"Total games tracked: {statistics.Sum(s => s.TotalGames):N0}");
 
-                await Context.Interaction.FollowupAsync(embed: embed.Build());
+                await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: true);
             }
             catch (Exception ex)
             {
-                await LoggingService.LogChannelAndFile($"Casino: ERROR in GameStatistics command for user {Context.User.Username}: {ex.Message}", ExtendedLogSeverity.Error);
-                await LoggingService.LogChannelAndFile($"Casino: GameStatistics Exception Details: {ex}");
+                await LoggingService.LogAction($"Casino: ERROR in GameStatistics command for user {Context.User.Username}: {ex.Message}", ExtendedLogSeverity.Error);
+                await LoggingService.LogAction($"Casino: GameStatistics Exception Details: {ex}");
 
                 try
                 {
