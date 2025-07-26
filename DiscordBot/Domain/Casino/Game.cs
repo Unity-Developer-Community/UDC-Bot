@@ -45,6 +45,9 @@ public interface ICasinoGame
     /// </summary>
     public IReadOnlyList<(GamePlayer player, long payout)> EndGame();
 
+    public abstract GamePlayerResult GetPlayerGameResult(GamePlayer player);
+    public abstract long CalculatePayout(GamePlayer player);
+
     Type ActionType { get; }
 
     public void DoPlayerAction(GamePlayer player, Enum action);

@@ -80,15 +80,7 @@ public class BlackjackDiscordGameSession : DiscordGameSession<Blackjack>
     protected override Embed GenerateFinishedEmbed()
     {
         var description = GenerateTurnDescription();
-
-        description += "\n**Results:**\n";
-
-        foreach (var player in Players)
-        {
-            var result = Game.GetPlayerGameResult(player);
-            var payout = Game.CalculatePayout(player);
-            description += $"* {GetPlayerName(player)}: {result} (Payout: {payout})\n";
-        }
+        description += GenerateResultsDescription();
 
         return new EmbedBuilder()
             .WithTitle($"{Game.Emoji} {GameName} Finished")

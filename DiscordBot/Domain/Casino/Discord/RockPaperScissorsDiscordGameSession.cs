@@ -16,7 +16,7 @@ public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperS
     private string GenerateGameDescription()
     {
         var description = "**Players:**\n";
-        
+
         foreach (var p in Players)
         {
             var playerData = Game.GameData[p];
@@ -26,7 +26,7 @@ public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperS
         }
 
         description += "\n";
-        
+
         // If game is finished, show the choices and results
         if (Game.State == GameState.Finished)
         {
@@ -39,7 +39,7 @@ public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperS
                     description += $"* **{GetPlayerName(p)}**: {RockPaperScissors.GetChoiceEmoji(choice.Value)} {choice.Value}\n";
                 }
             }
-            
+
             // Show who beat whom (if not a tie)
             if (Players.Count == 2)
             {
@@ -47,14 +47,14 @@ public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperS
                 var player2 = Players[1];
                 var choice1 = Game.GameData[player1].Choice;
                 var choice2 = Game.GameData[player2].Choice;
-                
+
                 if (choice1.HasValue && choice2.HasValue && choice1 != choice2)
                 {
                     var winner = Game.GetPlayerGameResult(player1) == GamePlayerResult.Won ? player1 : player2;
                     var loser = winner == player1 ? player2 : player1;
                     var winnerChoice = Game.GameData[winner].Choice!.Value;
                     var loserChoice = Game.GameData[loser].Choice!.Value;
-                    
+
                     description += $"\n**{RockPaperScissors.GetBeatDescription(winnerChoice, loserChoice)}**\n";
                 }
                 else if (choice1 == choice2)
@@ -67,14 +67,14 @@ public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperS
         {
             description += "All players have made their choices! Revealing results...\n";
         }
-        
+
         return description;
     }
 
     protected override Embed GenerateInProgressEmbed()
     {
         var description = GenerateGameDescription();
-        
+
         var waitingFor = Game.CurrentPlayer != null ? $"Waiting for {GetCurrentPlayerName()}" : "All choices made - revealing results...";
 
         return new EmbedBuilder()
@@ -89,22 +89,7 @@ public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperS
     protected override Embed GenerateFinishedEmbed()
     {
         var description = GenerateGameDescription();
-
-        description += "\n**Results:**\n";
-
-        foreach (var player in Players)
-        {
-            var result = Game.GetPlayerGameResult(player);
-            var payout = Game.CalculatePayout(player);
-            var resultEmoji = result switch
-            {
-                GamePlayerResult.Won => "🏆",
-                GamePlayerResult.Lost => "❌",
-                GamePlayerResult.Tie => "🤝",
-                _ => "❓"
-            };
-            description += $"* {resultEmoji} {GetPlayerName(player)}: {result} (Payout: {payout:+0;-0;0})\n";
-        }
+        description += GenerateResultsDescription();
 
         return new EmbedBuilder()
             .WithTitle($"{Game.Emoji} {GameName} Finished!")

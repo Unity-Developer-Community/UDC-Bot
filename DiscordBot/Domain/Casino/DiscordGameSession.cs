@@ -57,6 +57,27 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
 
     protected abstract Embed GenerateInProgressEmbed();
 
+    protected string GenerateResultsDescription()
+    {
+        var description = "\n**Results:**\n";
+
+        foreach (var player in Players)
+        {
+            var result = Game.GetPlayerGameResult(player);
+            var payout = Game.CalculatePayout(player);
+            var resultEmoji = result switch
+            {
+                GamePlayerResult.Won => "🏆",
+                GamePlayerResult.Lost => "❌",
+                GamePlayerResult.Tie => "🤝",
+                _ => "❓"
+            };
+            description += $"* {resultEmoji} {GetPlayerName(player)}: {result} (Payout: {payout:+0;-0;0})\n";
+        }
+
+        return description;
+    }
+
     protected virtual Embed GenerateFinishedEmbed()
     {
         return new EmbedBuilder()
