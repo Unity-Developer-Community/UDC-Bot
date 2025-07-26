@@ -71,7 +71,7 @@ public class BlackjackDiscordGameSession : DiscordGameSession<Blackjack>
         var description = GenerateTurnDescription();
 
         return new EmbedBuilder()
-            .WithTitle($"{Game.Emoji} {GameName} In Progress")
+            .WithTitle($"Game of {Game.Emoji} {GameName}")
             .WithDescription(description)
             .AddField("CurrentPlayer", GetCurrentPlayerName(), true)
             .Build();
