@@ -49,28 +49,15 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
     protected string GetCurrentPlayerWithTimer()
     {
         var playerName = GetCurrentPlayerName();
-        
+
         if (CurrentPlayer != null && !CurrentPlayer.IsAI && TimeRemaining.HasValue)
         {
             var remaining = TimeRemaining.Value;
-            string timeDisplay;
-            
-            if (remaining.TotalSeconds <= 0)
-            {
-                timeDisplay = "⏰ TIME UP!";
-            }
-            else if (remaining.TotalMinutes >= 1)
-            {
-                timeDisplay = $"⏱️ {(int)remaining.TotalMinutes}m {remaining.Seconds}s";
-            }
-            else
-            {
-                timeDisplay = $"⏱️ {remaining.Seconds}s";
-            }
-            
-            return $"{playerName} ({timeDisplay})";
+            var endDate = CurrentPlayerTurnStartTime?.Add(remaining) ?? DateTime.UtcNow.Add(remaining);
+
+            return $"{playerName} (⏱️ {TimestampTag.FromDateTime(endDate, TimestampTagStyles.Relative)})";
         }
-        
+
         return playerName;
     }
 
