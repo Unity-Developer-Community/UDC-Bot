@@ -58,7 +58,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             var hasAIAction = gameSession.HasNextAIAction();
             while (hasAIAction)
             {
-                await Task.Delay(1000);
+                await Task.Delay(100);
                 await gameSession.DoNextAIAction();
                 await GenerateResponse(gameSession);
 
