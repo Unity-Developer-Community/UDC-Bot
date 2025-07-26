@@ -30,7 +30,7 @@ public class BlackjackDiscordGameSession : DiscordGameSession<Blackjack>
 
             var actions = "";
             if (Game.GameData[p].Actions.Count > 0)
-                actions = $" - Actions: {string.Join(", ", Game.GameData[p].Actions.Select(a => a.ToString()))}";
+                actions = string.Join(", ", Game.GameData[p].Actions.Select(a => a.ToString()));
 
             description += GeneratePlayerHandDescription(p, playerHand, actions);
         }
