@@ -41,7 +41,7 @@ public class RockPaperScissors : ACasinoGame<RockPaperScissorsPlayerData, RockPa
     protected override void InitializeGame()
     {
         State = GameState.InProgress;
-        
+
         // Clear any previous choices
         foreach (var player in Players)
         {
@@ -50,32 +50,32 @@ public class RockPaperScissors : ACasinoGame<RockPaperScissorsPlayerData, RockPa
     }
 
     #endregion
-    
+
     #region End Game
 
     public override GamePlayerResult GetPlayerGameResult(GamePlayer player)
     {
         if (Players.Count != 2) return GamePlayerResult.NoResult;
-        
+
         var player1 = Players[0];
         var player2 = Players[1];
         var choice1 = GameData[player1].Choice;
         var choice2 = GameData[player2].Choice;
-        
+
         if (!choice1.HasValue || !choice2.HasValue) return GamePlayerResult.NoResult;
-        
+
         // If it's a tie
         if (choice1 == choice2)
             return GamePlayerResult.Tie;
-        
+
         // Determine winner based on Rock Paper Scissors rules
         var playerChoice = GameData[player].Choice!.Value;
         var opponentChoice = GameData[Players.First(p => p != player)].Choice!.Value;
-        
+
         bool playerWins = (playerChoice == RockPaperScissorsPlayerAction.Rock && opponentChoice == RockPaperScissorsPlayerAction.Scissors) ||
                          (playerChoice == RockPaperScissorsPlayerAction.Paper && opponentChoice == RockPaperScissorsPlayerAction.Rock) ||
                          (playerChoice == RockPaperScissorsPlayerAction.Scissors && opponentChoice == RockPaperScissorsPlayerAction.Paper);
-        
+
         return playerWins ? GamePlayerResult.Won : GamePlayerResult.Lost;
     }
 
@@ -93,7 +93,7 @@ public class RockPaperScissors : ACasinoGame<RockPaperScissorsPlayerData, RockPa
     public override bool ShouldFinish() => Players.All(p => GameData[p].HasMadeChoice);
 
     #endregion
-    
+
     #region Player Actions
 
     /// <summary>
@@ -108,19 +108,30 @@ public class RockPaperScissors : ACasinoGame<RockPaperScissorsPlayerData, RockPa
 
     public override void DoPlayerAction(GamePlayer player, RockPaperScissorsPlayerAction action)
     {
-        if (State != GameState.InProgress) 
+        if (State != GameState.InProgress)
             throw new InvalidOperationException("Game is not in progress");
-        if (!CanPlayerAct(player)) 
+        if (!CanPlayerAct(player))
             throw new InvalidOperationException("Player cannot take action at this time");
 
         // Record the player's choice
         GameData[player].Choice = action;
     }
 
+    protected override AIAction? GetNextAIAction()
+    {
+        // AI can randomly choose Rock, Paper, or Scissors
+        var choices = Enum.GetValues(typeof(RockPaperScissorsPlayerAction)).Cast<RockPaperScissorsPlayerAction>().ToList();
+        var randomChoice = choices[new Random().Next(choices.Count)];
+
+        return new AIAction
+        {
+            Execute = () => { DoPlayerAction(CurrentPlayer!, randomChoice); return Task.CompletedTask; },
+        };
+    }
+
     #endregion
-    
     #region Helper Methods
-    
+
     /// <summary>
     /// Gets the emoji representation of a choice
     /// </summary>
@@ -129,12 +140,12 @@ public class RockPaperScissors : ACasinoGame<RockPaperScissorsPlayerData, RockPa
         return choice switch
         {
             RockPaperScissorsPlayerAction.Rock => "🪨",
-            RockPaperScissorsPlayerAction.Paper => "📄", 
+            RockPaperScissorsPlayerAction.Paper => "📄",
             RockPaperScissorsPlayerAction.Scissors => "✂️",
             _ => "❓"
         };
     }
-    
+
     /// <summary>
     /// Gets a human-readable description of who beats what
     /// </summary>
@@ -148,6 +159,6 @@ public class RockPaperScissors : ACasinoGame<RockPaperScissorsPlayerData, RockPa
             _ => "Unknown"
         };
     }
-    
+
     #endregion
 }
