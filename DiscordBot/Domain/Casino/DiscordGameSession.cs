@@ -1,5 +1,13 @@
+using System.Reflection;
 using Discord.WebSocket;
 using DiscordBot.Domain;
+
+[AttributeUsage(AttributeTargets.Field)]
+public class ButtonMetadataAttribute : Attribute
+{
+    public string? Emoji { get; set; }
+    public ButtonStyle Style { get; set; } = ButtonStyle.Primary;
+}
 
 public interface IDiscordGameSession : IGameSession
 {
@@ -161,14 +169,18 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
     {
         var components = new ComponentBuilder();
 
-        var values = Enum.GetValues(Game.ActionType).Cast<Enum>().ToList();
+        var values = Enum.GetValues(Game.ActionType).Cast<Enum>();
         foreach (var action in values)
         {
+            var member = Game.ActionType.GetMember(action.ToString()!)[0];
+            var attr = member.GetCustomAttribute<ButtonMetadataAttribute>();
+
             components.WithButton(new ButtonBuilder
             {
                 CustomId = $"action:{Id}:{action}",
                 Label = action.ToString(),
-                Style = ButtonStyle.Primary,
+                Emote = attr?.Emoji ?? new Emoji(attr?.Emoji),
+                Style = attr?.Style ?? ButtonStyle.Primary,
             });
         }
 

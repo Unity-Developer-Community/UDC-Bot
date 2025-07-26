@@ -5,8 +5,11 @@ namespace DiscordBot.Domain;
 /// </summary>
 public enum BlackjackPlayerAction
 {
+    [ButtonMetadata(Emoji = "🃏", Style = ButtonStyle.Primary)]
     Hit,
+    [ButtonMetadata(Emoji = "✋", Style = ButtonStyle.Secondary)]
     Stand,
+    [ButtonMetadata(Emoji = "💰", Style = ButtonStyle.Success)]
     DoubleDown
 }
 

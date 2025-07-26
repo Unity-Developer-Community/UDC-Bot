@@ -5,8 +5,11 @@ namespace DiscordBot.Domain;
 /// </summary>
 public enum RockPaperScissorsPlayerAction
 {
+    [ButtonMetadata(Emoji = "🪨", Style = ButtonStyle.Primary)]
     Rock,
+    [ButtonMetadata(Emoji = "📄", Style = ButtonStyle.Primary)]
     Paper,
+    [ButtonMetadata(Emoji = "✂️", Style = ButtonStyle.Primary)]
     Scissors
 }
 
