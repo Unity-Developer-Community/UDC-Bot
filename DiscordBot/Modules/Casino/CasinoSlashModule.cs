@@ -65,9 +65,12 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
             var embed = new EmbedBuilder()
                 .WithTitle("🪙 Your Token Balance")
-                .WithDescription($"You have **{user.Tokens:N0}** tokens")
+                .WithDescription(
+                    $"You have **{user.Tokens:N0}** tokens"
+                    + "\n-# * Use `/casino tokens daily` to claim your daily tokens"
+                    + "\n-# * Use `/casino tokens gift` to gift tokens to another user"
+                )
                 .WithColor(Color.Gold)
-                .WithFooter("Use `/casino tokens gift` to send tokens to other users")
                 .Build();
 
             await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
