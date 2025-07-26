@@ -50,7 +50,7 @@ public class BlackjackDiscordGameSession : DiscordGameSession<Blackjack>
 
         description += $"* **Dealer**: {dealerCards} (Value: {dealerValue})";
         if (Game.IsDealerBusted()) description += " **- BUSTED!**";
-        if (Game.IsDealerBlackjack()) description += " **- BLACKJACK!**";
+        // if (Game.IsDealerBlackjack()) description += " **- BLACKJACK!**";
         if (Game.DealerActions.LastOrDefault() == BlackjackPlayerAction.Stand) description += " **- STANDING**";
 
         description += "\n";
