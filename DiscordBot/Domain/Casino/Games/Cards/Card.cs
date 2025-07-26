@@ -33,7 +33,7 @@ public static class CardSuitExtensions
 /// <summary>
 /// Generic card representation that can be used for any card game
 /// </summary>
-public class Card
+public class Card : IComparable<Card>
 {
     public int Value { get; init; } // 1 = Ace, 11-13 = Jack/Queen/King
     public CardSuit Suit { get; init; }
@@ -67,6 +67,14 @@ public class Card
     {
         if (obj is Card other) return Value == other.Value && Suit == other.Suit;
         return false;
+    }
+
+    // Add sorting support
+    public int CompareTo(Card? other)
+    {
+        if (other == null) return 1; // Nulls are considered less than any card
+        if (Value != other.Value) return Value.CompareTo(other.Value);
+        return Suit.CompareTo(other.Suit);
     }
 
     public override int GetHashCode() => HashCode.Combine(Value, Suit);

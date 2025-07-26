@@ -179,7 +179,7 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
         var playerData = GameData[player];
         if (playerData.PlayerCards.Count != 5) return "Hand incomplete.";
 
-        var hand = string.Join(" ", playerData.PlayerCards.Select((card, index) =>
+        var hand = string.Join(" ", playerData.PlayerCards.OrderByDescending(c => c).Select((card, index) =>
         {
             var display = card.GetDisplayName();
             if (playerData.SelectedForDiscard[index])

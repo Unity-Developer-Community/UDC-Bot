@@ -19,7 +19,7 @@ public class PokerDiscordGameSession : DiscordGameSession<Poker>
 
             if (State == GameState.Finished)
             {
-                status = string.Join(" ", Game.GameData[p].PlayerCards.Select(c => c.GetDisplayName()));
+                status = string.Join(" ", Game.GameData[p].PlayerCards.OrderByDescending(c => c).Select(c => c.GetDisplayName()));
                 var playerHand = Game.GameData[p].FinalHand;
                 if (playerHand != null)
                 {
