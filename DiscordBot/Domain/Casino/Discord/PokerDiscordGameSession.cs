@@ -7,66 +7,35 @@ public class PokerDiscordGameSession : DiscordGameSession<Poker>
         : base(game, maxSeats, client, user, guild)
     { }
 
-    private string GetCurrentPlayerName()
-    {
-        if (Game.CurrentPlayer == null) return "No one (all players finished)";
-        return GetPlayerName((DiscordGamePlayer)Game.CurrentPlayer);
-    }
-
     private string GenerateGameDescription()
     {
         var description = "**Five Card Draw Poker** - Each player gets 5 cards and can discard up to 5 cards once.\n\n";
 
-        if (Game.State == GameState.InProgress)
+        description += "**Players:**\n";
+        foreach (var p in Players)
         {
-            description += $"**Current Turn:** {GetCurrentPlayerName()}\n\n";
+            var playerData = Game.GameData[p];
+            var status = playerData.HasDiscarded ? "✅ Finished" : (Game.CurrentPlayer == p ? "🎯 Playing" : "⏳ Waiting");
 
-            description += "**Players:**\n";
-            foreach (var p in Players)
+            if (State == GameState.Finished)
             {
-                var playerData = Game.GameData[p];
-                var status = playerData.HasDiscarded ? "✅ Finished" : (Game.CurrentPlayer == p ? "🎯 Playing" : "⏳ Waiting");
-                description += $"• {GetPlayerName(p)}: {status} (Bet: {p.Bet})\n";
+                status = string.Join(" ", Game.GameData[p].PlayerCards.Select(c => c.GetDisplayName()));
+                var playerHand = Game.GameData[p].FinalHand;
+                if (playerHand != null)
+                {
+                    status += $" - **{playerHand.Description}**";
+                }
             }
 
-            if (Game.CurrentPlayer != null)
-            {
-                description += "\n*Use the 'Show Hand' button to see your cards privately.*\n";
-                description += "*Select cards you want to discard, then click 'Confirm Discard'.*";
-            }
+            description += GeneratePlayerHandDescription(p, status, "");
         }
 
-        return description;
-    }
-
-    private new string GenerateResultsDescription()
-    {
-        var description = "\n**Final Results:**\n";
-
-        // Evaluate all hands and sort by rank
-        var playerHands = Players.Select(p =>
+        if (Game.CurrentPlayer != null)
         {
-            var hand = Game.GameData[p].FinalHand ?? PokerHelper.EvaluateHand(Game.GameData[p].PlayerCards);
-            return (player: (GamePlayer)p, hand);
-        }).OrderByDescending(ph => ph.hand.Rank).ToList();
-
-        var winners = PokerHelper.DetermineWinners(playerHands);
-
-        foreach (var (player, hand) in playerHands)
-        {
-            var result = Game.GetPlayerGameResult(player);
-            var payout = Game.CalculatePayout(player, GetTotalPot);
-            var resultEmoji = result switch
-            {
-                GamePlayerResult.Won => "🏆",
-                GamePlayerResult.Lost => "❌",
-                _ => "❓"
-            };
-
-            var cards = string.Join(" ", Game.GameData[(DiscordGamePlayer)player].PlayerCards.Select(c => c.GetDisplayName()));
-            description += $"{resultEmoji} **{GetPlayerName((DiscordGamePlayer)player)}**: {hand.Description}\n";
-            description += $"   *Cards: {cards}* (Payout: {payout:+0;-0;0})\n\n";
+            description += "\n*Use the 'Show Hand' button to see your cards privately.*\n";
+            description += "*Select cards you want to discard, then click 'Confirm Discard'.*";
         }
+
 
         return description;
     }
@@ -80,15 +49,7 @@ public class PokerDiscordGameSession : DiscordGameSession<Poker>
             .WithDescription(description)
             .WithColor(Color.Blue);
 
-        if (Game.State == GameState.InProgress)
-        {
-            embed.AddField("Total Pot", $"{GetTotalPot} tokens", true);
-            
-            if (Game.CurrentPlayer != null)
-            {
-                embed.AddField("Current Player", GetCurrentPlayerName(), true);
-            }
-        }
+        embed.AddField("Current Player", GetCurrentPlayerName(), true);
 
         return embed.Build();
     }
@@ -136,110 +97,5 @@ public class PokerDiscordGameSession : DiscordGameSession<Poker>
                 "• You can discard 0-5 cards", false)
             .WithColor(Color.Purple)
             .Build();
-    }
-
-    /// <summary>
-    /// Override to provide custom buttons for poker gameplay
-    /// </summary>
-    public MessageComponent GeneratePokerInProgressButtons()
-    {
-        var components = new ComponentBuilder();
-        
-        // Add Show Hand button
-        components.WithButton(new ButtonBuilder
-        {
-            CustomId = $"show_hand:{Id}",
-            Label = "Show Hand",
-            Style = ButtonStyle.Secondary,
-            Emote = new Emoji("👁️")
-        });
-
-        // Add card selection buttons in a row
-        var cardRow = new ActionRowBuilder();
-        for (int i = 1; i <= 5; i++)
-        {
-            cardRow.WithButton(new ButtonBuilder
-            {
-                CustomId = $"action:{Id}:SelectCard{i}",
-                Label = $"Card {i}",
-                Style = ButtonStyle.Primary,
-                Emote = new Emoji("🃏")
-            });
-        }
-        components.AddRow(cardRow);
-
-        // Add confirm discard button
-        components.WithButton(new ButtonBuilder
-        {
-            CustomId = $"action:{Id}:ConfirmDiscard",
-            Label = "Confirm Discard",
-            Style = ButtonStyle.Success,
-            Emote = new Emoji("✅")
-        });
-
-        return components.Build();
-    }
-
-    /// <summary>
-    /// Hide the base method to use custom poker buttons when in progress
-    /// </summary>
-    public new async Task<(Embed, MessageComponent)> GenerateEmbedAndButtons()
-    {
-        var embed = await GenerateEmbed();
-        
-        // Use custom buttons for in-progress poker games
-        if (Game.State == GameState.InProgress)
-        {
-            var buttons = GeneratePokerInProgressButtons();
-            return (embed, buttons);
-        }
-        
-        // Use default buttons for other states
-        var (_, defaultButtons) = await base.GenerateEmbedAndButtons();
-        return (embed, defaultButtons);
-    }
-
-    private async Task<Embed> GenerateEmbed()
-    {
-        return Game.State switch
-        {
-            GameState.NotStarted => await GenerateNotStartedEmbed(),
-            GameState.InProgress => GenerateInProgressEmbed(),
-            GameState.Finished => GenerateFinishedEmbed(),
-            GameState.Abandoned => GenerateAbandonedEmbed(),
-            _ => throw new InvalidOperationException("Unknown game state")
-        };
-    }
-
-    private async Task<Embed> GenerateNotStartedEmbed()
-    {
-        var challenger = await Guild.GetUserAsync(User.Id);
-
-        return new EmbedBuilder()
-            .WithTitle($"{Game.Emoji} {GameName} Game Session")
-            .WithDescription($"Welcome to {GameName}! Click the buttons below to take actions.")
-            .WithAuthor($"Game started by {challenger.DisplayName}")
-            .WithColor(Color.Green)
-            .AddField("Players", GeneratePlayersList(), true)
-            .AddField("Seats Available", $"{PlayerCount}/{MaxSeats}", true)
-            .AddField("Total Pot", $"{GetTotalPot}")
-            .WithFooter($"Game started by {challenger.DisplayName} • Minimum {Game.MinPlayers} players ready required to start the game.")
-            .Build();
-    }
-
-    private Embed GenerateAbandonedEmbed()
-    {
-        return new EmbedBuilder()
-            .WithTitle($"{Game.Emoji} {GameName} Abandoned")
-            .Build();
-    }
-
-    private string GeneratePlayersList()
-    {
-        if (Players.Count == 0) return "None";
-        var lines = Players.Select(p =>
-            $"{GetPlayerName(p)} {(p.IsReady ? '✅' : '❌')} (Bet: {p.Bet})"
-        );
-        return string.Join("\n", lines);
     }
 }

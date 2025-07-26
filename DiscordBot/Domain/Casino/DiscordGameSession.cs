@@ -39,6 +39,12 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
         return user?.Mention ?? $"Unknown User ({player.UserId})";
     }
 
+    protected string GetCurrentPlayerName()
+    {
+        if (Game.CurrentPlayer == null) return "No one (all players finished)";
+        return GetPlayerName((DiscordGamePlayer)Game.CurrentPlayer);
+    }
+
     private string GeneratePlayersList()
     {
         if (Players.Count == 0) return "None";
