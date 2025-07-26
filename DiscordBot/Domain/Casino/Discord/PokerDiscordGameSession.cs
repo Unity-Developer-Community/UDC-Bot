@@ -32,10 +32,16 @@ public class PokerDiscordGameSession : DiscordGameSession<Poker>
 
         if (Game.CurrentPlayer != null)
         {
+            description += $"\n**{GetCurrentPlayerName()} selected cards for discard:** \n";
+            var currentPlayerData = Game.GameData[Game.CurrentPlayer];
+            for (int i = 0; i < currentPlayerData.PlayerCards.Count; i++)
+            {
+                var isSelected = currentPlayerData.SelectedForDiscard[i];
+                description += $"{(isSelected ? "✅" : "❌")} 🃏 ";
+            }
             description += "\n*Use the 'Show Hand' button to see your cards privately.*\n";
             description += "*Select cards you want to discard, then click 'Confirm Discard'.*";
         }
-
 
         return description;
     }
@@ -47,9 +53,8 @@ public class PokerDiscordGameSession : DiscordGameSession<Poker>
         var embed = new EmbedBuilder()
             .WithTitle($"🃏 {GameName} Game")
             .WithDescription(description)
-            .WithColor(Color.Blue);
-
-        embed.AddField("Current Player", GetCurrentPlayerName(), true);
+            .WithColor(Color.Blue)
+            .AddField("Current Player", GetCurrentPlayerName(), true);
 
         return embed.Build();
     }
