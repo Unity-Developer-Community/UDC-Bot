@@ -60,6 +60,7 @@ public class GameService
         var payouts = session.EndGame();
         foreach (var (player, payout) in payouts)
         {
+            if (player.IsAI) continue; // Skip AI players
             await _casinoService.UpdateUserTokens(player.UserId.ToString(), payout, TransactionType.Game, new Dictionary<string, string>
             {
                 { "game", "Blackjack" }, // @TODO: replace with actual game name
