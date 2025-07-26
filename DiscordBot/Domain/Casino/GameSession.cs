@@ -112,6 +112,8 @@ public class GameSession<TGame> : IGameSession
             IsReady = true, // AI players are always ready
         };
         Players.Add(player);
+        // Check if we can auto-start
+        if (CanStart) Game.StartGame(Players);
         return true;
     }
 
