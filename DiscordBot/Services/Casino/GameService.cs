@@ -63,7 +63,7 @@ public class GameService
             if (player.IsAI) continue; // Skip AI players
             await _casinoService.UpdateUserTokens(player.UserId.ToString(), payout, TransactionType.Game, new Dictionary<string, string>
             {
-                { "game", "Blackjack" }, // @TODO: replace with actual game name
+                { "game", session.GameName },
             });
         }
     }

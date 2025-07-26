@@ -6,6 +6,7 @@ public interface IGameSession
     public List<DiscordGamePlayer> Players { get; set; }
     public GameState State { get; }
     public DiscordGamePlayer? CurrentPlayer { get; }
+    public string GameName { get; }
 
     public DiscordGamePlayer? GetPlayer(ulong userId);
     public bool AddPlayer(ulong userId, ulong bet);
