@@ -60,6 +60,18 @@ public class GameStatistics
     public double AverageProfit { get; set; }
 }
 
+public class GameLeaderboardEntry
+{
+    public string UserID { get; set; }
+    public int TotalGames { get; set; }
+    public int Wins { get; set; }
+    public int Losses { get; set; }
+    public double WinPercentage { get; set; }
+    public long NetProfit { get; set; }
+    public double Score { get; set; }
+    public string GameName { get; set; } // null for global leaderboard
+}
+
 public static class CasinoProps
 {
     public const string CasinoTableName = "casino_users";

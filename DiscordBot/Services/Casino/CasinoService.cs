@@ -201,6 +201,74 @@ public class CasinoService
         }
     }
 
+    public async Task<List<GameLeaderboardEntry>> GetGameLeaderboard(string gameName = null, int limit = 10)
+    {
+        try
+        {
+            var gameTransactions = await _databaseService.CasinoQuery.GetTransactionsOfType(TransactionType.Game);
+
+            // Filter by game if specified
+            var filteredTransactions = gameTransactions
+                .Where(t => t.Details != null && t.Details.ContainsKey("game"))
+                .Where(t => gameName == null || t.Details["game"].Equals(gameName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            // Group by user and calculate statistics
+            var userGroups = filteredTransactions
+                .GroupBy(t => t.UserID)
+                .ToList();
+
+            var leaderboardEntries = new List<GameLeaderboardEntry>();
+
+            foreach (var userGroup in userGroups)
+            {
+                var userId = userGroup.Key;
+                var userTransactions = userGroup.ToList();
+
+                // Calculate overall stats for this user (across all games if gameName is null)
+                var wins = userTransactions.Where(t => t.Amount > 0).ToList();
+                var losses = userTransactions.Where(t => t.Amount < 0).ToList();
+
+                var totalWins = wins.Count;
+                var totalLosses = losses.Count;
+                var totalGames = totalWins + totalLosses;
+
+                if (totalGames == 0) continue; // Skip users with no games
+
+                var winPercentage = (double)totalWins / totalGames * 100;
+                var netProfit = wins.Sum(t => t.Amount) + losses.Sum(t => t.Amount); // losses are negative
+
+                // Calculate score using the suggested formula: winrate × log10(totalGames)
+                // Use log10(totalGames + 1) to handle the case where totalGames = 1 (log10(1) = 0)
+                var score = winPercentage * Math.Log10(totalGames + 1);
+
+                leaderboardEntries.Add(new GameLeaderboardEntry
+                {
+                    UserID = userId,
+                    TotalGames = totalGames,
+                    Wins = totalWins,
+                    Losses = totalLosses,
+                    WinPercentage = winPercentage,
+                    NetProfit = netProfit,
+                    Score = score,
+                    GameName = gameName // null for global leaderboard
+                });
+            }
+
+            // Sort by score descending and take the top entries
+            return leaderboardEntries
+                .OrderByDescending(entry => entry.Score)
+                .Take(limit)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in GetGameLeaderboard: {ex.Message}", ExtendedLogSeverity.Error);
+            await _loggingService.LogChannelAndFile($"{ServiceName}: GetGameLeaderboard Exception Details: {ex}");
+            throw new InvalidOperationException($"Failed to get game leaderboard: {ex.Message}", ex);
+        }
+    }
+
     #endregion
 
     #region Channel Permissions

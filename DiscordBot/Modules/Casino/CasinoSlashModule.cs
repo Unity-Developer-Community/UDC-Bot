@@ -395,6 +395,91 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 string.IsNullOrEmpty(word) ? word : char.ToUpper(word[0]) + word.Substring(1).ToLower()));
         }
 
+        [SlashCommand("game-leaderboard", "View the leaderboard of best players by game performance")]
+        public async Task GameLeaderboard(
+            [Summary("game", "Specific game to show leaderboard for (leave empty for global leaderboard)")]
+            CasinoGame? game = null)
+        {
+            if (!await CheckChannelPermissions()) return;
+
+            await Context.Interaction.DeferAsync();
+
+            try
+            {
+                var gameName = game?.ToString().ToLower();
+                var leaderboard = await CasinoService.GetGameLeaderboard(gameName, 10);
+
+                if (leaderboard.Count == 0)
+                {
+                    var noDataMessage = game.HasValue 
+                        ? $"📊 No players found for {CapitalizeFirst(gameName)} yet."
+                        : "📊 No game data found yet. Play some casino games to generate leaderboards!";
+                    await Context.Interaction.FollowupAsync(noDataMessage);
+                    return;
+                }
+
+                var title = game.HasValue 
+                    ? $"🏆 {CapitalizeFirst(gameName)} Leaderboard" 
+                    : "🏆 Global Game Leaderboard";
+
+                var embed = new EmbedBuilder()
+                    .WithTitle(title)
+                    .WithColor(Color.Gold)
+                    .WithDescription($"Ranked by performance score (Win Rate × log₁₀(Total Games + 1))")
+                    .WithCurrentTimestamp();
+
+                for (int i = 0; i < leaderboard.Count; i++)
+                {
+                    var entry = leaderboard[i];
+                    var user = Context.Guild.GetUser(ulong.Parse(entry.UserID));
+                    var username = user?.DisplayName ?? "Unknown User";
+                    
+                    var medal = i switch
+                    {
+                        0 => "🥇",
+                        1 => "🥈", 
+                        2 => "🥉",
+                        _ => $"{i + 1}."
+                    };
+
+                    var profitIcon = entry.NetProfit >= 0 ? "💰" : "💸";
+                    var fieldValue = $"**Score:** {entry.Score:F2}\n" +
+                                   $"**Games:** {entry.TotalGames:N0} | **W/L:** {entry.Wins}/{entry.Losses}\n" +
+                                   $"**Win Rate:** {entry.WinPercentage:F1}% | {profitIcon} **Profit:** {entry.NetProfit:+#,0;-#,0;0}";
+
+                    embed.AddField($"{medal} {username}", fieldValue, true);
+                }
+
+                var footerText = game.HasValue 
+                    ? $"Showing top {leaderboard.Count} {CapitalizeFirst(gameName)} players"
+                    : $"Showing top {leaderboard.Count} players across all games";
+                embed.WithFooter(footerText);
+
+                await Context.Interaction.FollowupAsync(embed: embed.Build());
+            }
+            catch (Exception ex)
+            {
+                await LoggingService.LogAction($"Casino: ERROR in GameLeaderboard command for user {Context.User.Username}: {ex.Message}", ExtendedLogSeverity.Error);
+                await LoggingService.LogAction($"Casino: GameLeaderboard Exception Details: {ex}");
+
+                try
+                {
+                    if (!Context.Interaction.HasResponded)
+                    {
+                        await Context.Interaction.RespondAsync("❌ An error occurred while loading the game leaderboard. Please try again.", ephemeral: true);
+                    }
+                    else
+                    {
+                        await Context.Interaction.FollowupAsync("❌ An error occurred while loading the game leaderboard. Please try again.", ephemeral: true);
+                    }
+                }
+                catch
+                {
+                    await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in GameLeaderboard command");
+                }
+            }
+        }
+
         #region Admin Commands
 
         [SlashCommand("set", "Set a user's token balance (Admin only)")]
