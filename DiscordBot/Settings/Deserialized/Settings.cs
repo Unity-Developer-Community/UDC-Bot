@@ -157,6 +157,19 @@ public class BotSettings
 
     #endregion // API Keys
 
+    #region Casino Settings
+
+    public bool CasinoEnabled { get; set; } = true;
+    public ulong CasinoStartingTokens { get; set; } = 1000;
+    public List<ulong> CasinoAllowedChannels { get; set; } = new List<ulong>();
+    public int CasinoGameTimeoutMinutes { get; set; } = 5;
+
+    // Daily Reward Settings
+    public ulong CasinoDailyRewardTokens { get; set; } = 100;
+    public int CasinoDailyRewardIntervalSeconds { get; set; } = 86400; // 24 hours = 86400 seconds
+
+    #endregion // Casino Settings
+
     #region Other
 
     public string AssetStoreFrontPage { get; set; }

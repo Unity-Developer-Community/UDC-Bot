@@ -1,5 +1,6 @@
 using System.Data.Common;
 using Discord.WebSocket;
+using DiscordBot.Domain;
 using DiscordBot.Settings;
 using Insight.Database;
 using MySql.Data.MySqlClient;
@@ -8,10 +9,24 @@ namespace DiscordBot.Services;
 
 public class DatabaseService
 {
-    private const string ServiceName = "DatabaseService"; 
-    
+    private const string ServiceName = "DatabaseService";
+
     private readonly ILoggingService _logging;
     private string ConnectionString { get; }
+
+    private ICasinoRepo CreateCasinoQuery()
+    {
+        try
+        {
+            var c = new MySqlConnection(ConnectionString);
+            return c.As<ICasinoRepo>();
+        }
+        catch (Exception e)
+        {
+            _logging.LogChannelAndFile($"SQL Exception: Failed to create casino query.\nMessage: {e}", ExtendedLogSeverity.Critical);
+            return null;
+        }
+    }
 
     private IServerUserRepo CreateQuery()
     {
@@ -26,7 +41,7 @@ public class DatabaseService
             return null;
         }
     }
-    
+
     private IBadgeRepo CreateBadgeQuery()
     {
         try
@@ -40,9 +55,12 @@ public class DatabaseService
             return null;
         }
     }
-    
+
     public IServerUserRepo Query => CreateQuery();
     public IBadgeRepo BadgeQuery => CreateBadgeQuery();
+
+    public IServerUserRepo Query => CreateQuery();
+    public ICasinoRepo CasinoQuery => CreateCasinoQuery();
 
     public DatabaseService(ILoggingService logging, BotSettings settings)
     {
@@ -70,7 +88,7 @@ public class DatabaseService
                 await _logging.LogAction(
                     $"{ServiceName}: Connected to database successfully. {userCount} users in database.",
                     ExtendedLogSeverity.Positive);
-                
+
                 // Not sure on best practice for if column is missing, full blown migrations seem overkill
                 var defaultCityExists = await c.ColumnExists(UserProps.TableName, UserProps.DefaultCity);
                 if (!defaultCityExists)
@@ -79,7 +97,7 @@ public class DatabaseService
                     await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.DefaultCity}' to table '{UserProps.TableName}'.",
                         ExtendedLogSeverity.Positive);
                 }
-                
+
                 // Initialize badge tables
                 await InitializeBadgeTables(c);
             }
@@ -103,7 +121,7 @@ public class DatabaseService
                         $"ALTER TABLE `{UserProps.TableName}` ADD PRIMARY KEY (`ID`,`{UserProps.UserID}`), ADD UNIQUE KEY `{UserProps.UserID}` (`{UserProps.UserID}`)");
                     c.ExecuteSql(
                         $"ALTER TABLE `{UserProps.TableName}` MODIFY `ID` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1");
-                    
+
                     // "DefaultCity" Nullable - Weather, BDay, Temp, Time, etc. Optional for users to set their own city (Added - Jan 2024)
                     c.ExecuteSql(
                         $"ALTER TABLE `{UserProps.TableName}` ADD `{UserProps.DefaultCity}` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER `{UserProps.Level}`");
@@ -117,6 +135,59 @@ public class DatabaseService
                     return;
                 }
                 await _logging.LogAction($"DatabaseService: Table '{UserProps.TableName}' generated without errors.",
+                    ExtendedLogSeverity.Positive);
+                c.Close();
+            }
+
+            // Create casino tables if they don't exist
+            try
+            {
+                var casinoUserCount = await CasinoQuery.TestCasinoConnection();
+                await _logging.LogAction(
+                    $"DatabaseService: Connected to casino tables successfully. {casinoUserCount} casino users in database.",
+                    ExtendedLogSeverity.Positive);
+            }
+            catch
+            {
+                await _logging.LogAction($"DatabaseService: Casino tables do not exist, attempting to generate tables.",
+                    ExtendedLogSeverity.LowWarning);
+                try
+                {
+                    // Create casino_users table
+                    c.ExecuteSql(
+                        $"CREATE TABLE `{CasinoProps.CasinoTableName}` (" +
+                        $"`{CasinoProps.Id}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
+                        $"`{CasinoProps.UserID}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                        $"`{CasinoProps.Tokens}` bigint(20) UNSIGNED NOT NULL DEFAULT 1000, " +
+                        $"`{CasinoProps.CreatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                        $"`{CasinoProps.UpdatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, " +
+                        $"`{CasinoProps.LastDailyReward}` timestamp NOT NULL DEFAULT '1970-01-01 00:00:01', " +
+                        $"PRIMARY KEY (`{CasinoProps.Id}`), " +
+                        $"UNIQUE KEY `{CasinoProps.UserID}` (`{CasinoProps.UserID}`) " +
+                        $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+                    // Create token_transactions table  
+                    c.ExecuteSql(
+                        $"CREATE TABLE `{CasinoProps.TransactionTableName}` (" +
+                        $"`{CasinoProps.TransactionId}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
+                        $"`{CasinoProps.TransactionUserID}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                        $"`{CasinoProps.Amount}` bigint(20) NOT NULL, " +
+                        $"`{CasinoProps.TransactionType}` int(11) NOT NULL, " +
+                        $"`{CasinoProps.Details}` json DEFAULT NULL, " + // JSON column for transaction details
+                        $"`{CasinoProps.TransactionCreatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                        $"PRIMARY KEY (`{CasinoProps.TransactionId}`), " +
+                        $"KEY `idx_user_created` (`{CasinoProps.TransactionUserID}`, `{CasinoProps.TransactionCreatedAt}`) " +
+                        $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+                }
+                catch (Exception e)
+                {
+                    await _logging.LogAction(
+                        $"SQL Exception: Failed to generate casino tables.\nMessage: {e}",
+                        ExtendedLogSeverity.Critical);
+                    c.Close();
+                    return;
+                }
+                await _logging.LogAction($"DatabaseService: Casino tables generated without errors.",
                     ExtendedLogSeverity.Positive);
                 c.Close();
             }
@@ -137,7 +208,7 @@ public class DatabaseService
                 await _logging.LogAction($"SQL Exception: Failed to generate leaderboard events.\nMessage: {e}",
                     ExtendedLogSeverity.Warning);
             }
-            
+
         });
     }
 
@@ -255,7 +326,7 @@ public class DatabaseService
     {
         return (await Query.GetUser(id.ToString()) != null);
     }
-    
+
     private async Task InitializeBadgeTables(DbConnection c)
     {
         try
@@ -265,7 +336,7 @@ public class DatabaseService
             await _logging.LogAction(
                 $"DatabaseService: Connected to badge tables successfully. {badgeCount} badges in database.",
                 ExtendedLogSeverity.Positive);
-                
+
             // Check if IsPublic column exists, if not add it (for existing installations)
             try
             {
@@ -298,7 +369,7 @@ public class DatabaseService
                     $"PRIMARY KEY (`{BadgeProps.Id}`), " +
                     $"UNIQUE KEY `{BadgeProps.Title}` (`{BadgeProps.Title}`) " +
                     $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-                
+
                 // Create user_badges table
                 c.ExecuteSql(
                     $"CREATE TABLE `{UserBadgeProps.TableName}` (" +
@@ -312,7 +383,7 @@ public class DatabaseService
                     $"KEY `{UserBadgeProps.BadgeId}` (`{UserBadgeProps.BadgeId}`), " +
                     $"CONSTRAINT `user_badges_ibfk_1` FOREIGN KEY (`{UserBadgeProps.BadgeId}`) REFERENCES `{BadgeProps.TableName}` (`{BadgeProps.Id}`) ON DELETE CASCADE " +
                     $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-                
+
                 await _logging.LogAction("DatabaseService: Badge tables generated without errors.",
                     ExtendedLogSeverity.Positive);
             }
