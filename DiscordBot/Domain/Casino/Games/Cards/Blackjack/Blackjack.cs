@@ -60,7 +60,7 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
 
     #region Start Game
 
-    protected override BlackjackPlayerData CreatePlayerData(GamePlayer player) => new BlackjackPlayerData();
+    protected override BlackjackPlayerData CreatePlayerData(GamePlayer player) => new();
 
     protected override void InitializeGame()
     {

@@ -7,8 +7,8 @@ using DiscordBot.Domain;
 public class Deck
 {
     private readonly Random _random;
-    private readonly IReadOnlyList<Card> _initialCards = new List<Card>(); // Store initial cards for reset
-    private List<Card> _cards = new List<Card>(); // Current deck of cards
+    private readonly IReadOnlyList<Card> _initialCards = []; // Store initial cards for reset
+    private List<Card> _cards = []; // Current deck of cards
 
     public int CardsRemaining => _cards.Count;
     public bool IsEmpty => _cards.Count == 0;
@@ -22,7 +22,7 @@ public class Deck
     {
         _random = new Random();
         _cards = InitializeStandardDeck(jokerCount, times);
-        _initialCards = new List<Card>(_cards); // Store initial cards for reset
+        _initialCards = [.. _cards]; // Store initial cards for reset
     }
 
     /// <summary>
@@ -31,8 +31,8 @@ public class Deck
     public Deck(IEnumerable<Card> cards)
     {
         _random = new Random();
-        _cards = new List<Card>(cards);
-        _initialCards = new List<Card>(_cards); // Store initial cards for reset
+        _cards = [.. cards];
+        _initialCards = [.. _cards]; // Store initial cards for reset
     }
 
     /// <summary>
@@ -83,7 +83,6 @@ public class Deck
 
     public Card? DrawCard()
     {
-        // If deck is empty, return null
         if (_cards.Count == 0) return null;
 
         var card = _cards[0];
@@ -116,16 +115,16 @@ public class Deck
     }
 
     /// <summary>
-    /// Reset deck to a full standard deck and shuffle
+    /// Reset deck with initial cards and shuffle
     /// </summary>
     public void Reset(bool shuffle = true, int jokerCount = 0)
     {
-        _cards = new List<Card>(_initialCards);
+        _cards = [.. _initialCards];
         if (shuffle) Shuffle();
     }
 
     public List<Card> PeekTop(int count)
     {
-        return _cards.Take(count).ToList();
+        return [.. _cards.Take(count)];
     }
 }
