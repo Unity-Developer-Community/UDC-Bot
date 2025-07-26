@@ -464,6 +464,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                         .WithTitle("🎁 Daily Reward Claimed!")
                         .WithDescription($"You have received **{result.tokensAwarded:N0}** daily tokens!")
                         .AddField("💰 New Balance", $"{result.newBalance:N0} tokens", true)
+                        .AddField("⏳ Next Reward", TimestampTag.FromDateTime(result.nextRewardTime, TimestampTagStyles.Relative).ToString(), true)
                         .WithColor(Color.Gold)
                         .WithCurrentTimestamp()
                         .Build();
@@ -477,7 +478,8 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
                     var embed = new EmbedBuilder()
                         .WithTitle("⏰ Daily Reward Not Available")
-                        .WithDescription($"You have already claimed your daily reward!\n\nNext reward available: {TimestampTag.FromDateTime(nextRewardTime, TimestampTagStyles.Relative)}")
+                        .WithDescription($"You have already claimed your daily reward!\n")
+                        .AddField("⏳ Next Reward", TimestampTag.FromDateTime(nextRewardTime, TimestampTagStyles.Relative).ToString(), true)
                         .WithColor(Color.Orange)
                         .Build();
 
