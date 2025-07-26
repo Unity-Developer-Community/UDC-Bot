@@ -23,17 +23,16 @@ public class BlackjackDiscordGameSession : DiscordGameSession<Blackjack>
         {
             var playerBet = p.Bet;
             var playerCards = string.Join(" ", Game.GameData[p].PlayerCards.Select(c => c.GetDisplayName()));
-            description += $"* **{GetPlayerName(p)}**: {playerCards} (Value: {Game.GetPlayerValue(p)})";
-            if (Game.IsPlayerBusted(p)) description += $" **- BUSTED!**";
-            if (Game.IsPlayerBlackjack(p)) description += " **- BLACKJACK!**";
-            if (Game.GameData[p].Actions.LastOrDefault() == BlackjackPlayerAction.Stand) description += $" **- STANDING**";
-            // List each player action
-            description += "\n";
-            description += $"-# *Bet: {playerBet}*";
-            if (Game.GameData[p].Actions.Count > 0)
-                description += $" - Actions: {string.Join(", ", Game.GameData[p].Actions.Select(a => a.ToString()))}";
+            var playerHand = $"{playerCards} (Value: {Game.GetPlayerValue(p)})";
+            if (Game.IsPlayerBusted(p)) playerHand += $" **- BUSTED!**";
+            if (Game.IsPlayerBlackjack(p)) playerHand += " **- BLACKJACK!**";
+            if (Game.GameData[p].Actions.LastOrDefault() == BlackjackPlayerAction.Stand) playerHand += $" **- STANDING**";
 
-            description += "\n";
+            var actions = "";
+            if (Game.GameData[p].Actions.Count > 0)
+                actions = $" - Actions: {string.Join(", ", Game.GameData[p].Actions.Select(a => a.ToString()))}";
+
+            description += GeneratePlayerHandDescription(p, playerHand, actions);
         }
 
         description += "\n";

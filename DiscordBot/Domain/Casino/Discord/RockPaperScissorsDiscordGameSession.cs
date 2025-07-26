@@ -19,27 +19,24 @@ public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperS
 
         foreach (var p in Players)
         {
-            var playerData = Game.GameData[p];
-            var choiceDisplay = playerData.HasMadeChoice ? "✅ Choice made" : "⏳ Waiting for choice";
-            description += $"* **{GetPlayerName(p)}**: {choiceDisplay}";
-            description += $" (Bet: {p.Bet})\n";
+            var playerData = Game.GameData[p]; ;
+            var playerHand = playerData.HasMadeChoice ? "✅ Choice made" : "⏳ Waiting for choice";
+            var playerAction = "";
+
+            // If game is finished, show the choices
+            if (Game.State == GameState.Finished)
+            {
+                var choice = Game.GameData[p].Choice;
+                playerHand = "";
+                if (choice != null) playerAction = $"{RockPaperScissors.GetChoiceEmoji(choice.Value)} {choice.Value}";
+            }
+            description += GeneratePlayerHandDescription(p, playerHand, playerAction);
         }
 
         description += "\n";
 
-        // If game is finished, show the choices and results
         if (Game.State == GameState.Finished)
         {
-            description += "**Choices:**\n";
-            foreach (var p in Players)
-            {
-                var choice = Game.GameData[p].Choice;
-                if (choice.HasValue)
-                {
-                    description += $"* **{GetPlayerName(p)}**: {RockPaperScissors.GetChoiceEmoji(choice.Value)} {choice.Value}\n";
-                }
-            }
-
             // Show who beat whom (if not a tie)
             if (Players.Count == 2)
             {
@@ -55,7 +52,7 @@ public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperS
                     var winnerChoice = Game.GameData[winner].Choice!.Value;
                     var loserChoice = Game.GameData[loser].Choice!.Value;
 
-                    description += $"\n**{RockPaperScissors.GetBeatDescription(winnerChoice, loserChoice)}**\n";
+                    description += $"**{RockPaperScissors.GetBeatDescription(winnerChoice, loserChoice)}**\n";
                 }
                 else if (choice1 == choice2)
                 {

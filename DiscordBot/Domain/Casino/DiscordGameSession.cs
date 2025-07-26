@@ -21,6 +21,8 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
         Guild = guild;
     }
 
+    #region Helper Methods
+
     protected string GetPlayerName(DiscordGamePlayer player)
     {
         if (player.IsAI) return $"🤖 AI {player.UserId}";
@@ -28,7 +30,7 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
         return user?.Mention ?? $"Unknown User ({player.UserId})";
     }
 
-    private string GetPlayers()
+    private string GeneratePlayersList()
     {
         if (Players.Count == 0) return "None";
         var lines = Players.Select(p =>
@@ -37,25 +39,15 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
         return string.Join("\n", lines);
     }
 
-    #region Embed Generators
-
-    private async Task<Embed> GenerateNotStartedEmbed()
+    protected string GeneratePlayerHandDescription(DiscordGamePlayer player, string hand, string actions)
     {
-        var challenger = await Guild.GetUserAsync(User.Id);
-
-        return new EmbedBuilder()
-            .WithTitle($"{Game.Emoji} {GameName} Game Session")
-            .WithDescription($"Welcome to {GameName}! Click the buttons below to take actions.")
-            .WithAuthor($"Game started by {challenger.DisplayName}")
-            .WithColor(Color.Green)
-            .AddField("Players", GetPlayers(), true)
-            .AddField("Seats Available", $"{PlayerCount}/{MaxSeats}", true)
-            .AddField("Total Pot", $"{GetTotalPot}")
-            .WithFooter($"Game started by {challenger.DisplayName} • Minimum {Game.MinPlayers} players ready required to start the game.")
-            .Build();
+        var description = $"**{GetPlayerName(player)}**: {hand}";
+        description += $"\n-# *Bet: {player.Bet}*";
+        if (!string.IsNullOrEmpty(actions))
+            description += $" - Actions: {actions}";
+        description += "\n";
+        return description;
     }
-
-    protected abstract Embed GenerateInProgressEmbed();
 
     protected string GenerateResultsDescription()
     {
@@ -77,6 +69,27 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
 
         return description;
     }
+
+    #endregion
+    #region Embed Generators
+
+    private async Task<Embed> GenerateNotStartedEmbed()
+    {
+        var challenger = await Guild.GetUserAsync(User.Id);
+
+        return new EmbedBuilder()
+            .WithTitle($"{Game.Emoji} {GameName} Game Session")
+            .WithDescription($"Welcome to {GameName}! Click the buttons below to take actions.")
+            .WithAuthor($"Game started by {challenger.DisplayName}")
+            .WithColor(Color.Green)
+            .AddField("Players", GeneratePlayersList(), true)
+            .AddField("Seats Available", $"{PlayerCount}/{MaxSeats}", true)
+            .AddField("Total Pot", $"{GetTotalPot}")
+            .WithFooter($"Game started by {challenger.DisplayName} • Minimum {Game.MinPlayers} players ready required to start the game.")
+            .Build();
+    }
+
+    protected abstract Embed GenerateInProgressEmbed();
 
     protected virtual Embed GenerateFinishedEmbed()
     {
