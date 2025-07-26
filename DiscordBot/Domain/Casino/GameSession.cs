@@ -49,7 +49,7 @@ public class GameSession<TGame> : IGameSession
         Game = game;
 
         if (maxSeats < game.MinPlayers || maxSeats > game.MaxPlayers)
-            throw new ArgumentOutOfRangeException(nameof(maxSeats), $"Max players must be between {game.MinPlayers} and {game.MaxPlayers}");
+            throw new ArgumentOutOfRangeException(nameof(maxSeats), $"Max players for {game.Name} must be between {game.MinPlayers} and {game.MaxPlayers}");
 
         MaxSeats = maxSeats;
     }

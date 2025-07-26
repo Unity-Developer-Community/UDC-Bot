@@ -70,6 +70,10 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             var (embed, components) = await gameSession.GenerateEmbedAndButtons();
             await FollowupAsync(embed: embed, components: components);
         }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            await FollowupAsync($"Invalid number of seats: {ex.Message}", ephemeral: true);
+        }
         catch (Exception ex)
         {
             await LoggingService.LogChannelAndFile($"Failed to create game session: {ex.Message}", ExtendedLogSeverity.Warning);
@@ -279,7 +283,6 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
         try
         {
-            Console.WriteLine($"Player action: {action}");
             gameSession.DoPlayerAction(Context.User.Id, Enum.Parse<BlackjackPlayerAction>(action));
             await GenerateResponse(gameSession);
 
