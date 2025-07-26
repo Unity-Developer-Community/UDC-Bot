@@ -21,16 +21,14 @@ public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperS
         {
             var playerData = Game.GameData[p]; ;
             var playerHand = playerData.HasMadeChoice ? "✅ Choice made" : "⏳ Waiting for choice";
-            var playerAction = "";
 
             // If game is finished, show the choices
             if (Game.State == GameState.Finished)
             {
                 var choice = Game.GameData[p].Choice;
-                playerHand = "";
-                if (choice != null) playerAction = $"{RockPaperScissors.GetChoiceEmoji(choice.Value)} {choice.Value}";
+                playerHand = $"{RockPaperScissors.GetChoiceEmoji(choice.Value)} {choice.Value}";
             }
-            description += GeneratePlayerHandDescription(p, playerHand, playerAction);
+            description += GeneratePlayerHandDescription(p, playerHand, "");
         }
 
         description += "\n";
