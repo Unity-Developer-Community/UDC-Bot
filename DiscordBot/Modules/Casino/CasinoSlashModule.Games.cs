@@ -109,7 +109,6 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         }
 
         await GenerateResponse(gameSession);
-        // await FollowupAsync("You have joined the game.", ephemeral: true);
     }
 
     [ComponentInteraction("leave_game:*", true)]
@@ -132,8 +131,6 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             await GenerateResponse(gameSession);
 
             if (gameSession.State == GameState.Abandoned) GameService.RemoveGameSession(gameSession);
-
-            // await FollowupAsync("You have left the game.", ephemeral: true);
         }
         catch (Exception ex)
         {
