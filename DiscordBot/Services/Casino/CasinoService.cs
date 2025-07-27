@@ -125,6 +125,12 @@ public class CasinoService
         return transactions.ToList();
     }
 
+    public async Task<List<TokenTransaction>> GetAllRecentTransactions(int limit = 10)
+    {
+        var transactions = await _databaseService.CasinoQuery.GetRecentTransactions(limit);
+        return transactions.ToList();
+    }
+
     private async Task RecordTransaction(string userId, long amount, TransactionType type, Dictionary<string, string>? details = null)
     {
         var transaction = new TokenTransaction

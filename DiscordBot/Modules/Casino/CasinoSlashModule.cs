@@ -170,10 +170,10 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             await DisplayTransactionHistory(userId: null, page: 1, targetUser: null, isInitialCall: true);
         }
 
-        [SlashCommand("history-admin", "View transaction history for any user (Admin only)")]
+        [SlashCommand("history-admin", "View transaction history for any user or all users (Admin only)")]
         [RequireUserPermission(GuildPermission.Administrator)]
         public async Task TokenHistoryAdmin(
-            [Summary("user", "User to view history for")] SocketGuildUser targetUser)
+            [Summary("user", "User to view history for (optional - if omitted, shows all users)")] SocketGuildUser? targetUser = null)
         {
             if (!await CheckChannelPermissions()) return;
 
@@ -182,16 +182,17 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             await DisplayTransactionHistory(userId: null, page: 1, targetUser: targetUser, isInitialCall: true);
         }
 
-        private async Task DisplayTransactionHistory(string userId = null, int page = 1, SocketGuildUser targetUser = null, bool isInitialCall = false)
+        private async Task DisplayTransactionHistory(string userId = null, int page = 1, SocketGuildUser? targetUser = null, bool isInitialCall = false)
         {
             try
             {
-                // Determine the actual user ID to query
+                // Determine the actual user ID to query and request type
                 var queryUserId = userId ?? Context.User.Id.ToString();
                 var isAdminRequest = targetUser != null && targetUser.Id != Context.User.Id;
+                var isAllUsersRequest = targetUser == null && userId == null && (Context.User as SocketGuildUser)?.GuildPermissions.Administrator == true;
 
                 // Validate permissions for admin requests
-                if (isAdminRequest || (userId != null && Context.User.Id.ToString() != userId))
+                if (isAdminRequest || isAllUsersRequest || (userId != null && Context.User.Id.ToString() != userId))
                 {
                     var guildUser = Context.User as SocketGuildUser;
                     if (guildUser == null || !guildUser.GuildPermissions.Administrator)
@@ -207,15 +208,29 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
                 const int transactionsPerPage = 5;
 
-                // Get total transaction count
-                var allTransactions = await CasinoService.GetUserTransactionHistory(queryUserId, int.MaxValue);
+                // Get transactions based on request type
+                List<TokenTransaction> allTransactions;
+                if (isAllUsersRequest)
+                {
+                    // Get all recent transactions across all users
+                    var recentTransactions = await CasinoService.GetAllRecentTransactions(int.MaxValue);
+                    allTransactions = recentTransactions.ToList();
+                }
+                else
+                {
+                    // Get transactions for specific user
+                    allTransactions = await CasinoService.GetUserTransactionHistory(queryUserId, int.MaxValue);
+                }
+
                 var totalTransactions = allTransactions.Count;
 
                 // Should not happen since any user we interact with gets at least the initial tokens as transaction
                 if (totalTransactions == 0)
                 {
-                    var noHistoryText = isAdminRequest ?
-                        $"📜 No transaction history found for {targetUser.DisplayName}." :
+                    var noHistoryText = isAllUsersRequest ?
+                        "📜 No transaction history found in the casino system." :
+                        isAdminRequest ?
+                        $"📜 No transaction history found for {targetUser?.DisplayName}." :
                         "📜 No transaction history found.";
 
                     if (isInitialCall)
@@ -230,27 +245,38 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
                 var transactions = allTransactions.Skip((page - 1) * transactionsPerPage).Take(transactionsPerPage).ToList();
 
-                // Get user info for display
-                var displayUser = targetUser ?? Context.Guild.GetUser(ulong.Parse(queryUserId));
-                var displayName = displayUser?.DisplayName ?? "Unknown User";
+                // Get display info based on request type
+                string title, description;
+                if (isAllUsersRequest)
+                {
+                    title = "📜 All Users Transaction History";
+                    description = "Recent transactions across all casino users";
+                }
+                else
+                {
+                    var displayUser = targetUser ?? Context.Guild.GetUser(ulong.Parse(queryUserId));
+                    var displayName = displayUser?.DisplayName ?? "Unknown User";
+                    title = $"📜 {(isAdminRequest ? $"{displayName}'s " : "Your ")}Transaction History";
+                    description = $"Current balance: **{(await CasinoService.GetOrCreateCasinoUser(queryUserId)).Tokens:N0} tokens**";
+                }
 
                 var embed = new EmbedBuilder()
-                    .WithTitle($"📜 {(isAdminRequest ? $"{displayName}'s " : "Your ")}Transaction History")
+                    .WithTitle(title)
                     .WithColor(Color.Blue)
-                    .WithDescription($"Current balance: **{(await CasinoService.GetOrCreateCasinoUser(queryUserId)).Tokens:N0} tokens**")
+                    .WithDescription(description)
                     .WithFooter($"Page {page}/{totalPages} • {totalTransactions} total transactions");
 
                 foreach (var transaction in transactions)
                 {
                     var amountText = transaction.Amount >= 0 ? $"+{transaction.Amount}" : transaction.Amount.ToString();
-                    var (emoji, title, description) = FormatTransactionDisplay(transaction);
+                    var (emoji, transactionTitle, transactionDescription) = FormatTransactionDisplay(transaction, isAllUsersRequest);
 
-                    embed.AddField($"{emoji} {title}",
-                        $"{amountText} tokens - *{TimestampTag.FromDateTime(transaction.CreatedAt)}*\n{description}",
+                    embed.AddField($"{emoji} {transactionTitle}",
+                        $"{amountText} tokens - *{TimestampTag.FromDateTime(transaction.CreatedAt)}*\n{transactionDescription}",
                         false);
                 }
 
-                var components = CreateHistoryNavigationComponents(queryUserId, page, totalPages, isAdminRequest);
+                var components = CreateHistoryNavigationComponents(isAllUsersRequest ? "all" : queryUserId, page, totalPages, isAdminRequest || isAllUsersRequest);
 
                 if (isInitialCall)
                 {
@@ -316,12 +342,13 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             }
 
             var isAdminRequest = requestType == "admin";
-            await DisplayTransactionHistory(userId: userId, page: page, targetUser: null, isInitialCall: false);
+            var targetUser = userId == "all" ? null : Context.Guild.GetUser(ulong.Parse(userId));
+            await DisplayTransactionHistory(userId: userId == "all" ? null : userId, page: page, targetUser: targetUser, isInitialCall: false);
         }
 
-        private (string emoji, string title, string description) FormatTransactionDisplay(TokenTransaction transaction)
+        private (string emoji, string title, string description) FormatTransactionDisplay(TokenTransaction transaction, bool showUserInfo = false)
         {
-            return transaction.Type switch
+            var (emoji, title, description) = transaction.Type switch
             {
                 TransactionType.TokenInitialisation => ("🎯", "Account Created", ""),
                 TransactionType.DailyReward => ("📅", "Daily Reward", ""),
@@ -330,12 +357,22 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 TransactionType.Admin => GetAdminDisplay(transaction),
                 _ => ("❓", transaction.Type.ToString(), "")
             };
+
+            // If showing user info (for all-users view), prepend user name to title
+            if (showUserInfo)
+            {
+                var user = Context.Guild.GetUser(ulong.Parse(transaction.UserID));
+                var username = user?.DisplayName ?? "Unknown User";
+                return (emoji, $"{username}: {title}", description);
+            }
+
+            return (emoji, title, description);
         }
 
         private (string emoji, string title, string description) GetGiftDisplay(TokenTransaction transaction)
         {
-            SocketGuildUser user = null;
-            var userId = transaction.Details.GetValueOrDefault(transaction.Amount >= 0 ? "from" : "to", null);
+            SocketGuildUser? user = null;
+            var userId = transaction.Details?.GetValueOrDefault(transaction.Amount >= 0 ? "from" : "to");
             if (userId != null) user = Context.Guild.GetUser(ulong.Parse(userId));
 
             string title = transaction.Amount > 0 ? "Gift Received" : "Gift Sent";
@@ -346,7 +383,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
         private (string emoji, string title, string description) GetGameDisplay(TokenTransaction transaction)
         {
-            var gameName = transaction.Details?.GetValueOrDefault("game", null);
+            var gameName = transaction.Details?.GetValueOrDefault("game");
 
             string emoji = transaction.Amount >= 0 ? "📈" : "📉";
             string title = transaction.Amount >= 0 ? "Won" : "Lost";
@@ -357,9 +394,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
         private (string emoji, string title, string description) GetAdminDisplay(TokenTransaction transaction)
         {
-            var adminId = transaction.Details?.GetValueOrDefault("admin", null);
-            var action = transaction.Details?.GetValueOrDefault("action", null);
-            SocketGuildUser admin = null;
+            var adminId = transaction.Details?.GetValueOrDefault("admin");
+            var action = transaction.Details?.GetValueOrDefault("action");
+            SocketGuildUser? admin = null;
             if (adminId != null) admin = Context.Guild.GetUser(ulong.Parse(adminId));
 
             string title = action switch
