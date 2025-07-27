@@ -1,9 +1,46 @@
+using System.Reflection;
 using Discord.WebSocket;
 using DiscordBot.Domain;
 using DiscordBot.Modules;
 using DiscordBot.Settings;
 
 namespace DiscordBot.Services;
+
+/// <summary>
+/// Implementation of IBetValidator that uses GameService and CasinoService
+/// to validate bet increases across all active games
+/// </summary>
+public class GameServiceBetValidator : IBetValidator
+{
+    private readonly GameService _gameService;
+    private readonly CasinoService _casinoService;
+    private readonly string _currentSessionId;
+
+    public GameServiceBetValidator(GameService gameService, CasinoService casinoService, string currentSessionId)
+    {
+        _gameService = gameService;
+        _casinoService = casinoService;
+        _currentSessionId = currentSessionId;
+    }
+
+    public async Task<bool> CanIncreaseBetAsync(ulong userId, ulong additionalAmount)
+    {
+        var user = await _casinoService.GetOrCreateCasinoUser(userId.ToString());
+        var committedTokens = _gameService.GetCommittedTokens(userId, _currentSessionId);
+        var availableTokens = user.Tokens - committedTokens;
+        
+        return additionalAmount <= availableTokens;
+    }
+
+    public async Task<string> GetBetIncreaseErrorAsync(ulong userId, ulong additionalAmount)
+    {
+        var user = await _casinoService.GetOrCreateCasinoUser(userId.ToString());
+        var committedTokens = _gameService.GetCommittedTokens(userId, _currentSessionId);
+        var availableTokens = user.Tokens - committedTokens;
+        
+        return $"Cannot increase bet: insufficient tokens. Available: {availableTokens}, Required: {additionalAmount}";
+    }
+}
 
 public class GameService
 {
@@ -46,6 +83,12 @@ public class GameService
         var gameInstance = GetGameInstance(game);
         var session = CreateDiscordGameSession(game, gameInstance, maxSeats == 0 ? gameInstance.MaxPlayers : maxSeats, client, user, guild);
         _activeSessions.Add(session);
+        
+        // Inject the bet validator using reflection to avoid generic type issues
+        var betValidator = new GameServiceBetValidator(this, _casinoService, session.Id.ToString());
+        var betValidatorProperty = gameInstance.GetType().GetProperty("BetValidator");
+        betValidatorProperty?.SetValue(gameInstance, betValidator);
+        
         return session;
     }
 
@@ -116,26 +159,6 @@ public class GameService
         }
         
         return committedTokens;
-    }
-    
-    /// <summary>
-    /// Validates if a user can increase their bet in an active game
-    /// </summary>
-    /// <param name="userId">The user ID</param>
-    /// <param name="currentBet">The current bet amount</param>
-    /// <param name="newBet">The proposed new bet amount</param>
-    /// <param name="sessionId">The session where the bet increase is happening</param>
-    /// <returns>True if the bet increase is valid</returns>
-    public async Task<bool> ValidateBetIncrease(ulong userId, ulong currentBet, ulong newBet, string sessionId)
-    {
-        if (newBet <= currentBet) return true; // Not an increase
-        
-        var user = await _casinoService.GetOrCreateCasinoUser(userId.ToString());
-        var committedTokens = GetCommittedTokens(userId, sessionId);
-        var availableTokens = user.Tokens - committedTokens;
-        var additionalTokensNeeded = newBet - currentBet;
-        
-        return additionalTokensNeeded <= availableTokens;
     }
 
     public async Task EndGame(IDiscordGameSession session)

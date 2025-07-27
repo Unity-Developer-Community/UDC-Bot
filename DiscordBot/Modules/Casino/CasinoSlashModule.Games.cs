@@ -49,34 +49,6 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     }
 
     /// <summary>
-    /// Validates if a player action that may increase the bet is allowed
-    /// </summary>
-    private async Task ValidateActionBetRequirements(IDiscordGameSession gameSession, ulong userId, Enum action)
-    {
-        var player = gameSession.GetPlayer(userId);
-        if (player == null) return;
-
-        // Check for actions that require bet validation
-        if (action.ToString() == "DoubleDown" && gameSession.GameName == "Blackjack")
-        {
-            var currentBet = player.Bet;
-            var newBet = currentBet * 2; // DoubleDown doubles the bet
-            
-            var canIncrease = await GameService.ValidateBetIncrease(userId, currentBet, newBet, gameSession.Id.ToString());
-            if (!canIncrease)
-            {
-                var user = await CasinoService.GetOrCreateCasinoUser(userId.ToString());
-                var committedTokens = GameService.GetCommittedTokens(userId, gameSession.Id.ToString());
-                var availableTokens = user.Tokens - committedTokens;
-                throw new InvalidOperationException($"Cannot double down: insufficient tokens. Available: {availableTokens}, Required: {newBet - currentBet}");
-            }
-        }
-        
-        // Add other game-specific bet validations here as needed
-        // Example for Poker raise/bet actions would go here
-    }
-
-    /// <summary>
     /// Continues the game session by processing AI and dealer actions and checking if the game should finish.
     /// </summary>
     private async Task ContinueGame(IDiscordGameSession gameSession)
@@ -419,10 +391,8 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             var actionType = gameSession.ActionType;
             var parsedAction = (Enum)Enum.Parse(actionType, action);
 
-            // Validate bet increases for specific actions
-            await ValidateActionBetRequirements(gameSession, Context.User.Id, parsedAction);
-
-            gameSession.DoPlayerAction(Context.User.Id, parsedAction);
+            // Use the new async method which handles bet validation internally
+            await gameSession.DoPlayerActionAsync(Context.User.Id, parsedAction);
             await GenerateResponse(gameSession);
 
             await ContinueGame(gameSession);
