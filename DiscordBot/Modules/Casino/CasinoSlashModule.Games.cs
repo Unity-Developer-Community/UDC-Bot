@@ -568,7 +568,8 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 var profitIcon = entry.NetProfit >= 0 ? "💰" : "💸";
                 var fieldValue = $"* **Score:** {entry.Score:F2}\n" +
                                $"* **Games:** {entry.TotalGames:N0} | **W/L:** {entry.Wins}/{entry.Losses}\n" +
-                               $"* **Win Rate:** {entry.WinPercentage:F1}% | {profitIcon} **Profit:** {entry.NetProfit:+#,0;-#,0;0}";
+                               $"* **Win Rate:** {entry.WinPercentage:F1}%\n" +
+                               $"* {profitIcon} **Profit:** {entry.NetProfit:+#,0;-#,0;0}";
 
                 embed.AddField($"{medal} {username}", fieldValue, true);
             }
