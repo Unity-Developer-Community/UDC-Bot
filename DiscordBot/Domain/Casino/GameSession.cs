@@ -26,6 +26,8 @@ public interface IGameSession
 
     public bool ShouldFinish();
     public IReadOnlyList<(DiscordGamePlayer player, long payout)> EndGame();
+
+    public void Reset();
 }
 
 /// <summary>
@@ -81,6 +83,12 @@ public class GameSession<TGame> : IGameSession
         => Game.EndGame()
             .Select(p => ((DiscordGamePlayer)p.player, p.payout))
             .ToList();
+
+    public void Reset()
+    {
+        Game.Reset();
+        Players.Clear();
+    }
 
     #region Player Management
 

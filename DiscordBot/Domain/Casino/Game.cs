@@ -58,6 +58,8 @@ public interface ICasinoGame
     public abstract GamePlayerResult GetPlayerGameResult(GamePlayer player);
     public abstract long CalculatePayout(GamePlayer player, ulong totalPot);
 
+    public void Reset();
+
     Type ActionType { get; }
 
     public void DoPlayerAction(GamePlayer player, Enum action);
@@ -155,6 +157,12 @@ public abstract class ACasinoGame<TPlayerData, TPlayerAction> : ICasinoGame
     /// The default implementation checks if the game is IN_PROGRESS and all players have finished playing.
     /// </summary>
     public virtual bool ShouldFinish() => State == GameState.InProgress && CurrentPlayer == null;
+
+    public void Reset()
+    {
+        State = GameState.NotStarted;
+        GameData.Clear();
+    }
 
     #endregion
     #region Player Actions

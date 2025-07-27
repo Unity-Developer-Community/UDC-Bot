@@ -116,8 +116,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             var gameSession = GameService.CreateGameSession(game, seats, Context.Client, Context.User, Context.Guild);
             gameSession.AddPlayer(Context.User.Id, 1); // Add the command user as a player with a bet of 1
 
-            var (embed, components) = await gameSession.GenerateEmbedAndButtons();
-            await FollowupAsync(embed: embed, components: components);
+            await GenerateResponse(gameSession);
         }
         catch (ArgumentOutOfRangeException ex)
         {
@@ -128,6 +127,24 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             await LoggingService.LogChannelAndFile($"Failed to create game session: {ex.Message}", ExtendedLogSeverity.Warning);
             await FollowupAsync($"Failed to create game session: {ex.Message}", ephemeral: true);
         }
+    }
+
+    [ComponentInteraction("play_again:*", true)]
+    public async Task PlayAgain(string id)
+    {
+        await DeferAsync();
+
+        var gameSession = GameService.GetActiveSession(id);
+        if (gameSession == null)
+        {
+            await FollowupAsync("Game session not found.", ephemeral: true);
+            return;
+        }
+
+        GameService.PlayAgain(gameSession);
+        gameSession.AddPlayer(Context.User.Id, 1);
+
+        await GenerateResponse(gameSession);
     }
 
     #endregion

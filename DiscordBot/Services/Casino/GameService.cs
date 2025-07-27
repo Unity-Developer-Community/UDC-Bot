@@ -49,6 +49,12 @@ public class GameService
         return session;
     }
 
+    public IDiscordGameSession PlayAgain(IDiscordGameSession session)
+    {
+        session.Reset();
+        return session;
+    }
+
     public IDiscordGameSession? GetActiveSession(string id)
     {
         return _activeSessions.FirstOrDefault(s => s.Id.ToString() == id);
