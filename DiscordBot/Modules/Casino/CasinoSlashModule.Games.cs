@@ -530,7 +530,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 _ => null
             };
 
-            var leaderboard = await CasinoService.GetGameLeaderboard(gameName, 10);
+            var leaderboard = await CasinoService.GetGameLeaderboard(gameName, 9);
 
             if (leaderboard.Count == 0)
             {
