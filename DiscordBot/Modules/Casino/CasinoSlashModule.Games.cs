@@ -8,6 +8,7 @@ namespace DiscordBot.Modules;
 public enum CasinoGame
 {
     Blackjack,
+    [ChoiceDisplay("Rock Paper Scissors")]
     RockPaperScissors,
     Poker,
 }
