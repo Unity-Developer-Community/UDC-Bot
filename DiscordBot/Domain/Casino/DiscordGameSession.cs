@@ -24,7 +24,7 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
     protected DiscordSocketClient Client { get; init; } // The context of the interaction that started the game
     protected SocketUser User { get; init; } // The user who started the game session
 
-    public DiscordGameSession(TGame game, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild) : base(game, maxSeats)
+    public DiscordGameSession(TGame game, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild, bool isPrivate = false) : base(game, maxSeats, isPrivate)
     {
         Client = client;
         User = user;
@@ -93,11 +93,16 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
     {
         var challenger = await Guild.GetUserAsync(User.Id);
 
+        var title = IsPrivate ? $"🔒 {Game.Emoji} {GameName} Game Session (Private)" : $"{Game.Emoji} {GameName} Game Session";
+        var description = IsPrivate 
+            ? $"This is a private {GameName} game! Only players in the game can invite others."
+            : $"Welcome to {GameName}! Click the buttons below to take actions.";
+
         return new EmbedBuilder()
-            .WithTitle($"{Game.Emoji} {GameName} Game Session")
-            .WithDescription($"Welcome to {GameName}! Click the buttons below to take actions.")
+            .WithTitle(title)
+            .WithDescription(description)
             .WithAuthor($"Game started by {challenger.DisplayName}")
-            .WithColor(Color.Green)
+            .WithColor(IsPrivate ? Color.Orange : Color.Green)
             .AddField("Players", GeneratePlayersList(), true)
             .AddField("Seats Available", $"{PlayerCount}/{MaxSeats}", true)
             .AddField("Total Pot", $"{GetTotalPot}")
@@ -127,52 +132,91 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
 
     private MessageComponent GenerateNotStartedButtons()
     {
-        return new ComponentBuilder()
-            .WithRows(new List<ActionRowBuilder>
-            {
-                // Buttons to join, leave, and toggle ready
-                new ActionRowBuilder()
-                    .WithButton(new ButtonBuilder
-                    {
-                        CustomId = $"join_game:{Id}",
-                        Emote = new Emoji("✅"),
-                        Label = "Join Game",
-                        Style = ButtonStyle.Success,
-                        IsDisabled = Players.Count >= MaxSeats
-                    })
-                    .WithButton(new ButtonBuilder
-                    {
-                        CustomId = $"leave_game:{Id}",
-                        Emote = new Emoji("❌"),
-                        Label = "Leave Game",
-                        Style = ButtonStyle.Danger,
-                        IsDisabled = Players.Count == 0
-                    })
-                    .WithButton(new ButtonBuilder
-                    {
-                        CustomId = $"toggle_ready:{Id}",
-                        Emote = new Emoji("✅"),
-                        Label = "Ready",
-                        Style = ButtonStyle.Primary,
-                        IsDisabled = Players.Count == 0
-                    }),
-                // Buttons for adding/removing AI players
+        var rows = new List<ActionRowBuilder>();
+
+        // For private games, show different buttons
+        if (IsPrivate)
+        {
+            // Show invite button (access control handled in interaction handler)
+            rows.Add(new ActionRowBuilder()
+                .WithSelectMenu(new SelectMenuBuilder()
+                    .WithCustomId($"invite_user:{Id}")
+                    .WithPlaceholder("Select a user to invite...")
+                    .WithType(ComponentType.UserSelect)
+                    .WithMinValues(1)
+                    .WithMaxValues(1))
+            );
+
+            // Show leave button for players in the game
+            rows.Add(new ActionRowBuilder()
+                .WithButton(new ButtonBuilder
+                {
+                    CustomId = $"leave_game:{Id}",
+                    Emote = new Emoji("❌"),
+                    Label = "Leave Game",
+                    Style = ButtonStyle.Danger,
+                    IsDisabled = Players.Count == 0
+                })
+                .WithButton(new ButtonBuilder
+                {
+                    CustomId = $"toggle_ready:{Id}",
+                    Emote = new Emoji("✅"),
+                    Label = "Ready",
+                    Style = ButtonStyle.Primary,
+                    IsDisabled = Players.Count == 0
+                })
+            );
+        }
+        else
+        {
+            // Original buttons for public games
+            rows.Add(new ActionRowBuilder()
+                .WithButton(new ButtonBuilder
+                {
+                    CustomId = $"join_game:{Id}",
+                    Emote = new Emoji("✅"),
+                    Label = "Join Game",
+                    Style = ButtonStyle.Success,
+                    IsDisabled = Players.Count >= MaxSeats
+                })
+                .WithButton(new ButtonBuilder
+                {
+                    CustomId = $"leave_game:{Id}",
+                    Emote = new Emoji("❌"),
+                    Label = "Leave Game",
+                    Style = ButtonStyle.Danger,
+                    IsDisabled = Players.Count == 0
+                })
+                .WithButton(new ButtonBuilder
+                {
+                    CustomId = $"toggle_ready:{Id}",
+                    Emote = new Emoji("✅"),
+                    Label = "Ready",
+                    Style = ButtonStyle.Primary,
+                    IsDisabled = Players.Count == 0
+                })
+            );
+        }
+
 #if DEBUG
-                new ActionRowBuilder()
-                    .WithButton("Add AI", $"ai_add:{Id}", ButtonStyle.Success, new Emoji("🤖"))
-                    .WithButton("Add FULL AI", $"ai_add_full:{Id}", ButtonStyle.Success, new Emoji("🤖"))
-                    .WithButton("Remove AI", $"ai_remove:{Id}", ButtonStyle.Danger, new Emoji("❌")),
+        // AI buttons (for debugging)
+        rows.Add(new ActionRowBuilder()
+            .WithButton("Add AI", $"ai_add:{Id}", ButtonStyle.Success, new Emoji("🤖"))
+            .WithButton("Add FULL AI", $"ai_add_full:{Id}", ButtonStyle.Success, new Emoji("🤖"))
+            .WithButton("Remove AI", $"ai_remove:{Id}", ButtonStyle.Danger, new Emoji("❌"))
+        );
 #endif
-                // Buttons for betting
-                new ActionRowBuilder()
-                    .WithButton("+1", $"bet_add:{Id}:1", ButtonStyle.Secondary, new Emoji("1️⃣"))
-                    .WithButton("+10", $"bet_add:{Id}:10", ButtonStyle.Secondary, new Emoji("🔟"))
-                    .WithButton("+100", $"bet_add:{Id}:100", ButtonStyle.Secondary, new Emoji("💯"))
-                    // .WithButton("Custom", $"bet_custom:{Id}", ButtonStyle.Secondary, new Emoji("✏️"))
-                    .WithButton("All In", $"bet_allin:{Id}", ButtonStyle.Primary, new Emoji("💰"))
-                    .WithButton("Reset to 1", $"bet_set:{Id}:1", ButtonStyle.Danger, new Emoji("🔄"))
-            })
-            .Build();
+
+        // Betting buttons
+        rows.Add(new ActionRowBuilder()
+            .WithButton("+1", $"bet_add:{Id}:1", ButtonStyle.Secondary, new Emoji("1️⃣"))
+            .WithButton("+10", $"bet_add:{Id}:10", ButtonStyle.Secondary, new Emoji("🔟"))
+            .WithButton("+100", $"bet_add:{Id}:100", ButtonStyle.Secondary, new Emoji("💯"))
+            .WithButton("All In", $"bet_allin:{Id}", ButtonStyle.Primary, new Emoji("💰"))
+            .WithButton("Reset to 1", $"bet_set:{Id}:1", ButtonStyle.Danger, new Emoji("🔄"))
+        );
+
+        return new ComponentBuilder().WithRows(rows).Build();
     }
 
     private MessageComponent GenerateInProgressButtons()

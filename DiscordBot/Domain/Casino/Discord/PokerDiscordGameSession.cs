@@ -3,8 +3,8 @@ using DiscordBot.Domain;
 
 public class PokerDiscordGameSession : DiscordGameSession<Poker>
 {
-    public PokerDiscordGameSession(Poker game, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild)
-        : base(game, maxSeats, client, user, guild)
+    public PokerDiscordGameSession(Poker game, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild, bool isPrivate = false)
+        : base(game, maxSeats, client, user, guild, isPrivate)
     { }
 
     private string GenerateGameDescription()

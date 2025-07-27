@@ -8,6 +8,8 @@ public interface IGameSession
     public DiscordGamePlayer? CurrentPlayer { get; }
     public string GameName { get; }
     public Type ActionType { get; }
+    public int MaxSeats { get; }
+    public bool IsPrivate { get; }
 
     public DiscordGamePlayer? GetPlayer(ulong userId);
     public bool AddPlayer(ulong userId, ulong bet);
@@ -42,13 +44,14 @@ public class GameSession<TGame> : IGameSession
     // public TimeSpan ExpiryTime { get; set; } = TimeSpan.FromMinutes(5);
     // public ulong UserId { get; set; } // The user who started the game
     public int MaxSeats { get; init; } // Max player cannot exceed the game's MaxPlayers and should be at least the game's MinPlayers
+    public bool IsPrivate { get; init; } // Whether this is a private game (invitation only)
 
     // Game instance - strongly typed
     protected TGame Game { get; init; }
     public GameState State => Game.State;
 
     // Constructor
-    public GameSession(TGame game, int maxSeats)
+    public GameSession(TGame game, int maxSeats, bool isPrivate = false)
     {
         Game = game;
 
@@ -56,6 +59,7 @@ public class GameSession<TGame> : IGameSession
             throw new ArgumentOutOfRangeException(nameof(maxSeats), $"Max players for {game.Name} must be between {game.MinPlayers} and {game.MaxPlayers}");
 
         MaxSeats = maxSeats;
+        IsPrivate = isPrivate;
     }
 
     // Convenience properties
