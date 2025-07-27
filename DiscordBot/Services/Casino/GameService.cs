@@ -76,9 +76,66 @@ public class GameService
     public async Task SetBet(IDiscordGameSession session, ulong userId, ulong bet)
     {
         var user = await _casinoService.GetOrCreateCasinoUser(userId.ToString());
-        if (bet > user.Tokens) throw new InvalidOperationException("You do not have enough tokens.");
         if (bet < 1) throw new InvalidOperationException("You must bet at least 1 token.");
+        
+        // Calculate tokens committed to other active games
+        var committedTokens = GetCommittedTokens(userId, session.Id.ToString());
+        var availableTokens = user.Tokens - committedTokens;
+        
+        if (bet > availableTokens) 
+            throw new InvalidOperationException($"You do not have enough tokens. Available: {availableTokens} (You have {committedTokens} tokens committed to other active games).");
+        
         session.SetPlayerBet(userId, bet);
+    }
+
+    /// <summary>
+    /// Calculates the total tokens committed to active games by a user, excluding the specified session
+    /// </summary>
+    /// <param name="userId">The user ID to check</param>
+    /// <param name="excludeSessionId">Session ID to exclude from calculation (optional)</param>
+    /// <returns>Total committed tokens</returns>
+    public ulong GetCommittedTokens(ulong userId, string? excludeSessionId = null)
+    {
+        ulong committedTokens = 0;
+        
+        foreach (var session in _activeSessions)
+        {
+            // Skip the session we're excluding (typically the current session being modified)
+            if (excludeSessionId != null && session.Id.ToString() == excludeSessionId)
+                continue;
+                
+            // Only count tokens from games that haven't finished
+            if (session.State == GameState.NotStarted || session.State == GameState.InProgress)
+            {
+                var player = session.GetPlayer(userId);
+                if (player != null)
+                {
+                    committedTokens += player.Bet;
+                }
+            }
+        }
+        
+        return committedTokens;
+    }
+    
+    /// <summary>
+    /// Validates if a user can increase their bet in an active game
+    /// </summary>
+    /// <param name="userId">The user ID</param>
+    /// <param name="currentBet">The current bet amount</param>
+    /// <param name="newBet">The proposed new bet amount</param>
+    /// <param name="sessionId">The session where the bet increase is happening</param>
+    /// <returns>True if the bet increase is valid</returns>
+    public async Task<bool> ValidateBetIncrease(ulong userId, ulong currentBet, ulong newBet, string sessionId)
+    {
+        if (newBet <= currentBet) return true; // Not an increase
+        
+        var user = await _casinoService.GetOrCreateCasinoUser(userId.ToString());
+        var committedTokens = GetCommittedTokens(userId, sessionId);
+        var availableTokens = user.Tokens - committedTokens;
+        var additionalTokensNeeded = newBet - currentBet;
+        
+        return additionalTokensNeeded <= availableTokens;
     }
 
     public async Task EndGame(IDiscordGameSession session)
