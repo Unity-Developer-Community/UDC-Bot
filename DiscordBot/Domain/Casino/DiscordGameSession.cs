@@ -46,6 +46,21 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
         return GetPlayerName((DiscordGamePlayer)Game.CurrentPlayer);
     }
 
+    protected string GetCurrentPlayerWithTimer()
+    {
+        var playerName = GetCurrentPlayerName();
+
+        if (CurrentPlayer != null && !CurrentPlayer.IsAI && TimeRemaining.HasValue)
+        {
+            var remaining = TimeRemaining.Value;
+            var endDate = CurrentPlayerTurnStartTime?.Add(remaining) ?? DateTime.UtcNow.Add(remaining);
+
+            return $"{playerName} (⏱️ {TimestampTag.FromDateTime(endDate, TimestampTagStyles.Relative)})";
+        }
+
+        return playerName;
+    }
+
     private string GeneratePlayersList()
     {
         if (Players.Count == 0) return "None";
