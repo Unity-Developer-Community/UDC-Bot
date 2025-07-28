@@ -3,8 +3,8 @@ using DiscordBot.Domain;
 
 public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperScissors>
 {
-    public RockPaperScissorsDiscordGameSession(RockPaperScissors game, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild)
-        : base(game, maxSeats, client, user, guild)
+    public RockPaperScissorsDiscordGameSession(RockPaperScissors game, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild, bool isPrivate = false)
+        : base(game, maxSeats, client, user, guild, isPrivate)
     { }
 
     private string GetCurrentPlayerName()

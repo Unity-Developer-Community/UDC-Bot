@@ -3,8 +3,8 @@ using DiscordBot.Domain;
 
 public class BlackjackDiscordGameSession : DiscordGameSession<Blackjack>
 {
-    public BlackjackDiscordGameSession(Blackjack game, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild)
-        : base(game, maxSeats, client, user, guild)
+    public BlackjackDiscordGameSession(Blackjack game, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild, bool isPrivate = false)
+        : base(game, maxSeats, client, user, guild, isPrivate)
     { }
 
     private new string GetCurrentPlayerName()

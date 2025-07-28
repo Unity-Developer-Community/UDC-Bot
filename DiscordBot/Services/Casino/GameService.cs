@@ -30,21 +30,21 @@ public class GameService
         };
     }
 
-    private IDiscordGameSession CreateDiscordGameSession(CasinoGame game, ICasinoGame gameInstance, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild)
+    private IDiscordGameSession CreateDiscordGameSession(CasinoGame game, ICasinoGame gameInstance, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild, bool isPrivate = false)
     {
         return game switch
         {
-            CasinoGame.Blackjack => new BlackjackDiscordGameSession((Blackjack)gameInstance, maxSeats, client, user, guild),
-            CasinoGame.RockPaperScissors => new RockPaperScissorsDiscordGameSession((RockPaperScissors)gameInstance, maxSeats, client, user, guild),
-            CasinoGame.Poker => new PokerDiscordGameSession((Poker)gameInstance, maxSeats, client, user, guild),
+            CasinoGame.Blackjack => new BlackjackDiscordGameSession((Blackjack)gameInstance, maxSeats, client, user, guild, isPrivate),
+            CasinoGame.RockPaperScissors => new RockPaperScissorsDiscordGameSession((RockPaperScissors)gameInstance, maxSeats, client, user, guild, isPrivate),
+            CasinoGame.Poker => new PokerDiscordGameSession((Poker)gameInstance, maxSeats, client, user, guild, isPrivate),
             _ => throw new ArgumentOutOfRangeException(nameof(game), $"Unknown game session type: {game}")
         };
     }
 
-    public IDiscordGameSession CreateGameSession(CasinoGame game, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild)
+    public IDiscordGameSession CreateGameSession(CasinoGame game, int maxSeats, DiscordSocketClient client, SocketUser user, IGuild guild, bool isPrivate = false)
     {
         var gameInstance = GetGameInstance(game);
-        var session = CreateDiscordGameSession(game, gameInstance, maxSeats == 0 ? gameInstance.MaxPlayers : maxSeats, client, user, guild);
+        var session = CreateDiscordGameSession(game, gameInstance, maxSeats == 0 ? gameInstance.MaxPlayers : maxSeats, client, user, guild, isPrivate);
         _activeSessions.Add(session);
         return session;
     }
@@ -71,6 +71,21 @@ public class GameService
         if (user.Tokens < 1) throw new InvalidOperationException("You must have at least 1 token.");
 
         session.AddPlayer(userId, 1);
+    }
+
+    public async Task InviteToGame(IDiscordGameSession session, ulong userId)
+    {
+        if (!session.IsPrivate) throw new InvalidOperationException("Invitations are only available for private games.");
+        
+        var user = await _casinoService.GetOrCreateCasinoUser(userId.ToString());
+        if (user.Tokens < 1) throw new InvalidOperationException("This user must have at least 1 token to join the game.");
+
+        // Add player but set them as not ready (they need to ready up manually)
+        var added = session.AddPlayer(userId, 1);
+        if (!added) throw new InvalidOperationException("Could not invite this user to the game.");
+        
+        // Set the player as not ready since they were invited
+        session.SetPlayerReady(userId, false);
     }
 
     public async Task SetBet(IDiscordGameSession session, ulong userId, ulong bet)

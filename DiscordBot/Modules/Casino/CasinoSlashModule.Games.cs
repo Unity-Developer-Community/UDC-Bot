@@ -108,13 +108,15 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     public async Task CreateGameSession(CasinoGame game,
     [Summary("seats", "Number of seats for the game (minimum 1)")]
     [MinValue(1)]
-    int seats = 0)
+    int seats = 0,
+    [Summary("private", "Make this a private game (invitation only)")]
+    bool isPrivate = false)
     {
         try
         {
             await DeferAsync();
 
-            var gameSession = GameService.CreateGameSession(game, seats, Context.Client, Context.User, Context.Guild);
+            var gameSession = GameService.CreateGameSession(game, seats, Context.Client, Context.User, Context.Guild, isPrivate);
             gameSession.AddPlayer(Context.User.Id, 1); // Add the command user as a player with a bet of 1
 
             await GenerateResponse(gameSession);
@@ -294,6 +296,79 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         gameSession.RemovePlayerAI();
 
         await GenerateResponse(gameSession);
+    }
+
+    [ComponentInteraction("invite_user:*", true)]
+    public async Task InviteUser(string id, string[] userIds)
+    {
+        await DeferAsync();
+
+        var gameSession = GameService.GetActiveSession(id);
+        if (gameSession == null)
+        {
+            await FollowupAsync("Game session not found.", ephemeral: true);
+            return;
+        }
+
+        // Check if this is a private game
+        if (!gameSession.IsPrivate)
+        {
+            await FollowupAsync("This feature is only available for private games.", ephemeral: true);
+            return;
+        }
+
+        // Check if the user invoking this is in the game
+        var invoker = gameSession.GetPlayer(Context.User.Id);
+        if (invoker == null)
+        {
+            await FollowupAsync("Only players in the game can invite others.", ephemeral: true);
+            return;
+        }
+
+        // Get the first selected user ID
+        if (userIds.Length == 0)
+        {
+            await FollowupAsync("No user was selected.", ephemeral: true);
+            return;
+        }
+
+        if (!ulong.TryParse(userIds[0], out var targetUserId))
+        {
+            await FollowupAsync("Invalid user selection.", ephemeral: true);
+            return;
+        }
+
+        // Check if user is already in the game
+        if (gameSession.GetPlayer(targetUserId) != null)
+        {
+            await FollowupAsync("This user is already in the game.", ephemeral: true);
+            return;
+        }
+
+        // Check if game is full
+        if (gameSession.Players.Count >= gameSession.MaxSeats)
+        {
+            await FollowupAsync("The game is already full.", ephemeral: true);
+            return;
+        }
+
+        try
+        {
+            // Invite the user (add them but not ready)
+            await GameService.InviteToGame(gameSession, targetUserId);
+            
+            var invitedUser = await ((IGuild)Context.Guild).GetUserAsync(targetUserId);
+            await FollowupAsync($"{invitedUser?.Mention ?? "User"} has been invited to the game and added to the player list.", ephemeral: false);
+            
+            await GenerateResponse(gameSession);
+            await Task.Delay(500);
+            await ContinueGame(gameSession);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await FollowupAsync(ex.Message, ephemeral: true);
+            return;
+        }
     }
 
     #endregion
