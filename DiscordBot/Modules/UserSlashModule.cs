@@ -411,14 +411,12 @@ public class UserSlashModule : InteractionModuleBase
         var loser = challengerWins ? opponent : challenger;
         if (type == "mute")
         {
-            // Check if any user is an Admin
             var isChallengerAdmin = challenger.GuildPermissions.Has(GuildPermission.Administrator);
             var isOpponentAdmin = opponent.GuildPermissions.Has(GuildPermission.Administrator);
-            // If one of them is an admin, they automatically win (but not if both are admins)
-            if (isChallengerAdmin ^ isOpponentAdmin)
+            if (isChallengerAdmin || isOpponentAdmin)
             {
-                winner = isChallengerAdmin ? challenger : opponent;
-                loser = isChallengerAdmin ? opponent : challenger;
+                // Unfair advantages are unfair. Also, bot can't mute admins. Remove the stakes.
+                type = "friendly";
             }
         }
 
