@@ -358,13 +358,16 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         }
 
         var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
-        if (user.Tokens == 0)
+        var committedTokens = GameService.GetCommittedTokens(Context.User.Id, id);
+        var availableTokens = user.Tokens - committedTokens;
+        
+        if (availableTokens == 0)
         {
-            await FollowupAsync("You do not have enough tokens to bet all in.", ephemeral: true);
+            await FollowupAsync($"You do not have enough tokens to bet all in. Available: {availableTokens} (You have {committedTokens} tokens committed to other active games).", ephemeral: true);
             return;
         }
 
-        await BetSet(id, user.Tokens);
+        await BetSet(id, availableTokens);
     }
 
     #endregion
@@ -388,7 +391,8 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             var actionType = gameSession.ActionType;
             var parsedAction = (Enum)Enum.Parse(actionType, action);
 
-            gameSession.DoPlayerAction(Context.User.Id, parsedAction);
+            // Use the new async method which handles bet validation internally
+            await gameSession.DoPlayerActionAsync(Context.User.Id, parsedAction);
             await GenerateResponse(gameSession);
 
             await ContinueGame(gameSession);

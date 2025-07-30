@@ -152,17 +152,19 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
         GameData[player].Actions.Add(BlackjackPlayerAction.Stand);
     }
 
-    private void DoubleDown(GamePlayer player)
+    private async Task DoubleDown(GamePlayer player)
     {
         if (!CanPlayerAct(player)) return;
+
+        // Try to increase the bet by the current bet amount (doubling it)
+        await TryIncreaseBetAsync(player, player.Bet);
 
         var card = Deck.DrawCard();
         if (card != null) GameData[player].PlayerCards.Add(card);
         GameData[player].Actions.Add(BlackjackPlayerAction.DoubleDown);
-        player.Bet *= 2; // Double the bet
     }
 
-    public override void DoPlayerAction(GamePlayer player, BlackjackPlayerAction action)
+    public override async Task DoPlayerActionAsync(GamePlayer player, BlackjackPlayerAction action)
     {
         if (State != GameState.InProgress) throw new InvalidOperationException("Game is not in progress");
         if (!CanPlayerAct(player)) throw new InvalidOperationException("Player cannot take action at this time");
@@ -177,7 +179,7 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
                 Stand(player);
                 break;
             case BlackjackPlayerAction.DoubleDown:
-                DoubleDown(player);
+                await DoubleDown(player);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(action), action, null);

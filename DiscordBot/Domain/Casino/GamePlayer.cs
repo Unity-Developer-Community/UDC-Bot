@@ -14,6 +14,10 @@ public enum GamePlayerResult
 public class GamePlayer
 {
     /// <summary>
+    /// The user ID of the player (Discord user ID in most cases)
+    /// </summary>
+    public required ulong UserId { get; init; }
+    /// <summary>
     /// The bet amount placed by the player
     /// </summary>
     public required ulong Bet { get; set; }
@@ -29,10 +33,6 @@ public class GamePlayer
 
 public class DiscordGamePlayer : GamePlayer
 {
-    /// <summary>
-    /// The Discord user ID of the player
-    /// </summary>
-    public required ulong UserId { get; init; }
     /// <summary>
     /// Indicates if the player is ready to start the game
     /// </summary>

@@ -16,7 +16,7 @@ public interface IGameSession
     public void RemovePlayerAI();
     public void SetPlayerReady(ulong userId, bool isReady);
     public void SetPlayerBet(ulong userId, ulong bet);
-    public void DoPlayerAction(ulong userId, Enum action);
+    public Task DoPlayerActionAsync(ulong userId, Enum action);
 
     public bool HasNextDealerAction();
     public Task DoNextDealerAction();
@@ -166,13 +166,12 @@ public class GameSession<TGame> : IGameSession
     #endregion
     #region Player Actions
 
-    public void DoPlayerAction(ulong userId, Enum action)
+    public async Task DoPlayerActionAsync(ulong userId, Enum action)
     {
         var player = GetPlayer(userId);
         if (player == null) return;
-        Game.DoPlayerAction(player, action);
+        await Game.DoPlayerActionAsync(player, action);
     }
-
 
     #endregion
     #region Dealer Actions

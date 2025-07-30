@@ -2,6 +2,30 @@
 namespace DiscordBot.Domain;
 
 /// <summary>
+/// Interface for validating bet increases in casino games.
+/// This allows Game.cs to remain abstract from Discord/GameSession concepts
+/// while still being able to validate bet changes.
+/// </summary>
+public interface IBetValidator
+{
+    /// <summary>
+    /// Validates if a player can increase their bet by the specified amount
+    /// </summary>
+    /// <param name="userId">The user ID attempting to increase their bet</param>
+    /// <param name="additionalAmount">The additional amount to bet</param>
+    /// <returns>True if the bet increase is allowed, false otherwise</returns>
+    Task<bool> CanIncreaseBetAsync(ulong userId, ulong additionalAmount);
+    
+    /// <summary>
+    /// Gets detailed error message when bet increase fails
+    /// </summary>
+    /// <param name="userId">The user ID attempting to increase their bet</param>
+    /// <param name="additionalAmount">The additional amount to bet</param>
+    /// <returns>Detailed error message explaining why the bet increase failed</returns>
+    Task<string> GetBetIncreaseErrorAsync(ulong userId, ulong additionalAmount);
+}
+
+/// <summary>
 /// Generic game state enum for all casino games - kept minimal and generic
 /// </summary>
 public enum GameState
@@ -62,7 +86,7 @@ public interface ICasinoGame
 
     Type ActionType { get; }
 
-    public void DoPlayerAction(GamePlayer player, Enum action);
+    public Task DoPlayerActionAsync(GamePlayer player, Enum action);
 
     // Dealer stuff
     public bool HasNextDealerAction();
@@ -96,6 +120,12 @@ public abstract class ACasinoGame<TPlayerData, TPlayerAction> : ICasinoGame
     public Type ActionType => typeof(TPlayerAction); // Type of action enum used in this game
 
     public GameState State { get; set; } = GameState.NotStarted;
+    
+    /// <summary>
+    /// Bet validator for validating bet increases during gameplay.
+    /// Injected from the outside to keep Game.cs abstract from Discord/GameSession concepts.
+    /// </summary>
+    public IBetValidator? BetValidator { get; set; }
 
     public bool IsCompleted => State == GameState.Finished || State == GameState.Abandoned;
     public Dictionary<GamePlayer, TPlayerData> GameData { get; set; } = [];
@@ -164,20 +194,67 @@ public abstract class ACasinoGame<TPlayerData, TPlayerAction> : ICasinoGame
         GameData.Clear();
     }
 
+    /// <summary>
+    /// Attempts to increase a player's bet by the specified amount.
+    /// This method provides a clean interface for games to validate bet increases
+    /// without knowing about Discord/GameSession concepts.
+    /// </summary>
+    /// <param name="player">The player whose bet should be increased</param>
+    /// <param name="additionalAmount">The additional amount to add to the current bet</param>
+    /// <returns>True if the bet was successfully increased, false otherwise</returns>
+    /// <exception cref="InvalidOperationException">Thrown when bet increase fails with detailed error message</exception>
+    public async Task<bool> TryIncreaseBetAsync(GamePlayer player, ulong additionalAmount)
+    {
+        if (BetValidator == null)
+        {
+            // No validator set - allow the increase (fallback behavior)
+            player.Bet += additionalAmount;
+            return true;
+        }
+
+        var canIncrease = await BetValidator.CanIncreaseBetAsync(player.UserId, additionalAmount);
+        if (canIncrease)
+        {
+            player.Bet += additionalAmount;
+            return true;
+        }
+
+        // Get detailed error message and throw exception
+        var errorMessage = await BetValidator.GetBetIncreaseErrorAsync(player.UserId, additionalAmount);
+        throw new InvalidOperationException(errorMessage);
+    }
+
     #endregion
     #region Player Actions
 
-    void ICasinoGame.DoPlayerAction(GamePlayer player, Enum action)
+    async Task ICasinoGame.DoPlayerActionAsync(GamePlayer player, Enum action)
     {
         // Cast to your specific action type
         if (action is TPlayerAction typedAction)
-            DoPlayerAction(player, typedAction);
+            await DoPlayerActionAsync(player, typedAction);
         else
             throw new ArgumentException($"Invalid action type. Expected {typeof(TPlayerAction).Name}, got {action.GetType().Name}");
     }
 
+    /// <summary>
+    /// Default async implementation that calls the sync version for backward compatibility.
+    /// Games that need async actions (like bet validation) should override this method.
+    /// </summary>
+    public virtual async Task DoPlayerActionAsync(GamePlayer player, TPlayerAction action)
+    {
+        // For backward compatibility, call the sync version by default
+        DoPlayerAction(player, action);
+        await Task.CompletedTask;
+    }
 
-    public abstract void DoPlayerAction(GamePlayer player, TPlayerAction action);
+    /// <summary>
+    /// Synchronous player action method for games that don't need async operations.
+    /// Games that need async actions should override DoPlayerActionAsync instead.
+    /// </summary>
+    public virtual void DoPlayerAction(GamePlayer player, TPlayerAction action)
+    {
+        throw new NotImplementedException("Either DoPlayerAction or DoPlayerActionAsync must be implemented by the derived class");
+    }
 
     #endregion
     #region Dealer Actions
