@@ -76,22 +76,17 @@ public class CasinoService
         return true;
     }
 
-    public async Task<bool> UpdateUserTokens(string userId, long deltaTokens, TransactionType transactionType, Dictionary<string, string>? details = null)
+    public async Task UpdateUserTokens(string userId, long deltaTokens, TransactionType transactionType, Dictionary<string, string>? details = null)
     {
         try
         {
             var user = await GetOrCreateCasinoUser(userId);
             var newBalance = (long)user.Tokens + deltaTokens;
-
-            if (newBalance < 0)
-            {
-                return false;
-            }
+            // Prevent negative balance
+            if (newBalance < 0) newBalance = 0;
 
             await _databaseService.CasinoQuery.UpdateTokens(userId, (ulong)newBalance, DateTime.UtcNow);
             await RecordTransaction(userId, deltaTokens, transactionType, details);
-
-            return true;
         }
         catch (Exception ex)
         {
