@@ -115,7 +115,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             await DeferAsync();
 
             var gameSession = GameService.CreateGameSession(game, seats, Context.Client, Context.User, Context.Guild);
-            gameSession.AddPlayer(Context.User.Id, 1); // Add the command user as a player with a bet of 1
+            await GameService.JoinGame(gameSession, Context.User.Id);
 
             await GenerateResponse(gameSession);
         }
@@ -143,7 +143,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         }
 
         GameService.PlayAgain(gameSession);
-        gameSession.AddPlayer(Context.User.Id, 1);
+        await GameService.JoinGame(gameSession, Context.User.Id);
 
         await GenerateResponse(gameSession);
     }
