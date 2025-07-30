@@ -217,11 +217,15 @@ Game End Condition → GameService.EndGame() → Payout Calculation → CasinoSe
 ### Adding a New Game
 
 1. **Create Game Logic**:
+
+   *(Example: `Domain/Casino/Games/Blackjack.cs`)*
    - Define player action enum with `ButtonMetadata` attributes
    - Create player data class implementing `ICasinoGamePlayerData`
    - Implement game class extending `ACasinoGame<TPlayerData, TPlayerAction>`
 
 2. **Create Discord Integration**:
+
+   *(Example: `Domain/Casino/Discord/BlackjackDiscordGameSession.cs`)*
    - Implement Discord session class extending `DiscordGameSession<TGame>`
    - Override embed and component generation methods
 
