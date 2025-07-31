@@ -126,6 +126,53 @@ public class DatabaseService
                 await _logging.LogAction(
                     $"DatabaseService: Connected to casino tables successfully. {casinoUserCount} casino users in database.",
                     ExtendedLogSeverity.Positive);
+
+                // Check if shop tables exist, create them if they don't
+                try
+                {
+                    await CasinoQuery.GetAllShopItems();
+                    await _logging.LogAction("DatabaseService: Shop tables already exist.", ExtendedLogSeverity.Positive);
+                }
+                catch
+                {
+                    await _logging.LogAction("DatabaseService: Shop tables do not exist, creating them.",
+                        ExtendedLogSeverity.LowWarning);
+                    try
+                    {
+                        // Create shop_items table
+                        c.ExecuteSql(
+                            $"CREATE TABLE `{CasinoProps.ShopItemsTableName}` (" +
+                            $"`{CasinoProps.ShopItemId}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
+                            $"`{CasinoProps.ShopItemTitle}` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                            $"`{CasinoProps.ShopItemDescription}` text COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                            $"`{CasinoProps.ShopItemPrice}` bigint(20) UNSIGNED NOT NULL, " +
+                            $"`{CasinoProps.ShopItemCreatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                            $"PRIMARY KEY (`{CasinoProps.ShopItemId}`) " +
+                            $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+                        // Create shop_purchases table
+                        c.ExecuteSql(
+                            $"CREATE TABLE `{CasinoProps.ShopPurchasesTableName}` (" +
+                            $"`{CasinoProps.ShopPurchaseId}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
+                            $"`{CasinoProps.ShopPurchaseUserID}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                            $"`{CasinoProps.ShopPurchaseItemId}` int(11) UNSIGNED NOT NULL, " +
+                            $"`{CasinoProps.ShopPurchaseDate}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                            $"PRIMARY KEY (`{CasinoProps.ShopPurchaseId}`), " +
+                            $"KEY `idx_user_item` (`{CasinoProps.ShopPurchaseUserID}`, `{CasinoProps.ShopPurchaseItemId}`), " +
+                            $"KEY `fk_item_id` (`{CasinoProps.ShopPurchaseItemId}`), " +
+                            $"CONSTRAINT `fk_shop_purchases_item_id` FOREIGN KEY (`{CasinoProps.ShopPurchaseItemId}`) REFERENCES `{CasinoProps.ShopItemsTableName}` (`{CasinoProps.ShopItemId}`) ON DELETE CASCADE " +
+                            $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+                        await _logging.LogAction("DatabaseService: Shop tables created successfully.",
+                            ExtendedLogSeverity.Positive);
+                    }
+                    catch (Exception e)
+                    {
+                        await _logging.LogAction(
+                            $"SQL Exception: Failed to create shop tables.\nMessage: {e}",
+                            ExtendedLogSeverity.Critical);
+                    }
+                }
             }
             catch
             {
