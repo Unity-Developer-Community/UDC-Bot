@@ -158,6 +158,30 @@ public class DatabaseService
                         $"PRIMARY KEY (`{CasinoProps.TransactionId}`), " +
                         $"KEY `idx_user_created` (`{CasinoProps.TransactionUserID}`, `{CasinoProps.TransactionCreatedAt}`) " +
                         $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+                    // Create shop_items table
+                    c.ExecuteSql(
+                        $"CREATE TABLE `{CasinoProps.ShopItemsTableName}` (" +
+                        $"`{CasinoProps.ShopItemId}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
+                        $"`{CasinoProps.ShopItemTitle}` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                        $"`{CasinoProps.ShopItemDescription}` text COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                        $"`{CasinoProps.ShopItemPrice}` bigint(20) UNSIGNED NOT NULL, " +
+                        $"`{CasinoProps.ShopItemCreatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                        $"PRIMARY KEY (`{CasinoProps.ShopItemId}`) " +
+                        $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+                    // Create shop_purchases table
+                    c.ExecuteSql(
+                        $"CREATE TABLE `{CasinoProps.ShopPurchasesTableName}` (" +
+                        $"`{CasinoProps.ShopPurchaseId}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
+                        $"`{CasinoProps.ShopPurchaseUserID}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                        $"`{CasinoProps.ShopPurchaseItemId}` int(11) UNSIGNED NOT NULL, " +
+                        $"`{CasinoProps.ShopPurchaseDate}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                        $"PRIMARY KEY (`{CasinoProps.ShopPurchaseId}`), " +
+                        $"KEY `idx_user_item` (`{CasinoProps.ShopPurchaseUserID}`, `{CasinoProps.ShopPurchaseItemId}`), " +
+                        $"KEY `fk_item_id` (`{CasinoProps.ShopPurchaseItemId}`), " +
+                        $"CONSTRAINT `fk_shop_purchases_item_id` FOREIGN KEY (`{CasinoProps.ShopPurchaseItemId}`) REFERENCES `{CasinoProps.ShopItemsTableName}` (`{CasinoProps.ShopItemId}`) ON DELETE CASCADE " +
+                        $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
                 }
                 catch (Exception e)
                 {

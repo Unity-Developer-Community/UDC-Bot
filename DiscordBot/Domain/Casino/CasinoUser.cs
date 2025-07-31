@@ -45,6 +45,7 @@ public enum TransactionType
     Gift,
     Game,
     Admin,
+    Shop,
 }
 
 public class GameStatistics
@@ -72,10 +73,29 @@ public class GameLeaderboardEntry
     public string? GameName { get; set; } // null for global leaderboard
 }
 
+public class ShopItem
+{
+    public int Id { get; set; }
+    public required string Title { get; set; }
+    public required string Description { get; set; }
+    public ulong Price { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class ShopPurchase
+{
+    public int Id { get; set; }
+    public required string UserID { get; set; }
+    public int ItemId { get; set; }
+    public DateTime PurchaseDate { get; set; }
+}
+
 public static class CasinoProps
 {
     public const string CasinoTableName = "casino_users";
     public const string TransactionTableName = "token_transactions";
+    public const string ShopItemsTableName = "shop_items";
+    public const string ShopPurchasesTableName = "shop_purchases";
 
     // CasinoUser properties
     public const string Id = nameof(CasinoUser.Id);
@@ -92,4 +112,17 @@ public static class CasinoProps
     public const string TransactionType = nameof(TokenTransaction.Type);
     public const string Details = nameof(TokenTransaction.DetailsJson);
     public const string TransactionCreatedAt = nameof(TokenTransaction.CreatedAt);
+
+    // ShopItem properties
+    public const string ShopItemId = nameof(ShopItem.Id);
+    public const string ShopItemTitle = nameof(ShopItem.Title);
+    public const string ShopItemDescription = nameof(ShopItem.Description);
+    public const string ShopItemPrice = nameof(ShopItem.Price);
+    public const string ShopItemCreatedAt = nameof(ShopItem.CreatedAt);
+
+    // ShopPurchase properties
+    public const string ShopPurchaseId = nameof(ShopPurchase.Id);
+    public const string ShopPurchaseUserID = nameof(ShopPurchase.UserID);
+    public const string ShopPurchaseItemId = nameof(ShopPurchase.ItemId);
+    public const string ShopPurchaseDate = nameof(ShopPurchase.PurchaseDate);
 }

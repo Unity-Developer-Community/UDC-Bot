@@ -329,12 +329,190 @@ public class CasinoService
 
     #endregion
 
+    #region Shop Functions
+
+    public async Task<List<ShopItem>> GetAllShopItems()
+    {
+        try
+        {
+            var items = await _databaseService.CasinoQuery.GetAllShopItems();
+            return items.ToList();
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in GetAllShopItems: {ex.Message}", ExtendedLogSeverity.Error);
+            throw new InvalidOperationException($"Failed to get shop items: {ex.Message}", ex);
+        }
+    }
+
+    public async Task<ShopItem?> GetShopItem(int itemId)
+    {
+        try
+        {
+            return await _databaseService.CasinoQuery.GetShopItem(itemId);
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in GetShopItem for itemId {itemId}: {ex.Message}", ExtendedLogSeverity.Error);
+            throw new InvalidOperationException($"Failed to get shop item: {ex.Message}", ex);
+        }
+    }
+
+    public async Task<List<ShopPurchase>> GetUserShopPurchases(string userId)
+    {
+        try
+        {
+            var purchases = await _databaseService.CasinoQuery.GetUserShopPurchases(userId);
+            return purchases.ToList();
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in GetUserShopPurchases for userId {userId}: {ex.Message}", ExtendedLogSeverity.Error);
+            throw new InvalidOperationException($"Failed to get user shop purchases: {ex.Message}", ex);
+        }
+    }
+
+    public async Task<bool> UserHasItem(string userId, int itemId)
+    {
+        try
+        {
+            var count = await _databaseService.CasinoQuery.CheckUserHasItem(userId, itemId);
+            return count > 0;
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in UserHasItem for userId {userId}, itemId {itemId}: {ex.Message}", ExtendedLogSeverity.Error);
+            throw new InvalidOperationException($"Failed to check if user has item: {ex.Message}", ex);
+        }
+    }
+
+    public async Task<(bool success, string message)> PurchaseShopItem(string userId, int itemId)
+    {
+        try
+        {
+            // Check if user has enough tokens
+            var user = await GetOrCreateCasinoUser(userId);
+            var item = await GetShopItem(itemId);
+            
+            if (item == null)
+            {
+                return (false, "Shop item not found.");
+            }
+
+            // Check if user already has this item
+            if (await UserHasItem(userId, itemId))
+            {
+                return (false, "You already own this item.");
+            }
+
+            if (user.Tokens < item.Price)
+            {
+                return (false, $"Insufficient tokens. You need {item.Price:N0} tokens but only have {user.Tokens:N0}.");
+            }
+
+            // Deduct tokens and record transaction
+            var newBalance = user.Tokens - item.Price;
+            await _databaseService.CasinoQuery.UpdateTokens(userId, newBalance, DateTime.UtcNow);
+
+            // Record the purchase transaction
+            await RecordTransaction(userId, -(long)item.Price, TransactionType.Shop, new Dictionary<string, string>
+            {
+                ["item_id"] = itemId.ToString(),
+                ["item_title"] = item.Title
+            });
+
+            // Record the purchase
+            var purchase = new ShopPurchase
+            {
+                UserID = userId,
+                ItemId = itemId,
+                PurchaseDate = DateTime.UtcNow
+            };
+            await _databaseService.CasinoQuery.InsertShopPurchase(purchase);
+
+            await _loggingService.LogChannelAndFile($"{ServiceName}: User {userId} purchased shop item '{item.Title}' for {item.Price} tokens");
+            return (true, $"Successfully purchased '{item.Title}' for {item.Price:N0} tokens!");
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in PurchaseShopItem for userId {userId}, itemId {itemId}: {ex.Message}", ExtendedLogSeverity.Error);
+            throw new InvalidOperationException($"Failed to purchase shop item: {ex.Message}", ex);
+        }
+    }
+
+    public async Task InitializeDefaultShopItems()
+    {
+        try
+        {
+            var existingItems = await GetAllShopItems();
+            if (existingItems.Count > 0)
+            {
+                await _loggingService.LogChannelAndFile($"{ServiceName}: Shop items already exist, skipping initialization");
+                return;
+            }
+
+            var defaultItems = new List<ShopItem>
+            {
+                new ShopItem 
+                { 
+                    Title = "Auto Daily Tokens", 
+                    Description = "Automatically retrieve your daily tokens every day", 
+                    Price = 20000, 
+                    CreatedAt = DateTime.UtcNow 
+                },
+                new ShopItem 
+                { 
+                    Title = "Badge: Casino Lover", 
+                    Description = "Show your love for the casino with this special badge", 
+                    Price = 1000, 
+                    CreatedAt = DateTime.UtcNow 
+                },
+                new ShopItem 
+                { 
+                    Title = "Badge: High Roller", 
+                    Description = "A badge for those who aren't afraid to bet big", 
+                    Price = 10000, 
+                    CreatedAt = DateTime.UtcNow 
+                },
+                new ShopItem 
+                { 
+                    Title = "Badge: Token Master", 
+                    Description = "Master of token accumulation and casino strategy", 
+                    Price = 100000, 
+                    CreatedAt = DateTime.UtcNow 
+                },
+                new ShopItem 
+                { 
+                    Title = "Badge: Millionaire", 
+                    Description = "The ultimate badge for reaching millionaire status", 
+                    Price = 1000000, 
+                    CreatedAt = DateTime.UtcNow 
+                }
+            };
+
+            foreach (var item in defaultItems)
+            {
+                await _databaseService.CasinoQuery.InsertShopItem(item);
+            }
+
+            await _loggingService.LogChannelAndFile($"{ServiceName}: Initialized {defaultItems.Count} default shop items");
+        }
+        catch (Exception ex)
+        {
+            await _loggingService.LogChannelAndFile($"{ServiceName}: ERROR in InitializeDefaultShopItems: {ex.Message}", ExtendedLogSeverity.Error);
+            throw new InvalidOperationException($"Failed to initialize default shop items: {ex.Message}", ex);
+        }
+    }
+
+    #endregion
+
     #region Admin Functions
 
     public async Task ResetAllCasinoData()
     {
         await _databaseService.CasinoQuery.ClearAllCasinoUsers();
         await _databaseService.CasinoQuery.ClearAllTransactions();
+        await _databaseService.CasinoQuery.ClearAllShopPurchases();
 
         await _loggingService.LogChannelAndFile($"{ServiceName}: All casino data has been reset.");
     }

@@ -355,6 +355,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 TransactionType.Gift => GetGiftDisplay(transaction),
                 TransactionType.Game => GetGameDisplay(transaction),
                 TransactionType.Admin => GetAdminDisplay(transaction),
+                TransactionType.Shop => GetShopDisplay(transaction),
                 _ => ("❓", transaction.Type.ToString(), "")
             };
 
@@ -414,6 +415,16 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             if (admin != null) title += $" by Admin {admin.DisplayName}";
 
             return ("⚙️", title, description);
+        }
+
+        private (string emoji, string title, string description) GetShopDisplay(TokenTransaction transaction)
+        {
+            var itemTitle = transaction.Details?.GetValueOrDefault("item_title");
+            
+            string title = "Shop Purchase";
+            if (itemTitle != null) title = $"Bought {itemTitle}";
+
+            return ("🛒", title, "");
         }
 
         private string CapitalizeFirst(string input)
@@ -535,6 +546,180 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 {
                     await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in Daily command");
                 }
+            }
+        }
+    }
+
+    #endregion
+
+    #region Shop Command
+
+    [SlashCommand("shop", "View and purchase items from the casino shop")]
+    public async Task Shop()
+    {
+        if (!await CheckChannelPermissions()) return;
+
+        try
+        {
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            // Ensure shop items are initialized
+            await CasinoService.InitializeDefaultShopItems();
+
+            var user = await CasinoService.GetOrCreateCasinoUser(Context.User.Id.ToString());
+            var allItems = await CasinoService.GetAllShopItems();
+            var userPurchases = await CasinoService.GetUserShopPurchases(Context.User.Id.ToString());
+            var purchasedItemIds = userPurchases.Select(p => p.ItemId).ToHashSet();
+
+            if (allItems.Count == 0)
+            {
+                await Context.Interaction.FollowupAsync("🛒 The shop is currently empty. Please check back later!", ephemeral: true);
+                return;
+            }
+
+            var embed = new EmbedBuilder()
+                .WithTitle("🛒 Casino Shop")
+                .WithDescription($"**Your Balance:** {user.Tokens:N0} tokens\n\nSelect an item from the dropdown below to purchase it.")
+                .WithColor(Color.Purple);
+
+            // Add shop items to embed (strike through purchased items)
+            foreach (var item in allItems)
+            {
+                var isPurchased = purchasedItemIds.Contains(item.Id);
+                var titleDisplay = isPurchased ? $"~~{item.Title}~~" : item.Title;
+                var statusText = isPurchased ? " ✅ **OWNED**" : $" - **{item.Price:N0} tokens**";
+                
+                embed.AddField($"{titleDisplay}{statusText}", item.Description, false);
+            }
+
+            // Create dropdown with available items (not purchased)
+            var availableItems = allItems.Where(item => !purchasedItemIds.Contains(item.Id)).ToList();
+            
+            if (availableItems.Count == 0)
+            {
+                embed.WithFooter("🎉 You own all available shop items!");
+                await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: true);
+                return;
+            }
+
+            var selectMenu = new SelectMenuBuilder()
+                .WithPlaceholder("Select an item to purchase...")
+                .WithCustomId($"shop_purchase:{Context.User.Id}")
+                .WithMinValues(1)
+                .WithMaxValues(1);
+
+            foreach (var item in availableItems.Take(25)) // Discord limit of 25 options
+            {
+                var canAfford = user.Tokens >= item.Price;
+                var label = $"{item.Title} - {item.Price:N0} tokens";
+                if (!canAfford) label += " (Can't afford)";
+                
+                selectMenu.AddOption(
+                    label: label,
+                    value: item.Id.ToString(),
+                    description: item.Description.Length > 100 ? item.Description.Substring(0, 97) + "..." : item.Description,
+                    isDefault: false
+                );
+            }
+
+            var components = new ComponentBuilder()
+                .WithSelectMenu(selectMenu)
+                .Build();
+
+            await Context.Interaction.FollowupAsync(embed: embed.Build(), components: components, ephemeral: true);
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in Shop command for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: Shop Exception Details: {ex}");
+
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while loading the shop. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while loading the shop. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in Shop command");
+            }
+        }
+    }
+
+    [ComponentInteraction("shop_purchase:*", true)]
+    public async Task HandleShopPurchase(string userId, string[] selectedValues)
+    {
+        try
+        {
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            if (Context.User.Id.ToString() != userId)
+            {
+                await Context.Interaction.FollowupAsync("🚫 You are not authorized to make this purchase.", ephemeral: true);
+                return;
+            }
+
+            if (selectedValues == null || selectedValues.Length == 0)
+            {
+                await Context.Interaction.FollowupAsync("❌ No item selected.", ephemeral: true);
+                return;
+            }
+
+            if (!int.TryParse(selectedValues[0], out int itemId))
+            {
+                await Context.Interaction.FollowupAsync("❌ Invalid item selected.", ephemeral: true);
+                return;
+            }
+
+            var (success, message) = await CasinoService.PurchaseShopItem(Context.User.Id.ToString(), itemId);
+
+            if (success)
+            {
+                var embed = new EmbedBuilder()
+                    .WithTitle("🎉 Purchase Successful!")
+                    .WithDescription(message)
+                    .WithColor(Color.Green)
+                    .WithCurrentTimestamp()
+                    .Build();
+
+                await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+                await LoggingService.LogChannelAndFile($"Casino: {Context.User.Username} successfully purchased shop item {itemId}");
+            }
+            else
+            {
+                var embed = new EmbedBuilder()
+                    .WithTitle("❌ Purchase Failed")
+                    .WithDescription(message)
+                    .WithColor(Color.Red)
+                    .Build();
+
+                await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LoggingService.LogChannelAndFile($"Casino: ERROR in HandleShopPurchase for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+            await LoggingService.LogChannelAndFile($"Casino: HandleShopPurchase Exception Details: {ex}");
+
+            try
+            {
+                if (!Context.Interaction.HasResponded)
+                {
+                    await Context.Interaction.RespondAsync("❌ An error occurred while processing your purchase. Please try again.", ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.FollowupAsync("❌ An error occurred while processing your purchase. Please try again.", ephemeral: true);
+                }
+            }
+            catch
+            {
+                await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in HandleShopPurchase");
             }
         }
     }

@@ -52,4 +52,36 @@ public interface ICasinoRepo
     // Test connection
     [Sql($"SELECT COUNT(*) FROM {CasinoProps.CasinoTableName}")]
     Task<long> TestCasinoConnection();
+
+    // Shop Item Operations
+    [Sql($@"
+    INSERT INTO {CasinoProps.ShopItemsTableName} ({CasinoProps.ShopItemTitle}, {CasinoProps.ShopItemDescription}, {CasinoProps.ShopItemPrice}, {CasinoProps.ShopItemCreatedAt}) 
+    VALUES (@{CasinoProps.ShopItemTitle}, @{CasinoProps.ShopItemDescription}, @{CasinoProps.ShopItemPrice}, @{CasinoProps.ShopItemCreatedAt});
+    SELECT * FROM {CasinoProps.ShopItemsTableName} WHERE {CasinoProps.ShopItemId} = LAST_INSERT_ID()")]
+    Task<ShopItem> InsertShopItem(ShopItem item);
+
+    [Sql($"SELECT * FROM {CasinoProps.ShopItemsTableName} ORDER BY {CasinoProps.ShopItemPrice} ASC")]
+    Task<IList<ShopItem>> GetAllShopItems();
+
+    [Sql($"SELECT * FROM {CasinoProps.ShopItemsTableName} WHERE {CasinoProps.ShopItemId} = @itemId")]
+    Task<ShopItem> GetShopItem(int itemId);
+
+    [Sql($"DELETE FROM {CasinoProps.ShopItemsTableName}")]
+    Task ClearAllShopItems();
+
+    // Shop Purchase Operations
+    [Sql($@"
+    INSERT INTO {CasinoProps.ShopPurchasesTableName} ({CasinoProps.ShopPurchaseUserID}, {CasinoProps.ShopPurchaseItemId}, {CasinoProps.ShopPurchaseDate}) 
+    VALUES (@{CasinoProps.ShopPurchaseUserID}, @{CasinoProps.ShopPurchaseItemId}, @{CasinoProps.ShopPurchaseDate});
+    SELECT * FROM {CasinoProps.ShopPurchasesTableName} WHERE {CasinoProps.ShopPurchaseId} = LAST_INSERT_ID()")]
+    Task<ShopPurchase> InsertShopPurchase(ShopPurchase purchase);
+
+    [Sql($"SELECT * FROM {CasinoProps.ShopPurchasesTableName} WHERE {CasinoProps.ShopPurchaseUserID} = @userId")]
+    Task<IList<ShopPurchase>> GetUserShopPurchases(string userId);
+
+    [Sql($"SELECT COUNT(*) FROM {CasinoProps.ShopPurchasesTableName} WHERE {CasinoProps.ShopPurchaseUserID} = @userId AND {CasinoProps.ShopPurchaseItemId} = @itemId")]
+    Task<long> CheckUserHasItem(string userId, int itemId);
+
+    [Sql($"DELETE FROM {CasinoProps.ShopPurchasesTableName}")]
+    Task ClearAllShopPurchases();
 }
