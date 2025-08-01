@@ -79,6 +79,7 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
             GameData[player].Actions.Clear();
         }
         DealerCards.Clear();
+        DealerActions.Clear();
 
         Card? card = null;
         // Deal initial cards (2 cards each)
