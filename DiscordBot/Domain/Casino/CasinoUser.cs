@@ -72,6 +72,14 @@ public class GameLeaderboardEntry
     public string? GameName { get; set; } // null for global leaderboard
 }
 
+public class GameLeaderboardResult
+{
+    public List<GameLeaderboardEntry> Entries { get; set; } = [];
+    public int TotalPlayers { get; set; }
+    public int? CurrentUserRank { get; set; } // 1-based rank, null if user not present
+    public GameLeaderboardEntry? CurrentUserEntry { get; set; }
+}
+
 public static class CasinoProps
 {
     public const string CasinoTableName = "casino_users";

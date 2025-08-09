@@ -202,7 +202,7 @@ public class CasinoService
         }
     }
 
-    public async Task<List<GameLeaderboardEntry>> GetGameLeaderboard(string? gameName = null, int limit = 10)
+    public async Task<GameLeaderboardResult> GetGameLeaderboard(string? gameName = null, int limit = 10, string? currentUserId = null)
     {
         try
         {
@@ -211,7 +211,13 @@ public class CasinoService
             // Filter by game if specified
             var filteredTransactions = gameTransactions
                 .Where(t => t.Details != null && t.Details.ContainsKey("game"))
-                .Where(t => gameName == null || t.Details["game"].Equals(gameName, StringComparison.OrdinalIgnoreCase))
+                .Where(t =>
+                {
+                    if (gameName == null) return true;
+                    var details = t.Details;
+                    if (details == null) return false;
+                    return details.TryGetValue("game", out var g) && g != null && g.Equals(gameName, StringComparison.OrdinalIgnoreCase);
+                })
                 .ToList();
 
             // Group by user and calculate statistics
@@ -258,11 +264,29 @@ public class CasinoService
                 });
             }
 
-            // Sort by score descending and take the top entries
-            return leaderboardEntries
+            // Sort all by score descending for rank computation
+            var sortedAll = leaderboardEntries
                 .OrderByDescending(entry => entry.Score)
-                .Take(limit)
+                .ThenBy(entry => entry.UserID, StringComparer.Ordinal)
                 .ToList();
+
+            var result = new GameLeaderboardResult
+            {
+                TotalPlayers = sortedAll.Count,
+                Entries = sortedAll.Take(limit).ToList()
+            };
+
+            if (!string.IsNullOrEmpty(currentUserId))
+            {
+                var idx = sortedAll.FindIndex(e => e.UserID == currentUserId);
+                if (idx >= 0)
+                {
+                    result.CurrentUserRank = idx + 1; // 1-based
+                    result.CurrentUserEntry = sortedAll[idx];
+                }
+            }
+
+            return result;
         }
         catch (Exception ex)
         {

@@ -465,6 +465,34 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             string.IsNullOrEmpty(word) ? word : char.ToUpper(word[0]) + word.Substring(1).ToLower()));
     }
 
+    private void AddLeaderboardEntry(EmbedBuilder embed, GameLeaderboardEntry entry, int position, bool inline = true)
+    {
+        var prefix = position switch
+        {
+            1 => "🥇",
+            2 => "🥈",
+            3 => "🥉",
+            _ => $"{position}."
+        };
+
+        var username = GetUsernameFromEntry(entry);
+        var fieldTitle = $"{prefix} {username}";
+
+        var profitIcon = entry.NetProfit >= 0 ? "💰" : "💸";
+        var fieldValue = $"* **Score:** {entry.Score:F2}\n" +
+                       $"* **Games:** {entry.TotalGames:N0} | **W/L:** {entry.Wins}/{entry.Losses}\n" +
+                       $"* **Win Rate:** {entry.WinPercentage:F1}%\n" +
+                       $"* {profitIcon} **Profit:** {entry.NetProfit:+#,0;-#,0;0}";
+
+        embed.AddField(fieldTitle, fieldValue, inline);
+    }
+
+    private string GetUsernameFromEntry(GameLeaderboardEntry entry)
+    {
+        var guildUser = Context.Guild.GetUser(ulong.Parse(entry.UserID));
+        return guildUser?.DisplayName ?? "Unknown User";
+    }
+
     [SlashCommand("statistics", "View game statistics showing wins vs losses")]
     public async Task GameStatistics()
     {
@@ -531,7 +559,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     [SlashCommand("leaderboard", "View the leaderboard of best players by game performance")]
     public async Task GameLeaderboard(
             [Summary("game", "Specific game to show leaderboard for (leave empty for global leaderboard)")]
-            CasinoGame? game = null)
+            CasinoGame? game = null,
+            [Summary("user", "Show rank for specific user (leave empty for your own rank)")]
+            IUser? user = null)
     {
         if (!await CheckChannelPermissions()) return;
 
@@ -548,9 +578,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 _ => null
             };
 
-            var leaderboard = await CasinoService.GetGameLeaderboard(gameName, 9);
+            var leaderboard = await CasinoService.GetGameLeaderboard(gameName, 9, (user ?? Context.User).Id.ToString());
 
-            if (leaderboard.Count == 0)
+            if (leaderboard.Entries.Count == 0)
             {
                 var noDataMessage = game.HasValue
                     ? $"📊 No players found for {gameName} yet."
@@ -569,32 +599,29 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 .WithDescription($"-# Ranked by score (`Win Rate × log₁₀(Total Games + 1)`)")
                 .WithCurrentTimestamp();
 
-            for (int i = 0; i < leaderboard.Count; i++)
+            for (int i = 0; i < leaderboard.Entries.Count; i++)
             {
-                var entry = leaderboard[i];
-                var user = Context.Guild.GetUser(ulong.Parse(entry.UserID));
-                var username = user?.DisplayName ?? "Unknown User";
-
-                var medal = i switch
-                {
-                    0 => "🥇",
-                    1 => "🥈",
-                    2 => "🥉",
-                    _ => $"{i + 1}."
-                };
-
-                var profitIcon = entry.NetProfit >= 0 ? "💰" : "💸";
-                var fieldValue = $"* **Score:** {entry.Score:F2}\n" +
-                               $"* **Games:** {entry.TotalGames:N0} | **W/L:** {entry.Wins}/{entry.Losses}\n" +
-                               $"* **Win Rate:** {entry.WinPercentage:F1}%\n" +
-                               $"* {profitIcon} **Profit:** {entry.NetProfit:+#,0;-#,0;0}";
-
-                embed.AddField($"{medal} {username}", fieldValue, true);
+                var entry = leaderboard.Entries[i];
+                AddLeaderboardEntry(embed, entry, i + 1, true);
             }
 
-            var footerText = game.HasValue
-                ? $"Showing top {leaderboard.Count} {gameName} players"
-                : $"Showing top {leaderboard.Count} players across all games";
+            // Check if target user is already displayed in the top entries
+            var targetUser = user ?? Context.User;
+            var userInTopEntries = leaderboard.Entries.Any(e => e.UserID == targetUser.Id.ToString());
+
+            // Add target user rank field if they have a rank but aren't in the top entries
+            if (leaderboard.CurrentUserRank.HasValue && !userInTopEntries && leaderboard.CurrentUserEntry != null)
+            {
+                AddLeaderboardEntry(embed, leaderboard.CurrentUserEntry, leaderboard.CurrentUserRank.Value, false);
+            }
+
+            var topCount = leaderboard.Entries.Count;
+            var total = leaderboard.TotalPlayers;
+
+            var footerText = $"Showing top {topCount} out of {total} players across all games";
+            if (game.HasValue)
+                footerText = $"Showing top {topCount} out of {total} {gameName} players";
+
             embed.WithFooter(footerText);
 
             await Context.Interaction.FollowupAsync(embed: embed.Build());

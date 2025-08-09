@@ -124,13 +124,17 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         }
 
         [SlashCommand("leaderboard", "View the top token holders")]
-        public async Task TokenLeaderboard()
+        public async Task TokenLeaderboard(
+            [Summary("user", "User to show rank for (optional)")] SocketGuildUser? guildUser = null
+        )
         {
             if (!await CheckChannelPermissions()) return;
 
             await Context.Interaction.DeferAsync();
 
-            var topUsers = await CasinoService.GetLeaderboard(10);
+            var topUsers = await CasinoService.GetLeaderboard(15);
+
+            Console.WriteLine($"Top users count: {topUsers.Count}");
 
             if (topUsers.Count == 0)
             {
@@ -138,26 +142,54 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 return;
             }
 
+            var targetUserId = guildUser?.Id.ToString() ?? Context.User.Id.ToString();
+            var allUsers = await CasinoService.GetLeaderboard(int.MaxValue);
+            var targetUserEntry = allUsers.FirstOrDefault(u => u.UserID == targetUserId);
+            var targetUserPosition = targetUserEntry != null ? allUsers.IndexOf(targetUserEntry) + 1 : -1;
+
             var embed = new EmbedBuilder()
                 .WithTitle("🏆 Casino Token Leaderboard")
-                .WithColor(Color.Gold);
+                .WithColor(Color.Gold)
+                .WithFooter($"Showing top {topUsers.Count} out of {allUsers.Count} players")
+                .WithCurrentTimestamp();
 
+            // Display top 10 users
             for (int i = 0; i < topUsers.Count; i++)
             {
-                var user = Context.Guild.GetUser(ulong.Parse(topUsers[i].UserID));
-                var username = user?.DisplayName ?? "Unknown User";
-                var medal = i switch
-                {
-                    0 => "🥇",
-                    1 => "🥈",
-                    2 => "🥉",
-                    _ => $"{i + 1}."
-                };
+                AddTokenLeaderboardEntry(embed, topUsers[i], i + 1, true);
+            }
 
-                embed.AddField($"{medal} {username}", $"{topUsers[i].Tokens:N0} tokens", true);
+            var isUserInTopEntries = topUsers.Any(u => u.UserID == targetUserId);
+            // If target user is not in top, show their rank separately
+            if (targetUserEntry != null && !isUserInTopEntries)
+            {
+                AddTokenLeaderboardEntry(embed, targetUserEntry, targetUserPosition, false);
             }
 
             await Context.Interaction.FollowupAsync(embed: embed.Build());
+        }
+
+        private void AddTokenLeaderboardEntry(EmbedBuilder embed, CasinoUser entry, int position, bool inline)
+        {
+            var medal = position switch
+            {
+                1 => "🥇",
+                2 => "🥈",
+                3 => "🥉",
+                _ => $"{position}."
+            };
+
+            var username = GetUsernameFromCasinoUser(entry);
+            var fieldTitle = $"{medal} {username}";
+            var fieldValue = $"{entry.Tokens:N0} tokens";
+
+            embed.AddField(fieldTitle, fieldValue, inline);
+        }
+
+        private string GetUsernameFromCasinoUser(CasinoUser entry)
+        {
+            var user = Context.Guild.GetUser(ulong.Parse(entry.UserID));
+            return user?.DisplayName ?? "Unknown User";
         }
 
         [SlashCommand("history", "View your recent token transactions")]
