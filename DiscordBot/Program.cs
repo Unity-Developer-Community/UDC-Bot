@@ -110,6 +110,7 @@ public class Program
             .AddSingleton<CannedResponseService>()
             .AddSingleton<UserExtendedService>()
             .AddSingleton<BirthdayAnnouncementService>()
+            .AddSingleton<BadgeService>()
             .AddSingleton<CasinoService>()
             .AddSingleton<GameService>()
             .BuildServiceProvider();
