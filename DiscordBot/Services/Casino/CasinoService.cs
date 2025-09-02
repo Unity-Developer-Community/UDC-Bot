@@ -321,7 +321,7 @@ public class CasinoService
         {
             var user = await GetOrCreateCasinoUser(userId);
             var now = DateTime.UtcNow;
-            var nextRewardTime = user.LastDailyReward.AddSeconds(_settings.CasinoDailyRewardIntervalSeconds);
+            var nextRewardTime = user.LastDailyReward.Date.AddDays(1);
 
             if (now < nextRewardTime)
             {
@@ -335,7 +335,7 @@ public class CasinoService
             await RecordTransaction(userId, (long)tokensAwarded, TransactionType.DailyReward);
 
             await _loggingService.LogChannelAndFile($"{ServiceName}: User {userId} claimed daily reward of {tokensAwarded} tokens");
-            return (true, tokensAwarded, newBalance, now.AddSeconds(_settings.CasinoDailyRewardIntervalSeconds));
+            return (true, tokensAwarded, newBalance, now.Date.AddDays(1));
         }
         catch (Exception ex)
         {
@@ -348,7 +348,7 @@ public class CasinoService
     public async Task<DateTime> GetNextDailyRewardTime(string userId)
     {
         var user = await GetOrCreateCasinoUser(userId);
-        return user.LastDailyReward.AddSeconds(_settings.CasinoDailyRewardIntervalSeconds);
+        return user.LastDailyReward.Date.AddDays(1);
     }
 
     #endregion
