@@ -50,12 +50,12 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           script: |
-            cd ${{ secrets.SERVER_BUILD_DIR }}
+            cd ${{ vars.SERVER_BUILD_DIR }}
             docker-compose pull
             docker-compose up -d
-          host: ${{ secrets.SERVER_IP }}
-          port: ${{ secrets.SERVER_PORT }}
-          username: ${{ secrets.SERVER_USER }}
+          host: ${{ vars.SERVER_IP }}
+          port: ${{ vars.SERVER_PORT }}
+          username: ${{ vars.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
 
       - name: Discord notification
