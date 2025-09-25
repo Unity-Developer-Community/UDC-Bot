@@ -51,8 +51,8 @@ jobs:
         with:
           script: |
             cd ${{ vars.SERVER_BUILD_DIR }}
-            docker-compose pull
-            docker-compose up -d
+            docker compose pull
+            docker compose up -d
           host: ${{ vars.SERVER_IP }}
           port: ${{ vars.SERVER_PORT }}
           username: ${{ vars.SERVER_USER }}
