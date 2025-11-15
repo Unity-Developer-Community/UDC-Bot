@@ -149,6 +149,8 @@ public class TipModule : ModuleBase
 		if (!IsAuthorized(user))
 			return;
 
+   		int floodCount = 20;
+
 		List<Tip> tips = null;
   		if (keywords?.Length > 0)
 		{
@@ -159,11 +161,27 @@ public class TipModule : ModuleBase
 				await ReplyAsync("No tips for the keywords provided were found.").DeleteAfterSeconds(5);
 				return;
 			}
+			if (tips.Count >= floodCount)
+			{
+				await ReplyAsync($"Total of {tips.Count} tips found for the keywords provided; refine your search.").DeleteAfterSeconds(5);
+				return;
+			}
 		}
 		else
   		{
 			tips = TipService.GetAllTips().OrderBy(t => t.Id).ToList();
+			if (tips.Count >= floodCount)
+			{
+				var terms = new HashSet<string>();
+				foreach (var tip in tips)
+					foreach (var term in tip.Keywords)
+						terms.Add(term);
+				var termList = string.Join("`, `", terms.OrderBy(k => k));
+				await ReplyAsync($"Total of {tips.Count} tips found, add one or more keywords to narrow the search.\n`{termList}`");
+				return;
+			}
    		}
+
    		int chunkCount = 10;
 	 	int chunkTime = 1500;
    		bool first = true;
