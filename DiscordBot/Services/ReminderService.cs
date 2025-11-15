@@ -139,7 +139,7 @@ public class ReminderService
                     // We reply to their original message
                     if (message != null)
                     {
-                        string botResponse = $"{message.Author.Mention} reminder: \"{reminder.Message}\"";
+                        string botResponse = $"Reminding {message.Author.Mention}: \"{reminder.Message}\"";
                         // Get the people who reacted to the message 
                         var includeUsers = await message.GetReactionUsersAsync(BotResponseEmoji, 10).FlattenAsync();
                         string extraUsers = string.Empty;
@@ -154,7 +154,7 @@ public class ReminderService
                         }
                         // If there are any extra users, we add them to the bot response
                         if (extraUsers != string.Empty)
-                            botResponse += $"\n\nReacted Extras: {extraUsers}";
+                            botResponse += $"\n({extraUsers} also signed on {BotResponseEmoji})";
                         
                         await message.ReplyAsync(botResponse);
                         continue;
