@@ -189,7 +189,7 @@ public class TipModule : ModuleBase
 					string keywordList = "Keywords: ";
 					for (int i = 0; i < count; i++)
 					{
-						keywordList = $"`{termList[0]}`, ";
+						keywordList += $"`{termList[0]}`, ";
 						termList.RemoveAt(0);
 					}
 					keywordList = keywordList.Substring(0, keywordList.Length-2);
