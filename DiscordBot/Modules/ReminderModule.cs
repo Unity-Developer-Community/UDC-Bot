@@ -30,13 +30,19 @@ public class ReminderModule : ModuleBase
 
         if (Context.Message.MentionedUserIds.Count > 0)
         {
-            message = Context.Message.GetType().ToString() + " " + message;
-            // foreach (var user in Context.Message.MentionedUsers)
-            // {
-            //     message = message.Replace($"[<][@]{user.Id}[>]", user.GetPreferredUserName().ToBold());
-            // }
-            await ReplyAsync($"You can't mention users in a reminder.\n`{message}`").DeleteAfterSeconds(seconds: 25);
-            return;
+            if (Context.Message is SocketUserMessage)
+            {
+                foreach (var user in (Context.Message as SocketUserMessage).MentionedUsers)
+                {
+                    message = message.Replace($"[<][@]{user.Id}[>]", user.GetPreferredUserName().ToBold());
+                }
+                await ReplyAsync($"Mention users have been sanitized.\n`{message}`").DeleteAfterSeconds(seconds: 25);
+            }
+            else
+            {
+                await ReplyAsync($"You can't mention users in a reminder.\n`{message}`").DeleteAfterSeconds(seconds: 25);
+                return;
+            }
         }
 
         var reminderDate = Utils.Utils.ParseTimeFromString(time);
