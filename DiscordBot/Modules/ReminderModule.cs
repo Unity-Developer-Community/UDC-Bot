@@ -31,19 +31,19 @@ public class ReminderModule : ModuleBase
 
         if (Context.Message.MentionedUserIds.Count > 0)
         {
+            // IUserMessage does not guarantee .MentionedUsers so go through the class instead if possible
             if (Context.Message is SocketMessage)
             {
                 var sm = (Context.Message as SocketMessage);
+                // convert <@123> to **Joe**
                 foreach (var user in sm.MentionedUsers)
-                {
-                    //message = $"/[<][@]{user.Id}[>]/ => {user.GetUserPreferredName().ToBold()} ... " + message;
                     message = Regex.Replace(message, $"[<][@]{user.Id}[>]", user.GetUserPreferredName().ToBold());
-                }
-                await ReplyAsync($"Mention users have been sanitized.\n`{message}`").DeleteAfterSeconds(seconds: 25);
+                // delete any remaining user mentions that are somehow not in the list
+                message = Regex.Replace(message, $"[<][@][0-9]+[>]", "");
             }
             else
             {
-                await ReplyAsync($"You can't mention users in a reminder.\n`{message}`").DeleteAfterSeconds(seconds: 25);
+                await ReplyAsync($"You can't mention users in a reminder.\n`{message}`").DeleteAfterSeconds(seconds: 5);
                 return;
             }
         }
