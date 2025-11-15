@@ -179,7 +179,7 @@ public class TipModule : ModuleBase
 				await ReplyAsync($"Total of {tips.Count} tips found, add one or more keywords to narrow the search.");
 				var termList = new List<string>();
 				foreach (var tip in terms.OrderBy(k => k))
-					termList.Add(term);
+					termList.Add(tip);
 				while (termList.Count > 0)
 				{
 					int count = termList.Count;
