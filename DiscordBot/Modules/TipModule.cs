@@ -180,11 +180,12 @@ public class TipModule : ModuleBase
 				var termList = new List<string>();
 				foreach (var tip in terms.OrderBy(k => k))
 					termList.Add(tip);
+				floodCount = 8;
 				while (termList.Count > 0)
 				{
 					int count = termList.Count;
-					if (count > 150)
-						count = 150-10;
+					if (count > floodCount)
+						count = floodCount-2;
 					string keywordList = "Keywords: ";
 					for (int i = 0; i < count; i++)
 					{
