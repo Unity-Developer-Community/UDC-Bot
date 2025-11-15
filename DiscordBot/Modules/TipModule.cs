@@ -149,7 +149,7 @@ public class TipModule : ModuleBase
 		if (!IsAuthorized(user))
 			return;
 
-   		int floodCount = 12;
+   		int floodCount = 20;
 
 		List<Tip> tips = null;
   		if (keywords?.Length > 0)
@@ -163,7 +163,7 @@ public class TipModule : ModuleBase
 			}
 			if (tips.Count >= floodCount)
 			{
-				await ReplyAsync("Too many tips found for the keywords provided; refine your search.").DeleteAfterSeconds(5);
+				await ReplyAsync($"Total of {tips.Count} tips found for the keywords provided; refine your search.").DeleteAfterSeconds(5);
 				return;
 			}
 		}
