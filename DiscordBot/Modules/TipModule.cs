@@ -176,8 +176,27 @@ public class TipModule : ModuleBase
 				foreach (var tip in tips)
 					foreach (var term in tip.Keywords)
 						terms.Add(term);
-				var termList = string.Join("`, `", terms.OrderBy(k => k));
-				await ReplyAsync($"Total of {tips.Count} tips found, add one or more keywords to narrow the search.\n`{termList}`");
+				await ReplyAsync($"Total of {tips.Count} tips found, add one or more keywords to narrow the search.");
+				var termList = new List<string>();
+				foreach (var tip in terms.OrderBy(k => k))
+					termList.Add(tip);
+				floodCount = 150;
+				while (termList.Count > 0)
+				{
+					int count = termList.Count;
+					if (count > floodCount)
+						count = floodCount-10;
+					string keywordList = "Keywords: ";
+					for (int i = 0; i < count; i++)
+					{
+						keywordList += $"`{termList[0]}`, ";
+						termList.RemoveAt(0);
+					}
+					keywordList = keywordList.Substring(0, keywordList.Length-2);
+					await ReplyAsync(keywordList);
+					if (termList.Count > 0)
+		   				await Task.Delay(500);
+				}
 				return;
 			}
    		}
