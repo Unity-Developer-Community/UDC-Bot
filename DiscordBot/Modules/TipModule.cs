@@ -149,7 +149,7 @@ public class TipModule : ModuleBase
 		if (!IsAuthorized(user))
 			return;
 
-   		int floodCount = 20;
+   		int floodCount = 12;
 
 		List<Tip> tips = null;
   		if (keywords?.Length > 0)
@@ -177,7 +177,7 @@ public class TipModule : ModuleBase
 					foreach (var term in tip.Keywords)
 						terms.Add(term);
 				var termList = string.Join("`, `", terms.OrderBy(k => k));
-				await ReplyAsync("Too many tips found, add one or more keywords to narrow the list.\n`{terms}`").DeleteAfterSeconds(5);
+				await ReplyAsync("Too many tips found, add one or more keywords to narrow the search.\n`{terms}`");
 				return;
 			}
    		}
