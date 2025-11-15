@@ -152,6 +152,8 @@ public class ReminderService
 
                             extraUsers += $"{includeUser.Mention} ";
                         }
+                        extraUsers = extraUsers.TrimEnd();
+
                         // If there are any extra users, we add them to the bot response
                         if (extraUsers != string.Empty)
                             botResponse += $"\n({extraUsers} also signed on {BotResponseEmoji})";
