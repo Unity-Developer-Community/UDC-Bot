@@ -149,7 +149,7 @@ public class TipModule : ModuleBase
 		if (!IsAuthorized(user))
 			return;
 
-   		int floodCount = 20;
+   		int floodCount = 10;
 
 		List<Tip> tips = null;
   		if (keywords?.Length > 0)
