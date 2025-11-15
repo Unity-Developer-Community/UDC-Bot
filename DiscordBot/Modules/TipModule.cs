@@ -149,7 +149,7 @@ public class TipModule : ModuleBase
 		if (!IsAuthorized(user))
 			return;
 
-   		int floodCount = 10;
+   		int floodCount = 20;
 
 		List<Tip> tips = null;
   		if (keywords?.Length > 0)
@@ -180,12 +180,12 @@ public class TipModule : ModuleBase
 				var termList = new List<string>();
 				foreach (var tip in terms.OrderBy(k => k))
 					termList.Add(tip);
-				floodCount = 8;
+				floodCount = 150;
 				while (termList.Count > 0)
 				{
 					int count = termList.Count;
 					if (count > floodCount)
-						count = floodCount-2;
+						count = floodCount-10;
 					string keywordList = "Keywords: ";
 					for (int i = 0; i < count; i++)
 					{
