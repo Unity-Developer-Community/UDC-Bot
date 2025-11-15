@@ -2,6 +2,7 @@ using Discord.Commands;
 using DiscordBot.Services;
 using DiscordBot.Settings;
 using DiscordBot.Attributes;
+using System.Text.RegularExpressions;
 
 namespace DiscordBot.Modules;
 
@@ -29,6 +30,10 @@ public class ReminderModule : ModuleBase
 
         if (Context.Message.MentionedUserIds.Count > 0)
         {
+            foreach (var user in Context.Message.MentionedUsers)
+            {
+                message = message.Replace($"[<][@]{user.Id}[>]", user.GetPreferredUserName().ToBold());
+            }
             await ReplyAsync($"You can't mention users in a reminder.\n`{message}`").DeleteAfterSeconds(seconds: 25);
             return;
         }
