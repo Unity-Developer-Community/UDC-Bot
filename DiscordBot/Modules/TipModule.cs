@@ -177,7 +177,7 @@ public class TipModule : ModuleBase
 					foreach (var term in tip.Keywords)
 						terms.Add(term);
 				var termList = string.Join("`, `", terms.OrderBy(k => k));
-				await ReplyAsync($"Too many tips found, add one or more keywords to narrow the search.\n`{terms}`");
+				await ReplyAsync($"Total of {tips.Count} tips found, add one or more keywords to narrow the search.\n`{termList}`");
 				return;
 			}
    		}
