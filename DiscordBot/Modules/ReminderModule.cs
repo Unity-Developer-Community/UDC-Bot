@@ -33,9 +33,10 @@ public class ReminderModule : ModuleBase
         {
             if (Context.Message is SocketMessage)
             {
-                foreach (var user in (Context.Message as SocketMessage).MentionedUsers)
+                var sm = (Context.Message as SocketMessage);
+                foreach (var user in sm.MentionedUsers)
                 {
-                    message = message.Replace($"[<][@]{user.Id}[>]", user.GetPreferredUserName().ToBold());
+                    message = message.Replace($"[<][@]{user.Id}[>]", user.GetUserPreferredName().ToBold());
                 }
                 await ReplyAsync($"Mention users have been sanitized.\n`{message}`").DeleteAfterSeconds(seconds: 25);
             }
