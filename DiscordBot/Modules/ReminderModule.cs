@@ -1,4 +1,5 @@
 using Discord.Commands;
+using Discord.WebSocket;
 using DiscordBot.Services;
 using DiscordBot.Settings;
 using DiscordBot.Attributes;
@@ -30,9 +31,9 @@ public class ReminderModule : ModuleBase
 
         if (Context.Message.MentionedUserIds.Count > 0)
         {
-            if (Context.Message is SocketUserMessage)
+            if (Context.Message is SocketMessage)
             {
-                foreach (var user in (Context.Message as SocketUserMessage).MentionedUsers)
+                foreach (var user in (Context.Message as SocketMessage).MentionedUsers)
                 {
                     message = message.Replace($"[<][@]{user.Id}[>]", user.GetPreferredUserName().ToBold());
                 }
