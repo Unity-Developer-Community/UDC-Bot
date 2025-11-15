@@ -29,7 +29,7 @@ public class ReminderModule : ModuleBase
 
         if (Context.Message.MentionedUserIds.Count > 0)
         {
-            await ReplyAsync("You can't mention users in a reminder.\n`{message}`").DeleteAfterSeconds(seconds: 25);
+            await ReplyAsync($"You can't mention users in a reminder.\n`{message}`").DeleteAfterSeconds(seconds: 25);
             return;
         }
 
