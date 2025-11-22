@@ -113,13 +113,14 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
         /*
         Init Miku
+        Gag feature has no external settings, hardcoded userid refers to Reenaki/Kiki.
         */
         _mikuMentioned = DateTime.Now;
-        //_mikuCooldownTime = new TimeSpan(0, 39, 0);
-        _mikuCooldownTime = new TimeSpan(0, 0, 39);
+        _mikuCooldownTime = new TimeSpan(0, 39, 0); // 39min
+        //_mikuCooldownTime = new TimeSpan(0, 0, 39); // test 39sec
         _mikuRegex = @"(?i)\b(miku|hatsune|初音ミク|初音|ミク)\b";
-        //_mikuReply = "Oi, mite, mite, <@358915848515354626> -chan! :three: :nine:";
-        _mikuReply = "Oi, mite, mite, <@427306565184389132> ! :three: :nine:";
+        _mikuReply = ":three: :nine: Oi, mite, mite, <@358915848515354626> -chan!";
+        //_mikuReply = "Oi, mite, mite, <@427306565184389132> ! :three: :nine:"; // test
 
         /*
          Init Code analysis
