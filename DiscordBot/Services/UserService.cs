@@ -41,8 +41,13 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
     private readonly int _thanksCooldownTime;
     private readonly int _thanksMinJoinTime;
-
     private readonly string _thanksRegex;
+
+    private readonly DateTime _mikuMentioned;
+    private readonly int _mikuCooldownTime;
+    private readonly string _mikuRegex;
+    private readonly string _mikuReply;
+    
     private readonly UpdateService _updateService;
 
     private readonly Dictionary<ulong, DateTime> _xpCooldown;
@@ -107,6 +112,16 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _thanksMinJoinTime = userSettings.ThanksMinJoinTime;
 
         /*
+        Init Miku
+        */
+        _mikuMentioned = DateTime.Now;
+        //_mikuCooldownTime = new TimeSpan(0, 39, 0);
+        _mikuCooldownTime = new TimeSpan(0, 0, 39);
+        _mikuRegex = @"(?i)\b(miku|hatsune|初音ミク|初音|ミク)\b";
+        //_mikuReply = "Oi, mite, mite, <@358915848515354626> -chan! :three: :nine:";
+        _mikuReply = "Oi, mite, mite, <@427306565184389132> ! :three: :nine:";
+
+        /*
          Init Code analysis
         */
         _codeReminderCooldownTime = userSettings.CodeReminderCooldown;
@@ -140,6 +155,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _client.MessageReceived += UpdateXp;
         _client.MessageReceived += Thanks;
         _client.MessageUpdated += ThanksEdited;
+        _client.MessageReceived += MikuCheck;
         _client.MessageReceived += CodeCheck;
         _client.MessageReceived += ScoldForAtEveryoneUsage;
         _client.MessageReceived += AutoCreateThread;
@@ -501,6 +517,30 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         {
             var _ = _canEditThanks.RemoveAfterSeconds(messageParam.Id, 240);
         }
+    }
+
+    public async Task MikuCheck(SocketMessage messageParam)
+    {
+        //Get guild id
+        var channel = (SocketGuildChannel)messageParam.Channel;
+        var guildId = channel.Guild.Id;
+
+        //Make sure its in the UDC server
+        if (guildId != _settings.GuildId) return;
+
+        if (messageParam.Author.IsBot)
+            return;
+
+        var now = DateTime.Now;
+        if ((DateTime.Now - _mikuMentioned) < _mikuCooldownTime)
+            return;
+
+        var match = Regex.Match(messageParam.Content, _mikuRegex);
+        if (!match.Success)
+            return;
+
+        _mikuMentioned = now;
+        await messageParam.Channel.SendMessageAsync(_mikuReply);
     }
 
     public async Task CodeCheck(SocketMessage messageParam)
