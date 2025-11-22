@@ -44,7 +44,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     private readonly string _thanksRegex;
 
     private readonly DateTime _mikuMentioned;
-    private readonly int _mikuCooldownTime;
+    private readonly TimeSpan _mikuCooldownTime;
     private readonly string _mikuRegex;
     private readonly string _mikuReply;
     
