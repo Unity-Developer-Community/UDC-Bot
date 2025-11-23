@@ -3,6 +3,8 @@
 using System;
 using System.Text.RegularExpressions;
 
+namespace DiscordBot.Data;
+
 public class FuzzTable
 {
     private static Random random = new();
