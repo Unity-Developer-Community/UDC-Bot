@@ -108,8 +108,15 @@ public class FuzzTable
 		while (fuzz != before)
 		{
 			before = fuzz;
-			fuzz = parenContents.Replace(fuzz,
-				(m) => PickAlternate(m.Groups[1].ToString()));
+            try
+            {
+    			fuzz = parenContents.Replace(fuzz,
+    				(m) => PickAlternate(m.Groups[1].ToString()));
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                break;
+            }
 		}
 		return fuzz;
     }
