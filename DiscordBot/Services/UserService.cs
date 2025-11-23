@@ -7,6 +7,7 @@ using Discord.WebSocket;
 using DiscordBot.Domain;
 using DiscordBot.Settings;
 using DiscordBot.Skin;
+using DiscordBot.Data;
 using ImageMagick;
 using Newtonsoft.Json;
 
@@ -115,11 +116,14 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         Init Miku
         Gag feature has no external settings, hardcoded userid refers to Reenaki/Kiki.
         */
-        _mikuMentioned = DateTime.Now;
         _mikuCooldownTime = new TimeSpan(0, 39, 0); // 39min
         //_mikuCooldownTime = new TimeSpan(0, 0, 39); // test 39sec
+        _mikuMentioned = DateTime.Now - _mikuCooldownTime;
         _mikuRegex = @"(?i)\b(miku|hatsune|初音ミク|初音|ミク)\b";
-        _mikuReply = ":three: :nine: Oi, mite, mite, <@358915848515354626> -chan!";
+        _mikuReply =
+            "(:three: :nine:|:microphone:|:notes:|:musical_note:|:musical_keyboard:|:mirror_ball:) " +
+            "(Oi, mite, mite,|Heya,|Hey, look,|Did someone mention Miku?) " +
+            "<@358915848515354626> (-chan|)!";
         //_mikuReply = "Oi, mite, mite, <@427306565184389132> ! :three: :nine:"; // test
 
         /*
@@ -541,7 +545,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             return;
 
         _mikuMentioned = now;
-        await messageParam.Channel.SendMessageAsync(_mikuReply);
+        var reply = FuzzTable.Evaluate(_mikuReply);
+        await messageParam.Channel.SendMessageAsync(reply);
     }
 
     public async Task CodeCheck(SocketMessage messageParam)
