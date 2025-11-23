@@ -1,6 +1,8 @@
 // FuzzTable.cs
 //
 using System;
+using System.IO;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 namespace DiscordBot.Data;
