@@ -9,6 +9,7 @@ using DiscordBot.Settings;
 using DiscordBot.Utils;
 using HtmlAgilityPack;
 using DiscordBot.Attributes;
+using DiscordBot.Data;
 
 namespace DiscordBot.Modules;
 
@@ -31,6 +32,8 @@ public class UserModule : ModuleBase
     #endregion
         
     private readonly Random _random = new();
+    private FuzzTable _slapObjects = new();
+    private FuzzTable _slapFails = new();
         
     [Command("Help"), Priority(100)]
     [Summary("Does what you see now.")]
@@ -624,10 +627,20 @@ public class UserModule : ModuleBase
 
         var uname = Context.User.GetUserPreferredName();
 
-        if (Settings.UserModuleSlapChoices == null || Settings.UserModuleSlapChoices.Count == 0)
-            Settings.UserModuleSlapChoices = new List<string>() { "fish", "mallet" };
-        if (Settings.UserModuleSlapFails == null || Settings.UserModuleSlapFails.Count == 0)
-            Settings.UserModuleSlapFails = new List<string>() { "hurting themselves" };
+        if (_slapObjects.Count == 0)
+            _slapObjects.Add(Settings.UserModuleSlapChoices);
+        if (_slapObjects.Count == 0)
+            _slapObjects.Add("fish|mallet");
+
+        if (_slapFails.Count == 0)
+            _slapFails.Add(Settings.UserModuleSlapFails);
+        if (_slapFails.Count == 0)
+            _slapFails.Add("hurting themselves");
+
+        // if (Settings.UserModuleSlapChoices == null || Settings.UserModuleSlapChoices.Count == 0)
+        //     Settings.UserModuleSlapChoices = new List<string>() { "fish", "mallet" };
+        // if (Settings.UserModuleSlapFails == null || Settings.UserModuleSlapFails.Count == 0)
+        //     Settings.UserModuleSlapFails = new List<string>() { "hurting themselves" };
 
         bool fail = (_random.Next(1, 100) < 5);
 
@@ -642,9 +655,11 @@ public class UserModule : ModuleBase
         if (fail)
         {
             sb.Append(" around a bit with a large ");
-            sb.Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]);
+            sb.Append(_slapObjects.Pick(true));
+            //sb.Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]);
             sb.Append(", but misses and ends up ");
-            sb.Append(Settings.UserModuleSlapFails[_random.Next() % Settings.UserModuleSlapFails.Count]);
+            sb.Append(_slapFails.Pick(true));
+            //sb.Append(Settings.UserModuleSlapFails[_random.Next() % Settings.UserModuleSlapFails.Count]);
             sb.Append(".");
         }
         else
