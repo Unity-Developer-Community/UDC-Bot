@@ -32,6 +32,8 @@ public class FuzzTable
 		recent.Clear();
 	}
 
+	public int Count => choices.Count + recent.Count;
+
 	// Add a string as a valid choice from which to pick.
 	// Note that empty strings or whitespace can be added manually as valid choices.
 	// Duplicate choices are also allowed for weighting.
