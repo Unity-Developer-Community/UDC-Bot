@@ -627,8 +627,13 @@ public class UserModule : ModuleBase
 
         var uname = Context.User.GetUserPreferredName();
 
+        var cwd = System.IO.Directory.GetCurrentDirectory();
+
         if (_slapObjects.Count == 0)
+        {
             _slapObjects.Load(Settings.UserModuleSlapObjectsTable);
+            await Context.Channel.SendMessageAsync($"cwd {cwd} slap {_slapObjects.Count}");
+        }
         if (_slapObjects.Count == 0)
             _slapObjects.Add(Settings.UserModuleSlapChoices);
         if (_slapObjects.Count == 0)
