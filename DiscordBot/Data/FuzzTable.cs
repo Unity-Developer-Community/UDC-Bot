@@ -45,12 +45,12 @@ public class FuzzTable
 
 	// Add a collection of choice strings all at once.
 	//
-	public void Add(IEnumerable<string> newChoices)
+	public void Add(IEnumerable<string> stream)
 	{
-		if (newChoices == null)
+		if (stream == null)
 			return;
-		foreach (var addition in newChoices)
-			Add(addition);
+		foreach (var choice in stream)
+			Add(choice);
 	}
 
 	// Load a file of string choices.
