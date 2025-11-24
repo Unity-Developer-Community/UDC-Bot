@@ -43,6 +43,16 @@ public class FuzzTable
 		choices.Add(choice);
 	}
 
+	// Add a collection of choice strings all at once.
+	//
+	public void Add(IEnumerable<string> newChoices)
+	{
+		if (newChoices == null)
+			return;
+		foreach (var addition in newChoices)
+			Add(addition);
+	}
+
 	// Load a file of string choices.
 	// Lines starting with a '#' character are ignored, as are blank lines.
 	// Each remaining line of the file is trimmed of leading and trailing whitespace.
