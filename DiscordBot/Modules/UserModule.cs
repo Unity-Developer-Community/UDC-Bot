@@ -623,14 +623,19 @@ public class UserModule : ModuleBase
     [Summary("Slap the specified user(s). Syntax : !slap @user1 [@user2 @user3...]")]
     public async Task SlapUser(params IUser[] users)
     {
-        if (_slapObjects.Count == 0)
-            _slapObjects.Load(Settings.UserModuleSlapObjectsTable);
-// var cwd = System.IO.Directory.GetCurrentDirectory();
-// await Context.Channel.SendMessageAsync($"cwd {cwd} slap {_slapObjects.Count}");
-        if (_slapObjects.Count == 0)
-            _slapObjects.Add(Settings.UserModuleSlapChoices);
-        if (_slapObjects.Count == 0)
-            _slapObjects.Add("fish|mallet");
+        try
+        {
+            if (_slapObjects.Count == 0)
+                _slapObjects.Load(Settings.UserModuleSlapObjectsTable);
+            if (_slapObjects.Count == 0)
+                _slapObjects.Add(Settings.UserModuleSlapChoices);
+            if (_slapObjects.Count == 0)
+                _slapObjects.Add("fish|mallet");
+        }
+        catch (Exception e)
+        {
+            await Context.Chanel.SendMessageAsync(e.ToString());
+        }
 
         if (_slapFails.Count == 0)
             _slapFails.Add(Settings.UserModuleSlapFails);
