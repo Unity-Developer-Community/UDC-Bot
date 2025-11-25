@@ -160,7 +160,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _client.MessageReceived += UpdateXp;
         _client.MessageReceived += Thanks;
         _client.MessageUpdated += ThanksEdited;
-        _client.MessageReceived += MikuCheck;
+        //_client.MessageReceived += MikuCheck;
         _client.MessageReceived += CodeCheck;
         _client.MessageReceived += ScoldForAtEveryoneUsage;
         _client.MessageReceived += AutoCreateThread;
