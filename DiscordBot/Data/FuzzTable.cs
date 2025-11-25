@@ -57,9 +57,12 @@ public class FuzzTable
 	// Lines starting with a '#' character are ignored, as are blank lines.
 	// Each remaining line of the file is trimmed of leading and trailing whitespace.
 	// Each line is added as a new choice, and duplicates are allowed for weighting.
+	// If the file is missing, nothing is done, but any other exception is thrown.
 	//
 	public void Load(string filename)
 	{
+		if (!File.Exists(filename))
+			return;
 		foreach (string line in File.ReadLines(filename))
 		{
 			string choice = line.Trim();
