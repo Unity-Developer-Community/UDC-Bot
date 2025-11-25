@@ -631,7 +631,7 @@ public class UserModule : ModuleBase
         catch (Exception e)
         {
             await LoggingService.LogAction($"Error while loading {Settings.UserModuleSlapObjectsTable}.\nEx:{e}",
-                ExtendedLogSeverity.LowWarning();
+                ExtendedLogSeverity.LowWarning());
         }
         if (_slapObjects.Count == 0)
             _slapObjects.Add(Settings.UserModuleSlapChoices);
