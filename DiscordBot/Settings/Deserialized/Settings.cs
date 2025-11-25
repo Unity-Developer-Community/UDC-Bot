@@ -25,7 +25,9 @@ public class BotSettings
 
     #region Fun Commands
 
-    //NOTE: Deserializer will not override a List<string> from the file if a default one is made here.
+    public string UserModuleSlapObjectsTable { get; set; } = null;
+        // = "udc-slap.txt"
+    //NOTE: Deserializer will not override a List<string> from the json if a default one is made here.
     public List<string> UserModuleSlapChoices { get; set; }
         // = { "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan",
         //     "life choice", "bug report", "unhandled exception", "null pointer", "keyboard",

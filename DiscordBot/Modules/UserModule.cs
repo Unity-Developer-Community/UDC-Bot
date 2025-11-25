@@ -623,10 +623,16 @@ public class UserModule : ModuleBase
     [Summary("Slap the specified user(s). Syntax : !slap @user1 [@user2 @user3...]")]
     public async Task SlapUser(params IUser[] users)
     {
-        var sb = new StringBuilder();
-
-        var uname = Context.User.GetUserPreferredName();
-
+        try
+        {
+            if (_slapObjects.Count == 0)
+                _slapObjects.Load(Settings.UserModuleSlapObjectsTable);
+        }
+        catch (Exception e)
+        {
+            await LoggingService.LogChannelAndFile($"Error while loading '{Settings.UserModuleSlapObjectsTable}'.\nEx:{e}",
+                ExtendedLogSeverity.LowWarning);
+        }
         if (_slapObjects.Count == 0)
             _slapObjects.Add(Settings.UserModuleSlapChoices);
         if (_slapObjects.Count == 0)
@@ -637,35 +643,25 @@ public class UserModule : ModuleBase
         if (_slapFails.Count == 0)
             _slapFails.Add("hurting themselves");
 
-        // if (Settings.UserModuleSlapChoices == null || Settings.UserModuleSlapChoices.Count == 0)
-        //     Settings.UserModuleSlapChoices = new List<string>() { "fish", "mallet" };
-        // if (Settings.UserModuleSlapFails == null || Settings.UserModuleSlapFails.Count == 0)
-        //     Settings.UserModuleSlapFails = new List<string>() { "hurting themselves" };
+        var sb = new StringBuilder();
+        var uname = Context.User.GetUserPreferredName();
+        var mentions = users.ToMentionArray().ToCommaList();
 
         bool fail = (_random.Next(1, 100) < 5);
-
-        if (fail)
-            sb.Append($"**{uname}** tries to slap ");
-        else
-            sb.Append($"**{uname}** slaps ");
-
-        var mentions = users.ToMentionArray();
-        sb.Append(mentions.ToCommaList());
-
         if (fail)
         {
+            sb.Append($"**{uname}** tries to slap {mentions} ");
             sb.Append(" around a bit with a large ");
             sb.Append(_slapObjects.Pick(true));
-            //sb.Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]);
             sb.Append(", but misses and ends up ");
             sb.Append(_slapFails.Pick(true));
-            //sb.Append(Settings.UserModuleSlapFails[_random.Next() % Settings.UserModuleSlapFails.Count]);
             sb.Append(".");
         }
         else
         {
+            sb.Append($"**{uname}** slaps {mentions} ");
             sb.Append(" around a bit with a large ");
-            sb.Append(Settings.UserModuleSlapChoices[_random.Next() % Settings.UserModuleSlapChoices.Count]);
+            sb.Append(_slapObjects.Pick(true));
             sb.Append(".");
         }
 
