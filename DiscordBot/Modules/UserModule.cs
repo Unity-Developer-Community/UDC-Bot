@@ -634,7 +634,7 @@ public class UserModule : ModuleBase
         }
         catch (Exception e)
         {
-            await Context.Chanel.SendMessageAsync(e.ToString());
+            await Context.Channel.SendMessageAsync(e.ToString());
         }
 
         if (_slapFails.Count == 0)
