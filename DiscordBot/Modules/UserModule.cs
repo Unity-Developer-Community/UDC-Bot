@@ -625,8 +625,8 @@ public class UserModule : ModuleBase
     {
         if (_slapObjects.Count == 0)
             _slapObjects.Load(Settings.UserModuleSlapObjectsTable);
-var cwd = System.IO.Directory.GetCurrentDirectory();
-await Context.Channel.SendMessageAsync($"cwd {cwd} slap {_slapObjects.Count}");
+// var cwd = System.IO.Directory.GetCurrentDirectory();
+// await Context.Channel.SendMessageAsync($"cwd {cwd} slap {_slapObjects.Count}");
         if (_slapObjects.Count == 0)
             _slapObjects.Add(Settings.UserModuleSlapChoices);
         if (_slapObjects.Count == 0)
