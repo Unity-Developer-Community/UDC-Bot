@@ -627,15 +627,16 @@ public class UserModule : ModuleBase
         {
             if (_slapObjects.Count == 0)
                 _slapObjects.Load(Settings.UserModuleSlapObjectsTable);
-            if (_slapObjects.Count == 0)
-                _slapObjects.Add(Settings.UserModuleSlapChoices);
-            if (_slapObjects.Count == 0)
-                _slapObjects.Add("fish|mallet");
         }
         catch (Exception e)
         {
-            await Context.Channel.SendMessageAsync(e.ToString());
+            await LoggingService.LogAction($"Error while loading {Settings.UserModuleSlapObjectsTable}.\nEx:{e}",
+                ExtendedLogSeverity.LowWarning();
         }
+        if (_slapObjects.Count == 0)
+            _slapObjects.Add(Settings.UserModuleSlapChoices);
+        if (_slapObjects.Count == 0)
+            _slapObjects.Add("fish|mallet");
 
         if (_slapFails.Count == 0)
             _slapFails.Add(Settings.UserModuleSlapFails);
