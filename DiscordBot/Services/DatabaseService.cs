@@ -80,6 +80,14 @@ public class DatabaseService
                     await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.DefaultCity}' to table '{UserProps.TableName}'.",
                         ExtendedLogSeverity.Positive);
                 }
+                
+                var birthdayExists = await c.ColumnExists(UserProps.TableName, UserProps.Birthday);
+                if (!birthdayExists)
+                {
+                    c.ExecuteSql($"ALTER TABLE `{UserProps.TableName}` ADD `{UserProps.Birthday}` datetime DEFAULT NULL AFTER `{UserProps.DefaultCity}`");
+                    await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.Birthday}' to table '{UserProps.TableName}'.",
+                        ExtendedLogSeverity.Positive);
+                }
             }
             catch
             {
@@ -105,6 +113,10 @@ public class DatabaseService
                     // "DefaultCity" Nullable - Weather, BDay, Temp, Time, etc. Optional for users to set their own city (Added - Jan 2024)
                     c.ExecuteSql(
                         $"ALTER TABLE `{UserProps.TableName}` ADD `{UserProps.DefaultCity}` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER `{UserProps.Level}`");
+                    
+                    // "Birthday" Nullable - Birthday for user (Added for database birthday feature)
+                    c.ExecuteSql(
+                        $"ALTER TABLE `{UserProps.TableName}` ADD `{UserProps.Birthday}` datetime DEFAULT NULL AFTER `{UserProps.DefaultCity}`");
                 }
                 catch (Exception e)
                 {

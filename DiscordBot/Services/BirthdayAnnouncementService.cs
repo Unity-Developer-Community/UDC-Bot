@@ -15,20 +15,18 @@ public class BirthdayAnnouncementService
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
     private readonly BotSettings _settings;
+    private readonly DatabaseService _databaseService;
     
     // Track birthdays that have been announced today to avoid spam
     private readonly HashSet<string> _announcedToday = new();
     private DateTime _lastAnnouncementDate = DateTime.Today;
     
-    // URLs for birthday data from the existing !bday command
-    private const string NextBirthdayUrl = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&range=C15:C15";
-    private const string BirthdayTableUrl = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
-    
-    public BirthdayAnnouncementService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings)
+    public BirthdayAnnouncementService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings, DatabaseService databaseService)
     {
         _client = client;
         _loggingService = loggingService;
         _settings = settings;
+        _databaseService = databaseService;
         
         Initialize();
     }
@@ -102,7 +100,7 @@ public class BirthdayAnnouncementService
             
             foreach (var birthday in todaysBirthdays)
             {
-                var announcementKey = $"{birthday.Name}-{DateTime.Today:yyyy-MM-dd}";
+                var announcementKey = $"{birthday.UserId}-{DateTime.Today:yyyy-MM-dd}";
                 
                 if (_announcedToday.Contains(announcementKey))
                 {
@@ -113,7 +111,7 @@ public class BirthdayAnnouncementService
                 await channel.SendMessageAsync(message);
                 
                 _announcedToday.Add(announcementKey);
-                _loggingService.LogAction($"[{ServiceName}] Announced birthday for {birthday.Name}", ExtendedLogSeverity.Info);
+                _loggingService.LogAction($"[{ServiceName}] Announced birthday for {birthday.Name} (ID: {birthday.UserId})", ExtendedLogSeverity.Info);
             }
         }
         catch (Exception e)
@@ -128,38 +126,43 @@ public class BirthdayAnnouncementService
         
         try
         {
-            var relevantNodes = await WebUtil.GetHtmlNodes(BirthdayTableUrl, "/html/body/table/tr");
-            if (relevantNodes == null)
+            var todaysBirthdayUsers = await _databaseService.Query.GetTodaysBirthdays();
+            
+            if (todaysBirthdayUsers == null || todaysBirthdayUsers.Count == 0)
             {
                 return birthdays;
             }
             
-            var today = DateTime.Today;
-            
-            foreach (var row in relevantNodes)
+            var guild = _client.GetGuild(_settings.GuildId);
+            if (guild == null)
             {
-                var nameNode = row.SelectSingleNode("td[2]");
-                var dateNode = row.SelectSingleNode("td[1]");
-                var yearNode = row.SelectSingleNode("td[3]");
+                _loggingService.LogAction($"[{ServiceName}] Could not find guild with ID {_settings.GuildId}", ExtendedLogSeverity.Warning);
+                return birthdays;
+            }
+            
+            foreach (var userRecord in todaysBirthdayUsers)
+            {
+                if (userRecord.Birthday == null) continue;
                 
-                if (nameNode == null || dateNode == null) continue;
+                var userId = ulong.Parse(userRecord.UserID);
+                var user = guild.GetUser(userId);
                 
-                var name = nameNode.InnerText?.Trim();
-                if (string.IsNullOrEmpty(name)) continue;
-                
-                var dateString = dateNode.InnerText?.Trim();
-                if (string.IsNullOrEmpty(dateString)) continue;
-                
-                // Try to parse the birthday date
-                if (TryParseBirthdayDate(dateString, yearNode?.InnerText, out var birthDate))
+                if (user == null)
                 {
-                    // Check if this birthday is today (ignoring year)
-                    if (birthDate.Month == today.Month && birthDate.Day == today.Day)
-                    {
-                        var age = CalculateAge(birthDate, today);
-                        birthdays.Add(new BirthdayInfo { Name = name, BirthDate = birthDate, Age = age });
-                    }
+                    // User may have left the guild, log but continue
+                    _loggingService.LogAction($"[{ServiceName}] User {userId} not found in guild", ExtendedLogSeverity.LowWarning);
+                    continue;
                 }
+                
+                var age = CalculateAge(userRecord.Birthday.Value, DateTime.Today);
+                birthdays.Add(new BirthdayInfo 
+                { 
+                    Name = user.DisplayName ?? user.Username, 
+                    BirthDate = userRecord.Birthday.Value, 
+                    Age = age,
+                    UserId = userId,
+                    UserMention = user.Mention
+                });
             }
         }
         catch (Exception e)
@@ -170,40 +173,11 @@ public class BirthdayAnnouncementService
         return birthdays;
     }
     
-    private bool TryParseBirthdayDate(string dateString, string yearString, out DateTime birthDate)
-    {
-        birthDate = default;
-        
-        try
-        {
-            var provider = CultureInfo.InvariantCulture;
-            
-            // Add year if available and not empty
-            if (!string.IsNullOrEmpty(yearString) && !yearString.Contains("&nbsp;"))
-            {
-                dateString = $"{dateString}/{yearString.Trim()}";
-                birthDate = DateTime.ParseExact(dateString, "M/d/yyyy", provider);
-            }
-            else
-            {
-                // Parse without year, assume current year for calculation
-                var tempDate = DateTime.ParseExact(dateString, "M/d", provider);
-                birthDate = new DateTime(DateTime.Today.Year, tempDate.Month, tempDate.Day);
-            }
-            
-            return true;
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
-    }
-    
     private int? CalculateAge(DateTime birthDate, DateTime today)
     {
-        if (birthDate.Year == today.Year)
+        if (birthDate.Year == 1900 || birthDate.Year == today.Year)
         {
-            return null; // No year information available
+            return null; // No year information available or invalid year
         }
         
         var age = today.Year - birthDate.Year;
@@ -217,7 +191,7 @@ public class BirthdayAnnouncementService
     
     private string FormatBirthdayAnnouncement(BirthdayInfo birthday)
     {
-        var message = $"🎉 **Happy Birthday {birthday.Name}!** 🎂";
+        var message = $"🎉 **Happy Birthday {birthday.UserMention}!** 🎂";
         
         if (birthday.Age.HasValue)
         {
@@ -264,4 +238,6 @@ public class BirthdayInfo
     public string Name { get; set; }
     public DateTime BirthDate { get; set; }
     public int? Age { get; set; }
+    public ulong UserId { get; set; }
+    public string UserMention { get; set; }
 }
