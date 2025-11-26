@@ -42,7 +42,22 @@ public class DatabaseService
         }
     }
 
+    private IBadgeRepo CreateBadgeQuery()
+    {
+        try
+        {
+            var c = new MySqlConnection(ConnectionString);
+            return c.As<IBadgeRepo>();
+        }
+        catch (Exception e)
+        {
+            _logging.LogChannelAndFile($"SQL Exception: Failed to create badge query.\nMessage: {e}", ExtendedLogSeverity.Critical);
+            return null;
+        }
+    }
+
     public IServerUserRepo Query => CreateQuery();
+    public IBadgeRepo BadgeQuery => CreateBadgeQuery();
     public ICasinoRepo CasinoQuery => CreateCasinoQuery();
 
     public DatabaseService(ILoggingService logging, BotSettings settings)
@@ -80,6 +95,9 @@ public class DatabaseService
                     await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.DefaultCity}' to table '{UserProps.TableName}'.",
                         ExtendedLogSeverity.Positive);
                 }
+
+                // Initialize badge tables
+                await InitializeBadgeTables(c);
             }
             catch
             {
@@ -305,5 +323,74 @@ public class DatabaseService
     public async Task<bool> UserExists(ulong id)
     {
         return (await Query.GetUser(id.ToString()) != null);
+    }
+
+    private async Task InitializeBadgeTables(DbConnection c)
+    {
+        try
+        {
+            // Test badge connection, if it fails we create the tables
+            var badgeCount = await BadgeQuery.TestBadgeConnection();
+            await _logging.LogAction(
+                $"DatabaseService: Connected to badge tables successfully. {badgeCount} badges in database.",
+                ExtendedLogSeverity.Positive);
+
+            // Check if IsPublic column exists, if not add it (for existing installations)
+            try
+            {
+                c.ExecuteSql($"SELECT {BadgeProps.IsPublic} FROM {BadgeProps.TableName} LIMIT 1");
+            }
+            catch
+            {
+                // Column doesn't exist, add it
+                await _logging.LogAction("DatabaseService: Adding IsPublic column to badges table.",
+                    ExtendedLogSeverity.LowWarning);
+                c.ExecuteSql($"ALTER TABLE `{BadgeProps.TableName}` ADD COLUMN `{BadgeProps.IsPublic}` tinyint(1) NOT NULL DEFAULT 1");
+                await _logging.LogAction("DatabaseService: IsPublic column added successfully.",
+                    ExtendedLogSeverity.Positive);
+            }
+        }
+        catch
+        {
+            await _logging.LogAction($"DatabaseService: Badge tables do not exist, attempting to generate tables.",
+                ExtendedLogSeverity.LowWarning);
+            try
+            {
+                // Create badges table
+                c.ExecuteSql(
+                    $"CREATE TABLE `{BadgeProps.TableName}` (" +
+                    $"`{BadgeProps.Id}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
+                    $"`{BadgeProps.Title}` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                    $"`{BadgeProps.Description}` text COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                    $"`{BadgeProps.IsPublic}` tinyint(1) NOT NULL DEFAULT 1, " +
+                    $"`{BadgeProps.CreatedAt}` datetime NOT NULL, " +
+                    $"PRIMARY KEY (`{BadgeProps.Id}`), " +
+                    $"UNIQUE KEY `{BadgeProps.Title}` (`{BadgeProps.Title}`) " +
+                    $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+                // Create user_badges table
+                c.ExecuteSql(
+                    $"CREATE TABLE `{UserBadgeProps.TableName}` (" +
+                    $"`{UserBadgeProps.Id}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
+                    $"`{UserBadgeProps.UserID}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                    $"`{UserBadgeProps.BadgeId}` int(11) UNSIGNED NOT NULL, " +
+                    $"`{UserBadgeProps.AwardedAt}` datetime NOT NULL, " +
+                    $"`{UserBadgeProps.AwardedBy}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
+                    $"PRIMARY KEY (`{UserBadgeProps.Id}`), " +
+                    $"UNIQUE KEY `user_badge_unique` (`{UserBadgeProps.UserID}`, `{UserBadgeProps.BadgeId}`), " +
+                    $"KEY `{UserBadgeProps.BadgeId}` (`{UserBadgeProps.BadgeId}`), " +
+                    $"CONSTRAINT `user_badges_ibfk_1` FOREIGN KEY (`{UserBadgeProps.BadgeId}`) REFERENCES `{BadgeProps.TableName}` (`{BadgeProps.Id}`) ON DELETE CASCADE " +
+                    $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+                await _logging.LogAction("DatabaseService: Badge tables generated without errors.",
+                    ExtendedLogSeverity.Positive);
+            }
+            catch (Exception e)
+            {
+                await _logging.LogAction(
+                    $"SQL Exception: Failed to generate badge tables.\nMessage: {e}",
+                    ExtendedLogSeverity.Critical);
+            }
+        }
     }
 }
