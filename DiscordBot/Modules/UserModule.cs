@@ -632,6 +632,7 @@ public class UserModule : ModuleBase
         {
             await LoggingService.LogChannelAndFile($"Error while loading '{Settings.UserModuleSlapObjectsTable}'.\nEx:{e}",
                 ExtendedLogSeverity.LowWarning);
+            return;
         }
         if (_slapObjects.Count == 0)
             _slapObjects.Add(Settings.UserModuleSlapChoices);
@@ -643,15 +644,24 @@ public class UserModule : ModuleBase
         if (_slapFails.Count == 0)
             _slapFails.Add("hurting themselves");
 
-        var sb = new StringBuilder();
         var uname = Context.User.GetUserPreferredName();
+
+        if (users == null || users.Length == 0)
+        {
+            await Context.Channel.SendMessageAsync(
+                $"**{uname}** slaps away an invisible pest.");
+            await Context.Message.DeleteAfterSeconds(seconds: 1);
+            return;
+        }
+
+        var sb = new StringBuilder();
         var mentions = users.ToMentionArray().ToCommaList();
 
         bool fail = (_random.Next(1, 100) < 5);
         if (fail)
         {
             sb.Append($"**{uname}** tries to slap {mentions} ");
-            sb.Append(" around a bit with a large ");
+            sb.Append("around a bit with a large ");
             sb.Append(_slapObjects.Pick(true));
             sb.Append(", but misses and ends up ");
             sb.Append(_slapFails.Pick(true));
@@ -660,7 +670,7 @@ public class UserModule : ModuleBase
         else
         {
             sb.Append($"**{uname}** slaps {mentions} ");
-            sb.Append(" around a bit with a large ");
+            sb.Append("around a bit with a large ");
             sb.Append(_slapObjects.Pick(true));
             sb.Append(".");
         }
