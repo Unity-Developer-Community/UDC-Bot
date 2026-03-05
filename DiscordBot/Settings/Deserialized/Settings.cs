@@ -168,7 +168,7 @@ public class BotSettings
 
     // Daily Reward Settings
     public ulong CasinoDailyRewardTokens { get; set; } = 100;
-    public int CasinoDailyRewardIntervalSeconds { get; set; } = 86400; // 24 hours = 86400 seconds
+    public int CasinoDailyRewardIntervalDays { get; set; } = 1; // Number of days between rewards
 
     #endregion // Casino Settings
 
