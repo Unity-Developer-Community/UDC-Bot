@@ -42,7 +42,6 @@ public class BotSettings
     
     public bool RecruitmentServiceEnabled { get; set; } = false;
     public bool UnityHelpBabySitterEnabled { get; set; } = false;
-    public bool ReactRoleServiceEnabled { get; set; } = false;
     public bool IntroductionWatcherServiceEnabled { get; set; } = false;
 
     #endregion // Service Enabling

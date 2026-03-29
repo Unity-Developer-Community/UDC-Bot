@@ -102,7 +102,6 @@ public class Program
             .AddSingleton<RecruitService>()
             .AddSingleton<UpdateService>()
             .AddSingleton<CurrencyService>()
-            .AddSingleton<ReactRoleService>()
             .AddSingleton<ReminderService>()
             .AddSingleton<WeatherService>()
             .AddSingleton<AirportService>()

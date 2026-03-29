@@ -102,8 +102,6 @@
     "desc": "Unity-Help Channel",
     "id": "0"
   },
-  /* React Role Service */
-  "ReactRoleServiceEnabled": false,
   /* Birthday Announcement Service */
   "BirthdayAnnouncementEnabled": true,
   "BirthdayCheckIntervalMinutes": 240, // Check every 4 hours
