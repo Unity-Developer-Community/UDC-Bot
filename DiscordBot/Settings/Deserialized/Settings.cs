@@ -6,7 +6,7 @@ public class BotSettings
 
     public string Token { get; set; }
     public string Invite { get; set; }
-    
+
     public string DbConnectionString { get; set; }
     public string ServerRootPath { get; set; }
     public char Prefix { get; set; }
@@ -14,7 +14,7 @@ public class BotSettings
     public bool LogCommandExecutions { get; set; } = true;
 
     #endregion // Important 
-    
+
     #region Configuration
 
     public int WelcomeMessageDelaySeconds { get; set; } = 300;
@@ -26,20 +26,19 @@ public class BotSettings
     #region Fun Commands
 
     public string UserModuleSlapObjectsTable { get; set; } = null;
-        // = "udc-slap.txt"
     //NOTE: Deserializer will not override a List<string> from the json if a default one is made here.
     public List<string> UserModuleSlapChoices { get; set; }
-        // = { "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan",
-        //     "life choice", "bug report", "unhandled exception", "null pointer", "keyboard",
-        //     "cheese wheel", "banana peel", "unresolved bug", "low poly donut" };
+    // = { "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan",
+    //     "life choice", "bug report", "unhandled exception", "null pointer", "keyboard",
+    //     "cheese wheel", "banana peel", "unresolved bug", "low poly donut" };
     public List<string> UserModuleSlapFails { get; set; }
-        // = { "hurting themselves" };
-    
+    // = { "hurting themselves" };
+
     #endregion // Fun Commands
 
     #region Service Enabling
     // Used for enabling/disabling services in the bot
-    
+
     public bool RecruitmentServiceEnabled { get; set; } = false;
     public bool UnityHelpBabySitterEnabled { get; set; } = false;
     public bool IntroductionWatcherServiceEnabled { get; set; } = false;
@@ -47,11 +46,11 @@ public class BotSettings
     #endregion // Service Enabling
 
     #region Birthday Announcements
-    
+
     public bool BirthdayAnnouncementEnabled { get; set; } = true;
     public int BirthdayCheckIntervalMinutes { get; set; } = 240; // Check every 4 hours by default
     public ChannelInfo BirthdayAnnouncementChannel { get; set; }
-    
+
     #endregion // Birthday Announcements
 
     #endregion // Configuration
@@ -67,13 +66,13 @@ public class BotSettings
     public int EmailSMTPPort { get; set; }
 
     #endregion // Asset Publisher
-    
+
     #region Channels
-    
+
     public ChannelInfo IntroductionChannel { get; set; }
     public ChannelInfo GeneralChannel { get; set; }
     public ChannelInfo GenericHelpChannel { get; set; }
-    
+
     public ChannelInfo BotAnnouncementChannel { get; set; }
     public ChannelInfo AnnouncementsChannel { get; set; }
     public ChannelInfo BotCommandsChannel { get; set; }
@@ -82,13 +81,13 @@ public class BotSettings
     public ChannelInfo RulesChannel { get; set; }
 
     // Recruitment Channels
-    
+
     public ChannelInfo RecruitmentChannel { get; set; }
 
     public ChannelInfo ReportedMessageChannel { get; set; }
-    
+
     public ChannelInfo MemeChannel { get; set; }
-    
+
     #region Complaint Channel
 
     public ulong ComplaintCategoryId { get; set; }
@@ -104,7 +103,7 @@ public class BotSettings
     public List<string> AutoThreadExclusionPrefixes { get; set; } = new List<string>();
 
     #endregion // Auto-Threads
-    
+
     #endregion // Channels
 
     #region User Roles
@@ -121,26 +120,26 @@ public class BotSettings
     #endregion // User Roles
 
     #region Recruitment Thread
-    
+
     public string TagLookingToHire { get; set; }
     public string TagLookingForWork { get; set; }
     public string TagUnpaidCollab { get; set; }
     public string TagPositionFilled { get; set; }
-    
+
     public int EditPermissionAccessTimeMin { get; set; } = 3;
 
     #endregion // Recruitment Thread Tags
 
     #region Unity Help Threads
-    
+
     #region Tips
-    
+
     public string TipImageDirectory { get; set; }
 
     public int TipMaxImageFileSize { get; set; } = 1024 * 1024 * 10; // 10MB
     // Unlikely, but we prevent exploitation by limiting the max directory size to avoid VPS disk space issues
     public int TipMaxDirectoryFileSize { get; set; } = 1024 * 1024 * 1024; // 1GB
-    
+
     #endregion // Tips
 
     public string TagUnitHelpResolvedTag { get; set; }
@@ -177,7 +176,7 @@ public class BotSettings
     public string WikipediaSearchPage { get; set; }
 
     #endregion // Other
-    
+
 }
 
 #region Role Group Collections
