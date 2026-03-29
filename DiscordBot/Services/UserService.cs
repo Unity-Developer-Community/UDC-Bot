@@ -16,7 +16,7 @@ namespace DiscordBot.Services;
 public class UserService
 {
     private const string ServiceName = "UserService";
-    
+
     private readonly HashSet<ulong> _canEditThanks; //Doesn't need to be saved
     private readonly DiscordSocketClient _client;
     public readonly string CodeFormattingExample;
@@ -48,7 +48,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     private readonly TimeSpan _mikuCooldownTime;
     private readonly string _mikuRegex;
     private readonly string _mikuReply;
-    
+
     private readonly UpdateService _updateService;
 
     private readonly Dictionary<ulong, DateTime> _xpCooldown;
@@ -172,7 +172,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
         LoadData();
         UpdateLoop();
-      
+
         Task.Run(DelayedWelcomeService);
     }
 
@@ -238,7 +238,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var userId = messageParam.Author.Id;
         if (_xpCooldown.HasUser(userId))
             return;
-        
+
         var waitTime = _rand.Next(_xpMinCooldown, _xpMaxCooldown);
         float baseXp = _rand.Next(_xpMinPerMessage, _xpMaxPerMessage);
         float bonusXp = 0;
@@ -250,7 +250,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var user = await _databaseService.GetOrAddUser((SocketGuildUser)messageParam.Author);
             if (user == null)
                 return;
-        
+
             bonusXp += baseXp * (1f + user.Karma / 100f);
 
             //Reduce XP for members with no role
@@ -322,7 +322,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var dbRepo = _databaseService.Query;
             if (dbRepo == null)
                 return profileCardPath;
-            
+
             var userData = await dbRepo.GetUser(user.Id.ToString());
 
             var xpTotal = userData.Exp;
@@ -424,7 +424,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         {
             await _loggingService.LogChannelAndFile($"Failed to generate profile card for {user.Username}.\nEx:{e.Message}", ExtendedLogSeverity.LowWarning);
         }
-        
+
         if (!string.IsNullOrEmpty(profileCardPath))
             await Task.Delay(100);
 
@@ -435,7 +435,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         string icon = user.GetAvatarUrl();
         icon = string.IsNullOrEmpty(icon) ? "https://cdn.discordapp.com/embed/avatars/0.png" : icon;
-        
+
         string welcomeString = $"Welcome to Unity Developer Community, {user.GetPreferredAndUsername()}!";
         var builder = new EmbedBuilder()
             .WithDescription(welcomeString)
@@ -456,7 +456,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         if (_canEditThanks.Contains(messageParam.Id)) await Thanks(messageParam);
     }
-    
+
     public async Task Thanks(SocketMessage messageParam)
     {
         //Get guild id
@@ -557,7 +557,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         // We just ignore anything if it is under 200 characters
         if (messageParam.Content.Length < 200)
             return;
-        
+
         var userId = messageParam.Author.Id;
 
         //Simple check to cover most large code posting cases without being an issue for most non-code messages
@@ -653,16 +653,16 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             await ProcessWelcomeUser(user.Id, user.Value);
         }
     }
-    
+
     private async Task CheckForWelcomeMessage(SocketMessage messageParam)
     {
         if (_welcomeNoticeUsers.Count == 0)
             return;
-        
+
         var user = messageParam.Author;
         if (user.IsBot)
             return;
-        
+
         if (_welcomeNoticeUsers.Exists(u => u.id == user.Id))
         {
             _welcomeNoticeUsers.RemoveAll(u => u.id == user.Id);
@@ -722,10 +722,10 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 {
                     currentlyProcessedUserId = userData.id;
                     await ProcessWelcomeUser(userData.id, null);
-                    
+
                     toRemove.Add(userData.id);
                 }
-                
+
                 // Remove all the users we've welcomed from the list
                 if (toRemove.Count > 0)
                 {
@@ -747,7 +747,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         {
             // Catch and show exception
             await _loggingService.LogChannelAndFile($"{ServiceName} Exception during welcome message `{currentlyProcessedUserId}`.\n{e.Message}.", ExtendedLogSeverity.Warning);
-            
+
             // Remove the offending user from the dictionary and run the service again.
             _welcomeNoticeUsers.RemoveAll(u => u.id == currentlyProcessedUserId);
             if (_welcomeNoticeUsers.Count > 200)
