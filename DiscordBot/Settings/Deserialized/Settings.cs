@@ -97,13 +97,6 @@ public class BotSettings
 
     #endregion // Complaint Channel
 
-    #region Auto-Threads
-
-    public List<AutoThreadChannel> AutoThreadChannels { get; set; } = new List<AutoThreadChannel>();
-    public List<string> AutoThreadExclusionPrefixes { get; set; } = new List<string>();
-
-    #endregion // Auto-Threads
-
     #endregion // Channels
 
     #region User Roles
@@ -197,37 +190,6 @@ public class ChannelInfo
 {
     public string Desc { get; set; }
     public ulong Id { get; set; }
-}
-
-public class AutoThreadChannel
-{
-    public string Title { get; set; }
-    public ulong Id { get; set; }
-    public bool CanArchive { get; set; } = false;
-    public bool CanDelete { get; set; } = false;
-    public string TitleArchived { get; set; }
-    public string FirstMessage { get; set; }
-    public string Duration { get; set; }
-
-    private static string AuthorName(IUser author)
-    {
-        return ((IGuildUser)author).Nickname ?? author.Username;
-    }
-
-    public string GenerateTitle(IUser author)
-    {
-        return String.Format(this.Title, AuthorName(author));
-    }
-
-    public string GenerateTitleArchived(IUser author)
-    {
-        return String.Format(this.TitleArchived, AuthorName(author));
-    }
-
-    public string GenerateFirstMessage(IUser author)
-    {
-        return String.Format(this.FirstMessage, author.Mention);
-    }
 }
 
 #endregion

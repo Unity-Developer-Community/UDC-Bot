@@ -1304,43 +1304,4 @@ public class UserModule : ModuleBase
     }
 
     #endregion
-
-    #region AutoThread
-
-    [Command("Autothread close")]
-    [Alias("Autothread archive", "Att close", "Att archive")]
-    [Summary("Archive an auto-thread and rename it automatically according to channel-specific settings.")]
-    [RequireArchivableAutoThread]
-    [RequireAutoThreadAuthor(Group = "AuthorOrMod")]
-    [RequireModerator(Group = "AuthorOrMod")]
-    public async Task CloseAutoThread()
-    {
-        var currentThread = Context.Message.Channel as SocketThreadChannel;
-        var autoTheadConfig = Settings.AutoThreadChannels.Find(x => currentThread.ParentChannel.Id == x.Id);
-
-        var newName = autoTheadConfig.GenerateTitleArchived(Context.User);
-        if (currentThread.Name.Equals(newName)) return;
-        await currentThread.ModifyAsync(x =>
-        {
-            x.Archived = true;
-            x.Locked = true;
-            x.Name = newName;
-        });
-    }
-
-    [Command("Autothread delete")]
-    [Alias("Att delete")]
-    [Summary("Delete an auto-thread.")]
-    [RequireDeletableAutoThread]
-    [RequireAutoThreadAuthor(Group = "AuthorOrMod")]
-    [RequireModerator(Group = "AuthorOrMod")]
-    public async Task DeleteAutoThread()
-    {
-        var currentThread = Context.Message.Channel as SocketThreadChannel;
-        var autoTheadConfig = Settings.AutoThreadChannels.Find(x => currentThread.ParentChannel.Id == x.Id);
-
-        await currentThread.DeleteAsync();
-    }
 }
-
-#endregion
