@@ -75,7 +75,7 @@ public static class Utils
         character >= 0x20 && character <= 0xD7FF ||
         character >= 0xE000 && character <= 0xFFFD ||
         character >= 0x10000 && character <= 0x10FFFF;
-        
+
     // Returns a datetime from a string using common date terms, ie; '1 year 40 days', '30 minutes 10 seconds', '10m 1d 400s', '1d 10h'
     public static DateTime ParseTimeFromString(string time)
     {
@@ -139,7 +139,7 @@ public static class Utils
         var regex = new Regex("<.*?>");
         return regex.Replace(contents, string.Empty);
     }
-        
+
     public static string MessageLinkBack(ulong guildId, ulong channelId, ulong messageId)
     {
         return $"https://discordapp.com/channels/{guildId}/{channelId}/{messageId}";
