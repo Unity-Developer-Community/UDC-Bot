@@ -1,0 +1,19 @@
+XP Bar:
+- Back_Rect: (104, 39, 232, 16) (X,Y,W,H)
+- Fore_Rect: (105, 40, 126, 14) (X,Y,W,H)
+- Background:(#3F3F3F)
+- Foreground:(#00F0FF)
+
+Rank Triangle:
+- Rect: (346, 12, 54, 104) (X,Y,W,H)
+- Color:(Based on UDH Rank Color)
+
+Fonts:
+- Name:  Consolas (24pt, #3C3C3C)
+- Level: Consolas (59pt, #3C3C3C)
+- Meta:  Opens Sans (16pt, #3C3C3C)
+
+Effects (If Possible):
+- Card:	  Drop-Shadow (16px, 50% Opacity), Alpha-Blend (75% Opacity)
+- XP Bar: Drop-Shadow (4px, 50% Opacity)
+- Level:  Drop-Shadow (4px, 25% Opacity)

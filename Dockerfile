@@ -1,28 +1,32 @@
-# Builds application using dotnet's sdk
+# Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 
-WORKDIR /
-COPY ./DiscordBot/ ./app/
 WORKDIR /app/
-
+COPY ./NuGet.config ./
+COPY ./DiscordBot/DiscordBot.csproj ./
 RUN dotnet restore
+COPY ./DiscordBot/ ./
 RUN dotnet publish --configuration Release --no-restore --output /app/publish
 
-
-# Build finale image
+# Runtime stage
 FROM mcr.microsoft.com/dotnet/runtime:8.0
 
 WORKDIR /app/
 
 COPY --from=build /app/publish/ ./
 
-RUN echo "deb http://deb.debian.org/debian bullseye main contrib" > /etc/apt/sources.list
-RUN echo "deb http://security.debian.org/ bullseye-security main contrib" >> /etc/apt/sources.list
-RUN echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
-RUN apt update
-RUN apt install -y ttf-mscorefonts-installer
-RUN apt clean
-RUN apt autoremove -y
-RUN rm -rf /var/lib/apt/lists/
+# Bake immutable static assets (fonts, images, skins) into the image
+COPY ./SERVER/fonts/ ./SERVER/fonts/
+COPY ./SERVER/images/ ./SERVER/images/
+COPY ./SERVER/skins/ ./SERVER/skins/
+
+# Add contrib repo for MS fonts (bookworm, matching the base image)
+RUN echo "deb http://deb.debian.org/debian bookworm contrib" > /etc/apt/sources.list.d/contrib.list && \
+    echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends ttf-mscorefonts-installer && \
+    apt-get clean && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["./DiscordBot"]
