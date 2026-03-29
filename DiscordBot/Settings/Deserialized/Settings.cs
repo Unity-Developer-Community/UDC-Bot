@@ -74,7 +74,6 @@ public class BotSettings
     public ChannelInfo GenericHelpChannel { get; set; }
 
     public ChannelInfo BotAnnouncementChannel { get; set; }
-    public ChannelInfo AnnouncementsChannel { get; set; }
     public ChannelInfo BotCommandsChannel { get; set; }
     public ChannelInfo UnityNewsChannel { get; set; }
     public ChannelInfo UnityReleasesChannel { get; set; }
@@ -108,7 +107,6 @@ public class BotSettings
     public ulong PublisherRoleId { get; set; }
     public ulong ModeratorRoleId { get; set; }
     public ulong TipsUserRoleId { get; set; } // e.g., Helpers
-    public ulong TipsAuthorRoleId { get; set; } // e.g., Moderators
 
     #endregion // User Roles
 
@@ -145,7 +143,7 @@ public class BotSettings
 
     public string FlightAPIKey { get; set; }
     public string FlightAPISecret { get; set; }
-    public string FlightAPIId { get; set; }
+
     public string AirLabAPIKey { get; set; }
 
     #endregion // API Keys
@@ -165,7 +163,6 @@ public class BotSettings
 
     #region Other
 
-    public string AssetStoreFrontPage { get; set; }
     public string WikipediaSearchPage { get; set; }
 
     #endregion // Other
