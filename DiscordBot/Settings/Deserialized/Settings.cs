@@ -9,6 +9,7 @@ public class BotSettings
 
     public string DbConnectionString { get; set; }
     public string ServerRootPath { get; set; }
+    public string AssetsRootPath { get; set; } = "./Assets";
     public char Prefix { get; set; }
     public ulong GuildId { get; set; }
     public bool LogCommandExecutions { get; set; } = true;

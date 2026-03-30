@@ -305,7 +305,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     private double GetXpHigh(uint level) => 70d - 139.5d * (level + 2d) + 69.5 * Math.Pow(level + 2d, 2d);
 
     private SkinData GetSkinData() =>
-        JsonConvert.DeserializeObject<SkinData>(File.ReadAllText($"{_settings.ServerRootPath}/skins/skin.json"),
+        JsonConvert.DeserializeObject<SkinData>(File.ReadAllText($"{_settings.AssetsRootPath}/skins/skin.json"),
             new SkinModuleJsonConverter());
 
     /// <summary>
@@ -370,11 +370,11 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 XpTotal = (uint)xpTotal
             };
 
-            var background = new MagickImage($"{_settings.ServerRootPath}/skins/{skin.Background}");
+            var background = new MagickImage($"{_settings.AssetsRootPath}/skins/{skin.Background}");
 
             var avatarUrl = user.GetAvatarUrl(ImageFormat.Auto, 256);
             if (string.IsNullOrEmpty(avatarUrl))
-                profile.Picture = new MagickImage($"{_settings.ServerRootPath}/images/default.png");
+                profile.Picture = new MagickImage($"{_settings.AssetsRootPath}/images/default.png");
             else
                 try
                 {
@@ -392,7 +392,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                     LoggingService.LogToConsole(
                         $"Failed to download user profile image for ProfileCard.\nEx:{e.Message}",
                         LogSeverity.Warning);
-                    profile.Picture = new MagickImage($"{_settings.ServerRootPath}/images/default.png");
+                    profile.Picture = new MagickImage($"{_settings.AssetsRootPath}/images/default.png");
                 }
 
             profile.Picture.Resize(skin.AvatarSize, skin.AvatarSize);
@@ -404,7 +404,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 {
                     var image = layer.Image.ToLower() == "avatar"
                         ? profile.Picture
-                        : new MagickImage($"{_settings.ServerRootPath}/skins/{layer.Image}");
+                        : new MagickImage($"{_settings.AssetsRootPath}/skins/{layer.Image}");
 
                     background.Composite(image, (int)layer.StartX, (int)layer.StartY, CompositeOperator.Over);
                 }

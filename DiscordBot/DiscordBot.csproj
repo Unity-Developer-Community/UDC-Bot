@@ -17,7 +17,6 @@
     <PackageReference Include="System.ServiceModel.Syndication" Version="9.0.6" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="SERVER\fonts" />
     <Folder Include="SERVER\images\profiles" />
   </ItemGroup>
 </Project>

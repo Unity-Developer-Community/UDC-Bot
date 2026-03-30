@@ -12,6 +12,7 @@
   "DbConnectionString": "server=localhost;port=3306;database=test;user id=USER;Password=USERPASSWORD;SSL Mode=None;Allow User Variables=True",
   /*Server Info*/
   "serverRootPath": "./SERVER",
+  "assetsRootPath": "./Assets",
   /* Base info */
   "prefix": "!",
   "ModeratorRoleId": "0",
