@@ -20,13 +20,15 @@ COPY ./SERVER/fonts/ ./SERVER/fonts/
 COPY ./SERVER/images/ ./SERVER/images/
 COPY ./SERVER/skins/ ./SERVER/skins/
 
-# Add contrib repo for MS fonts (bookworm, matching the base image)
-RUN echo "deb http://deb.debian.org/debian bookworm contrib" > /etc/apt/sources.list.d/contrib.list && \
+# Add contrib repo for MS fonts, matching the base image's Debian codename
+RUN . /etc/os-release && \
+    echo "deb https://deb.debian.org/debian ${VERSION_CODENAME} contrib" > /etc/apt/sources.list.d/contrib.list && \
+    echo "deb https://security.debian.org/debian-security ${VERSION_CODENAME}-security contrib" >> /etc/apt/sources.list.d/contrib.list && \
     echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
     apt-get update && \
     apt-get install -y --no-install-recommends ttf-mscorefonts-installer && \
-    apt-get clean && \
     apt-get autoremove -y && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["./DiscordBot"]
