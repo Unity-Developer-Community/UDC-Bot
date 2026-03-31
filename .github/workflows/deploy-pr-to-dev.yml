@@ -1,0 +1,108 @@
+name: Deploy PR to Dev
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: read
+  issues: write
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
+jobs:
+  deploy-pr:
+    if: github.event.issue.pull_request && github.event.comment.body == '/deploy_dev'
+    name: Build PR & Deploy to Dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get PR info
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            core.setOutput('sha', pr.head.sha);
+            core.setOutput('short_sha', pr.head.sha.substring(0, 7));
+            core.setOutput('branch', pr.head.ref);
+
+      - name: Add rocket reaction
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket',
+            });
+
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/unity-developer-community/udc-bot-dev:${{ steps.pr.outputs.short_sha }}
+            ghcr.io/unity-developer-community/udc-bot-dev:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Update dev manifest on target branch
+        run: |
+          git fetch origin dev
+          git checkout dev
+          sed -i "s|image: ghcr.io/unity-developer-community/udc-bot-dev:.*|image: ghcr.io/unity-developer-community/udc-bot-dev:${{ steps.pr.outputs.short_sha }}|" k8s/dev/bot.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add k8s/dev/bot.yaml
+          git diff --cached --quiet || git commit -m "chore(k8s): deploy PR #${{ github.event.issue.number }} to dev (${{ steps.pr.outputs.short_sha }})"
+          git push origin dev
+
+      - name: Post success comment
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `✅ PR deployed to dev!\n\nImage: \`ghcr.io/unity-developer-community/udc-bot-dev:${{ steps.pr.outputs.short_sha }}\`\nArgoCD will sync shortly.`,
+            });
+
+      - name: Post failure comment
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '❌ Deployment to dev failed. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.',
+            });

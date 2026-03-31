@@ -1,0 +1,30 @@
+name: PR Deploy Instructions
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  add-comment:
+    name: Add deployment instructions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add deploy comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                '### 🚀 Deploy this PR',
+                '',
+                'Comment `/deploy_dev` to build and deploy this branch to the **dev** environment.',
+                '',
+                'This will build a Docker image from your branch, push it to GHCR, and trigger an ArgoCD sync.',
+              ].join('\n'),
+            });
