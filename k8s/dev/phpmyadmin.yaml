@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: phpmyadmin
-          image: phpmyadmin:5
+          image: phpmyadmin:5.2.3
           ports:
             - containerPort: 80
               protocol: TCP
