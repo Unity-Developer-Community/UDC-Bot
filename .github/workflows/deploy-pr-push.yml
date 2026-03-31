@@ -40,8 +40,10 @@ jobs:
           ref: dev
 
       - name: Update manifest image tag
+        env:
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
         run: |
-          sed -i "s|image: ghcr.io/unity-developer-community/udc-bot-dev:.*|image: ghcr.io/unity-developer-community/udc-bot-dev:${{ steps.meta.outputs.short_sha }}|" k8s/dev/bot.yaml
+          sed -i "s|image: ghcr.io/unity-developer-community/udc-bot-dev:.*|image: ghcr.io/unity-developer-community/udc-bot-dev:${SHORT_SHA}|" k8s/dev/bot.yaml
 
       - name: Commit and push
         run: |
