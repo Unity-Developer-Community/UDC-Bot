@@ -21,20 +21,19 @@ public class UserModule : ModuleBase
     public ILoggingService LoggingService { get; set; }
     public CurrencyService CurrencyService { get; set; }
     public DatabaseService DatabaseService { get; set; }
-    public PublisherService PublisherService { get; set; }
     public UpdateService UpdateService { get; set; }
     public CommandHandlingService CommandHandlingService { get; set; }
     public WeatherService WeatherService { get; set; }
     public UserExtendedService UserExtendedService { get; set; }
     public BotSettings Settings { get; set; }
     public Rules Rules { get; set; }
-        
+
     #endregion
-        
+
     private readonly Random _random = new();
     private FuzzTable _slapObjects = new();
     private FuzzTable _slapFails = new();
-        
+
     [Command("Help"), Priority(100)]
     [Summary("Does what you see now.")]
     [Alias("command", "commands")]
@@ -322,7 +321,6 @@ public class UserModule : ModuleBase
                 "!role add/remove XR-Developers - If you're a VR, AR or MR sorcerer. \n" +
                 "!role add/remove Writers - If you like writing lore, scenarios, characters and stories. \n" +
                 "```");
-            await ReplyAsync("```To get the publisher role type **!pinfo** and follow the instructions.```\n");
         }
     }
     #region All Rules
@@ -524,14 +522,14 @@ public class UserModule : ModuleBase
         try
         {
             await Context.Message.DeleteAsync();
-            
+
             var profileCard = await UserService.GenerateProfileCard(user);
             if (string.IsNullOrEmpty(profileCard))
             {
                 await ReplyAsync("Failed to generate profile card.").DeleteAfterSeconds(seconds: 10);
                 return;
             }
-            
+
             var profile = await Context.Channel.SendFileAsync(profileCard);
             await profile.DeleteAfterTime(minutes: 3);
         }
@@ -551,7 +549,7 @@ public class UserModule : ModuleBase
         await ReplyAsync($"{Context.User.Mention} you joined **{joinDate:dddd dd/MM/yyy HH:mm:ss}**");
         await Context.Message.DeleteAsync();
     }
-    
+
     [Command("SetCity"), Priority(100)]
     [Alias("SetDefaultCity")]
     [Summary("Set 'Default City' which can be used by various commands.")]
@@ -690,14 +688,14 @@ public class UserModule : ModuleBase
         await ReplyAsync($"**{uname}** flipped a coin and got **{coin[_random.Next() % 2]}**!");
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
-    
+
     [Command("Roll"), Priority(23)]
     [Summary("Roll a dice. Syntax: !roll [sides]")]
-    public async Task RollDice(int sides=20)
+    public async Task RollDice(int sides = 20)
     {
         await RollDice(sides, 0);
     }
-    
+
     [Command("Roll"), Priority(23)]
     [Summary("Roll a dice. Syntax: !roll [sides] [minimum]")]
     public async Task RollDice(int sides, int number)
@@ -718,65 +716,16 @@ public class UserModule : ModuleBase
             message = " :white_check_mark: " + message + " [Needed: " + number + "]";
         else
             message = " :x: " + message + " [Needed: " + number + "]";
-        
+
         await ReplyAsync(message);
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
 
     [Command("D20"), Priority(23)]
     [Summary("Roll a D20 dice. Syntax: !d20 [minimum]")]
-    public async Task RollD20(int number=0)
+    public async Task RollD20(int number = 0)
     {
         await RollDice(20, number);
-    }
-
-    #endregion
-
-    #region Publisher
-
-    [Command("PInfo"), BotCommandChannel, Priority(11)]
-    [Summary("Information on how to get publisher role.")]
-    [Alias("publisherinfo")]
-    public async Task PublisherInfo()
-    {
-        var builder = new EmbedBuilder()
-            .WithTitle("Publisher Commands")
-            .WithDescription("Use these commands to get the **Asset-Publisher** role.")
-            .AddField("1️⃣  `!publisher <ID>`", "Example: `!publisher 12345`.\nReceive a code on the email associated with your publisher account.\nTo get your ID: assetstore.unity.com/publishers/**YourID**.")
-            .AddField("2️⃣  `!verify <ID> <code>`", "Example: `!publisher 12345 6789`.\nVerify your ID with the code sent to your email.");
-        var embed = builder.Build();
-
-        await ReplyAsync(embed: embed);
-        await Context.Message.DeleteAfterSeconds(seconds: 2);
-    }
-
-    [Command("Publisher"), BotCommandChannel, HideFromHelp]
-    [Summary("Get the Asset-Publisher role by verifying who you are. Syntax: !publisher publisherID")]
-    public async Task Publisher(uint publisherId)
-    {
-        if (((SocketGuildUser)Context.Message.Author).Roles.Any(x => x.Id == Settings.PublisherRoleId))
-        {
-            await ReplyAsync($"{Context.Message.Author.Mention} you already have the `Asset-Publisher` role.");
-        }
-        else if (Settings.Email == string.Empty)
-        {
-            await ReplyAsync("The `Asset-Publisher` role is currently disabled.");
-        }
-        else
-        {
-            var verify = await PublisherService.VerifyPublisher(publisherId, Context.User.Username);
-            await ReplyAsync(verify.Item2);
-        }
-        await Context.Message.DeleteAfterSeconds(seconds: 1);
-    }
-
-    [Command("Verify"), BotCommandChannel, HideFromHelp]
-    [Summary("Verify a publisher with the code received by email. Syntax : !verify publisherId code")]
-    public async Task VerifyPackage(uint packageId, string code)
-    {
-        await Context.Message.DeleteAfterSeconds(seconds: 0);
-        var verif = await PublisherService.ValidatePublisherWithCode(Context.Message.Author, packageId, code);
-        await ReplyAsync(verif);
     }
 
     #endregion
@@ -867,7 +816,7 @@ public class UserModule : ModuleBase
         {
             var curScore = CalculateScore(p[1], query);
             if (!(curScore < minimumScore)) continue;
-            
+
             minimumScore = curScore;
             mostSimilarPage = p;
         }
@@ -881,7 +830,7 @@ public class UserModule : ModuleBase
             embedBuilder.Color = new Color(81, 50, 169);
             embedBuilder.Footer = new EmbedFooterBuilder().WithText("Results sourced from Unity3D Docs.");
             var message = await ReplyAsync(embed: embedBuilder.Build());
-            
+
             var doc = new HtmlWeb().Load($"https://docs.unity3d.com/Manual/{mostSimilarPage[0]}.html");
             // Get first Header as this'll contain the main part we need
             var descriptionNode = doc.DocumentNode.SelectSingleNode("//h1");
@@ -914,11 +863,11 @@ public class UserModule : ModuleBase
         {
             var curScore = CalculateScore(p[1], query);
             if (!(curScore < minimumScore)) continue;
-            
+
             minimumScore = curScore;
             mostSimilarPage = p;
         }
-        
+
         // If a page has been found (should be), return the message, else return information
         if (mostSimilarPage != null)
         {
@@ -928,7 +877,7 @@ public class UserModule : ModuleBase
             embedBuilder.Color = new Color(81, 50, 169);
             embedBuilder.Footer = new EmbedFooterBuilder().WithText("Results sourced from Unity3D Docs.");
             var message = await ReplyAsync(embed: embedBuilder.Build());
-            
+
             // Load the page, and look for a <h3>Description</h3> tag, and then get the next <p> tag
             var doc = new HtmlWeb().Load($"https://docs.unity3d.com/ScriptReference/{mostSimilarPage[0]}.html");
             var descriptionNode = doc.DocumentNode.SelectSingleNode("//h3[contains(text(), 'Description')]");
@@ -1109,7 +1058,7 @@ public class UserModule : ModuleBase
     {
         // URL to cell C15/"Next birthday" cell from Corn's google sheet
         const string nextBirthday = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&range=C15:C15";
-        
+
         var tableText = await WebUtil.GetHtmlNodeInnerText(nextBirthday, "/html/body/table/tr[2]/td");
         var message = $"**{tableText}**";
 
@@ -1126,7 +1075,7 @@ public class UserModule : ModuleBase
         // URL to columns B to D of Corn's google sheet
         const string birthdayTable = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
         var relevantNodes = await WebUtil.GetHtmlNodes(birthdayTable, "/html/body/table/tr");
-        
+
         var birthdate = default(DateTime);
 
         HtmlNode matchedNode = null;
@@ -1138,10 +1087,10 @@ public class UserModule : ModuleBase
             // XPath to the name column (C)
             var nameNode = row.SelectSingleNode("td[2]");
             var name = nameNode.InnerText;
-            
+
             if (!name.ToLower().Contains(searchName.ToLower()) || name.Length >= matchedLength)
                 continue;
-            
+
             // Check for a "Closer" match
             matchedNode = row;
             matchedLength = name.Length;
@@ -1238,8 +1187,8 @@ public class UserModule : ModuleBase
     #endregion
 
     #region Currency
-    
-    [Command("CurrencyName") , Priority(29)]
+
+    [Command("CurrencyName"), Priority(29)]
     [Summary("Get the name of a currency. Syntax : !currname USD")]
     [Alias("currname")]
     public async Task CurrencyName(string currency)
@@ -1262,7 +1211,7 @@ public class UserModule : ModuleBase
     {
         await ConvertCurrency(1, from, to);
     }
-    
+
     [Command("Currency"), Priority(29)]
     [Summary("Converts a currency. Syntax : !currency amount fromCurrency toCurrency")]
     [Alias("curr")]
@@ -1284,7 +1233,7 @@ public class UserModule : ModuleBase
         // We check if both currencies are valid
         bool fromValid = await CurrencyService.IsCurrency(from.ToLower());
         bool toValid = await CurrencyService.IsCurrency(to.ToLower());
-        
+
         // Check if valid
         if (!fromValid || !toValid)
         {
@@ -1304,43 +1253,4 @@ public class UserModule : ModuleBase
     }
 
     #endregion
-
-    #region AutoThread
-
-    [Command("Autothread close")]
-    [Alias("Autothread archive", "Att close", "Att archive")]
-    [Summary("Archive an auto-thread and rename it automatically according to channel-specific settings.")]
-    [RequireArchivableAutoThread]
-    [RequireAutoThreadAuthor(Group = "AuthorOrMod")]
-    [RequireModerator(Group = "AuthorOrMod")]
-    public async Task CloseAutoThread()
-    {
-        var currentThread = Context.Message.Channel as SocketThreadChannel;
-        var autoTheadConfig = Settings.AutoThreadChannels.Find(x => currentThread.ParentChannel.Id == x.Id);
-
-        var newName = autoTheadConfig.GenerateTitleArchived(Context.User);
-        if (currentThread.Name.Equals(newName)) return;
-        await currentThread.ModifyAsync(x =>
-        {
-            x.Archived = true;
-            x.Locked = true;
-            x.Name = newName;
-        });
-    }
-
-    [Command("Autothread delete")]
-    [Alias("Att delete")]
-    [Summary("Delete an auto-thread.")]
-    [RequireDeletableAutoThread]
-    [RequireAutoThreadAuthor(Group = "AuthorOrMod")]
-    [RequireModerator(Group = "AuthorOrMod")]
-    public async Task DeleteAutoThread()
-    {
-        var currentThread = Context.Message.Channel as SocketThreadChannel;
-        var autoTheadConfig = Settings.AutoThreadChannels.Find(x => currentThread.ParentChannel.Id == x.Id);
-
-        await currentThread.DeleteAsync();
-    }
 }
-
-#endregion

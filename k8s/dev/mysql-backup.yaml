@@ -1,0 +1,69 @@
+# MySQL backup using databack/mysql-backup — handles its own daily schedule internally.
+# Dumps go to S3 bucket "udc-bot-mysql-backups" with 90-day retention via S3 lifecycle.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-backup
+  namespace: udc-bot-dev
+  labels:
+    app.kubernetes.io/name: mysql-backup
+    app.kubernetes.io/part-of: udc-bot
+    environment: dev
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mysql-backup
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mysql-backup
+        app.kubernetes.io/part-of: udc-bot
+        environment: dev
+    spec:
+      containers:
+        - name: mysql-backup
+          image: databack/mysql-backup:1.4.0
+          args: ["dump"]
+          env:
+            - name: DB_SERVER
+              value: mysql
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_USER
+              value: root
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: password
+            - name: DB_DUMP_TARGET
+              value: s3://udc-bot-mysql-backups/udc-bot-mysql-dev
+            - name: DB_DUMP_FREQ
+              value: "1440"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-backup-credentials
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-backup-credentials
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_DEFAULT_REGION
+              value: eu-west-3
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

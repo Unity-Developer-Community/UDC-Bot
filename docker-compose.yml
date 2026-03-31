@@ -29,6 +29,7 @@ services:
     volumes:
       - .\DiscordBot\Settings\:/app/Settings
       - .\DiscordBot\SERVER\:/app/SERVER
+      - .\DiscordBot\Assets\:/app/Assets:ro
     depends_on:
       - db
     restart: always

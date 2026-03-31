@@ -1,0 +1,95 @@
+name: Build & Deploy
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        description: "GHCR image name (without registry prefix)"
+        required: true
+        type: string
+      manifest_path:
+        description: "Path to the k8s manifest to update"
+        required: true
+        type: string
+      checkout_ref:
+        description: "Git ref to checkout and build from"
+        required: true
+        type: string
+      manifest_ref:
+        description: "Branch where the manifest lives (for commit+push)"
+        required: false
+        type: string
+      commit_message:
+        description: "Commit message for the manifest update"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    outputs:
+      short_sha: ${{ steps.sha.outputs.short }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract short SHA
+        id: sha
+        run: echo "short=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}:${{ steps.sha.outputs.short }}
+            ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Checkout manifest branch
+        if: inputs.manifest_ref != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.manifest_ref }}
+
+      - name: Update manifest image tag
+        env:
+          IMAGE_NAME: ${{ inputs.image_name }}
+          SHORT_SHA: ${{ steps.sha.outputs.short }}
+          MANIFEST_PATH: ${{ inputs.manifest_path }}
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
+          sed -i "s|image: ghcr.io/${OWNER}/${IMAGE}:.*|image: ghcr.io/${OWNER}/${IMAGE}:${SHORT_SHA}|" "${MANIFEST_PATH}"
+
+      - name: Commit and push manifest update
+        env:
+          COMMIT_MSG: ${{ inputs.commit_message }}
+          SHORT_SHA: ${{ steps.sha.outputs.short }}
+          MANIFEST_PATH: ${{ inputs.manifest_path }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${MANIFEST_PATH}"
+          FINAL_MSG=$(echo "${COMMIT_MSG}" | sed "s/{sha}/${SHORT_SHA}/g")
+          git diff --cached --quiet || git commit -m "${FINAL_MSG}"
+          git push

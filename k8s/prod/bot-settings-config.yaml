@@ -1,0 +1,153 @@
+# ConfigMaps for bot Settings files (Rules, FAQs, UserSettings).
+# These are rendered into an emptyDir volume by the render-config init container.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bot-rules
+  namespace: udc-bot-prod
+  labels:
+    app.kubernetes.io/name: udc-bot
+    app.kubernetes.io/part-of: udc-bot
+    environment: prod
+data:
+  Rules.json: |
+    {
+      "channel": [
+        {
+          "id": 0,
+          "header": "",
+          "content": "**Global rules:**\n**General Rules**\n- Keep it friendly and civil.\n- Do not post anything illegal content or illegal links (cracked software links etc.)\n- Do not look down on others just because they're less experienced than you, try to help them instead.\n- Use the appropriate channels\n- If you ask for help, try to give it back.\n- Do not link to other discords without a mods permission\n**Help Channels Rules**:\n- Make questions as descriptive as possible by adding all the necessary information.\n- **Do not ask if someone can help.** Post your question directly.\n- Do not beg for help.\n- Do not repost questions unless it is buried under dozens of other messages.\n- Do not post the same question in multiple channels. If you found a more appropriate channel, delete your old message first."
+        },
+        {
+          "id": 493511037421879316,
+          "header": "Ask general Unity questions in this channel. Newbie questions welcome.\n",
+          "content": "\n- Make your question as descriptive as possible, adding all the necessary informations.\n- Do not ask if someone can help. Post your question directly.\n- Do not beg for help.\n- Do not repost your question unless it is buried under dozens of other messages.\n- Do not post the same question in multiple channels. If you found a more appropriate channel, delete your old message first."
+        },
+        {
+          "id": 493511468134694912,
+          "header": "This channel is for advanced C# questions and scripting related discussions (script optimization, naming convention...).",
+          "content": "\n- Make your question as descriptive as possible, adding all the necessary informations.\n- Do not ask if someone can help. Post your question directly.\n- Do not beg for help.\n- Do not repost your question unless it is buried under dozens of other messages.\n- Do not post the same question in multiple channels. If you found a more appropriate channel, delete your old message first."
+        },
+        {
+          "id": 493511492226908181,
+          "header": "Use this channel to ask questions about game networking and discuss networking in general.",
+          "content": "\n- Light conversation is permitted in this channel.\n- Make any questions as descriptive as possible, adding all the necessary informations.\n- Do not repost your question unless it is buried under dozens of other messages.\n- Do not post the same question in multiple channels. If you found a more appropriate channel, delete your old message first."
+        },
+        {
+          "id": 493511590164037632,
+          "header": "Use this channel to share your game development through screenshots, videos and devlogs.",
+          "content": "\n- Keep posts short and sweet with a name and description of what we're looking at!"
+        },
+        {
+          "id": 493511791578578944,
+          "header": "Use this channel to post resources and tutorials about Unity and its ecosystem.",
+          "content": "\n- Only post link, no discussion around them in this channel."
+        },
+        {
+          "id": 493511872709001221,
+          "header": "Use this channel if you're looking for a job. Please read the pins for a recommended template.",
+          "content": "\n- Only for **paid** jobs. Use #collaboration if you want to work for free\n- Describe your skills as best as possible\n- Portfolio recommended, don't use multiple image links as they'll generate several thumbnails, use an album instead.\n- Wait **at least 7 days** before reposting, and do not repost if there's less than 10 posts in between.\n- Your offer must be in a single post. Edit it if you want to add aditionnal infos.\n- Discussions about the post must be made in DM or another channel."
+        },
+        {
+          "id": 493511844904828990,
+          "header": "Use this channel if you're looking to hire someone. Please read the pins for a recommended template.",
+          "content": "\n- Only for **paid** jobs\n- Describe skills required as best as possible\n- If using links, ensure they are escaped and don't generate more than 1 thumbnail.\n- Wait **at least 7 days** before reposting, and do not repost if there's less than 10 posts in between.\n- Your offer must be in a single post. Edit it if you want to add aditionnal infos.\n·Discussions about the post must be made in DM or another channel."
+        },
+        {
+          "id": 493511883651809300,
+          "header": "Use this channel if you want to collaborate for free. Please read the pins for a recommended template.",
+          "content": "\n- If you want to be hired : describe your skills as best as possible, portfolio recommended\n- If you want to hire : Describe the skills needed as best as possible, and your skills (and your team if you already have one)\n- Give as much info as possible on the project on hand\n- Wait **at least 7 days** before reposting, and do not repost if there's less than 10 posts in between.\n- Your offer must be in a single post. Edit it if you want to add aditionnal infos.\n- Discussions about the post must be made in DM or another channel."
+        },
+        {
+          "id": 493511631557492736,
+          "header": "Post here about your finished projects along with a link to download or purchase it.",
+          "content": "\n- Do not repost projects multiple times\n- Keep discussion at a minimum to not drown out other projects"
+        },
+        {
+          "id": 493511757822820353,
+          "header": "Use this channel to discuss all Not Safe For Work related development.",
+          "content": "\n- This is a serious development channel, do not post memes here."
+        },
+        {
+          "id": 493511779499114517,
+          "header": "Channel to discuss marketing strategy and business.",
+          "content": "\n- Do not post your finished game links here, use #finished-projects"
+        }
+      ]
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bot-faqs
+  namespace: udc-bot-prod
+  labels:
+    app.kubernetes.io/name: udc-bot
+    app.kubernetes.io/part-of: udc-bot
+    environment: prod
+data:
+  FAQs.json: |
+    [
+      {
+        "question": "What is karma ?",
+        "answer": "Karma is tracked on your !profile, helping indicate how much you've helped others. You also earn slightly more EXP from things the higher your Karma level is. Karma may be used for more features in the future.",
+        "keywords": [ "karma", "xp" ]
+      }
+    ]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bot-user-settings
+  namespace: udc-bot-prod
+  labels:
+    app.kubernetes.io/name: udc-bot
+    app.kubernetes.io/part-of: udc-bot
+    environment: prod
+data:
+  UserSettings.json: |
+    {
+        /*Thanks parameters*/
+        "thanks": [
+            "thanks",
+            "ty",
+            "thx",
+            "thnx",
+            "thanx",
+            "thankyou",
+            "thank you",
+      "tysm",
+            "cheers",
+            "merci",
+            "gracias",
+            "danke",
+            "grazie",
+            "arigatou",
+            "有り難う",
+            "有難う",
+            "ありがとう",
+            "どうも",
+            "고맙습니다",
+            "谢谢",
+        "Slàinte"
+        ],
+        "thanksCooldown": 60, //In seconds
+        "thanksReminderCooldown": 86400, //24 hours in seconds
+        "thanksMinJoinTime": 600,
+
+        /*Xp parameters*/
+        "xpMinPerMessage": 10,
+        "xpMaxPerMessage": 30,
+        "xpMinCooldown": 60,
+        "xpMaxCooldown": 180,
+
+        /*Code parameters*/
+        "codeReminderCooldown": 86400,
+
+        "isSomeoneThere": [
+            "is anyone around?",
+            "can someone help?",
+            "can someone help me?"
+        ]
+    }

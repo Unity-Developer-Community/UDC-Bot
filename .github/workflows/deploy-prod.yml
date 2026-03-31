@@ -1,0 +1,26 @@
+name: Deploy Prod
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "k8s/**"
+      - "**/*.md"
+      - "docs/**"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/build-and-deploy.yml
+    with:
+      image_name: udc-bot
+      manifest_path: k8s/prod/bot.yaml
+      checkout_ref: master
+      commit_message: "chore(k8s): update prod image to {sha}"
+    permissions:
+      contents: write
+      packages: write

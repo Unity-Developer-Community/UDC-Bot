@@ -1,0 +1,174 @@
+{
+	"Name":"Sleek",
+	"Codename":"nomnom",
+	"Description": "Sleek, minimalist profile card",
+	"AvatarSize": 160,
+	"Background": "resources/background.png",
+	"Layers": [
+		{
+			"Image": "resources/foreground_sleek.png",
+			"StartX": 0,
+			"StartY": 0,
+			"Width": 500,
+			"Height": 200,
+			"Modules": [
+				{
+					"Type": "AvatarBorder",
+					"StartX": 14,
+					"StartY": 7,
+					"Size": 162
+				},
+				{
+					"Type": "XpBar",
+					"StartX": 12,
+					"StartY": 175,
+					"Width": 165,
+					"Height": 20,
+					"StrokeWidth": 1,
+					"OutsideStrokeColor": "#b2b2b2FF",
+					"OutsideFillColor": "#FFFFFFFF",
+					"InsideStrokeColor": "#b2b2b2FF",
+					"InsideFillColor": "#b2b2b2FF"
+				},
+				{
+					"Type": "XpBarInfo",
+					"StartX": 95,
+					"StartY": 190,
+					"Width": 164,
+					"Height": 20,
+					"Font": "Roboto Mono",
+					"FontPointSize": 10,
+					"TextAlignment": "Center",
+					"FillColor": "#404040FF",
+				},
+				{
+					"Type": "Username",
+					"StartX": 189,
+					"StartY": 115,
+					"Font": "Roboto Mono",
+					"FontPointSize": 20,
+					"FillColor": "#FFFFFFFF",
+					"StrokeColor": "#00000000",
+					"StrokeWidth": 00
+				},
+				{
+					"Type": "CustomText",
+					"StartX": 231,
+					"StartY": 157,
+					"Text": "LEVEL",
+					"Font": "Roboto Mono",
+                    "FontPointSize": 24,
+                    "TextAlignment": "Center",
+					"FillColor": "#4d4d4dFF",
+					"StrokeColor": "#00000000",
+					"StrokeWidth": 00,
+					"TextKerning": 2,
+				},
+				{
+					"Type": "CustomText",
+					"StartX": 284,
+					"StartY": 139,
+					"Text": "Total XP",
+					"Font": "Roboto Mono",
+                    "FontPointSize": 16,
+					"FillColor": "#4d4d4dFF",
+					"StrokeColor": "#00000000",
+					"StrokeWidth": 00
+				},
+				{
+					"Type": "CustomText",
+					"StartX": 284,
+					"StartY": 157,
+					"Text": "Server Rank",
+					"Font": "Roboto Mono",
+                    "FontPointSize": 16,
+					"FillColor": "#4d4d4dFF",
+					"StrokeColor": "#00000000",
+					"StrokeWidth": 00
+				},
+				{
+					"Type": "CustomText",
+					"StartX": 284,
+					"StartY": 175,
+					"Text": "Karma",
+					"Font": "Roboto Mono",
+                    "FontPointSize": 16,
+					"FillColor": "#4d4d4dFF",
+					"StrokeColor": "#00000000",
+					"StrokeWidth": 00
+				},
+				{
+					"Type": "CustomText",
+					"StartX": 284,
+					"StartY": 193,
+					"Text": "Karma Rank",
+					"Font": "Roboto Mono",
+                    "FontPointSize": 16,
+					"FillColor": "#4d4d4dFF",
+					"StrokeColor": "#00000000",
+					"StrokeWidth": 00
+				},
+				{
+                    "Type": "Level",
+                    "StartX": 231,
+                    "StartY": 180,
+					"Font": "Roboto Mono",
+                    "FontPointSize": 24,
+                    "TextAlignment": "Center",
+					"FillColor": "#4d4d4dFF",
+					"StrokeColor": "#00000000",
+					"StrokeWidth": 00
+                },
+				{
+					"Type": "TotalXp",
+                    "StartX": 490,
+                    "StartY": 139,
+					"Font": "Roboto Mono",
+                    "FontPointSize": 16,
+                    "TextAlignment": "Right",
+					"FillColor": "#4d4d4dFF",
+					"StrokeColor": "#00000000",
+					"StrokeWidth": 00
+				},
+				{
+                    "Type": "XpRank",
+                    "StartX": 490,
+                    "StartY": 157,
+					"Font": "Roboto Mono",
+                    "FontPointSize": 16,
+                    "TextAlignment": "Right",
+					"FillColor": "#4d4d4dFF",
+					"StrokeColor": "#00000000",
+					"StrokeWidth": 00
+                },
+				{
+                    "Type": "KarmaPoints",
+                    "StartX": 490,
+                    "StartY": 175,
+					"Font": "Roboto Mono",
+                    "FontPointSize": 16,
+                    "TextAlignment": "Right",
+					"FillColor": "#4d4d4dFF",
+					"StrokeColor": "#00000000",
+					"StrokeWidth": 00
+                },
+				{
+                    "Type": "KarmaRank",
+                    "StartX": 490,
+                    "StartY": 193,
+					"Font": "Roboto Mono",
+                    "FontPointSize": 16,
+                    "TextAlignment": "Right",
+					"FillColor": "#4d4d4dFF",
+					"StrokeColor": "#00000000",
+					"StrokeWidth": 00
+                },
+			]
+		},
+		{
+			"Image": "avatar",
+			"StartX": 15,
+			"StartY": 8
+		}
+	]
+}
