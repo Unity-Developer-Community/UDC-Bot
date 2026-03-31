@@ -50,9 +50,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract short SHA
+      - name: Extract short SHA and image prefix
         id: sha
-        run: echo "short=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "short=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+          echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+          echo "image=$(echo '${{ inputs.image_name }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -60,8 +63,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}:${{ steps.sha.outputs.short }}
-            ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}:latest
+            ghcr.io/${{ steps.sha.outputs.owner }}/${{ steps.sha.outputs.image }}:${{ steps.sha.outputs.short }}
+            ghcr.io/${{ steps.sha.outputs.owner }}/${{ steps.sha.outputs.image }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -73,12 +76,11 @@ jobs:
 
       - name: Update manifest image tag
         env:
-          IMAGE_NAME: ${{ inputs.image_name }}
+          OWNER: ${{ steps.sha.outputs.owner }}
+          IMAGE: ${{ steps.sha.outputs.image }}
           SHORT_SHA: ${{ steps.sha.outputs.short }}
           MANIFEST_PATH: ${{ inputs.manifest_path }}
         run: |
-          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
           sed -i "s|image: ghcr.io/${OWNER}/${IMAGE}:.*|image: ghcr.io/${OWNER}/${IMAGE}:${SHORT_SHA}|" "${MANIFEST_PATH}"
 
       - name: Commit and push manifest update
