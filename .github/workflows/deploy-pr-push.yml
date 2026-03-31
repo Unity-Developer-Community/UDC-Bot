@@ -1,0 +1,75 @@
+name: "Push PR Deploy to Dev"
+
+on:
+  workflow_run:
+    workflows: ["Build PR for Dev Deploy"]
+    types: [completed]
+
+# Privileged context — but never checks out untrusted code
+permissions:
+  contents: write
+  issues: write
+  actions: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    name: Update Dev Manifest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-metadata
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Read metadata
+        id: meta
+        run: |
+          echo "short_sha=$(cat short_sha.txt)" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$(cat pr_number.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout dev branch
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Update manifest image tag
+        run: |
+          sed -i "s|image: ghcr.io/unity-developer-community/udc-bot-dev:.*|image: ghcr.io/unity-developer-community/udc-bot-dev:${{ steps.meta.outputs.short_sha }}|" k8s/dev/bot.yaml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add k8s/dev/bot.yaml
+          git diff --cached --quiet || git commit -m "chore(k8s): deploy PR #${{ steps.meta.outputs.pr_number }} to dev (${{ steps.meta.outputs.short_sha }})"
+          git push
+
+      - name: Post success comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number('${{ steps.meta.outputs.pr_number }}'),
+              body: `✅ PR deployed to dev!\n\nImage: \`ghcr.io/unity-developer-community/udc-bot-dev:${{ steps.meta.outputs.short_sha }}\`\nArgoCD will sync shortly.`,
+            });
+
+      - name: Post failure comment
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number('${{ steps.meta.outputs.pr_number }}'),
+              body: '❌ Deploy to dev failed. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.',
+            });
