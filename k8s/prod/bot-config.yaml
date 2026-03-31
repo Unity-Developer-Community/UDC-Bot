@@ -15,12 +15,24 @@ data:
         {
             "token": "${BOT_TOKEN}",
             "DbConnectionString": "server=mysql;port=3306;database=udcbot;user id=udcbot;Password=${DB_PASSWORD};SSL Mode=None;Allow User Variables=True;AllowPublicKeyRetrieval=True",
-            "invite": "InviteLink",
+            "invite": "https://discord.gg/bu3bbby", // Currently Unused
+            /* Email information for Asset Publisher Role to work. */
+            "email": "publisherverification@unitydevelopercommunity.com",
+            "emailUsername": "publisherverification@unitydevelopercommunity.com",
+            "emailPassword": "flaw1frob*STUR5drab",
+            "emailSMTPServer": "SSL0.OVH.NET",
+            "emailSMTPPort": 465,
+            /* 'SSL MODE' and 'Allow User Variables' are only required when running on a local machine with XAMPP. This can often be removed. */
+            /* DB Info*/
+            /*Server Info*/
             "serverRootPath": "./SERVER",
+            /* Base info */
             "prefix": "!",
-            "Administrator": "TODO_ADMIN_ROLE_ID",
-            "ModeratorRoleId": "TODO_MODERATOR_ROLE_ID",
-            "guildId": "TODO_GUILD_ID",
+            "Administrator": "493514411026153482",
+            "ModeratorRoleId": "493514490504019969",
+            "ModeratorCommandsEnabled": false,
+            "guildId": "493510779866316801", // Replace with your servers guild ID
+            /* All assignable roles as of 29/04/21 */
             "UserAssignableRoles": {
                 "desc": "All normal user assignable roles available",
                 "roles": [
@@ -38,46 +50,46 @@ data:
                 "Students"
                 ]
             },
-            "generalChannel": {
+            /* Channel IDs for certain channels. */
+            "generalChannel": { // Off-topic
                 "desc": "General-Chat Channel",
-                "id": "TODO_GENERAL_CHANNEL_ID"
+                "id": "493511024037724180"
             },
-            "botAnnouncementChannel": {
+            "botAnnouncementChannel": { // Most bot logs will go here
                 "desc": "Bot-Announcement Channel",
-                "id": "TODO_BOT_ANNOUNCEMENT_CHANNEL_ID"
+                "id": "493512007144833055"
             },
-            "announcementsChannel": {
+            "announcementsChannel": { // Not used by bot
                 "desc": "General Announcement Channel",
-                "id": "TODO_ANNOUNCEMENTS_CHANNEL_ID"
+                "id": "493510992320528404" // Currently Unused 29/04/21
             },
             "botCommandsChannel": {
                 "desc": "Bot-Commands Channel",
-                "id": "TODO_BOT_COMMANDS_CHANNEL_ID"
-            },
-            "unityNewsChannel": {
-                "desc": "Unity News Channel",
-                "id": "TODO_UNITY_NEWS_CHANNEL_ID"
-            },
-            "UnityReleasesChannel": {
-                "desc": "Unity Releases Channel",
-                "id": "TODO_UNITY_RELEASES_CHANNEL_ID"
+                "id": "493512044973260811"
             },
             "RulesChannel": {
                 "desc": "The Rules",
-                "id": "TODO_RULES_CHANNEL_ID"
+                "id": "519890141805019137"
             },
             "ReportedMessageChannel": {
                 "desc": "Reported Message Channel",
-                "id": "TODO_REPORTED_MESSAGE_CHANNEL_ID"
+                "id": "993446104790220840"
             },
-            "mutedRoleID": "TODO_MUTED_ROLE_ID",
-            "publisherRoleID": "TODO_PUBLISHER_ROLE_ID",
-            "SubsReleasesRoleId": "TODO_SUBS_RELEASES_ROLE_ID",
-            "TipsUserRoleId": "TODO_TIPS_USER_ROLE_ID",
-            "TipsAuthorRoleId": "TODO_TIPS_AUTHOR_ROLE_ID",
+            /* Role Ids */
+            "mutedRoleID": "493514472942600202",
+            "publisherRoleID": "493514583785340939",
+            "SubsNewsRoleId": "1209260621342707772",
+            "SubsReleasesRoleId": "523205962279157771",
+            "TipsUserRoleId": "493514563736698880",
+            "TipsAuthorRoleId": "99999",
+            /*Publisher Stuff*/
             "assetStoreFrontPage": "https://www.assetstore.unity3d.com/en/",
-            "complaintCategoryId": "TODO_COMPLAINT_CATEGORY_ID",
+            /*Complaints Channels Stuff*/
+            "complaintCategoryId": "520853507851681797",
             "complaintChannelPrefix": "Complaint",
+            "closedComplaintCategoryId": "662084543662129175",
+            "closedComplaintChannelPrefix": "Closed-",
+            /*Commands Configuration*/
             "wikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
             "IPGeolocationAPIKey": "${IPGEO_KEY}",
             "WeatherAPIKey": "${WEATHER_KEY}",
@@ -86,53 +98,89 @@ data:
             "AirLabAPIKey": "${AIRLAB_KEY}",
             "AutoThreadChannels": [
                 {
-                "id": "TODO_AUTO_THREAD_CHANNEL_ID",
-                "title": "❔ Question",
+                "id": "893986486314237953",
+                "title": "❔ Question - {0}",
                 "canArchive": true,
                 "titleArchived": "✔️ Answered",
-                "firstMessage": "Hey {0}, this thread is just for you!\nYour first message (the one above) will appear in <#TODO_AUTO_THREAD_CHANNEL_ID> so make sure to put the most important points there!\nWhen your questions are answered, please `!close` this thread."
+                "firstMessage": "Hey {0}, this thread is just for you!\nYour first message (the one above) will appear in <#893264713398517781> so make sure to put the most important points there!\nWhen your questions are answered, please `!close` this thread."
+                },
+                {
+                // #work-in-progress
+                "id": "493511590164037632",
+                "title": "Feedback - {0}",
+                "firstMessage": "{0}, you can use this thread to gather feedback!\nYour first message (the one above) will appear in <#493511590164037632> so make sure to put the most important points there!\n"
+                },
+                {
+                // #finished-projects
+                "id": "493511631557492736",
+                "title": "Feedback - {0}",
+                "firstMessage": "{0}, you can use this thread to gather feedback!\nYour first message (the one above) will appear in <#493511631557492736> so make sure to put the most important points there!\n"
+                },
+                {
+                // #beta-testing
+                "id": "493511896230789120",
+                "title": "Feedback - {0}",
+                "firstMessage": "{0}, you can use this thread to gather feedback!\nYour first message (the one above) will appear in <#493511896230789120> so make sure to put the most important points there!\n"
                 }
             ],
             "AutoThreadExclusionPrefixes": [
                 "!",
-                "$",
                 "w!"
             ],
+            /* Feed Service */
+            "UnityNewsChannel": {
+                "desc": "Unity News Channel",
+                "id": "1142423451383119975"
+            },
+            "UnityReleasesChannel": {
+                "desc": "Unity Releases Channel",
+                "id": "1142423451383119975"
+            },
+            /* Recruitment Service */
+            "RecruitmentServiceEnabled": false,
             "RecruitmentChannel": {
                 "desc": "Channel for job postings",
-                "id": "TODO_RECRUITMENT_CHANNEL_ID"
+                "id": "1019677109171527750"
             },
-            "RecruitmentServiceEnabled": true,
-            "TagLookingToHire": "TODO_TAG_LOOKING_TO_HIRE",
-            "TagLookingForWork": "TODO_TAG_LOOKING_FOR_WORK",
-            "TagUnpaidCollab": "TODO_TAG_UNPAID_COLLAB",
-            "TagPositionFilled": "TODO_TAG_POSITION_FILLED",
-            "UnityHelpBabySitterEnabled": true,
-            "genericHelpChannel": {
+            "TagLookingToHire": "1019680606067630151",
+            "TagLookingForWork": "1019680763756695653",
+            "TagUnpaidCollab": "1019680795641774110",
+            "TagPositionFilled": "1052258665530408991",
+            "EditPermissionAccessTimeMin": 3,
+            /* Unity Help Service */
+            "UnityHelpBabySitterEnabled": false,
+            "GenericHelpChannel": { // Unity-help
                 "desc": "Unity-Help Channel",
-                "id": "TODO_GENERIC_HELP_CHANNEL_ID"
+                "id": "1019663870798856212"
             },
-            "TagUnitHelpResolvedTag": "TODO_UNITY_HELP_RESOLVED_TAG",
+            "TagUnitHelpResolvedTag": "1019672922811551815",
+            /* React Role Service */
             "ReactRoleServiceEnabled": false,
             "IntroductionChannel": {
                 "desc": "Introduction Channel",
-                "id": "TODO_INTRODUCTION_CHANNEL_ID"
+                "id": "768488410959708210"
             },
             "IntroductionWatcherServiceEnabled": true,
             "UserModuleSlapObjectsTable": "Settings/udc-slap.txt",
             "UserModuleSlapChoices": [
-                "developer manual",
-                "devonlepment server"
+                "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan",
+                "life choice", "bug report", "unhandled exception", "null pointer", "keyboard",
+                "kinematic rigidbody", "gameobject", "trigger collider", "update cycle", "json file",
+                "large language model", "hosting invoice", "quality of life patch",
+                "game jam submission", "bucket of fried chicken", "anime waifu pillow",
+                "network-attached storage cabinet", "baguette", "moldy cheese",
+                "cup noodle", "game jam submission", "game library listing",
+                "cheese wheel", "banana peel", "unresolved bug", "low poly donut"
             ],
             "UserModuleSlapFails": [
-                "developing a rash",
-                "developing a skin condition"
+                "hurting themselves", "making themselves look foolish", "tripping on it",
+                "dropping it on their toes", "breaking their screen with it"
             ],
             "TipImageDirectory": "tips",
             "BirthdayAnnouncementEnabled": true,
-            "BirthdayCheckIntervalMinutes": 1,
+            "BirthdayCheckIntervalMinutes": 60,
             "BirthdayAnnouncementChannel": {
                 "desc": "Channel for birthday announcements",
-                "id": "TODO_BIRTHDAY_CHANNEL_ID"
+                "id": "493511024037724180"
             }
         }
