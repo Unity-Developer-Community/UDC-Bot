@@ -1,0 +1,162 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bot-server-data
+  namespace: udc-bot-prod
+  labels:
+    app.kubernetes.io/name: udc-bot
+    app.kubernetes.io/part-of: udc-bot
+    environment: prod
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: udc-bot
+  namespace: udc-bot-prod
+  labels:
+    app.kubernetes.io/name: udc-bot
+    app.kubernetes.io/part-of: udc-bot
+    environment: prod
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: udc-bot
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: udc-bot
+        app.kubernetes.io/part-of: udc-bot
+        environment: prod
+    spec:
+      initContainers:
+        - name: render-config
+          image: alpine:3.20
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              apk add --no-cache gettext >/dev/null 2>&1
+              envsubst '${BOT_TOKEN} ${DB_PASSWORD} ${WEATHER_KEY} ${IPGEO_KEY} ${FLIGHT_KEY} ${FLIGHT_SECRET} ${AIRLAB_KEY}' < /config-template/Settings.json > /app-settings/Settings.json
+              cp /rules-template/Rules.json /app-settings/Rules.json
+              cp /faqs-template/FAQs.json /app-settings/FAQs.json
+              cp /usersettings-template/UserSettings.json /app-settings/UserSettings.json
+          env:
+            - name: BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: discord-bot-token
+                  key: identifiant
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-user-credentials
+                  key: password
+            - name: WEATHER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bot-api-keys
+                  key: weather-api-key
+            - name: IPGEO_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bot-api-keys
+                  key: ipgeo-api-key
+            - name: FLIGHT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bot-api-keys
+                  key: flight-api-key
+            - name: FLIGHT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: bot-api-keys
+                  key: flight-api-secret
+            - name: AIRLAB_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bot-api-keys
+                  key: airlab-api-key
+          volumeMounts:
+            - name: config-template
+              mountPath: /config-template
+              readOnly: true
+            - name: rules-template
+              mountPath: /rules-template
+              readOnly: true
+            - name: faqs-template
+              mountPath: /faqs-template
+              readOnly: true
+            - name: usersettings-template
+              mountPath: /usersettings-template
+              readOnly: true
+            - name: app-settings
+              mountPath: /app-settings
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+        - name: wait-for-mysql
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z mysql 3306; do
+                echo "Waiting for MySQL..."
+                sleep 2
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        - name: bot
+          image: ghcr.io/unity-developer-community/udc-bot-dev:latest
+          volumeMounts:
+            - name: app-settings
+              mountPath: /app/Settings
+            - name: server-data
+              mountPath: /app/SERVER
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: config-template
+          configMap:
+            name: bot-config
+        - name: rules-template
+          configMap:
+            name: bot-rules
+        - name: faqs-template
+          configMap:
+            name: bot-faqs
+        - name: usersettings-template
+          configMap:
+            name: bot-user-settings
+        - name: app-settings
+          emptyDir: {}
+        - name: server-data
+          persistentVolumeClaim:
+            claimName: bot-server-data
