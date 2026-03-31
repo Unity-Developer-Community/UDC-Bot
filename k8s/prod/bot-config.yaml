@@ -1,6 +1,5 @@
 # Settings.json template for UDC-Bot prod environment.
 # Secrets are substituted at pod startup by the render-config init container via envsubst.
-# TODO: Replace all channel/role/guild IDs with production Discord server values.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -26,6 +25,7 @@ data:
             /* DB Info*/
             /*Server Info*/
             "serverRootPath": "./SERVER",
+            "assetsRootPath": "./Assets",
             /* Base info */
             "prefix": "!",
             "Administrator": "493514411026153482",
@@ -96,37 +96,6 @@ data:
             "FlightAPIKey": "${FLIGHT_KEY}",
             "FlightAPISecret": "${FLIGHT_SECRET}",
             "AirLabAPIKey": "${AIRLAB_KEY}",
-            "AutoThreadChannels": [
-                {
-                "id": "893986486314237953",
-                "title": "❔ Question - {0}",
-                "canArchive": true,
-                "titleArchived": "✔️ Answered",
-                "firstMessage": "Hey {0}, this thread is just for you!\nYour first message (the one above) will appear in <#893264713398517781> so make sure to put the most important points there!\nWhen your questions are answered, please `!close` this thread."
-                },
-                {
-                // #work-in-progress
-                "id": "493511590164037632",
-                "title": "Feedback - {0}",
-                "firstMessage": "{0}, you can use this thread to gather feedback!\nYour first message (the one above) will appear in <#493511590164037632> so make sure to put the most important points there!\n"
-                },
-                {
-                // #finished-projects
-                "id": "493511631557492736",
-                "title": "Feedback - {0}",
-                "firstMessage": "{0}, you can use this thread to gather feedback!\nYour first message (the one above) will appear in <#493511631557492736> so make sure to put the most important points there!\n"
-                },
-                {
-                // #beta-testing
-                "id": "493511896230789120",
-                "title": "Feedback - {0}",
-                "firstMessage": "{0}, you can use this thread to gather feedback!\nYour first message (the one above) will appear in <#493511896230789120> so make sure to put the most important points there!\n"
-                }
-            ],
-            "AutoThreadExclusionPrefixes": [
-                "!",
-                "w!"
-            ],
             /* Feed Service */
             "UnityNewsChannel": {
                 "desc": "Unity News Channel",
@@ -154,8 +123,6 @@ data:
                 "id": "1019663870798856212"
             },
             "TagUnitHelpResolvedTag": "1019672922811551815",
-            /* React Role Service */
-            "ReactRoleServiceEnabled": false,
             "IntroductionChannel": {
                 "desc": "Introduction Channel",
                 "id": "768488410959708210"

@@ -1,6 +1,5 @@
 # Settings.json template for UDC-Bot dev environment.
 # Secrets are substituted at pod startup by the render-config init container via envsubst.
-# Fill in your dev Discord server values (channel IDs, role IDs, guild ID, etc.).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -18,6 +17,7 @@ data:
             "invite": "InviteLink", // Currently Unused
             /*Server Info*/
             "serverRootPath": "./SERVER",
+            "assetsRootPath": "./Assets",
             /* Base info */
             "prefix": "!",
             "Administrator": "838030241103478805",
@@ -92,24 +92,6 @@ data:
             "FlightAPIKey": "${FLIGHT_KEY}",
             "FlightAPISecret": "${FLIGHT_SECRET}",
             "AirLabAPIKey": "${AIRLAB_KEY}",
-            "AutoThreadChannels": [
-                {
-                "id": "893264713398517781",
-                "title": "❔ Question",
-                "canArchive": true,
-                "titleArchived": "✔️ Answered",
-                "firstMessage": "Hey {0}, this thread is just for you!\nYour first message (the one above) will appear in <#893264713398517781> so make sure to put the most important points there!\nWhen your questions are answered, please `!close` this thread."
-                },
-                {
-                "id": "893489590747414538",
-                "title": "📙 Test {0} No Close"
-                }
-            ],
-            "AutoThreadExclusionPrefixes": [
-                "!",
-                "$",
-                "w!"
-            ],
             /* Job Recruitment Service */
             "RecruitmentChannel": {
                 "desc": "Channel for job postings",
@@ -127,8 +109,6 @@ data:
                 "id": "1028254982748778516"
             },
             "TagUnitHelpResolvedTag": "1028255134356086784",
-            /* React Role Service */
-            "ReactRoleServiceEnabled": false,
             "IntroductionChannel": {
                 "desc": "Introduction Channel",
                 "id": "1198575542467838044"

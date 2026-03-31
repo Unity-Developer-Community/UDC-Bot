@@ -1,6 +1,5 @@
 # ConfigMaps for bot Settings files (Rules, FAQs, UserSettings).
 # These are mounted into the Settings PVC by the render-config init container.
-# Edit values below for your dev environment.
 ---
 apiVersion: v1
 kind: ConfigMap
