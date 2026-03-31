@@ -96,7 +96,6 @@ public class Program
             .AddSingleton<UserService>()
             .AddSingleton<IntroductionWatcherService>()
             .AddSingleton<ModerationService>()
-            .AddSingleton<PublisherService>()
             .AddSingleton<FeedService>()
             .AddSingleton<UnityHelpService>()
             .AddSingleton<RecruitService>()

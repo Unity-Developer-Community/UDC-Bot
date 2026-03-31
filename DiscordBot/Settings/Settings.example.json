@@ -3,10 +3,6 @@
   /* Auth info */
   "token": "Y O U R _ B O T _ T O K E N",
   "invite": "InviteLink", // Currently Unused
-  /* Gmail information for Asset Publisher Role to work. */
-  "gmail": "",
-  "gmailUsername": "YourGmailUsername",
-  "gmailPassword": "YourGmailPassword",
   /* 'SSL MODE' and 'Allow User Variables' are only required when running on a local machine with XAMPP. This can often be removed. */
   /* DB Info*/
   "DbConnectionString": "server=localhost;port=3306;database=test;user id=USER;Password=USERPASSWORD;SSL Mode=None;Allow User Variables=True",
@@ -62,7 +58,6 @@
   },
   /* Role Ids */
   "mutedRoleID": "0",
-  "publisherRoleID": "0",
   "SubsNewsRoleId": "0",
   "SubsReleasesRoleId": "0",
   /*Complaints Channels Stuff*/

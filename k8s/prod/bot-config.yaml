@@ -15,12 +15,6 @@ data:
             "token": "${BOT_TOKEN}",
             "DbConnectionString": "server=mysql;port=3306;database=udcbot;user id=udcbot;Password=${DB_PASSWORD};SSL Mode=None;Allow User Variables=True;AllowPublicKeyRetrieval=True",
             "invite": "https://discord.gg/bu3bbby", // Currently Unused
-            /* Email information for Asset Publisher Role to work. */
-            "email": "publisherverification@unitydevelopercommunity.com",
-            "emailUsername": "publisherverification@unitydevelopercommunity.com",
-            "emailPassword": "flaw1frob*STUR5drab",
-            "emailSMTPServer": "SSL0.OVH.NET",
-            "emailSMTPPort": 465,
             /* 'SSL MODE' and 'Allow User Variables' are only required when running on a local machine with XAMPP. This can often be removed. */
             /* DB Info*/
             /*Server Info*/
@@ -77,13 +71,10 @@ data:
             },
             /* Role Ids */
             "mutedRoleID": "493514472942600202",
-            "publisherRoleID": "493514583785340939",
             "SubsNewsRoleId": "1209260621342707772",
             "SubsReleasesRoleId": "523205962279157771",
             "TipsUserRoleId": "493514563736698880",
             "TipsAuthorRoleId": "99999",
-            /*Publisher Stuff*/
-            "assetStoreFrontPage": "https://www.assetstore.unity3d.com/en/",
             /*Complaints Channels Stuff*/
             "complaintCategoryId": "520853507851681797",
             "complaintChannelPrefix": "Complaint",

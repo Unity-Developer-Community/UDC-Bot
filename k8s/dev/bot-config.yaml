@@ -76,12 +76,9 @@ data:
             },
             /* Role Ids */
             "mutedRoleID": "682432235445682194",
-            "publisherRoleID": "769870929739776020",
             "SubsReleasesRoleId": "769870886743703584",
             "TipsUserRoleId": "603187742096228374",
             "TipsAuthorRoleId": "603187742096228374",
-            /*Publisher Stuff*/
-            "assetStoreFrontPage": "https://www.assetstore.unity3d.com/en/",
             /*Complaints Channels Stuff*/
             "complaintCategoryId": "874631331810799626",
             "complaintChannelPrefix": "Complaint",

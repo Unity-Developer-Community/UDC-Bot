@@ -56,18 +56,6 @@ public class BotSettings
 
     #endregion // Configuration
 
-    #region Asset Publisher
-
-    // Used for Asset Publisher
-
-    public string Email { get; set; }
-    public string EmailUsername { get; set; }
-    public string EmailPassword { get; set; }
-    public string EmailSMTPServer { get; set; }
-    public int EmailSMTPPort { get; set; }
-
-    #endregion // Asset Publisher
-
     #region Channels
 
     public ChannelInfo IntroductionChannel { get; set; }
@@ -105,7 +93,6 @@ public class BotSettings
     public ulong MutedRoleId { get; set; }
     public ulong SubsReleasesRoleId { get; set; }
     public ulong SubsNewsRoleId { get; set; }
-    public ulong PublisherRoleId { get; set; }
     public ulong ModeratorRoleId { get; set; }
     public ulong TipsUserRoleId { get; set; } // e.g., Helpers
 

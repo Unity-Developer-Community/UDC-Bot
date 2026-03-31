@@ -21,7 +21,6 @@ public class UserModule : ModuleBase
     public ILoggingService LoggingService { get; set; }
     public CurrencyService CurrencyService { get; set; }
     public DatabaseService DatabaseService { get; set; }
-    public PublisherService PublisherService { get; set; }
     public UpdateService UpdateService { get; set; }
     public CommandHandlingService CommandHandlingService { get; set; }
     public WeatherService WeatherService { get; set; }
@@ -322,7 +321,6 @@ public class UserModule : ModuleBase
                 "!role add/remove XR-Developers - If you're a VR, AR or MR sorcerer. \n" +
                 "!role add/remove Writers - If you like writing lore, scenarios, characters and stories. \n" +
                 "```");
-            await ReplyAsync("```To get the publisher role type **!pinfo** and follow the instructions.```\n");
         }
     }
     #region All Rules
@@ -728,55 +726,6 @@ public class UserModule : ModuleBase
     public async Task RollD20(int number = 0)
     {
         await RollDice(20, number);
-    }
-
-    #endregion
-
-    #region Publisher
-
-    [Command("PInfo"), BotCommandChannel, Priority(11)]
-    [Summary("Information on how to get publisher role.")]
-    [Alias("publisherinfo")]
-    public async Task PublisherInfo()
-    {
-        var builder = new EmbedBuilder()
-            .WithTitle("Publisher Commands")
-            .WithDescription("Use these commands to get the **Asset-Publisher** role.")
-            .AddField("1️⃣  `!publisher <ID>`", "Example: `!publisher 12345`.\nReceive a code on the email associated with your publisher account.\nTo get your ID: assetstore.unity.com/publishers/**YourID**.")
-            .AddField("2️⃣  `!verify <ID> <code>`", "Example: `!publisher 12345 6789`.\nVerify your ID with the code sent to your email.");
-        var embed = builder.Build();
-
-        await ReplyAsync(embed: embed);
-        await Context.Message.DeleteAfterSeconds(seconds: 2);
-    }
-
-    [Command("Publisher"), BotCommandChannel, HideFromHelp]
-    [Summary("Get the Asset-Publisher role by verifying who you are. Syntax: !publisher publisherID")]
-    public async Task Publisher(uint publisherId)
-    {
-        if (((SocketGuildUser)Context.Message.Author).Roles.Any(x => x.Id == Settings.PublisherRoleId))
-        {
-            await ReplyAsync($"{Context.Message.Author.Mention} you already have the `Asset-Publisher` role.");
-        }
-        else if (Settings.Email == string.Empty)
-        {
-            await ReplyAsync("The `Asset-Publisher` role is currently disabled.");
-        }
-        else
-        {
-            var verify = await PublisherService.VerifyPublisher(publisherId, Context.User.Username);
-            await ReplyAsync(verify.Item2);
-        }
-        await Context.Message.DeleteAfterSeconds(seconds: 1);
-    }
-
-    [Command("Verify"), BotCommandChannel, HideFromHelp]
-    [Summary("Verify a publisher with the code received by email. Syntax : !verify publisherId code")]
-    public async Task VerifyPackage(uint packageId, string code)
-    {
-        await Context.Message.DeleteAfterSeconds(seconds: 0);
-        var verif = await PublisherService.ValidatePublisherWithCode(Context.Message.Author, packageId, code);
-        await ReplyAsync(verif);
     }
 
     #endregion
