@@ -46,11 +46,14 @@ jobs:
           sed -i "s|image: ghcr.io/unity-developer-community/udc-bot-dev:.*|image: ghcr.io/unity-developer-community/udc-bot-dev:${SHORT_SHA}|" k8s/dev/bot.yaml
 
       - name: Commit and push
+        env:
+          PR_NUMBER: ${{ steps.meta.outputs.pr_number }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add k8s/dev/bot.yaml
-          git diff --cached --quiet || git commit -m "chore(k8s): deploy PR #${{ steps.meta.outputs.pr_number }} to dev (${{ steps.meta.outputs.short_sha }})"
+          git diff --cached --quiet || git commit -m "chore(k8s): deploy PR #${PR_NUMBER} to dev (${SHORT_SHA})"
           git push
 
       - name: Post success comment
