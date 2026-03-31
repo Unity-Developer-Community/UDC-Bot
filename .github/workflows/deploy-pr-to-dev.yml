@@ -16,7 +16,10 @@ concurrency:
 
 jobs:
   deploy-pr:
-    if: github.event.issue.pull_request && github.event.comment.body == '/deploy_dev'
+    if: >-
+      github.event.issue.pull_request
+      && github.event.comment.body == '/deploy_dev'
+      && contains(fromJSON('["MEMBER","COLLABORATOR","OWNER"]'), github.event.comment.author_association)
     name: Build PR & Deploy to Dev
     runs-on: ubuntu-latest
     steps:
