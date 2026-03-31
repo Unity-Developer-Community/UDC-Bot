@@ -24,3 +24,4 @@ UpgradeLog.htm
 
 # Runtime data (mounted at runtime, not baked into image)
 Settings/
+DiscordBot/SERVER/
