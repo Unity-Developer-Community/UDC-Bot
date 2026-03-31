@@ -142,6 +142,8 @@ spec:
             capabilities:
               drop:
                 - ALL
+              add:
+                - DAC_OVERRIDE
       volumes:
         - name: config-template
           configMap:
