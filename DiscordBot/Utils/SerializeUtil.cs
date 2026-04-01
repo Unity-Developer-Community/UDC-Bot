@@ -7,7 +7,6 @@ public static class SerializeUtil
 {
     public static T DeserializeFile<T>(string path, bool newFileIfNotExists = true) where T : new()
     {
-        // Check if file exists,
         if (!File.Exists(path))
         {
             if (newFileIfNotExists)
@@ -23,9 +22,25 @@ public static class SerializeUtil
             }
         }
 
-        using var file = File.OpenText(path);
-        var content = JsonConvert.DeserializeObject<T>(file.ReadToEnd()) ?? new T();
-        return content;
+        try
+        {
+            using var file = File.OpenText(path);
+            var content = JsonConvert.DeserializeObject<T>(file.ReadToEnd()) ?? new T();
+            return content;
+        }
+        catch (JsonException ex)
+        {
+            LoggingService.LogToConsole(
+                $"Corrupted JSON in '{path}': {ex.Message}. Backing up and resetting to default.", LogSeverity.Error);
+
+            var backupPath = path + $".corrupt-{DateTime.UtcNow:yyyyMMdd-HHmmss}.bak";
+            try { File.Copy(path, backupPath, overwrite: true); }
+            catch { /* best-effort backup */ }
+
+            var fallback = new T();
+            AtomicWriteText(path, JsonConvert.SerializeObject(fallback));
+            return fallback;
+        }
     }
 
     /// <summary> Tests objectToSerialize to confirm not null before saving it to path. </summary>
@@ -66,5 +81,5 @@ public static class SerializeUtil
         }
         return resultObject;
     }
-    
+
 }
