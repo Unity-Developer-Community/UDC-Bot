@@ -24,7 +24,7 @@ jobs:
               body: [
                 '### 🚀 Deploy this PR',
                 '',
-                `To deploy this branch to the **dev** environment, go to the [Deploy PR to Dev](${context.payload.repository.html_url}/actions/workflows/deploy-pr-to-dev.yml) workflow and click **Run workflow** with this PR number.`,
+                `To deploy this branch to the **dev** environment, go to the [Deploy to Dev](${context.payload.repository.html_url}/actions/workflows/deploy-to-dev.yml) workflow and click **Run workflow** with this PR number.`,
                 '',
                 'This will build a Docker image from your branch, push it to GHCR, and trigger an ArgoCD sync.',
               ].join('\n'),
