@@ -23,6 +23,13 @@ on:
         description: "Commit message for the manifest update"
         required: true
         type: string
+    secrets:
+      APP_ID:
+        description: "GitHub App ID for bypassing branch protection"
+        required: true
+      APP_PRIVATE_KEY:
+        description: "GitHub App private key (.pem)"
+        required: true
 
 permissions:
   contents: write
@@ -68,11 +75,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Checkout manifest branch
         if: inputs.manifest_ref != ''
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.manifest_ref }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Update manifest image tag
         env:
@@ -88,9 +103,12 @@ jobs:
           COMMIT_MSG: ${{ inputs.commit_message }}
           SHORT_SHA: ${{ steps.sha.outputs.short }}
           MANIFEST_PATH: ${{ inputs.manifest_path }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           git add "${MANIFEST_PATH}"
           FINAL_MSG=$(echo "${COMMIT_MSG}" | sed "s/{sha}/${SHORT_SHA}/g")
           git diff --cached --quiet || git commit -m "${FINAL_MSG}"
