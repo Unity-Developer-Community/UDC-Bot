@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: postgresql-backup
-          image: prodrigestivill/postgres-backup-local:16
+          image: prodrigestivill/postgres-backup-local:16-alpine-d257e5d
           env:
             - name: POSTGRES_HOST
               value: postgresql

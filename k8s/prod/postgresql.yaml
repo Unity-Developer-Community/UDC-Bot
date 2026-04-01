@@ -40,11 +40,13 @@ spec:
     spec:
       containers:
         - name: postgresql
-          image: postgres:16
+          image: postgres:16.13
           ports:
             - containerPort: 5432
               protocol: TCP
           env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
