@@ -51,6 +51,7 @@ spec:
               cp /rules-template/Rules.json /app-settings/Rules.json
               cp /faqs-template/FAQs.json /app-settings/FAQs.json
               cp /usersettings-template/UserSettings.json /app-settings/UserSettings.json
+              cp /slap-template/udc-slap.txt /app-settings/udc-slap.txt
           env:
             - name: BOT_TOKEN
               valueFrom:
@@ -99,6 +100,9 @@ spec:
               readOnly: true
             - name: usersettings-template
               mountPath: /usersettings-template
+              readOnly: true
+            - name: slap-template
+              mountPath: /slap-template
               readOnly: true
             - name: app-settings
               mountPath: /app-settings
@@ -157,6 +161,9 @@ spec:
         - name: usersettings-template
           configMap:
             name: bot-user-settings
+        - name: slap-template
+          configMap:
+            name: bot-slap
         - name: app-settings
           emptyDir: {}
         - name: server-data
