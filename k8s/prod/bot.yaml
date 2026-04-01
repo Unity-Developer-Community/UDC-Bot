@@ -60,7 +60,7 @@ spec:
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: mysql-user-credentials
+                  name: postgresql-credentials
                   key: password
             - name: WEATHER_KEY
               valueFrom:
@@ -107,14 +107,14 @@ spec:
             capabilities:
               drop:
                 - ALL
-        - name: wait-for-mysql
+        - name: wait-for-postgresql
           image: busybox:1.37
           command:
             - sh
             - -c
             - |
-              until nc -z mysql 3306; do
-                echo "Waiting for MySQL..."
+              until nc -z postgresql 5432; do
+                echo "Waiting for PostgreSQL..."
                 sleep 2
               done
           securityContext:

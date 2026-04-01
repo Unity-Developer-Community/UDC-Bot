@@ -7,8 +7,7 @@ public static class DBConnectionExtension
 {
     public static async Task<bool> ColumnExists(this DbConnection connection, string tableName, string columnName)
     {
-        // Execute the query `SHOW COLUMNS FROM `{tableName}` LIKE '{columnName}'` and check if any rows are returned
-        var query = $"SHOW COLUMNS FROM `{tableName}` LIKE '{columnName}'";
+        var query = $"SELECT 1 FROM information_schema.columns WHERE table_name = '{tableName}' AND column_name = '{columnName}'";
         var response = await connection.QuerySqlAsync(query);
         return response.Count > 0;
     }

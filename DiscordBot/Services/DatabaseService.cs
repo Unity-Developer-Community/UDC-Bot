@@ -3,7 +3,8 @@ using Discord.WebSocket;
 using DiscordBot.Domain;
 using DiscordBot.Settings;
 using Insight.Database;
-using MySql.Data.MySqlClient;
+using Insight.Database.Providers.PostgreSQL;
+using Npgsql;
 
 namespace DiscordBot.Services;
 
@@ -18,7 +19,7 @@ public class DatabaseService
     {
         try
         {
-            var c = new MySqlConnection(ConnectionString);
+            var c = new NpgsqlConnection(ConnectionString);
             return c.As<ICasinoRepo>();
         }
         catch (Exception e)
@@ -32,7 +33,7 @@ public class DatabaseService
     {
         try
         {
-            var c = new MySqlConnection(ConnectionString);
+            var c = new NpgsqlConnection(ConnectionString);
             return c.As<IServerUserRepo>();
         }
         catch (Exception e)
@@ -47,13 +48,15 @@ public class DatabaseService
 
     public DatabaseService(ILoggingService logging, BotSettings settings)
     {
+        PostgreSQLInsightDbProvider.RegisterProvider();
+
         ConnectionString = settings.DbConnectionString;
         _logging = logging;
 
         DbConnection c = null;
         try
         {
-            c = new MySqlConnection(ConnectionString);
+            c = new NpgsqlConnection(ConnectionString);
         }
         catch (Exception e)
         {
@@ -72,11 +75,10 @@ public class DatabaseService
                     $"{ServiceName}: Connected to database successfully. {userCount} users in database.",
                     ExtendedLogSeverity.Positive);
 
-                // Not sure on best practice for if column is missing, full blown migrations seem overkill
                 var defaultCityExists = await c.ColumnExists(UserProps.TableName, UserProps.DefaultCity);
                 if (!defaultCityExists)
                 {
-                    c.ExecuteSql($"ALTER TABLE `{UserProps.TableName}` ADD `{UserProps.DefaultCity}` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER `{UserProps.Level}`");
+                    c.ExecuteSql($"ALTER TABLE \"{UserProps.TableName}\" ADD COLUMN \"{UserProps.DefaultCity}\" varchar(64) DEFAULT NULL");
                     await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.DefaultCity}' to table '{UserProps.TableName}'.",
                         ExtendedLogSeverity.Positive);
                 }
@@ -88,23 +90,17 @@ public class DatabaseService
                 try
                 {
                     c.ExecuteSql(
-                        $"CREATE TABLE `{UserProps.TableName}` (`ID` int(11) UNSIGNED  NOT NULL," +
-                        $"`{UserProps.UserID}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
-                        $"`{UserProps.Karma}` int(11) UNSIGNED  NOT NULL DEFAULT 0, " +
-                        $"`{UserProps.KarmaWeekly}` int(11) UNSIGNED  NOT NULL DEFAULT 0, " +
-                        $"`{UserProps.KarmaMonthly}` int(11) UNSIGNED  NOT NULL DEFAULT 0, " +
-                        $"`{UserProps.KarmaYearly}` int(11) UNSIGNED  NOT NULL DEFAULT 0, " +
-                        $"`{UserProps.KarmaGiven}` int(11) UNSIGNED NOT NULL DEFAULT 0, " +
-                        $"`{UserProps.Exp}` bigint(11) UNSIGNED  NOT NULL DEFAULT 0, " +
-                        $"`{UserProps.Level}` int(11) UNSIGNED NOT NULL DEFAULT 0) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-                    c.ExecuteSql(
-                        $"ALTER TABLE `{UserProps.TableName}` ADD PRIMARY KEY (`ID`,`{UserProps.UserID}`), ADD UNIQUE KEY `{UserProps.UserID}` (`{UserProps.UserID}`)");
-                    c.ExecuteSql(
-                        $"ALTER TABLE `{UserProps.TableName}` MODIFY `ID` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1");
-
-                    // "DefaultCity" Nullable - Weather, BDay, Temp, Time, etc. Optional for users to set their own city (Added - Jan 2024)
-                    c.ExecuteSql(
-                        $"ALTER TABLE `{UserProps.TableName}` ADD `{UserProps.DefaultCity}` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER `{UserProps.Level}`");
+                        $"CREATE TABLE \"{UserProps.TableName}\" (" +
+                        $"\"ID\" SERIAL PRIMARY KEY, " +
+                        $"\"{UserProps.UserID}\" varchar(32) NOT NULL UNIQUE, " +
+                        $"\"{UserProps.Karma}\" integer NOT NULL DEFAULT 0, " +
+                        $"\"{UserProps.KarmaWeekly}\" integer NOT NULL DEFAULT 0, " +
+                        $"\"{UserProps.KarmaMonthly}\" integer NOT NULL DEFAULT 0, " +
+                        $"\"{UserProps.KarmaYearly}\" integer NOT NULL DEFAULT 0, " +
+                        $"\"{UserProps.KarmaGiven}\" integer NOT NULL DEFAULT 0, " +
+                        $"\"{UserProps.Exp}\" bigint NOT NULL DEFAULT 0, " +
+                        $"\"{UserProps.Level}\" integer NOT NULL DEFAULT 0, " +
+                        $"\"{UserProps.DefaultCity}\" varchar(64) DEFAULT NULL)");
                 }
                 catch (Exception e)
                 {
@@ -133,31 +129,27 @@ public class DatabaseService
                     ExtendedLogSeverity.LowWarning);
                 try
                 {
-                    // Create casino_users table
                     c.ExecuteSql(
-                        $"CREATE TABLE `{CasinoProps.CasinoTableName}` (" +
-                        $"`{CasinoProps.Id}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
-                        $"`{CasinoProps.UserID}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
-                        $"`{CasinoProps.Tokens}` bigint(20) UNSIGNED NOT NULL DEFAULT 1000, " +
-                        $"`{CasinoProps.CreatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
-                        $"`{CasinoProps.UpdatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, " +
-                        $"`{CasinoProps.LastDailyReward}` timestamp NOT NULL DEFAULT '1970-01-01 00:00:01', " +
-                        $"PRIMARY KEY (`{CasinoProps.Id}`), " +
-                        $"UNIQUE KEY `{CasinoProps.UserID}` (`{CasinoProps.UserID}`) " +
-                        $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+                        $"CREATE TABLE \"{CasinoProps.CasinoTableName}\" (" +
+                        $"\"{CasinoProps.Id}\" SERIAL PRIMARY KEY, " +
+                        $"\"{CasinoProps.UserID}\" varchar(32) NOT NULL UNIQUE, " +
+                        $"\"{CasinoProps.Tokens}\" bigint NOT NULL DEFAULT 1000, " +
+                        $"\"{CasinoProps.CreatedAt}\" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                        $"\"{CasinoProps.UpdatedAt}\" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                        $"\"{CasinoProps.LastDailyReward}\" timestamptz NOT NULL DEFAULT '1970-01-01 00:00:01+00')");
 
-                    // Create token_transactions table  
                     c.ExecuteSql(
-                        $"CREATE TABLE `{CasinoProps.TransactionTableName}` (" +
-                        $"`{CasinoProps.TransactionId}` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, " +
-                        $"`{CasinoProps.TransactionUserID}` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL, " +
-                        $"`{CasinoProps.Amount}` bigint(20) NOT NULL, " +
-                        $"`{CasinoProps.TransactionType}` int(11) NOT NULL, " +
-                        $"`{CasinoProps.Details}` json DEFAULT NULL, " + // JSON column for transaction details
-                        $"`{CasinoProps.TransactionCreatedAt}` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
-                        $"PRIMARY KEY (`{CasinoProps.TransactionId}`), " +
-                        $"KEY `idx_user_created` (`{CasinoProps.TransactionUserID}`, `{CasinoProps.TransactionCreatedAt}`) " +
-                        $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+                        $"CREATE TABLE \"{CasinoProps.TransactionTableName}\" (" +
+                        $"\"{CasinoProps.TransactionId}\" SERIAL PRIMARY KEY, " +
+                        $"\"{CasinoProps.TransactionUserID}\" varchar(32) NOT NULL, " +
+                        $"\"{CasinoProps.Amount}\" bigint NOT NULL, " +
+                        $"\"{CasinoProps.TransactionType}\" integer NOT NULL, " +
+                        $"\"{CasinoProps.Details}\" jsonb DEFAULT NULL, " +
+                        $"\"{CasinoProps.TransactionCreatedAt}\" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+
+                    c.ExecuteSql(
+                        $"CREATE INDEX idx_user_created ON \"{CasinoProps.TransactionTableName}\" " +
+                        $"(\"{CasinoProps.TransactionUserID}\", \"{CasinoProps.TransactionCreatedAt}\")");
                 }
                 catch (Exception e)
                 {
@@ -171,24 +163,6 @@ public class DatabaseService
                     ExtendedLogSeverity.Positive);
                 c.Close();
             }
-
-            // Generate and add events if they don't exist
-            try
-            {
-                c.ExecuteSql(
-                    $"CREATE EVENT IF NOT EXISTS `ResetWeeklyLeaderboards` ON SCHEDULE EVERY 1 WEEK STARTS '2021-08-02 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO UPDATE {c.Database}.users SET {UserProps.KarmaWeekly} = 0");
-                c.ExecuteSql(
-                    $"CREATE EVENT IF NOT EXISTS `ResetMonthlyLeaderboards` ON SCHEDULE EVERY 1 MONTH STARTS '2021-08-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO UPDATE {c.Database}.users SET {UserProps.KarmaMonthly} = 0");
-                c.ExecuteSql(
-                    $"CREATE EVENT IF NOT EXISTS `ResetYearlyLeaderboards` ON SCHEDULE EVERY 1 YEAR STARTS '2022-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO UPDATE {c.Database}.users SET {UserProps.KarmaYearly} = 0");
-                c.Close();
-            }
-            catch (Exception e)
-            {
-                await _logging.LogAction($"SQL Exception: Failed to generate leaderboard events.\nMessage: {e}",
-                    ExtendedLogSeverity.Warning);
-            }
-
         });
     }
 
