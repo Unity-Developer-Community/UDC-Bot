@@ -55,6 +55,9 @@ jobs:
       checkout_ref: ${{ needs.validate.outputs.sha }}
       manifest_ref: dev
       commit_message: "chore(k8s): deploy PR #${{ inputs.pr_number }} to dev ({sha})"
+    secrets:
+      APP_ID: ${{ secrets.APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
     permissions:
       contents: write
       packages: write

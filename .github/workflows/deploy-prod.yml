@@ -21,6 +21,9 @@ jobs:
       manifest_path: k8s/prod/bot.yaml
       checkout_ref: master
       commit_message: "chore(k8s): update prod image to {sha}"
+    secrets:
+      APP_ID: ${{ secrets.APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
     permissions:
       contents: write
       packages: write
