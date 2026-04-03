@@ -455,3 +455,6 @@ fabric.properties
 
 # Bot runtime-generated data (SERVER/ is created by the bot at runtime)
 DiscordBot/SERVER/
+
+# pgAdmin pgpass contains plaintext credentials
+pgadmin/pgpass
