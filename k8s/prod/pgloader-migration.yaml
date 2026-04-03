@@ -22,26 +22,27 @@ data:
     MYSQL_PASS_ENCODED=$(urlencode "${MYSQL_PASSWORD}")
     PG_PASS_ENCODED=$(urlencode "${POSTGRES_PASSWORD}")
 
-    cat > /tmp/migration.load <<PGEOF
+    cat > /tmp/migration.load <<'PGEOF'
     LOAD DATABASE
-      FROM mysql://root:${MYSQL_PASS_ENCODED}@mysql.udc-bot-prod.svc.cluster.local:3306/udcbot
-      INTO postgresql://udcbot:${PG_PASS_ENCODED}@postgresql.udc-bot-prod.svc.cluster.local:5432/udcbot
+      FROM mysql://MYSQL_PLACEHOLDER@mysql.udc-bot-prod.svc.cluster.local:3306/udcbot
+      INTO postgresql://PG_PLACEHOLDER@postgresql.udc-bot-prod.svc.cluster.local:5432/udcbot
 
     WITH data only,
-         reset sequences,
-         workers = 2, concurrency = 1
+        reset sequences,
+        workers = 2, concurrency = 1
 
     SET maintenance_work_mem to '128MB'
-
-    CAST type int unsigned to integer,
-         type bigint unsigned to bigint
 
     INCLUDING ONLY TABLE NAMES MATCHING ~/users|casino_users|token_transactions/
 
     BEFORE LOAD DO
-      \$\$ TRUNCATE users, casino_users, token_transactions CASCADE; \$\$
+      $$ TRUNCATE users, casino_users, token_transactions CASCADE; $$
     ;
     PGEOF
+
+    # Substitute credentials into the config (avoid shell expansion in heredoc)
+    sed -i "s|MYSQL_PLACEHOLDER|root:${MYSQL_PASS_ENCODED}|" /tmp/migration.load
+    sed -i "s|PG_PLACEHOLDER|udcbot:${PG_PASS_ENCODED}|" /tmp/migration.load
 
     echo "=== Starting pgloader migration (PROD) ==="
     echo "Source: mysql.udc-bot-prod.svc.cluster.local/udcbot"
