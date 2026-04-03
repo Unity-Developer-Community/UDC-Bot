@@ -64,7 +64,7 @@ jobs:
 
   notify:
     needs: [check, build]
-    if: always()
+    if: needs.check.result != 'skipped' && always()
     name: Post result
     runs-on: ubuntu-latest
     permissions:
