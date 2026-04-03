@@ -70,13 +70,23 @@ jobs:
                         core.setOutput('is_pr', 'false');
                       }
 
-    deploy:
+    build:
         needs: resolve
-        uses: ./.github/workflows/build-and-deploy.yml
+        uses: ./.github/workflows/build.yml
+        with:
+            checkout_ref: ${{ needs.resolve.outputs.checkout_ref }}
+            image_name: udc-bot-dev
+        permissions:
+            contents: read
+            packages: write
+
+    deploy:
+        needs: [resolve, build]
+        uses: ./.github/workflows/deploy.yml
         with:
             image_name: udc-bot-dev
+            short_sha: ${{ needs.build.outputs.short_sha }}
             manifest_path: k8s/dev/bot.yaml
-            checkout_ref: ${{ needs.resolve.outputs.checkout_ref }}
             manifest_ref: master
             commit_message: ${{ needs.resolve.outputs.commit_message }}
         secrets:
@@ -84,10 +94,9 @@ jobs:
             APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
         permissions:
             contents: write
-            packages: write
 
     notify:
-        needs: [resolve, deploy]
+        needs: [resolve, build, deploy]
         if: always() && needs.resolve.outputs.is_pr == 'true'
         name: Notify PR
         runs-on: ubuntu-latest
@@ -97,7 +106,7 @@ jobs:
               uses: actions/github-script@v7
               env:
                   PR_NUMBER: ${{ inputs.pr_number }}
-                  SHORT_SHA: ${{ needs.resolve.outputs.short_sha }}
+                  SHORT_SHA: ${{ needs.build.outputs.short_sha }}
                   REPO_OWNER: ${{ github.repository_owner }}
               with:
                   script: |

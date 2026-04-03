@@ -1,0 +1,112 @@
+name: PR Build on Comment
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  check:
+    name: Validate trigger
+    if: |
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/build') &&
+      github.event.comment.author_association != 'NONE' &&
+      github.event.comment.author_association != 'FIRST_TIMER' &&
+      github.event.comment.author_association != 'FIRST_TIME_CONTRIBUTOR'
+    runs-on: ubuntu-latest
+    outputs:
+      head_sha: ${{ steps.pr.outputs.head_sha }}
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+    steps:
+      - name: Get PR details
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            if (pr.state !== 'open') {
+              core.setFailed(`PR #${context.issue.number} is not open`);
+              return;
+            }
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('pr_number', context.issue.number);
+
+      - name: React to comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket',
+            });
+
+  build:
+    needs: check
+    uses: ./.github/workflows/build.yml
+    with:
+      checkout_ref: ${{ needs.check.outputs.head_sha }}
+      image_name: udc-bot-dev
+    permissions:
+      contents: read
+      packages: write
+
+  notify:
+    needs: [check, build]
+    if: always()
+    name: Post result
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Post success comment
+        if: needs.build.result == 'success'
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ needs.check.outputs.pr_number }}
+          IMAGE_REF: ${{ needs.build.outputs.image_ref }}
+          SHORT_SHA: ${{ needs.build.outputs.short_sha }}
+        with:
+          script: |
+            const { PR_NUMBER, IMAGE_REF, SHORT_SHA } = process.env;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(PR_NUMBER),
+              body: [
+                '🐳 **Build complete!**',
+                '',
+                `Image: \`${IMAGE_REF}\``,
+                '',
+                'To deploy with manifest changes:',
+                `1. Update \`k8s/dev/bot.yaml\` image tag to \`${SHORT_SHA}\` on your branch`,
+                '2. Switch ArgoCD dev target revision to your branch',
+              ].join('\n'),
+            });
+
+      - name: Post failure comment
+        if: needs.build.result == 'failure'
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ needs.check.outputs.pr_number }}
+        with:
+          script: |
+            const { PR_NUMBER } = process.env;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(PR_NUMBER),
+              body: `❌ Build failed. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.`,
+            });
