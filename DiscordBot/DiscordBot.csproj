@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Insight.Database" Version="8.0.5" />
+    <PackageReference Include="Insight.Database" Version="8.0.6" />
     <PackageReference Include="Insight.Database.Providers.PostgreSQL" Version="8.0.6" />
     <PackageReference Include="HtmlAgilityPack" Version="1.12.1" />
     <PackageReference Include="Discord.Net" Version="3.17.4" />
