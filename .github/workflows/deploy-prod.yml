@@ -14,16 +14,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      checkout_ref: master
+      image_name: udc-bot
+    permissions:
+      contents: read
+      packages: write
+
   deploy:
-    uses: ./.github/workflows/build-and-deploy.yml
+    needs: build
+    uses: ./.github/workflows/deploy.yml
     with:
       image_name: udc-bot
+      short_sha: ${{ needs.build.outputs.short_sha }}
       manifest_path: k8s/prod/bot.yaml
-      checkout_ref: master
+      manifest_ref: master
       commit_message: "chore(k8s): update prod image to {sha}"
     secrets:
       APP_ID: ${{ secrets.APP_ID }}
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
     permissions:
       contents: write
-      packages: write
