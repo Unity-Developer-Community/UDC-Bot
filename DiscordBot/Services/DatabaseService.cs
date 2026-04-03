@@ -78,7 +78,7 @@ public class DatabaseService
                 var defaultCityExists = await c.ColumnExists(UserProps.TableName, UserProps.DefaultCity);
                 if (!defaultCityExists)
                 {
-                    c.ExecuteSql($"ALTER TABLE \"{UserProps.TableName}\" ADD COLUMN \"{UserProps.DefaultCity}\" varchar(64) DEFAULT NULL");
+                    c.ExecuteSql($"ALTER TABLE {UserProps.TableName} ADD COLUMN {UserProps.DefaultCity} varchar(64) DEFAULT NULL");
                     await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.DefaultCity}' to table '{UserProps.TableName}'.",
                         ExtendedLogSeverity.Positive);
                 }
@@ -90,17 +90,17 @@ public class DatabaseService
                 try
                 {
                     c.ExecuteSql(
-                        $"CREATE TABLE \"{UserProps.TableName}\" (" +
-                        $"\"ID\" SERIAL PRIMARY KEY, " +
-                        $"\"{UserProps.UserID}\" varchar(32) NOT NULL UNIQUE, " +
-                        $"\"{UserProps.Karma}\" integer NOT NULL DEFAULT 0, " +
-                        $"\"{UserProps.KarmaWeekly}\" integer NOT NULL DEFAULT 0, " +
-                        $"\"{UserProps.KarmaMonthly}\" integer NOT NULL DEFAULT 0, " +
-                        $"\"{UserProps.KarmaYearly}\" integer NOT NULL DEFAULT 0, " +
-                        $"\"{UserProps.KarmaGiven}\" integer NOT NULL DEFAULT 0, " +
-                        $"\"{UserProps.Exp}\" bigint NOT NULL DEFAULT 0, " +
-                        $"\"{UserProps.Level}\" integer NOT NULL DEFAULT 0, " +
-                        $"\"{UserProps.DefaultCity}\" varchar(64) DEFAULT NULL)");
+                        $"CREATE TABLE {UserProps.TableName} (" +
+                        $"id SERIAL PRIMARY KEY, " +
+                        $"{UserProps.UserID} varchar(32) NOT NULL UNIQUE, " +
+                        $"{UserProps.Karma} integer NOT NULL DEFAULT 0, " +
+                        $"{UserProps.KarmaWeekly} integer NOT NULL DEFAULT 0, " +
+                        $"{UserProps.KarmaMonthly} integer NOT NULL DEFAULT 0, " +
+                        $"{UserProps.KarmaYearly} integer NOT NULL DEFAULT 0, " +
+                        $"{UserProps.KarmaGiven} integer NOT NULL DEFAULT 0, " +
+                        $"{UserProps.Exp} bigint NOT NULL DEFAULT 0, " +
+                        $"{UserProps.Level} integer NOT NULL DEFAULT 0, " +
+                        $"{UserProps.DefaultCity} varchar(64) DEFAULT NULL)");
                 }
                 catch (Exception e)
                 {
@@ -130,26 +130,26 @@ public class DatabaseService
                 try
                 {
                     c.ExecuteSql(
-                        $"CREATE TABLE \"{CasinoProps.CasinoTableName}\" (" +
-                        $"\"{CasinoProps.Id}\" SERIAL PRIMARY KEY, " +
-                        $"\"{CasinoProps.UserID}\" varchar(32) NOT NULL UNIQUE, " +
-                        $"\"{CasinoProps.Tokens}\" bigint NOT NULL DEFAULT 1000, " +
-                        $"\"{CasinoProps.CreatedAt}\" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
-                        $"\"{CasinoProps.UpdatedAt}\" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
-                        $"\"{CasinoProps.LastDailyReward}\" timestamptz NOT NULL DEFAULT '1970-01-01 00:00:01+00')");
+                        $"CREATE TABLE {CasinoProps.CasinoTableName} (" +
+                        $"{CasinoProps.Id} SERIAL PRIMARY KEY, " +
+                        $"{CasinoProps.UserID} varchar(32) NOT NULL UNIQUE, " +
+                        $"{CasinoProps.Tokens} bigint NOT NULL DEFAULT 1000, " +
+                        $"{CasinoProps.CreatedAt} timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                        $"{CasinoProps.UpdatedAt} timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                        $"{CasinoProps.LastDailyReward} timestamptz NOT NULL DEFAULT '1970-01-01 00:00:01+00')");
 
                     c.ExecuteSql(
-                        $"CREATE TABLE \"{CasinoProps.TransactionTableName}\" (" +
-                        $"\"{CasinoProps.TransactionId}\" SERIAL PRIMARY KEY, " +
-                        $"\"{CasinoProps.TransactionUserID}\" varchar(32) NOT NULL, " +
-                        $"\"{CasinoProps.Amount}\" bigint NOT NULL, " +
-                        $"\"{CasinoProps.TransactionType}\" integer NOT NULL, " +
-                        $"\"{CasinoProps.Details}\" jsonb DEFAULT NULL, " +
-                        $"\"{CasinoProps.TransactionCreatedAt}\" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+                        $"CREATE TABLE {CasinoProps.TransactionTableName} (" +
+                        $"{CasinoProps.TransactionId} SERIAL PRIMARY KEY, " +
+                        $"{CasinoProps.TransactionUserID} varchar(32) NOT NULL, " +
+                        $"{CasinoProps.Amount} bigint NOT NULL, " +
+                        $"{CasinoProps.TransactionType} integer NOT NULL, " +
+                        $"{CasinoProps.Details} jsonb DEFAULT NULL, " +
+                        $"{CasinoProps.TransactionCreatedAt} timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP)");
 
                     c.ExecuteSql(
-                        $"CREATE INDEX idx_user_created ON \"{CasinoProps.TransactionTableName}\" " +
-                        $"(\"{CasinoProps.TransactionUserID}\", \"{CasinoProps.TransactionCreatedAt}\")");
+                        $"CREATE INDEX idx_user_created ON {CasinoProps.TransactionTableName} " +
+                        $"({CasinoProps.TransactionUserID}, {CasinoProps.TransactionCreatedAt})");
                 }
                 catch (Exception e)
                 {

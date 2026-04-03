@@ -69,12 +69,12 @@ public class KarmaResetService
         await using var c = new NpgsqlConnection(_connectionString);
         await c.OpenAsync();
         await c.ExecuteSqlAsync(
-            $"CREATE TABLE IF NOT EXISTS \"{MetaTable}\" (" +
-            $"\"period\" varchar(16) PRIMARY KEY, " +
-            $"\"last_reset\" timestamptz NOT NULL DEFAULT '1970-01-01 00:00:00+00')");
-        await c.ExecuteSqlAsync($"INSERT INTO \"{MetaTable}\" (\"period\") VALUES ('weekly') ON CONFLICT DO NOTHING");
-        await c.ExecuteSqlAsync($"INSERT INTO \"{MetaTable}\" (\"period\") VALUES ('monthly') ON CONFLICT DO NOTHING");
-        await c.ExecuteSqlAsync($"INSERT INTO \"{MetaTable}\" (\"period\") VALUES ('yearly') ON CONFLICT DO NOTHING");
+            $"CREATE TABLE IF NOT EXISTS {MetaTable} (" +
+            $"period varchar(16) PRIMARY KEY, " +
+            $"last_reset timestamptz NOT NULL DEFAULT '1970-01-01 00:00:00+00')");
+        await c.ExecuteSqlAsync($"INSERT INTO {MetaTable} (period) VALUES ('weekly') ON CONFLICT DO NOTHING");
+        await c.ExecuteSqlAsync($"INSERT INTO {MetaTable} (period) VALUES ('monthly') ON CONFLICT DO NOTHING");
+        await c.ExecuteSqlAsync($"INSERT INTO {MetaTable} (period) VALUES ('yearly') ON CONFLICT DO NOTHING");
     }
 
     private async Task CatchUpMissedResets()
@@ -115,8 +115,8 @@ public class KarmaResetService
     {
         await using var c = new NpgsqlConnection(_connectionString);
         await c.OpenAsync();
-        await c.ExecuteSqlAsync($"UPDATE \"{UserProps.TableName}\" SET \"{column}\" = 0");
-        await c.ExecuteSqlAsync($"UPDATE \"{MetaTable}\" SET \"last_reset\" = NOW() WHERE \"period\" = '{period}'");
+        await c.ExecuteSqlAsync($"UPDATE {UserProps.TableName} SET {column} = 0");
+        await c.ExecuteSqlAsync($"UPDATE {MetaTable} SET last_reset = NOW() WHERE period = @period", new { period });
         await _logging.LogChannelAndFile($"KarmaResetService: Reset {period} karma ({column}).", ExtendedLogSeverity.Positive);
     }
 
@@ -124,7 +124,7 @@ public class KarmaResetService
     {
         await using var c = new NpgsqlConnection(_connectionString);
         await c.OpenAsync();
-        var results = await c.QuerySqlAsync($"SELECT \"last_reset\" FROM \"{MetaTable}\" WHERE \"period\" = '{period}'");
+        var results = await c.QuerySqlAsync($"SELECT last_reset FROM {MetaTable} WHERE period = @period", new { period });
         if (results.Count > 0 && results[0] is IDictionary<string, object> row && row.TryGetValue("last_reset", out var val) && val is DateTime dt)
             return dt;
         return DateTime.MinValue;
