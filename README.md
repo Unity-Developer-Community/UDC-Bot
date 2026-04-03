@@ -197,12 +197,12 @@ _For production deployment, consult the [Discord.Net Deployment Guide](https://d
 docker-compose up
 
 # Start only the database (run bot from IDE for faster development)
-docker-compose up database
+docker-compose up db
 ```
 
 **Development workflow:**
 
-1. Start the database container: `docker-compose up database`
+1. Start the database container: `docker-compose up db`
 2. Update the `DbConnectionString` in `Settings.json` to match your docker-compose configuration
 3. Run the bot from your IDE for faster development iteration
 
