@@ -251,7 +251,7 @@ public class UserModule : ModuleBase
             return;
         }
 
-        const uint xpGain = 5000;
+        const int xpGain = 5000;
         var userXp = await DatabaseService.Query.GetXp(userId.ToString());
         await DatabaseService.Query.UpdateXp(userId.ToString(), userXp + xpGain);
         await Context.Message.DeleteAsync();
@@ -468,7 +468,7 @@ public class UserModule : ModuleBase
         await ReplyAsync(embed: embed).DeleteAfterTime(minutes: 1);
     }
 
-    private async Task<Embed> GenerateRankEmbedFromList(List<(ulong userID, uint value)> data, string labelName)
+    private async Task<Embed> GenerateRankEmbedFromList(List<(ulong userID, int value)> data, string labelName)
     {
         var embedBuilder = new EmbedBuilder
         {

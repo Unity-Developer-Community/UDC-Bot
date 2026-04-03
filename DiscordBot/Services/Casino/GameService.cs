@@ -73,7 +73,7 @@ public class GameService
         session.AddPlayer(userId, 1);
     }
 
-    public async Task SetBet(IDiscordGameSession session, ulong userId, ulong bet)
+    public async Task SetBet(IDiscordGameSession session, ulong userId, long bet)
     {
         var user = await _casinoService.GetOrCreateCasinoUser(userId.ToString());
         if (bet > user.Tokens) throw new InvalidOperationException("You do not have enough tokens.");

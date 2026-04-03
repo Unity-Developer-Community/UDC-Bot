@@ -263,7 +263,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
             var xpGain = (int)Math.Round((baseXp + bonusXp) * reduceXp);
 
-            await _databaseService.Query.UpdateXp(userId.ToString(), user.Exp + (uint)xpGain);
+            await _databaseService.Query.UpdateXp(userId.ToString(), user.Exp + (long)xpGain);
 
             _loggingService.LogXp(messageParam.Channel.Name, messageParam.Author.Username, baseXp, bonusXp, reduceXp,
                 xpGain);
@@ -300,9 +300,9 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         //TODO Add level up card
     }
 
-    private double GetXpLow(uint level) => 70d - 139.5d * (level + 1d) + 69.5 * Math.Pow(level + 1d, 2d);
+    private double GetXpLow(int level) => 70d - 139.5d * (level + 1d) + 69.5 * Math.Pow(level + 1d, 2d);
 
-    private double GetXpHigh(uint level) => 70d - 139.5d * (level + 2d) + 69.5 * Math.Pow(level + 2d, 2d);
+    private double GetXpHigh(int level) => 70d - 139.5d * (level + 2d) + 69.5 * Math.Pow(level + 2d, 2d);
 
     private SkinData GetSkinData() =>
         JsonConvert.DeserializeObject<SkinData>(File.ReadAllText($"{_settings.AssetsRootPath}/skins/skin.json"),
@@ -333,8 +333,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var xpLow = GetXpLow(level);
             var xpHigh = GetXpHigh(level);
 
-            var xpShown = (uint)(xpTotal - xpLow);
-            var maxXpShown = (uint)(xpHigh - xpLow);
+            var xpShown = (int)(xpTotal - xpLow);
+            var maxXpShown = (int)(xpHigh - xpLow);
 
             var percentage = (float)xpShown / maxXpShown;
 
@@ -355,8 +355,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var profile = new ProfileData
             {
                 Karma = karma,
-                KarmaRank = (uint)karmaRank,
-                Level = (uint)level,
+                KarmaRank = karmaRank,
+                Level = level,
                 MainRoleColor = mainRole.Color,
                 MaxXpShown = maxXpShown,
                 Nickname = ((IGuildUser)user).Nickname,
@@ -365,9 +365,9 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 XpHigh = xpHigh,
                 XpLow = xpLow,
                 XpPercentage = percentage,
-                XpRank = (uint)xpRank,
+                XpRank = xpRank,
                 XpShown = xpShown,
-                XpTotal = (uint)xpTotal
+                XpTotal = xpTotal
             };
 
             var background = new MagickImage($"{_settings.AssetsRootPath}/skins/{skin.Background}");

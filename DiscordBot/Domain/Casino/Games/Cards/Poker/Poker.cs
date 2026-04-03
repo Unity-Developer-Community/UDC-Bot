@@ -230,11 +230,11 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
         return winners.Any(w => w.player == player) ? GamePlayerResult.Won : GamePlayerResult.Lost;
     }
 
-    public override long CalculatePayout(GamePlayer player, ulong totalPot)
+    public override long CalculatePayout(GamePlayer player, long totalPot)
     {
         var result = GetPlayerGameResult(player);
         if (result == GamePlayerResult.Lost)
-            return -(long)player.Bet;
+            return -player.Bet;
 
         // Calculate winner's share
         var allHands = Players.Where(p => GameData[p].FinalHand != null)
@@ -244,12 +244,11 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
 
         if (winner.player != null)
         {
-            // Winner gets their share of the total pot minus their original bet
-            var winnings = (long)(totalPot * (ulong)winner.share);
-            return winnings - (long)player.Bet;
+            var winnings = (long)(totalPot * winner.share);
+            return winnings - player.Bet;
         }
 
-        return -(long)player.Bet;
+        return -player.Bet;
     }
 
     public override bool ShouldFinish() => State == GameState.InProgress && Players.All(p => GameData[p].HasDiscarded);

@@ -19,10 +19,10 @@ public interface ICasinoRepo
     Task<IList<CasinoUser>> GetTopTokenHolders(int limit);
 
     [Sql($"UPDATE {CasinoProps.CasinoTableName} SET {CasinoProps.Tokens} = @tokens, {CasinoProps.UpdatedAt} = @updatedAt WHERE {CasinoProps.UserID} = @userId")]
-    Task UpdateTokens(string userId, ulong tokens, DateTime updatedAt);
+    Task UpdateTokens(string userId, long tokens, DateTime updatedAt);
 
     [Sql($"UPDATE {CasinoProps.CasinoTableName} SET {CasinoProps.Tokens} = @tokens, {CasinoProps.UpdatedAt} = @updatedAt, {CasinoProps.LastDailyReward} = @lastDailyReward WHERE {CasinoProps.UserID} = @userId")]
-    Task UpdateTokensAndDailyReward(string userId, ulong tokens, DateTime updatedAt, DateTime lastDailyReward);
+    Task UpdateTokensAndDailyReward(string userId, long tokens, DateTime updatedAt, DateTime lastDailyReward);
 
     [Sql($"DELETE FROM {CasinoProps.CasinoTableName} WHERE {CasinoProps.UserID} = @userId")]
     Task DeleteCasinoUser(string userId);

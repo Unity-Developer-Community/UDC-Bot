@@ -6,7 +6,7 @@ public class CasinoUser
 {
     public int Id { get; set; }
     public required string UserID { get; set; }
-    public ulong Tokens { get; set; }
+    public long Tokens { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public DateTime LastDailyReward { get; set; }
