@@ -248,7 +248,7 @@ sudo apt install ttf-mscorefonts-installer
 **Connection String Format:**
 
 ```json
-"DbConnectionString": "Server=localhost;Database=your_db_name;Uid=your_username;Pwd=your_password;"
+"DbConnectionString": "Host=localhost;Port=5432;Database=your_db_name;Username=your_username;Password=your_password"
 ```
 
 ## Notes
