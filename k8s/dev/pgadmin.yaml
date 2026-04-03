@@ -1,4 +1,30 @@
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgadmin-servers
+  namespace: udc-bot-dev
+  labels:
+    app.kubernetes.io/name: pgadmin
+    app.kubernetes.io/part-of: udc-bot
+    environment: dev
+data:
+  servers.json: |
+    {
+      "Servers": {
+        "1": {
+          "Name": "UDC Bot - PostgreSQL (Dev)",
+          "Group": "Servers",
+          "Host": "postgresql",
+          "Port": 5432,
+          "MaintenanceDB": "udcbot",
+          "Username": "udcbot",
+          "SSLMode": "prefer",
+          "PassFile": "/tmp/pgpass"
+        }
+      }
+    }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,6 +46,26 @@ spec:
         app.kubernetes.io/part-of: udc-bot
         environment: dev
     spec:
+      initContainers:
+        - name: create-pgpass
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "postgresql:5432:udcbot:udcbot:${PGPASSWORD}" > /pgpass/pgpass
+              chmod 600 /pgpass/pgpass
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-credentials
+                  key: password
+          volumeMounts:
+            - name: pgpass
+              mountPath: /pgpass
+          securityContext:
+            allowPrivilegeEscalation: false
       containers:
         - name: pgadmin
           image: dpage/pgadmin4:8.14
@@ -34,6 +80,17 @@ spec:
                 secretKeyRef:
                   name: pgadmin-credentials
                   key: password
+            - name: PGADMIN_SERVER_JSON_FILE
+              value: /pgadmin4/servers.json
+          volumeMounts:
+            - name: servers-config
+              mountPath: /pgadmin4/servers.json
+              subPath: servers.json
+              readOnly: true
+            - name: pgpass
+              mountPath: /tmp/pgpass
+              subPath: pgpass
+              readOnly: true
           resources:
             requests:
               cpu: 25m
@@ -49,6 +106,12 @@ spec:
             periodSeconds: 10
           securityContext:
             allowPrivilegeEscalation: false
+      volumes:
+        - name: servers-config
+          configMap:
+            name: pgadmin-servers
+        - name: pgpass
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
