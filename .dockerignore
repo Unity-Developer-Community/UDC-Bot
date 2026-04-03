@@ -19,7 +19,7 @@ DiscordBot.Tests/
 # Docs & misc
 LICENSE
 README.md
-README_CASINO.md
+docs/
 UpgradeLog.htm
 
 # Runtime data (mounted at runtime, not baked into image)

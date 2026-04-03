@@ -24,8 +24,15 @@ jobs:
               body: [
                 '### 🚀 Deploy this PR',
                 '',
-                `To deploy this branch to the **dev** environment, go to the [Deploy to Dev](${context.payload.repository.html_url}/actions/workflows/deploy-to-dev.yml) workflow and click **Run workflow** with this PR number.`,
+                '#### Code-only changes',
+                `1. Make sure the **udc-bot-dev** ArgoCD app target revision is set to \`master\`.`,
+                `2. Go to the [Deploy to Dev](${context.payload.repository.html_url}/actions/workflows/deploy-to-dev.yml) workflow and click **Run workflow** with this PR number.`,
                 '',
-                'This will build a Docker image from your branch, push it to GHCR, and trigger an ArgoCD sync.',
+                '#### Manifest changes (e.g. new services in `k8s/dev/`)',
+                '1. Comment `/build` on this PR to build the Docker image (without deploying to master).',
+                '2. Once the build succeeds, update the image tag in `k8s/dev/bot.yaml` on your branch with the SHA from the build comment, then push.',
+                '3. In ArgoCD, switch the **udc-bot-dev** app target revision from `master` to your branch (App Details → Source → Edit → Save).',
+                '4. ArgoCD will sync your manifest changes + new image. Test your changes.',
+                '5. When done, switch ArgoCD target revision back to `master`.',
               ].join('\n'),
             });

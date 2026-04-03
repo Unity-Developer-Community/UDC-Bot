@@ -5,6 +5,48 @@ Join us on [Discord](https://discord.gg/bu3bbby) !
 
 The code is provided as-is and there will be no guaranteed support to help make it run.
 
+## Table Of Contents
+
+- [Features](#features)
+- [Architecture](#architecture)
+  - [Services vs Modules](#services-vs-modules)
+  - [Dependency Injection](#dependency-injection)
+  - [Command System](#command-system)
+- [Contributing](#contributing)
+  - [Adding a New Command](#adding-a-new-command)
+  - [Adding a New Slash Command](#adding-a-new-slash-command)
+  - [Creating a New Service](#creating-a-new-service)
+  - [Custom Attributes](#custom-attributes)
+- [Compiling](#compiling)
+  - [Dependencies](#dependencies)
+- [Running](#running)
+  - [Docker](#docker)
+  - [Runtime Dependencies](#runtime-dependencies)
+- [Notes](#notes)
+  - [Logging](#logging)
+  - [Discord.Net](#discordnet)
+- [FAQ](#faq)
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **User Profiles** | XP/level system, karma tracking, profile cards with customizable skins |
+| **Moderation** | Mute, kick, ban, slowmode, message clearing, audit logging |
+| **Slash Commands** | Modern Discord slash command support alongside text commands |
+| **Casino** | Token economy with Blackjack, Poker, and Rock Paper Scissors ([details](docs/casino.md)) |
+| **Weather** | Temperature, conditions, air quality, and local time via OpenWeatherMap |
+| **Reminders** | Persistent scheduled reminders with natural time parsing |
+| **Tips** | Searchable tip database with image support |
+| **Tickets** | Private complaint/support ticket system |
+| **Unity Help** | Help forum thread management, auto-archive, canned responses, FAQ/resources |
+| **Recruitment** | Configurable recruitment workflow |
+| **Birthday Announcements** | Scheduled birthday notifications |
+| **Currency Conversion** | Real-time currency conversion |
+| **Flight Data** | Airport and flight lookups |
+| **RSS Feeds** | Feed parsing and management |
+| **Leaderboards** | XP, karma (weekly/monthly/yearly), and casino token leaderboards |
+
 ## Architecture
 
 This bot follows a **Service-Module** architecture pattern designed for maintainability and separation of concerns.
@@ -35,9 +77,21 @@ The bot uses .NET's built-in dependency injection system:
 
 ### Command System
 
-Commands are implemented using Discord.Net's command framework:
+The bot supports both **text commands** and **slash commands**:
 
-- Commands use attributes like `[Command("commandname")]` and `[Summary("description")]`
+**Text Commands** (via `CommandService`):
+
+- Use attributes like `[Command("commandname")]` and `[Summary("description")]`
+- Triggered by the configured prefix (default `!`)
+
+**Slash Commands** (via `InteractionService`):
+
+- Use `[SlashCommand]`, `[Group]`, and `[ComponentInteraction]` attributes
+- Registered per-guild using `GuildId` from settings
+- Support autocomplete, buttons, modals, and select menus
+
+**Shared:**
+
 - Custom attributes provide authorization: `[RequireModerator]`, `[RequireAdmin]`
 - Command routing is handled by `CommandHandlingService`
 
@@ -65,6 +119,33 @@ public async Task MyCommand(string parameter)
 public UserService UserService { get; set; }
 public DatabaseService DatabaseService { get; set; }
 ```
+
+### Adding a New Slash Command
+
+1. **Choose an existing interaction module** or create a new one in `/DiscordBot/Modules/`
+2. **Add the slash command method** with proper attributes:
+
+```csharp
+[SlashCommand("mycommand", "Description of what this command does")]
+public async Task MyCommand(
+    [Summary(description: "A parameter")] string parameter)
+{
+    await RespondAsync("Command executed!");
+}
+```
+
+1. **For grouped commands**, use the `[Group]` attribute on the class:
+
+```csharp
+[Group("mygroup", "Group description")]
+public class MySlashModule : InteractionModuleBase<SocketInteractionContext>
+{
+    [SlashCommand("subcommand", "Subcommand description")]
+    public async Task SubCommand() => await RespondAsync("Done!");
+}
+```
+
+> Slash commands are registered per-guild on startup using the `GuildId` setting.
 
 ### Creating a New Service
 
@@ -121,26 +202,6 @@ public class RequireMyRoleAttribute : PreconditionAttribute
 }
 ```
 
-# Table Of Contents
-<!-- Link to all the headers -->
-- [Architecture](#architecture)
-  - [Services vs Modules](#services-vs-modules)
-  - [Dependency Injection](#dependency-injection)
-  - [Command System](#command-system)
-- [Contributing](#contributing)
-  - [Adding a New Command](#adding-a-new-command)
-  - [Creating a New Service](#creating-a-new-service)
-  - [Custom Attributes](#custom-attributes)
-- [Compiling](#compiling)
-  - [Dependencies](#dependencies)
-- [Running](#running)
-  - [Docker](#docker)
-  - [Runtime Dependencies](#runtime-dependencies)
-- [Notes](#notes)
-  - [Logging](#logging)
-  - [Discord.Net](#discordnet)
-- [FAQ](#faq)
-
 ## Compiling
 
 ### Dependencies
@@ -149,7 +210,7 @@ To successfully compile you will need the following:
 
 **Required:**
 
-- [.NET 6.0 SDK](https://dotnet.microsoft.com/download/dotnet/6.0) or later
+- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
 - An IDE such as [Visual Studio](https://visualstudio.microsoft.com/vs/community/), [VS Code](https://code.visualstudio.com/), or [JetBrains Rider](https://www.jetbrains.com/rider/)
 
 **Recommended for Development:**
@@ -184,7 +245,7 @@ dotnet build
 
 > **Important:** Read the comments in `Settings.json` carefully - they explain which settings need to be changed and which are optional.
 
-_For production deployment, consult the [Discord.Net Deployment Guide](https://discord.foxbot.me/docs/guides/deployment/deployment.html)._
+_For production deployment, see the [Deployment Guide](docs/deployment.md)._
 
 ### Docker
 

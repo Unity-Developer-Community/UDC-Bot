@@ -215,3 +215,102 @@ data:
           "can someone help me?"
       ]
     }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bot-slap
+  namespace: udc-bot-dev
+  labels:
+    app.kubernetes.io/name: udc-bot
+    app.kubernetes.io/part-of: udc-bot
+    environment: dev
+data:
+  udc-slap.txt: |
+    # classic choices
+    trout
+    duck
+    truck
+    paddle
+    magikarp
+    sausage
+
+    # new choices
+    student loan
+    life choice
+    bug report
+    unhandled exception
+    null pointer
+    keyboard
+    kinematic rigidbody
+    gameobject
+    trigger collider
+    update cycle
+    json file
+    large language model
+    hosting invoice
+    quality of life patch
+    game jam submission
+    bucket of fried chicken
+    anime waifu pillow
+    network-attached storage cabinet
+    baguette
+    moldy cheese
+    cup noodle
+    game jam submission
+    game library listing
+    cheese wheel
+    banana peel
+    unresolved bug
+    low poly donut
+
+    # katamari and other choices
+    barbell
+    fishing pole
+    lawn mower
+    yoga mat
+    yoga mat once owned by Richard Simmons
+    carrying case for (fishing poles|cat-eared headphones|headphones|a limited-edition Miku figurine)
+    pair of (cat-eared headphones|football cleats|golf cleats|chopsticks|scissors|polyester poplin pants)
+    (turnip|cucumber|melon|persimmon)
+    (pro-wrestling|anime|army|Kirby|Zelda|Warhammer|Miku) figurine
+    gacha capsule
+    gacha capsule with a (Kirby|Miku|Zelda|Doomguy|Shaquille O'Neal) toy inside
+    (melon|banana|pineapple|wasabi|anchovy|eggplant)-flavored soda bottle
+    (meat|sausage|pepperoni|four cheese|cheese|white|fruit) pizza with (extra cheese|black olives|anchovies|eggplant|pineapple)
+    (hamburger|cheeseburger) with (melty cheese|extra bacon|extra onion|fancy mustard|anchovies)
+    (anchovy|mackerel|halibut|blue-fin tuna|horse mackerel)
+    (kebab|shish kebab|shawarma)
+    (beef|pot|turkey leg|pterodactyl leg) roast
+    (chicken|emu|kiwi|ostritch|alligator) egg
+    (raw|sticky) (squid|octopus) tentacle
+    (Bavarian Creme|cream|jelly|powdered sugar) (donut|puff|eclair|fritter)
+    (chocolate-covered|overcooked|stale|limp|double-length) baguette
+    (baguette|pumpernickel|sourdough|balogna sausage) sold fresh (yesterday|last week|a couple months ago)
+    (new york|chicago|dubai) style cheesecake
+    bottle of (orange juice|melon juice|isopropyl alcohol|ketchup|soy sauce|fancy mayonnaise)
+    bottle with a (miniature schooner|schnauzer figurine|anime figurine|kirby figurine|Miku figurine) inside
+    (coffee|orange|melon|turnip)-flavored ice cream parfait
+    (batter|chocolate|caramel)-covered icing spatula
+    (carrot|turnip|orange) peeler
+    soup ladle
+    sea anemone
+    stick of butter
+    pair of chopsticks
+    (bamboo|aluminum|warehouse) broom
+    bundle of (out-of-print magazines|newspapers)
+    recycling bin
+    (dish|sea|kitchen) sponge
+    (lead|plastic|old-fashioned tobacco) pipe
+    paperweight
+    packaging tape roller
+    package of (frilly underwear|superhero-themed underwear|old-fashioned bloomers)
+    (gorilla|detective|doctor|police officer) disguise kit
+    pack of (game cards|contraband cigarettes|gift-wrapped peaches)
+    slice of (cheese|apple|french bread)
+    (Croque Monsieur|Monte Cristo|submarine|baloney|peanut-butter and jelly) sandwich
+    order of (Eggs Benedict|hashbrown potatoes|curly fries)
+    Order of (Malta|the Garter|the Thistle|Saint Stephen of Hungary|Lenin|Nova Scotia|the Rising Sun)
+    leg of (turkey|lamb|goat|Iberian ham)
+    brick of (instant ramen|adobe|terra-cotta clay)
+    slice of lemon wrapped around a large gold brick
