@@ -79,7 +79,6 @@ metadata:
     environment: dev
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    traefik.ingress.kubernetes.io/router.middlewares: default-ip-allowlist@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
