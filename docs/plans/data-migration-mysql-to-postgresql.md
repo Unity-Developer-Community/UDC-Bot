@@ -130,26 +130,40 @@ spec:
 
 #### Step 2: pgloader Configuration
 
+> **Note:** The actual working config is in `k8s/dev/pgloader-migration.yaml` and `k8s/prod/pgloader-migration.yaml`. See [MySQL → PostgreSQL Code Changes](done/mysql-to-postgresql-changes.md) for all the pgloader quirks discovered during testing.
+
 ```
 LOAD DATABASE
-  FROM mysql://root:PASSWORD@mysql.udc-bot-prod.svc.cluster.local:3306/udcbot
-  INTO postgresql://udcbot:PASSWORD@postgresql.udc-bot-dev.svc.cluster.local:5432/udcbot
+  FROM mysql://root:${MYSQL_PASSWORD}@mysql.<namespace>.svc.cluster.local:3306/udcbot
+  INTO postgresql://udcbot:${POSTGRES_PASSWORD}@postgresql.<namespace>.svc.cluster.local:5432/udcbot
 
-WITH include drop, create tables, create indexes, reset sequences,
+WITH data only, reset sequences,
      workers = 2, concurrency = 1
 
 SET maintenance_work_mem to '128MB'
 
-CAST type int unsigned to integer,
-     type bigint unsigned to bigint
+INCLUDING ONLY TABLE NAMES MATCHING ~/users|casino_users|token_transactions/
 
--- Only migrate these tables
-INCLUDING ONLY TABLE NAMES MATCHING 'users', 'casino_users', 'token_transactions'
+ALTER SCHEMA 'udcbot' RENAME TO 'public'
 
 BEFORE LOAD DO
-  $$ TRUNCATE users, casino_users, token_transactions CASCADE; $$
+  $$ ALTER TABLE users ADD COLUMN IF NOT EXISTS birthday timestamp; $$,
+  $$ DROP TABLE IF EXISTS token_transactions CASCADE; $$,
+  $$ CREATE TABLE token_transactions (Id SERIAL PRIMARY KEY, UserID varchar(32) NOT NULL, TargetUserID varchar(32) DEFAULT NULL, Amount bigint NOT NULL, TransactionType varchar(50) NOT NULL, Description text DEFAULT NULL, CreatedAt timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); $$,
+  $$ CREATE INDEX IF NOT EXISTS idx_user_created ON token_transactions (UserID, CreatedAt); $$,
+  $$ TRUNCATE users, casino_users CASCADE; $$
+
+AFTER LOAD DO
+  $$ ALTER TABLE users DROP COLUMN IF EXISTS birthday; $$
 ;
 ```
+
+**Key points:**
+- `data only` mode — tables must already exist (bot creates them on startup)
+- `ALTER SCHEMA 'udcbot' RENAME TO 'public'` — MySQL DB name maps to a PG schema; this redirects to `public`
+- Passwords are embedded in URLs — pgloader does **not** respect `PGPASSWORD`/`MYSQL_PWD` env vars
+- `token_transactions` is DROP+CREATE'd because the bot's DDL schema may differ from MySQL's column names
+- `birthday` column is added temporarily (MySQL has it, PG doesn't) then dropped after import
 
 #### Step 3: Verify
 
