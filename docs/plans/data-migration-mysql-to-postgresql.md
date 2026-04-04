@@ -163,7 +163,7 @@ AFTER LOAD DO
 - `ALTER SCHEMA 'udcbot' RENAME TO 'public'` — MySQL DB name maps to a PG schema; this redirects to `public`
 - Passwords are embedded in URLs — pgloader does **not** respect `PGPASSWORD`/`MYSQL_PWD` env vars
 - `token_transactions` is DROP+CREATE'd because the bot's DDL schema may differ from MySQL's column names
-- `birthday` column is added temporarily (MySQL has it, PG doesn't) then dropped after import
+- `birthday` temp column: added before load and dropped after — handles MySQL sources that may have this column (idempotent, safe for sources without it)
 
 #### Step 3: Verify
 
