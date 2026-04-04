@@ -14,18 +14,10 @@ data:
     #!/bin/sh
     set -e
 
-    # URL-encode passwords using pure shell (handles special chars like %)
-    urlencode() {
-      printf '%s' "$1" | od -An -tx1 | tr ' ' '%' | tr -d '\n' | sed 's/^%//'
-    }
-
-    MYSQL_PASS_ENCODED=$(urlencode "${MYSQL_PASSWORD}")
-    PG_PASS_ENCODED=$(urlencode "${POSTGRES_PASSWORD}")
-
-    cat > /tmp/migration.load <<'PGEOF'
+    cat > /tmp/migration.load <<PGEOF
     LOAD DATABASE
-      FROM mysql://MYSQL_PLACEHOLDER@mysql.udc-bot-prod.svc.cluster.local:3306/udcbot
-      INTO postgresql://PG_PLACEHOLDER@postgresql.udc-bot-prod.svc.cluster.local:5432/udcbot
+      FROM mysql://root:${MYSQL_PASSWORD}@mysql.udc-bot-prod.svc.cluster.local:3306/udcbot
+      INTO postgresql://udcbot:${POSTGRES_PASSWORD}@postgresql.udc-bot-prod.svc.cluster.local:5432/udcbot
 
     WITH data only,
         reset sequences,
@@ -35,14 +27,19 @@ data:
 
     INCLUDING ONLY TABLE NAMES MATCHING ~/users|casino_users|token_transactions/
 
+    ALTER SCHEMA 'udcbot' RENAME TO 'public'
+
     BEFORE LOAD DO
-      $$ TRUNCATE users, casino_users, token_transactions CASCADE; $$
+      \$\$ ALTER TABLE users ADD COLUMN IF NOT EXISTS birthday timestamp; \$\$,
+      \$\$ DROP TABLE IF EXISTS token_transactions CASCADE; \$\$,
+      \$\$ CREATE TABLE token_transactions (Id SERIAL PRIMARY KEY, UserID varchar(32) NOT NULL, TargetUserID varchar(32) DEFAULT NULL, Amount bigint NOT NULL, TransactionType varchar(50) NOT NULL, Description text DEFAULT NULL, CreatedAt timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); \$\$,
+      \$\$ CREATE INDEX IF NOT EXISTS idx_user_created ON token_transactions (UserID, CreatedAt); \$\$,
+      \$\$ TRUNCATE users, casino_users CASCADE; \$\$
+
+    AFTER LOAD DO
+      \$\$ ALTER TABLE users DROP COLUMN IF EXISTS birthday; \$\$
     ;
     PGEOF
-
-    # Substitute credentials into the config (avoid shell expansion in heredoc)
-    sed -i "s|MYSQL_PLACEHOLDER|root:${MYSQL_PASS_ENCODED}|" /tmp/migration.load
-    sed -i "s|PG_PLACEHOLDER|udcbot:${PG_PASS_ENCODED}|" /tmp/migration.load
 
     echo "=== Starting pgloader migration (PROD) ==="
     echo "Source: mysql.udc-bot-prod.svc.cluster.local/udcbot"
