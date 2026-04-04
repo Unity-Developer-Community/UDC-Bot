@@ -37,23 +37,19 @@ PostgreSQL lowercases all unquoted identifiers. The DDL in `DatabaseService.cs` 
 
 ### 1.3. `token_transactions` Table
 
-This table was redesigned to match the MySQL schema exactly, enabling direct data migration via pgloader (which maps columns by name, case-insensitively).
+The PostgreSQL schema matches the MySQL schema to allow direct data migration via pgloader (which maps columns by name, case-insensitively).
 
-| Column | MySQL | PostgreSQL (original design) | PostgreSQL (current) |
-|--------|-------|------------------------------|---------------------|
-| Id | `int unsigned auto_increment` | `SERIAL` | `SERIAL` |
-| UserID | `varchar(32) NOT NULL` | `varchar(32) NOT NULL` | `varchar(32) NOT NULL` |
-| TargetUserID | `varchar(32) NULL` | *(missing)* | `varchar(32) DEFAULT NULL` |
-| Amount | `bigint NOT NULL` | `bigint NOT NULL` | `bigint NOT NULL` |
-| TransactionType | `varchar(50) NOT NULL` | `integer NOT NULL` (named `Type`) | `varchar(50) NOT NULL` |
-| Description | `text NULL` | `jsonb DEFAULT NULL` (named `DetailsJson`) | `text DEFAULT NULL` |
-| CreatedAt | `datetime NOT NULL` | `timestamptz NOT NULL` | `timestamptz NOT NULL` |
+| Column | MySQL | PostgreSQL |
+|--------|-------|-----------|
+| Id | `int unsigned auto_increment` | `SERIAL` |
+| UserID | `varchar(32) NOT NULL` | `varchar(32) NOT NULL` |
+| TargetUserID | `varchar(32) NULL` | `varchar(32) DEFAULT NULL` |
+| Amount | `bigint NOT NULL` | `bigint NOT NULL` |
+| TransactionType | `varchar(50) NOT NULL` | `varchar(50) NOT NULL` |
+| Description | `text NULL` | `text DEFAULT NULL` |
+| CreatedAt | `datetime NOT NULL` | `timestamptz NOT NULL` |
 
-**Why the change:** The original PG design used an integer enum for `Type` and `jsonb` for `DetailsJson`. These column names and types did not match MySQL, so pgloader couldn't map them (it maps by column name). Matching the MySQL schema allows direct, zero-transformation migration.
-
-**Trade-offs:**
-- Lost: `jsonb` native JSON queries and indexing on the Description column
-- Gained: Direct migration compatibility, simpler schema, human-readable `TransactionType` values
+**Design note:** `TransactionType` is stored as a human-readable string (e.g., `"Game"`, `"Gift"`) rather than an integer enum. `Description` stores JSON-serialized metadata as plain text rather than using PostgreSQL's `jsonb` type. Both choices preserve compatibility with the existing MySQL data.
 
 ### 1.4. `karma_reset_meta` — New Table (PG only)
 
@@ -62,10 +58,6 @@ MySQL has a built-in EVENT scheduler that resets weekly/monthly/yearly karma col
 The standard PG alternative is the `pg_cron` extension, but it requires superuser access and isn't always available in managed/containerized deployments.
 
 **Solution:** A new C# background service (`KarmaResetService`) polls hourly and tracks last-reset timestamps in a `karma_reset_meta` table. This table is created automatically on startup — it has no MySQL counterpart and is not part of the data migration.
-
-### 1.5. `users.Birthday` Column
-
-MySQL has a `Birthday` column that was dropped in the PostgreSQL schema. The pgloader migration handles this with temporary column add/drop (see [data-migration-mysql-to-postgresql.md](../data-migration-mysql-to-postgresql.md)).
 
 ---
 
@@ -111,15 +103,9 @@ Npgsql throws `DbType.UInt32 isn't supported by PostgreSQL or Npgsql` for unsign
 | `SHOW COLUMNS FROM...` | `information_schema.columns` query | `DBConnectionExtension.cs` |
 | `::jsonb` cast | Removed (column is now `text`) | `CasinoRepository.cs` |
 
-### 2.5. `TransactionType` Enum → `TransactionKind`
+### 2.5. `TransactionKind` Enum and `TransactionType` Column
 
-Renamed to avoid a naming collision with the new `TransactionType` string DB column property on `TokenTransaction`.
-
-| Before | After |
-|--------|-------|
-| `enum TransactionType { ... }` | `enum TransactionKind { ... }` |
-| `transaction.Type` (enum property) | `transaction.Kind` (computed from `TransactionType` string) |
-| `TransactionType.Game` | `TransactionKind.Game` |
+The C# enum is called `TransactionKind` (not `TransactionType`) to avoid a naming collision with the `TransactionType` string property on `TokenTransaction` that maps to the DB `transactiontype` varchar(50) column.
 
 **How the mapping works:**
 
@@ -128,15 +114,15 @@ Renamed to avoid a naming collision with the new `TransactionType` string DB col
    - Getter: parses `TransactionType` string to `TransactionKind` enum (case-insensitive, defaults to `Admin`)
    - Setter: converts enum to string via `.ToString()` and assigns to `TransactionType`
 3. `CasinoProps.TransactionType` constant = `"TransactionType"` (the column name)
-4. `GetTransactionsOfType()` now takes a `string` parameter instead of the enum, called with `nameof(TransactionKind.Game)`
+4. `GetTransactionsOfType()` takes a `string` parameter, called with `nameof(TransactionKind.Game)`
 
-### 2.6. `DetailsJson` → `Description`
+### 2.6. `Description` Column and `Details` Dictionary
 
-The `DetailsJson` property (mapped to `jsonb`) was replaced by `Description` (mapped to `text`). The `Details` dictionary is still used internally — it's JSON-serialized to plain text.
+The DB column `description` (text) stores JSON-serialized metadata as plain text. In C#, `TokenTransaction.Description` is the DB-mapped property, while `TokenTransaction.Details` (Dictionary) is the in-memory representation.
 
-**Backward compatibility for migrated MySQL data:** The `Description` setter handles both formats:
-- JSON strings (new data from the bot): deserialized to `Dictionary<string, string>`
-- Plain text (old MySQL data): caught via `JsonException`, stored as `{ "text": "<value>" }`
+The `Description` setter handles both formats:
+- JSON strings (normal bot data): deserialized to `Dictionary<string, string>`
+- Plain text (migrated MySQL data): caught via `JsonException`, stored as `{ "text": "<value>" }`
 
 ### 2.7. `TargetUserID` Column
 
@@ -179,7 +165,7 @@ Environment variables: `MYSQL_*` → `POSTGRES_*`. Volume: `mysql_data` → `pos
 | `postgresql-backup.yaml` | **New.** CronJob using `pg_dump` + S3 upload. |
 | `mysql-backup.yaml` | **Deleted.** |
 | `phpmyadmin.yaml` → `adminer.yaml` | **Renamed and rewritten.** Adminer uses ~13 Mi RAM vs pgAdmin's ~194 Mi. |
-| `pgadmin.yaml` | **Deleted** (was added then replaced by Adminer). |
+| `pgadmin.yaml` | **Deleted.** |
 | `pgloader-migration.yaml` | **New.** ConfigMap + Job for data migration. |
 | `external-secrets.yaml` | Added `postgresql-credentials`. MySQL secrets kept temporarily. |
 | `bot-config.yaml` | Connection string changed to PostgreSQL format. |
@@ -223,7 +209,6 @@ Lessons learned from 5 iterations of pgloader testing:
 | Env vars ignored | `PGPASSWORD` and `MYSQL_PWD` had no effect | Embed passwords directly in connection URLs (pgloader uses its own connection libraries) |
 | Schema mismatch | pgloader couldn't find schema "udcbot" in PostgreSQL | Add `ALTER SCHEMA 'udcbot' RENAME TO 'public'` — MySQL DB name maps to a PG schema |
 | Column name mismatch | `token_transactions` had different column names in MySQL vs PG | Changed PG schema to match MySQL column names (see section 1.3) |
-| Missing `Birthday` column | MySQL `users` has `Birthday`, PG doesn't | Temp `ALTER TABLE ADD/DROP COLUMN` in BEFORE/AFTER LOAD |
 
 ---
 
@@ -239,8 +224,7 @@ Lessons learned from 5 iterations of pgloader testing:
 | `k8s/*/adminer.yaml` | Adminer web UI |
 | `k8s/*/pgloader-migration.yaml` | Data migration Job |
 | `docs/plans/data-migration-mysql-to-postgresql.md` | Operational migration guide |
-| `docs/plans/mysql-to-postgresql-changes.md` | This document |
-| `docs/plans/done/mysql-to-postgresql-migration.md` | Original PR summary |
+| `docs/plans/done/mysql-to-postgresql-changes.md` | This document |
 
 ### Modified Files (17+ C# + infra)
 
