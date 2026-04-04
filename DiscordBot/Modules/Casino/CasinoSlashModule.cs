@@ -380,14 +380,14 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
         private (string emoji, string title, string description) FormatTransactionDisplay(TokenTransaction transaction, bool showUserInfo = false)
         {
-            var (emoji, title, description) = transaction.Type switch
+            var (emoji, title, description) = transaction.Kind switch
             {
-                TransactionType.TokenInitialisation => ("🎯", "Account Created", ""),
-                TransactionType.DailyReward => ("📅", "Daily Reward", ""),
-                TransactionType.Gift => GetGiftDisplay(transaction),
-                TransactionType.Game => GetGameDisplay(transaction),
-                TransactionType.Admin => GetAdminDisplay(transaction),
-                _ => ("❓", transaction.Type.ToString(), "")
+                TransactionKind.TokenInitialisation => ("🎯", "Account Created", ""),
+                TransactionKind.DailyReward => ("📅", "Daily Reward", ""),
+                TransactionKind.Gift => GetGiftDisplay(transaction),
+                TransactionKind.Game => GetGameDisplay(transaction),
+                TransactionKind.Admin => GetAdminDisplay(transaction),
+                _ => ("❓", transaction.TransactionType, "")
             };
 
             // If showing user info (for all-users view), prepend user name to title
@@ -490,7 +490,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
             await Context.Interaction.DeferAsync(ephemeral: true);
 
-            await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), amount, TransactionType.Admin, new Dictionary<string, string>
+            await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), amount, TransactionKind.Admin, new Dictionary<string, string>
             {
                 ["admin"] = Context.User.Id.ToString(),
                 ["action"] = "add"

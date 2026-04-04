@@ -87,7 +87,7 @@ public class GameService
         foreach (var (player, payout) in payouts)
         {
             if (player.IsAI) continue; // Skip AI players
-            await _casinoService.UpdateUserTokens(player.UserId.ToString(), payout, TransactionType.Game, new Dictionary<string, string>
+            await _casinoService.UpdateUserTokens(player.UserId.ToString(), payout, TransactionKind.Game, new Dictionary<string, string>
             {
                 { "game", session.GameName },
             });

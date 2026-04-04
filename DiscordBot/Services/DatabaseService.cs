@@ -142,9 +142,10 @@ public class DatabaseService
                         $"CREATE TABLE {CasinoProps.TransactionTableName} (" +
                         $"{CasinoProps.TransactionId} SERIAL PRIMARY KEY, " +
                         $"{CasinoProps.TransactionUserID} varchar(32) NOT NULL, " +
+                        $"{CasinoProps.TargetUserID} varchar(32) DEFAULT NULL, " +
                         $"{CasinoProps.Amount} bigint NOT NULL, " +
-                        $"{CasinoProps.TransactionType} integer NOT NULL, " +
-                        $"{CasinoProps.Details} jsonb DEFAULT NULL, " +
+                        $"{CasinoProps.TransactionType} varchar(50) NOT NULL, " +
+                        $"{CasinoProps.Details} text DEFAULT NULL, " +
                         $"{CasinoProps.TransactionCreatedAt} timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP)");
 
                     c.ExecuteSql(

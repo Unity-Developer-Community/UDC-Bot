@@ -32,8 +32,8 @@ public interface ICasinoRepo
 
     // Token Transaction Operations
     [Sql($@"
-    INSERT INTO {CasinoProps.TransactionTableName} ({CasinoProps.TransactionUserID}, {CasinoProps.Amount}, {CasinoProps.TransactionType}, {CasinoProps.Details}, {CasinoProps.TransactionCreatedAt}) 
-    VALUES (@{CasinoProps.TransactionUserID}, @{CasinoProps.Amount}, @{CasinoProps.TransactionType}, @{CasinoProps.Details}::jsonb, @{CasinoProps.TransactionCreatedAt})
+    INSERT INTO {CasinoProps.TransactionTableName} ({CasinoProps.TransactionUserID}, {CasinoProps.TargetUserID}, {CasinoProps.Amount}, {CasinoProps.TransactionType}, {CasinoProps.Details}, {CasinoProps.TransactionCreatedAt}) 
+    VALUES (@{CasinoProps.TransactionUserID}, @{CasinoProps.TargetUserID}, @{CasinoProps.Amount}, @{CasinoProps.TransactionType}, @{CasinoProps.Details}, @{CasinoProps.TransactionCreatedAt})
     RETURNING *")]
     Task<TokenTransaction> InsertTransaction(TokenTransaction tokenTransaction);
 
@@ -47,7 +47,7 @@ public interface ICasinoRepo
     Task ClearAllTransactions();
 
     [Sql($"SELECT * FROM {CasinoProps.TransactionTableName} WHERE {CasinoProps.TransactionType} = @transactionType ORDER BY {CasinoProps.TransactionCreatedAt} DESC")]
-    Task<IList<TokenTransaction>> GetTransactionsOfType(TransactionType transactionType);
+    Task<IList<TokenTransaction>> GetTransactionsOfType(string transactionType);
 
     // Test connection
     [Sql($"SELECT COUNT(*) FROM {CasinoProps.CasinoTableName}")]
