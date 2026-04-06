@@ -16,23 +16,21 @@ public class ProfileCardService
     private readonly ILoggingService _loggingService;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly BotSettings _settings;
+    private readonly XpService _xpService;
 
     public ProfileCardService(DatabaseService databaseService, ILoggingService loggingService,
-        IHttpClientFactory httpClientFactory, BotSettings settings)
+        IHttpClientFactory httpClientFactory, BotSettings settings, XpService xpService)
     {
         _databaseService = databaseService;
         _loggingService = loggingService;
         _httpClientFactory = httpClientFactory;
         _settings = settings;
+        _xpService = xpService;
     }
 
     private SkinData GetSkinData() =>
         JsonConvert.DeserializeObject<SkinData>(File.ReadAllText($"{_settings.AssetsRootPath}/skins/skin.json"),
             new SkinModuleJsonConverter());
-
-    private double GetXpLow(int level) => 70d - 139.5d * (level + 1d) + 69.5 * Math.Pow(level + 1d, 2d);
-
-    private double GetXpHigh(int level) => 70d - 139.5d * (level + 2d) + 69.5 * Math.Pow(level + 2d, 2d);
 
     public async Task<string> GenerateProfileCard(IUser user)
     {
@@ -51,8 +49,8 @@ public class ProfileCardService
             var karmaRank = await dbRepo.GetKarmaRank(userData.UserID, userData.Karma);
             var karma = userData.Karma;
             var level = userData.Level;
-            var xpLow = GetXpLow(level);
-            var xpHigh = GetXpHigh(level);
+            var xpLow = _xpService.GetXpLow(level);
+            var xpHigh = _xpService.GetXpHigh(level);
 
             var xpShown = (int)(xpTotal - xpLow);
             var maxXpShown = (int)(xpHigh - xpLow);

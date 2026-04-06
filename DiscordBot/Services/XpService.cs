@@ -96,5 +96,7 @@ public class XpService
         await messageParam.Channel.SendMessageAsync(msg).DeleteAfterTime(60);
     }
 
-    private double GetXpHigh(int level) => 70d - 139.5d * (level + 2d) + 69.5 * Math.Pow(level + 2d, 2d);
+    public double GetXpLow(int level) => 70d - 139.5d * (level + 1d) + 69.5 * Math.Pow(level + 1d, 2d);
+
+    public double GetXpHigh(int level) => 70d - 139.5d * (level + 2d) + 69.5 * Math.Pow(level + 2d, 2d);
 }
