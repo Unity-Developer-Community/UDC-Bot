@@ -51,6 +51,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
     private readonly UpdateService _updateService;
 
+    private readonly IHttpClientFactory _httpClientFactory;
+
     private readonly Dictionary<ulong, DateTime> _xpCooldown;
     private readonly int _xpMaxCooldown;
     private readonly int _xpMaxPerMessage;
@@ -68,7 +70,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _welcomeNoticeUsers.Any() ? _welcomeNoticeUsers.Min(x => x.time) : DateTime.MaxValue;
 
     public UserService(DiscordSocketClient client, DatabaseService databaseService, ILoggingService loggingService,
-        UpdateService updateService,
+        UpdateService updateService, IHttpClientFactory httpClientFactory,
         BotSettings settings, UserSettings userSettings)
     {
         _client = client;
@@ -76,6 +78,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _databaseService = databaseService;
         _loggingService = loggingService;
         _updateService = updateService;
+        _httpClientFactory = httpClientFactory;
         _settings = settings;
         MutedUsers = new Dictionary<ulong, DateTime>();
         _xpCooldown = new Dictionary<ulong, DateTime>();
@@ -380,7 +383,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 {
                     Stream stream;
 
-                    using (var http = new HttpClient())
+                    using (var http = _httpClientFactory.CreateClient())
                     {
                         stream = await http.GetStreamAsync(new Uri(avatarUrl));
                     }

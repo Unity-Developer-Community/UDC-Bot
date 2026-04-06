@@ -7,15 +7,16 @@ namespace DiscordBot.Utils;
 
 public static class WebUtil
 {
+    private static readonly HttpClient SharedClient = new();
+
     /// <summary>
     /// Returns the content of a URL as a string, or an empty string if the request fails.
     /// </summary>
     public static async Task<string> GetContent(string url)
     {
-        using var client = new HttpClient();
         try
         {
-            var response = await client.GetAsync(url);
+            var response = await SharedClient.GetAsync(url);
             return await response.Content.ReadAsStringAsync();
         }
         catch (Exception e)

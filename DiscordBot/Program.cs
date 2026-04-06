@@ -84,6 +84,7 @@ public class Program
 
     private IServiceProvider ConfigureServices() =>
         new ServiceCollection()
+            .AddHttpClient()
             .AddSingleton(_settings)
             .AddSingleton(_rules)
             .AddSingleton(_userSettings)

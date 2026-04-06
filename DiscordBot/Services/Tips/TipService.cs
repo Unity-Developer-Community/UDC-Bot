@@ -18,6 +18,7 @@ public class TipService
 
     private readonly BotSettings _settings;
     private readonly ILoggingService _loggingService;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly string _imageDirectory;
 
     private ConcurrentDictionary<string, List<Tip>> _tips = new();
@@ -26,10 +27,11 @@ public class TipService
 
     private Regex keywordPattern = null;
 
-    public TipService(BotSettings settings, ILoggingService loggingService)
+    public TipService(BotSettings settings, ILoggingService loggingService, IHttpClientFactory httpClientFactory)
     {
         _settings = settings;
         _loggingService = loggingService;
+        _httpClientFactory = httpClientFactory;
 
         if (string.IsNullOrEmpty(_settings.ServerRootPath))
         {
@@ -154,7 +156,7 @@ public class TipService
                 attachment.Filename.Substring(attachment.Filename.LastIndexOf('.'));
             var filePath = GetTipPath(newFileName);
 
-            using var client = new HttpClient();
+            using var client = _httpClientFactory.CreateClient();
             await using var stream = await client.GetStreamAsync(attachment.Url);
             await using var file = File.Create(filePath);
             await stream.CopyToAsync(file);

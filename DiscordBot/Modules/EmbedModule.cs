@@ -1,4 +1,4 @@
-using System.Net;
+using System.Net.Http;
 using System.Text;
 using Discord.Commands;
 using DiscordBot.Attributes;
@@ -10,6 +10,7 @@ namespace DiscordBot.Modules;
 [RequireAdmin]
 public class EmbedModule : ModuleBase
 {
+    public IHttpClientFactory HttpClientFactory { get; set; }
 
 #pragma warning disable 0649
     private class Embed
@@ -73,7 +74,7 @@ public class EmbedModule : ModuleBase
             return;
         }
         var attachment = Context.Message.Attachments.ElementAt(0);
-        var embed = BuildEmbedFromUrl(attachment.Url);
+        var embed = await BuildEmbedFromUrl(attachment.Url);
 
         await SendEmbedToChannel(embed, channel, messageId);
     }
@@ -104,7 +105,7 @@ public class EmbedModule : ModuleBase
             return null;
         }
         string download_url = GetDownUrlFromUri(uriResult);
-        var builtEmbed = BuildEmbedFromUrl(download_url);
+        var builtEmbed = await BuildEmbedFromUrl(download_url);
         if (builtEmbed.Length == 0)
         {
             await ReplyAsync("Failed to generate embed from url.").DeleteAfterSeconds(seconds: 10f);
@@ -113,11 +114,10 @@ public class EmbedModule : ModuleBase
         return builtEmbed;
     }
 
-    private Discord.Embed BuildEmbedFromUrl(string url)
+    private async Task<Discord.Embed> BuildEmbedFromUrl(string url)
     {
-        WebClient webClient = new();
-        byte[] buffer = webClient.DownloadData(url);
-        webClient.Dispose();
+        using var client = HttpClientFactory.CreateClient();
+        var buffer = await client.GetByteArrayAsync(url);
         string json = Encoding.UTF8.GetString(buffer);
 
         return BuildEmbed(json);
