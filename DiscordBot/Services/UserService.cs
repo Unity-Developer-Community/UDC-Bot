@@ -55,7 +55,6 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
     private readonly Random _rand;
 
-    public Dictionary<ulong, DateTime> MutedUsers { get; private set; }
     private readonly Color _welcomeColour = new Color(7, 84, 53);
     public int WaitingWelcomeMessagesCount => _welcomeNoticeUsers.Count;
 
@@ -72,7 +71,6 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _loggingService = loggingService;
         _updateService = updateService;
         _settings = settings;
-        MutedUsers = new Dictionary<ulong, DateTime>();
         _xpCooldown = new Dictionary<ulong, DateTime>();
         _canEditThanks = new HashSet<ulong>(32);
         _thanksCooldown = new Dictionary<ulong, DateTime>();
@@ -215,7 +213,6 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     private void LoadData()
     {
         var data = _updateService.GetUserData();
-        MutedUsers = data.MutedUsers ?? new Dictionary<ulong, DateTime>();
         CodeReminderCooldown = data.CodeReminderCooldown ?? new Dictionary<ulong, DateTime>();
     }
 
@@ -223,7 +220,6 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         var data = new UserData
         {
-            MutedUsers = MutedUsers,
             CodeReminderCooldown = CodeReminderCooldown
         };
         _updateService.SetUserData(data);
@@ -552,22 +548,6 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
         var socketTextChannel = _client.GetChannel(_settings.GeneralChannel.Id) as SocketTextChannel;
         await _databaseService.GetOrAddUser(user);
-
-        // Check if moderator commands are enabled, and if so we check if they were previously muted.
-        if (_settings.ModeratorCommandsEnabled)
-        {
-            if (MutedUsers.HasUser(user.Id))
-            {
-                await user.AddRoleAsync(socketTextChannel?.Guild.GetRole(_settings.MutedRoleId));
-                await _loggingService.LogChannelAndFile(
-                    $"Currently muted user rejoined - {user.Mention} - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}`");
-                if (socketTextChannel != null)
-                    await socketTextChannel.SendMessageAsync(
-                        $"{user.Mention} tried to rejoin the server to avoid their mute. Mute time increased by 72 hours.");
-                MutedUsers.AddCooldown(user.Id, hours: 72);
-                return;
-            }
-        }
 
         await _loggingService.LogChannelAndFile(
             $"User Joined - {user.Mention} - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}`");

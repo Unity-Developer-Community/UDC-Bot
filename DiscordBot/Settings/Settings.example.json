@@ -12,24 +12,6 @@
   "prefix": "!",
   "ModeratorRoleId": "0",
   "guildId": "0", // Replace with your servers guild ID
-  /* All assignable roles as of 29/04/21 */
-  "UserAssignableRoles": {
-    "desc": "All normal user assignable roles available",
-    "roles": [
-      "Audio-Engineers",
-      "Technical-Artists",
-      "Animators",
-      "3D-Artists",
-      "2D-Artists",
-      "XR-Developers",
-      "Programmers",
-      "Writers",
-      "Game-Designers",
-      "Generalists",
-      "Hobbyists",
-      "Students"
-    ]
-  },
   /* Channel IDs for certain channels. */
   "generalChannel": { // Off-topic
     "desc": "General-Chat Channel",
@@ -51,12 +33,7 @@
     "desc": "Unity News Channel",
     "id": "0"
   },
-  "ReportedMessageChannel": {
-    "desc": "Reported Message Channel",
-    "id": "0"
-  },
   /* Role Ids */
-  "mutedRoleID": "0",
   "SubsNewsRoleId": "0",
   "SubsReleasesRoleId": "0",
   /*Complaints Channels Stuff*/

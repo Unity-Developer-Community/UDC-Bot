@@ -19,8 +19,6 @@ public class BotSettings
     #region Configuration
 
     public int WelcomeMessageDelaySeconds { get; set; } = 300;
-    public bool ModeratorCommandsEnabled { get; set; }
-    public bool ModeratorNoInviteLinks { get; set; }
     // How long between when the bot will scold a user for trying to ping everyone. Default 6 hours
     public ulong EveryoneScoldPeriodSeconds { get; set; } = 21600;
 
@@ -42,7 +40,6 @@ public class BotSettings
 
     public bool RecruitmentServiceEnabled { get; set; } = false;
     public bool UnityHelpBabySitterEnabled { get; set; } = false;
-    public bool IntroductionWatcherServiceEnabled { get; set; } = false;
 
     #endregion // Service Enabling
 
@@ -72,8 +69,6 @@ public class BotSettings
 
     public ChannelInfo RecruitmentChannel { get; set; }
 
-    public ChannelInfo ReportedMessageChannel { get; set; }
-
     public ChannelInfo MemeChannel { get; set; }
 
     #region Complaint Channel
@@ -89,8 +84,6 @@ public class BotSettings
 
     #region User Roles
 
-    public RoleGroup UserAssignableRoles { get; set; }
-    public ulong MutedRoleId { get; set; }
     public ulong SubsReleasesRoleId { get; set; }
     public ulong SubsNewsRoleId { get; set; }
     public ulong ModeratorRoleId { get; set; }
@@ -156,17 +149,6 @@ public class BotSettings
     #endregion // Other
 
 }
-
-#region Role Group Collections
-
-// Classes used to hold information regarding a collection of role ids with a description.
-public class RoleGroup
-{
-    public string Desc { get; set; }
-    public List<string> Roles { get; set; }
-}
-
-#endregion
 
 #region Channel Information
 

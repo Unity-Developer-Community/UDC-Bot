@@ -18,11 +18,9 @@ public class UserData
 {
     public UserData()
     {
-        MutedUsers = new Dictionary<ulong, DateTime>();
         CodeReminderCooldown = new Dictionary<ulong, DateTime>();
     }
 
-    public Dictionary<ulong, DateTime> MutedUsers { get; set; }
     public Dictionary<ulong, DateTime> CodeReminderCooldown { get; set; }
 }
 
@@ -90,37 +88,6 @@ public class UpdateService
         _botData = SerializeUtil.DeserializeFile<BotData>($"{_settings.ServerRootPath}/botdata.json");
 
         _userData = SerializeUtil.DeserializeFile<UserData>($"{_settings.ServerRootPath}/userdata.json");
-        Task.Run(
-            async () =>
-            {
-                while (_client.ConnectionState != ConnectionState.Connected ||
-                       _client.LoginState != LoginState.LoggedIn)
-                    await Task.Delay(100, _token);
-
-                await Task.Delay(10000, _token);
-                //Check if there are users still muted
-                foreach (var userId in _userData.MutedUsers)
-                {
-                    if (!_userData.MutedUsers.HasUser(userId.Key, true)) continue;
-
-                    var guild = _client.Guilds.First(g => g.Id == _settings.GuildId);
-                    var sgu = guild.GetUser(userId.Key);
-                    if (sgu == null) continue;
-
-                    IGuildUser user = sgu;
-
-                    var mutedRole = user.Guild.GetRole(_settings.MutedRoleId);
-                    //Make sure they have the muted role
-                    if (!user.RoleIds.Contains(_settings.MutedRoleId)) await user.AddRoleAsync(mutedRole);
-
-                    //Setup delay to remove role when time is up.
-                    await Task.Run(async () =>
-                    {
-                        await _userData.MutedUsers.AwaitCooldown(user.Id);
-                        await user.RemoveRoleAsync(mutedRole);
-                    }, _token);
-                }
-            }, _token);
 
         _faqData = SerializeUtil.DeserializeFile<List<FaqData>>("Settings/FAQs.json");
         _feedData = SerializeUtil.DeserializeFile<FeedData>($"{_settings.ServerRootPath}/feeds.json");

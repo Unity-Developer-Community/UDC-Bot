@@ -23,24 +23,6 @@ data:
             "Administrator": "838030241103478805",
             "ModeratorRoleId": "769010537119088690",
             "guildId": "566084539664039938", // Replace with your servers guild ID
-            /* All assignable roles as of 29/04/21 */
-            "UserAssignableRoles": {
-                "desc": "All normal user assignable roles available",
-                "roles": [
-                "Audio-Engineers",
-                "Technical-Artists",
-                "Animators",
-                "3D-Artists",
-                "2D-Artists",
-                "XR-Developers",
-                "Programmers",
-                "Writers",
-                "Game-Designers",
-                "Generalists",
-                "Hobbyists",
-                "Students"
-                ]
-            },
             /* Channel IDs for certain channels. */
             "generalChannel": { // Off-topic
                 "desc": "General-Chat Channel",
@@ -70,12 +52,7 @@ data:
                 "desc": "The Rules",
                 "id": "825932695698669618"
             },
-            "ReportedMessageChannel": {
-                "desc": "Reported Message Channel",
-                "id": "567628191221547008"
-            },
             /* Role Ids */
-            "mutedRoleID": "682432235445682194",
             "SubsReleasesRoleId": "769870886743703584",
             "TipsUserRoleId": "603187742096228374",
             "TipsAuthorRoleId": "603187742096228374",
@@ -110,7 +87,6 @@ data:
                 "desc": "Introduction Channel",
                 "id": "1198575542467838044"
             },
-            "IntroductionWatcherServiceEnabled": true,
             "UserModuleSlapObjectsTable": "Settings/udc-slap.txt",
             "UserModuleSlapChoices": [
                 "developer manual",

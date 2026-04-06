@@ -23,26 +23,7 @@ data:
             "prefix": "!",
             "Administrator": "493514411026153482",
             "ModeratorRoleId": "493514490504019969",
-            "ModeratorCommandsEnabled": false,
             "guildId": "493510779866316801", // Replace with your servers guild ID
-            /* All assignable roles as of 29/04/21 */
-            "UserAssignableRoles": {
-                "desc": "All normal user assignable roles available",
-                "roles": [
-                "Audio-Engineers",
-                "Technical-Artists",
-                "Animators",
-                "3D-Artists",
-                "2D-Artists",
-                "XR-Developers",
-                "Programmers",
-                "Writers",
-                "Game-Designers",
-                "Generalists",
-                "Hobbyists",
-                "Students"
-                ]
-            },
             /* Channel IDs for certain channels. */
             "generalChannel": { // Off-topic
                 "desc": "General-Chat Channel",
@@ -64,12 +45,7 @@ data:
                 "desc": "The Rules",
                 "id": "519890141805019137"
             },
-            "ReportedMessageChannel": {
-                "desc": "Reported Message Channel",
-                "id": "993446104790220840"
-            },
             /* Role Ids */
-            "mutedRoleID": "493514472942600202",
             "SubsNewsRoleId": "1209260621342707772",
             "SubsReleasesRoleId": "523205962279157771",
             "TipsUserRoleId": "493514563736698880",
@@ -117,7 +93,6 @@ data:
                 "desc": "Introduction Channel",
                 "id": "768488410959708210"
             },
-            "IntroductionWatcherServiceEnabled": true,
             "UserModuleSlapObjectsTable": "Settings/udc-slap.txt",
             "UserModuleSlapChoices": [
                 "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan",
