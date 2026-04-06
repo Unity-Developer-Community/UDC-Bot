@@ -13,7 +13,7 @@ namespace DiscordBot.Services.Tips;
 
 public class TipService
 {
-    private const string ServiceName = "TipService"; 
+    private const string ServiceName = "TipService";
     private const string DatabaseName = "tips.json";
 
     private readonly BotSettings _settings;
@@ -39,7 +39,7 @@ public class TipService
             _isRunning = false;
             return;
         }
-        
+
         if (string.IsNullOrEmpty(_settings.TipImageDirectory))
         {
             _loggingService.LogAction($"[{ServiceName}] TipImageDirectory not set, service will not run.", ExtendedLogSeverity.Warning);
@@ -51,13 +51,13 @@ public class TipService
 
         Initialize();
     }
-    
+
     private void Initialize()
     {
         if (_isRunning) return;
 
         _readOnly = false;
-        var jsonPath = GetTipPath(DatabaseName);;
+        var jsonPath = GetTipPath(DatabaseName); ;
         if (!Directory.Exists(_imageDirectory))
         {
             _loggingService.LogAction($"[{ServiceName}] Tip directory {_imageDirectory} did not exist.", ExtendedLogSeverity.Info);
@@ -160,7 +160,7 @@ public class TipService
             await using var stream = await client.GetStreamAsync(attachment.Url);
             await using var file = File.Create(filePath);
             await stream.CopyToAsync(file);
-            
+
             imagePaths.Add(newFileName);
         }
 
@@ -267,10 +267,10 @@ public class TipService
 
     public async Task ReloadTipDatabase()
     {
-        var jsonPath = GetTipPath(DatabaseName);;
+        var jsonPath = GetTipPath(DatabaseName); ;
         if (File.Exists(jsonPath))
         {
-            var json =  File.ReadAllText(jsonPath);
+            var json = File.ReadAllText(jsonPath);
             _tips = JsonConvert.DeserializeObject<ConcurrentDictionary<string, List<Tip>>>(json);
             _loggingService.LogAction(
                 $"[{ServiceName}] Tip index has {_tips.Count} keywords.",

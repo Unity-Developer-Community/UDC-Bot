@@ -8,18 +8,18 @@ namespace DiscordBot.Services;
 public class IntroductionWatcherService
 {
     private const string ServiceName = "IntroductionWatcherService";
-    
+
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
     private readonly SocketChannel _introductionChannel;
 
     private readonly HashSet<ulong> _uniqueUsers = new HashSet<ulong>(MaxMessagesToTrack + 1);
     private readonly Queue<ulong> _orderedUsers = new Queue<ulong>(MaxMessagesToTrack + 1);
-    
+
     private SocketRole ModeratorRole { get; set; }
 
     private const int MaxMessagesToTrack = 1000;
-    
+
     public IntroductionWatcherService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings)
     {
         _client = client;
@@ -32,14 +32,14 @@ public class IntroductionWatcherService
             LoggingService.LogServiceDisabled(ServiceName, nameof(settings.IntroductionWatcherServiceEnabled));
             return;
         }
-        
+
         _introductionChannel = client.GetChannel(settings.IntroductionChannel.Id);
         if (_introductionChannel == null)
         {
             _loggingService.LogAction($"[{ServiceName}] Error: Could not find introduction channel.", ExtendedLogSeverity.Warning);
             return;
         }
-        
+
         _client.MessageReceived += EventGuard.Guarded<SocketMessage>(MessageReceived, nameof(MessageReceived));
     }
 
@@ -58,7 +58,7 @@ public class IntroductionWatcherService
             await _loggingService.LogChannelAndFile(
                 $"[{ServiceName}]: Duplicate introduction from {message.Author.GetUserLoggingString()} [Message deleted]");
         }
-        
+
         _uniqueUsers.Add(message.Author.Id);
         _orderedUsers.Enqueue(message.Author.Id);
         if (_orderedUsers.Count > MaxMessagesToTrack)
@@ -66,7 +66,7 @@ public class IntroductionWatcherService
             var oldestUser = _orderedUsers.Dequeue();
             _uniqueUsers.Remove(oldestUser);
         }
-        
+
         await Task.CompletedTask;
     }
 }

@@ -9,11 +9,11 @@ public class ModerationService
     private readonly ILoggingService _loggingService;
     private readonly DiscordSocketClient _client;
     private readonly CommandHandlingService _commandHandlingService;
-    
+
     private const int MaxMessageLength = 800;
-    private static readonly Color DeletedMessageColor = new (200, 128, 128);
-    private static readonly Color EditedMessageColor = new (255, 255, 128);
-    
+    private static readonly Color DeletedMessageColor = new(200, 128, 128);
+    private static readonly Color EditedMessageColor = new(255, 255, 128);
+
     private readonly IMessageChannel _botAnnouncementChannel;
     private readonly IMessageChannel _memeChannel;
     private readonly bool _moderatorNoInviteLinks;
@@ -43,7 +43,7 @@ public class ModerationService
             await _loggingService.LogChannelAndFile($"An uncached Message snowflake:`{message.Id}` was deleted from channel <#{(await channel.GetOrDownloadAsync()).Id}>");
             return;
         }
-        
+
         if (message.Value.Author.IsBot || channel.Id == _botAnnouncementChannel.Id)
             return;
         // Check the author is even in the guild
@@ -64,7 +64,7 @@ public class ModerationService
             .AddField($"Deleted Message {(content.Length != message.Value.Content.Length ? "(truncated)" : "")}",
                 content);
         var embed = builder.Build();
-        
+
         await _loggingService.Log(LogBehaviour.Channel, string.Empty, ExtendedLogSeverity.Info, embed);
     }
 
@@ -123,7 +123,7 @@ public class ModerationService
 
         await _loggingService.Log(LogBehaviour.Channel, string.Empty, ExtendedLogSeverity.Info, embed);
     }
-    
+
     // MessageReceived
     private async Task MessageReceived(SocketMessage message)
     {

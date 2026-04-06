@@ -25,7 +25,7 @@ public static class WebUtil
             return "";
         }
     }
-    
+
     /// <summary>
     /// Returns the Html document of a url, or null if the request fails.
     /// Internally calls GetContent and parses the result.
@@ -44,7 +44,7 @@ public static class WebUtil
             return null;
         }
     }
-    
+
     /// <summary>
     /// Returns the Html node of a url and xpath, or null if the request fails.
     /// Internally calls GetHtmlDocument and parses the result with xpath.
@@ -61,7 +61,7 @@ public static class WebUtil
             return null;
         }
     }
-    
+
     /// <summary>
     /// Returns the Html nodes of a url and xpath, or null if the request fails.
     /// </summary>
@@ -76,8 +76,8 @@ public static class WebUtil
         {
             return null;
         }
-    } 
-    
+    }
+
     /// <summary>
     /// Returns the decoded inner text of a url and xpath, or an empty string if the request fails.
     /// </summary>
@@ -93,7 +93,7 @@ public static class WebUtil
             return string.Empty;
         }
     }
-    
+
     /// <summary>
     /// Returns the content of a url as a sanitized XML string, or an empty string if the request fails.
     /// </summary>
@@ -113,7 +113,7 @@ public static class WebUtil
             return string.Empty;
         }
     }
-    
+
     /// <summary>
     /// Returns a deserialized object from a JSON string. If the string is empty or can't be deserialized, it returns the default value of the type.
     /// </summary>
@@ -130,7 +130,7 @@ public static class WebUtil
             return default;
         }
     }
-    
+
     /// <summary>
     /// Returns a deserialized object from a JSON string, or null if the string is empty or can't be deserialized.
     /// </summary>
