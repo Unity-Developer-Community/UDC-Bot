@@ -40,7 +40,7 @@ public class IntroductionWatcherService
             return;
         }
         
-        _client.MessageReceived += MessageReceived;
+        _client.MessageReceived += EventGuard.Guarded<SocketMessage>(MessageReceived, nameof(MessageReceived));
     }
 
     private async Task MessageReceived(SocketMessage message)

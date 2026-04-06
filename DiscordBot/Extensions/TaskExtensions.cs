@@ -1,5 +1,29 @@
 ﻿namespace DiscordBot.Extensions;
 
+public static class EventGuard
+{
+    public static Func<T, Task> Guarded<T>(Func<T, Task> handler, string name) =>
+        async arg =>
+        {
+            try { await handler(arg); }
+            catch (Exception e) { LoggingService.LogToConsole($"[{name}] Unhandled exception: {e}", LogSeverity.Error); }
+        };
+
+    public static Func<T1, T2, Task> Guarded<T1, T2>(Func<T1, T2, Task> handler, string name) =>
+        async (a1, a2) =>
+        {
+            try { await handler(a1, a2); }
+            catch (Exception e) { LoggingService.LogToConsole($"[{name}] Unhandled exception: {e}", LogSeverity.Error); }
+        };
+
+    public static Func<T1, T2, T3, Task> Guarded<T1, T2, T3>(Func<T1, T2, T3, Task> handler, string name) =>
+        async (a1, a2, a3) =>
+        {
+            try { await handler(a1, a2, a3); }
+            catch (Exception e) { LoggingService.LogToConsole($"[{name}] Unhandled exception: {e}", LogSeverity.Error); }
+        };
+}
+
 public static class TaskExtensions
 {
     public static Task DeleteAfterTime(this IDeletable message, int seconds = 0, int minutes = 0, int hours = 0, int days = 0) => message?.DeleteAfterTimeSpan(new TimeSpan(days, hours, minutes, seconds));

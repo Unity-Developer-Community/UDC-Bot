@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Text;
 using Discord.Commands;
 using Discord.Interactions;
@@ -60,8 +60,8 @@ public class CommandHandlingService
         _loggingService = loggingService;
 
         // Events
-        _client.MessageReceived += HandleCommand;
-        _client.InteractionCreated += HandleInteraction;
+        _client.MessageReceived += EventGuard.Guarded<SocketMessage>(HandleCommand, nameof(HandleCommand));
+        _client.InteractionCreated += EventGuard.Guarded<SocketInteraction>(HandleInteraction, nameof(HandleInteraction));
         
         if (settings.GuildId == default)
         {

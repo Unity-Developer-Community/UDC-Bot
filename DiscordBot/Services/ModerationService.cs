@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using Discord.WebSocket;
 using DiscordBot.Settings;
 
@@ -25,9 +25,9 @@ public class ModerationService
         _loggingService = loggingService;
         _commandHandlingService = commandHandlingService;
 
-        client.MessageDeleted += MessageDeleted;
-        client.MessageUpdated += MessageUpdated;
-        client.MessageReceived += MessageReceived;
+        client.MessageDeleted += EventGuard.Guarded<Cacheable<IMessage, ulong>, Cacheable<IMessageChannel, ulong>>(MessageDeleted, nameof(MessageDeleted));
+        client.MessageUpdated += EventGuard.Guarded<Cacheable<IMessage, ulong>, SocketMessage, ISocketMessageChannel>(MessageUpdated, nameof(MessageUpdated));
+        client.MessageReceived += EventGuard.Guarded<SocketMessage>(MessageReceived, nameof(MessageReceived));
 
         if (settings.BotAnnouncementChannel != null)
             _botAnnouncementChannel = _client.GetChannel(settings.BotAnnouncementChannel.Id) as IMessageChannel;

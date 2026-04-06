@@ -160,18 +160,18 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         /*
          Event subscriptions
         */
-        _client.MessageReceived += UpdateXp;
-        _client.MessageReceived += Thanks;
-        _client.MessageUpdated += ThanksEdited;
+        _client.MessageReceived += EventGuard.Guarded<SocketMessage>(UpdateXp, nameof(UpdateXp));
+        _client.MessageReceived += EventGuard.Guarded<SocketMessage>(Thanks, nameof(Thanks));
+        _client.MessageUpdated += EventGuard.Guarded<Cacheable<IMessage, ulong>, SocketMessage, ISocketMessageChannel>(ThanksEdited, nameof(ThanksEdited));
         //_client.MessageReceived += MikuCheck;
-        _client.MessageReceived += CodeCheck;
-        _client.MessageReceived += ScoldForAtEveryoneUsage;
-        _client.UserJoined += UserJoined;
-        _client.GuildMemberUpdated += UserUpdated;
-        _client.UserLeft += UserLeft;
+        _client.MessageReceived += EventGuard.Guarded<SocketMessage>(CodeCheck, nameof(CodeCheck));
+        _client.MessageReceived += EventGuard.Guarded<SocketMessage>(ScoldForAtEveryoneUsage, nameof(ScoldForAtEveryoneUsage));
+        _client.UserJoined += EventGuard.Guarded<SocketGuildUser>(UserJoined, nameof(UserJoined));
+        _client.GuildMemberUpdated += EventGuard.Guarded<Cacheable<SocketGuildUser, ulong>, SocketGuildUser>(UserUpdated, nameof(UserUpdated));
+        _client.UserLeft += EventGuard.Guarded<SocketGuild, SocketUser>(UserLeft, nameof(UserLeft));
 
-        _client.MessageReceived += CheckForWelcomeMessage;
-        _client.UserIsTyping += UserIsTyping;
+        _client.MessageReceived += EventGuard.Guarded<SocketMessage>(CheckForWelcomeMessage, nameof(CheckForWelcomeMessage));
+        _client.UserIsTyping += EventGuard.Guarded<Cacheable<IUser, ulong>, Cacheable<IMessageChannel, ulong>>(UserIsTyping, nameof(UserIsTyping));
 
         LoadData();
         UpdateLoop();
@@ -207,8 +207,15 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         while (true)
         {
-            await Task.Delay(10000);
-            SaveData();
+            try
+            {
+                await Task.Delay(10000);
+                SaveData();
+            }
+            catch (Exception e)
+            {
+                LoggingService.LogToConsole($"[UpdateLoop] Unhandled exception: {e}", LogSeverity.Error);
+            }
         }
         // ReSharper disable once FunctionNeverReturns
     }
