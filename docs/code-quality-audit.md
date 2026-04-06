@@ -363,10 +363,10 @@ no `.cs` files and no test framework configured.
 3. ~~Fix double `i++` in `EmbedModule.cs` reaction-polling loop (and add
    `break` after confirmation)~~ ✅
 4. ~~Fix sunrise/sunset copy-paste bug in `WeatherModule.cs`~~ ✅
-5. Add `using` to all `HttpClient` instances or switch to `IHttpClientFactory`;
-   replace deprecated `WebClient` usage
+5. ~~Add `using` to all `HttpClient` instances or switch to `IHttpClientFactory`;
+   replace deprecated `WebClient` usage~~ ✅
 6. ~~Add null checks in `RoleAttributes.cs` for DM context safety~~ ✅
-7. Wrap all `async void` event handlers in try-catch
+7. ~~Wrap all `async void` event handlers in try-catch~~ ✅
 
 ### Short-term (Architecture)
 
@@ -374,7 +374,7 @@ no `.cs` files and no test framework configured.
 2. Split `BotSettings` into domain-specific config classes
 3. Add `BotSettings.Validate()` post-deserialization
 4. Extract business logic from command handlers into services
-5. Register `IHttpClientFactory` in DI; remove manual `HttpClient` creation
+5. ~~Register `IHttpClientFactory` in DI; remove manual `HttpClient` creation~~ ✅
 6. Add graceful shutdown support with `CancellationToken`
 7. Move static module state (`_activeDuels`) to services
 
