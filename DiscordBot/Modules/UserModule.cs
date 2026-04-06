@@ -238,25 +238,6 @@ public class UserModule : ModuleBase
             $"We currently have {(await Context.Guild.GetUsersAsync()).Count - 1} members. Let's keep on growing as the strong community we are :muscle:");
     }
 
-    [Command("ChristmasCompleted"), HideFromHelp]
-    [Summary("Reward for christmas event.")]
-    public async Task UserCompleted(string message)
-    {
-        //Make sure they're the santa bot
-        if (Context.Message.Author.Id != 514979161144557600L) return;
-
-        if (!long.TryParse(message, out var userId))
-        {
-            await ReplyAsync("Invalid user id");
-            return;
-        }
-
-        const int xpGain = 5000;
-        var userXp = await DatabaseService.Query.GetXp(userId.ToString());
-        await DatabaseService.Query.UpdateXp(userId.ToString(), userXp + xpGain);
-        await Context.Message.DeleteAsync();
-    }
-
     #region All Rules
 
     [Command("Rules"), Priority(1)]
