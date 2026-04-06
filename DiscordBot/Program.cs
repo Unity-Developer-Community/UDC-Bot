@@ -72,8 +72,8 @@ public class Program
 
             _unityHelpService = _services.GetRequiredService<UnityHelpService>();
             _recruitService = _services.GetRequiredService<RecruitService>();
-            _services.GetRequiredService<IntroductionWatcherService>();
             _services.GetRequiredService<BirthdayAnnouncementService>();
+            _services.GetRequiredService<AuditLogService>();
             _services.GetRequiredService<KarmaResetService>();
 
             return Task.CompletedTask;
@@ -96,8 +96,7 @@ public class Program
             .AddSingleton<DatabaseService>()
             .AddSingleton<UserService>()
             .AddSingleton<ProfileCardService>()
-            .AddSingleton<IntroductionWatcherService>()
-            .AddSingleton<ModerationService>()
+            .AddSingleton<AuditLogService>()
             .AddSingleton<FeedService>()
             .AddSingleton<UnityHelpService>()
             .AddSingleton<RecruitService>()
