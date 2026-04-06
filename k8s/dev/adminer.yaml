@@ -2,47 +2,47 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: phpmyadmin
-  namespace: udc-bot-prod
+  name: adminer
+  namespace: udc-bot-dev
   labels:
-    app.kubernetes.io/name: phpmyadmin
+    app.kubernetes.io/name: adminer
     app.kubernetes.io/part-of: udc-bot
-    environment: prod
+    environment: dev
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: phpmyadmin
+      app.kubernetes.io/name: adminer
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: phpmyadmin
+        app.kubernetes.io/name: adminer
         app.kubernetes.io/part-of: udc-bot
-        environment: prod
+        environment: dev
     spec:
       containers:
-        - name: phpmyadmin
-          image: phpmyadmin:5.2.3
+        - name: adminer
+          image: adminer:4
           ports:
-            - containerPort: 80
+            - containerPort: 8080
               protocol: TCP
           env:
-            - name: PMA_HOST
-              value: mysql
-            - name: PMA_PORT
-              value: "3306"
+            - name: ADMINER_DEFAULT_SERVER
+              value: postgresql
+            - name: ADMINER_DESIGN
+              value: dracula
           resources:
             requests:
-              cpu: 25m
-              memory: 64Mi
+              cpu: 10m
+              memory: 32Mi
             limits:
-              cpu: 200m
-              memory: 256Mi
+              cpu: 100m
+              memory: 128Mi
           readinessProbe:
             httpGet:
               path: /
-              port: 80
-            initialDelaySeconds: 10
+              port: 8080
+            initialDelaySeconds: 5
             periodSeconds: 10
           securityContext:
             allowPrivilegeEscalation: false
@@ -50,47 +50,46 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: phpmyadmin
-  namespace: udc-bot-prod
+  name: adminer
+  namespace: udc-bot-dev
   labels:
-    app.kubernetes.io/name: phpmyadmin
+    app.kubernetes.io/name: adminer
     app.kubernetes.io/part-of: udc-bot
-    environment: prod
+    environment: dev
 spec:
   type: ClusterIP
   ports:
     - port: 80
-      targetPort: 80
+      targetPort: 8080
       protocol: TCP
   selector:
-    app.kubernetes.io/name: phpmyadmin
+    app.kubernetes.io/name: adminer
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: phpmyadmin
-  namespace: udc-bot-prod
+  name: adminer
+  namespace: udc-bot-dev
   labels:
-    app.kubernetes.io/name: phpmyadmin
+    app.kubernetes.io/name: adminer
     app.kubernetes.io/part-of: udc-bot
-    environment: prod
+    environment: dev
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    traefik.ingress.kubernetes.io/router.middlewares: default-ip-allowlist@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - phpmyadmin.bot.udc.ovh
-      secretName: phpmyadmin-prod-tls
+        - adminer.dev.bot.udc.ovh
+      secretName: adminer-dev-tls
   rules:
-    - host: phpmyadmin.bot.udc.ovh
+    - host: adminer.dev.bot.udc.ovh
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: phpmyadmin
+                name: adminer
                 port:
                   number: 80

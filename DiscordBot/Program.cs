@@ -75,6 +75,7 @@ public class Program
             _recruitService = _services.GetRequiredService<RecruitService>();
             _services.GetRequiredService<IntroductionWatcherService>();
             _services.GetRequiredService<BirthdayAnnouncementService>();
+            _services.GetRequiredService<KarmaResetService>();
 
             return Task.CompletedTask;
         };
@@ -110,6 +111,7 @@ public class Program
             .AddSingleton<BirthdayAnnouncementService>()
             .AddSingleton<CasinoService>()
             .AddSingleton<GameService>()
+            .AddSingleton<KarmaResetService>()
             .BuildServiceProvider();
 
     private static void DeserializeSettings()

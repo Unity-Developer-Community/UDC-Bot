@@ -13,7 +13,7 @@ data:
     Settings.json: |
         {
             "token": "${BOT_TOKEN}",
-            "DbConnectionString": "server=mysql;port=3306;database=udcbot;user id=udcbot;Password=${DB_PASSWORD};SSL Mode=None;Allow User Variables=True;AllowPublicKeyRetrieval=True",
+            "DbConnectionString": "Host=postgresql;Port=5432;Database=udcbot;Username=udcbot;Password=${DB_PASSWORD}",
             "invite": "InviteLink", // Currently Unused
             /*Server Info*/
             "serverRootPath": "./SERVER",

@@ -40,4 +40,6 @@ post_date: "2026-04-03"
 
 | Document | Description |
 |----------|-------------|
+| [MySQL → PostgreSQL Data Migration](plans/data-migration-mysql-to-postgresql.md) | Operational guide — pgloader, cutover phases, kubectl commands |
+| [MySQL → PostgreSQL Code Changes](plans/done/mysql-to-postgresql-changes.md) | Architecture reference — all code, schema, and infra changes in PR #375 |
 | [plans/done/](plans/done/) | Completed feature plans |

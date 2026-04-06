@@ -300,7 +300,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     #region Betting Actions
 
     [ComponentInteraction("bet_add:*:*", true)]
-    public async Task BetAdd(string id, ulong amount)
+    public async Task BetAdd(string id, long amount)
     {
         await DeferAsync();
 
@@ -320,7 +320,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     }
 
     [ComponentInteraction("bet_set:*:*", true)]
-    public async Task BetSet(string id, ulong amount)
+    public async Task BetSet(string id, long amount)
     {
         if (!Context.Interaction.HasResponded) await DeferAsync();
 

@@ -3,9 +3,8 @@
   /* Auth info */
   "token": "Y O U R _ B O T _ T O K E N",
   "invite": "InviteLink", // Currently Unused
-  /* 'SSL MODE' and 'Allow User Variables' are only required when running on a local machine with XAMPP. This can often be removed. */
   /* DB Info*/
-  "DbConnectionString": "server=localhost;port=3306;database=test;user id=USER;Password=USERPASSWORD;SSL Mode=None;Allow User Variables=True",
+  "DbConnectionString": "Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=USERPASSWORD",
   /*Server Info*/
   "serverRootPath": "./SERVER",
   "assetsRootPath": "./Assets",

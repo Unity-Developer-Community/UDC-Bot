@@ -79,7 +79,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         [SlashCommand("gift", "Gift tokens to another user")]
         public async Task GiftTokens(
             [Summary("user", "User to gift tokens to")] SocketGuildUser targetUser,
-            [Summary("amount", "Amount of tokens to gift")] uint amount)
+            [Summary("amount", "Amount of tokens to gift")] int amount)
         {
             if (!await CheckChannelPermissions()) return;
 
@@ -380,14 +380,14 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
         private (string emoji, string title, string description) FormatTransactionDisplay(TokenTransaction transaction, bool showUserInfo = false)
         {
-            var (emoji, title, description) = transaction.Type switch
+            var (emoji, title, description) = transaction.Kind switch
             {
-                TransactionType.TokenInitialisation => ("🎯", "Account Created", ""),
-                TransactionType.DailyReward => ("📅", "Daily Reward", ""),
-                TransactionType.Gift => GetGiftDisplay(transaction),
-                TransactionType.Game => GetGameDisplay(transaction),
-                TransactionType.Admin => GetAdminDisplay(transaction),
-                _ => ("❓", transaction.Type.ToString(), "")
+                TransactionKind.TokenInitialisation => ("🎯", "Account Created", ""),
+                TransactionKind.DailyReward => ("📅", "Daily Reward", ""),
+                TransactionKind.Gift => GetGiftDisplay(transaction),
+                TransactionKind.Game => GetGameDisplay(transaction),
+                TransactionKind.Admin => GetAdminDisplay(transaction),
+                _ => ("❓", transaction.TransactionType, "")
             };
 
             // If showing user info (for all-users view), prepend user name to title
@@ -462,7 +462,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         [RequireUserPermission(GuildPermission.Administrator)]
         public async Task SetTokens(
             [Summary("user", "User to set tokens for")] SocketGuildUser targetUser,
-            [Summary("amount", "New token amount")] uint amount)
+            [Summary("amount", "New token amount")] int amount)
         {
             if (!await CheckChannelPermissions()) return;
 
@@ -484,13 +484,13 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         [RequireUserPermission(GuildPermission.Administrator)]
         public async Task AddTokens(
             [Summary("user", "User to add tokens to")] SocketGuildUser targetUser,
-            [Summary("amount", "Amount of tokens to add")] uint amount)
+            [Summary("amount", "Amount of tokens to add")] int amount)
         {
             if (!await CheckChannelPermissions()) return;
 
             await Context.Interaction.DeferAsync(ephemeral: true);
 
-            await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), (long)amount, TransactionType.Admin, new Dictionary<string, string>
+            await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), amount, TransactionKind.Admin, new Dictionary<string, string>
             {
                 ["admin"] = Context.User.Id.ToString(),
                 ["action"] = "add"

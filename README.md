@@ -283,16 +283,17 @@ docker-compose up -d
 
 **Manual Database Setup (Alternative to Docker):**
 
-If you prefer not to use Docker, you'll need to set up a MySQL database manually:
+If you prefer not to use Docker, you'll need to set up a PostgreSQL database manually:
 
-1. **Install MySQL server:**
-   - **Windows/macOS:** [XAMPP](https://www.apachefriends.org/download.html) (includes MySQL + phpMyAdmin)
-   - **Linux:** `sudo apt install mysql-server` or equivalent
+1. **Install PostgreSQL:**
+   - **Windows:** [PostgreSQL Installer](https://www.postgresql.org/download/windows/)
+   - **macOS:** `brew install postgresql@16`
+   - **Linux:** `sudo apt install postgresql` or equivalent
 
 2. **Create database and user:**
    - Create a new database for the bot
    - Create a user with full permissions to that database
-   - Update the `DbConnectionString` in `Settings.json` with your database details
+   - Update the `DbConnectionString` in `Settings.json` with your connection details (e.g. `Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=YOUR_PASSWORD`)
 
 3. **Initialize database schema:**
    - The bot will attempt to create necessary tables on first run
@@ -308,7 +309,7 @@ sudo apt install ttf-mscorefonts-installer
 **Connection String Format:**
 
 ```json
-"DbConnectionString": "Server=localhost;Database=your_db_name;Uid=your_username;Pwd=your_password;"
+"DbConnectionString": "Host=localhost;Port=5432;Database=your_db_name;Username=your_username;Password=your_password"
 ```
 
 ## Notes

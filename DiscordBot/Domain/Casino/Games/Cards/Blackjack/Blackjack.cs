@@ -105,12 +105,12 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
         return GamePlayerResult.NoResult;
     }
 
-    public override long CalculatePayout(GamePlayer player, ulong _totalPot)
+    public override long CalculatePayout(GamePlayer player, long _totalPot)
     {
         return player.Result switch
         {
-            GamePlayerResult.Won => (long)player.Bet,
-            GamePlayerResult.Lost => -(long)player.Bet,
+            GamePlayerResult.Won => player.Bet,
+            GamePlayerResult.Lost => -player.Bet,
             GamePlayerResult.Tie => 0,
             _ => 0
         };
