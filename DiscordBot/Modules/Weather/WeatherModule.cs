@@ -12,12 +12,12 @@ namespace DiscordBot.Modules;
 public class WeatherModule : ModuleBase
 {
     #region Dependency Injection
-    
+
     public WeatherService WeatherService { get; set; }
     public UserExtendedService UserExtendedService { get; set; }
-        
+
     #endregion
-    
+
     private List<string> AQI_Index = new List<string>()
         {"Invalid", "Good", "Fair", "Moderate", "Poor", "Very Poor"};
 
@@ -35,7 +35,7 @@ public class WeatherModule : ModuleBase
     }
 
     #region Temperature
-    
+
     private async Task<EmbedBuilder> TemperatureEmbed(string city, string replaceCityWith = "")
     {
         WeatherContainer.Result res = await WeatherService.GetWeather(city: city);
@@ -50,7 +50,7 @@ public class WeatherModule : ModuleBase
 
         return builder;
     }
-    
+
     [Command("Temperature"), HideFromHelp]
     [Summary("Attempts to provide the temperature of the user provided.")]
     [Alias("temp"), Priority(20)]
@@ -59,7 +59,7 @@ public class WeatherModule : ModuleBase
         user ??= Context.User;
         if (!await DoesUserHaveDefaultCity(user))
             return;
-        
+
         var city = await UserExtendedService.GetUserDefaultCity(user);
         var builder = await TemperatureEmbed(city, user.GetUserPreferredName());
         if (builder == null)
@@ -68,7 +68,7 @@ public class WeatherModule : ModuleBase
 
         await ReplyAsync(embed: builder.Build());
     }
-    
+
     [Command("Temperature")]
     [Summary("Attempts to provide the temperature of the city provided.")]
     [Alias("temp"), Priority(20)]
@@ -80,11 +80,11 @@ public class WeatherModule : ModuleBase
 
         await ReplyAsync(embed: builder.Build());
     }
-    
+
     #endregion // Temperature
 
     #region Weather
-    
+
     private async Task<EmbedBuilder> WeatherEmbed(string city, string replaceCityWith = "")
     {
         WeatherContainer.Result res = await WeatherService.GetWeather(city: city);
@@ -92,18 +92,18 @@ public class WeatherModule : ModuleBase
             return null;
 
         string extraInfo = string.Empty;
-        
+
         DateTime sunrise = DateTime.UnixEpoch.AddSeconds(res.sys.sunrise)
             .AddSeconds(res.timezone);
         DateTime sunset = DateTime.UnixEpoch.AddSeconds(res.sys.sunset)
             .AddSeconds(res.timezone);
-        
+
         // Sun rise/set
         if (res.sys.sunrise > 0)
             extraInfo += $"Sunrise **{sunrise:hh\\:mmtt}**, ";
-        if (res.sys.sunrise > 0)
+        if (res.sys.sunset > 0)
             extraInfo += $"Sunset **{sunset:hh\\:mmtt}**\n";
-        
+
         if (res.main.Temp > 0 && res.rain != null)
         {
             if (res.rain.Rain3h > 0)
@@ -128,10 +128,10 @@ public class WeatherModule : ModuleBase
             .WithFooter(
                 $"{res.clouds.all}% cloud cover with {GetWindDirection((float)res.wind.Deg)} {Math.Round((res.wind.Speed * 60f * 60f) / 1000f, 2)} km/h winds & {res.main.Humidity}% humidity.")
             .WithColor(GetColour(res.main.Temp));
-        
+
         return builder;
     }
-        
+
     [Command("Weather"), HideFromHelp, Priority(20)]
     [Summary("Attempts to provide the weather of the user provided.")]
     public async Task CurentWeather(IUser user = null)
@@ -139,7 +139,7 @@ public class WeatherModule : ModuleBase
         user ??= Context.User;
         if (!await DoesUserHaveDefaultCity(user))
             return;
-        
+
         var city = await UserExtendedService.GetUserDefaultCity(user);
         var builder = await WeatherEmbed(city, user.GetUserPreferredName());
         if (builder == null)
@@ -159,7 +159,7 @@ public class WeatherModule : ModuleBase
 
         await ReplyAsync(embed: builder.Build());
     }
-    
+
     #endregion // Weather
 
     #region Pollution
@@ -216,7 +216,7 @@ public class WeatherModule : ModuleBase
         user ??= Context.User;
         if (!await DoesUserHaveDefaultCity(user))
             return;
-        
+
         var city = await UserExtendedService.GetUserDefaultCity(user);
         var builder = await PollutionEmbed(city, user.GetUserPreferredName());
         if (builder == null)
@@ -225,7 +225,7 @@ public class WeatherModule : ModuleBase
 
         await ReplyAsync(embed: builder.Build());
     }
-    
+
     [Command("Pollution"), Priority(21)]
     [Summary("Attempts to provide the pollution conditions of the city provided.")]
     public async Task Pollution(params string[] city)
@@ -236,11 +236,11 @@ public class WeatherModule : ModuleBase
 
         await ReplyAsync(embed: builder.Build());
     }
-    
+
     #endregion // Pollution
 
     #region Time
-    
+
     private async Task<EmbedBuilder> TimeEmbed(string city, string replaceCityWith = "")
     {
         WeatherContainer.Result res = await WeatherService.GetWeather(city: city);
@@ -256,7 +256,7 @@ public class WeatherModule : ModuleBase
 
         return builder;
     }
-    
+
     [Command("Time"), HideFromHelp, Priority(22)]
     [Summary("Attempts to provide the time of the user provided.")]
     public async Task Time(IUser user = null)
@@ -264,7 +264,7 @@ public class WeatherModule : ModuleBase
         user ??= Context.User;
         if (!await DoesUserHaveDefaultCity(user))
             return;
-        
+
         var city = await UserExtendedService.GetUserDefaultCity(user);
         var builder = await TimeEmbed(city, user.GetUserPreferredName());
         if (builder == null)
@@ -273,7 +273,7 @@ public class WeatherModule : ModuleBase
 
         await ReplyAsync(embed: builder.Build());
     }
-    
+
     [Command("Time"), Priority(22)]
     [Summary("Attempts to provide the time of the city/location provided.")]
     public async Task Time(params string[] city)
@@ -284,9 +284,9 @@ public class WeatherModule : ModuleBase
 
         await ReplyAsync(embed: builder.Build());
     }
-    
+
     #endregion // Time
-    
+
     #region Utility Methods
 
     private async Task<bool> IsResultsValid<T>(T res)
@@ -313,18 +313,18 @@ public class WeatherModule : ModuleBase
             _ => new Color(255, 0, 0)
         };
     }
-    
+
     private async Task<bool> DoesUserHaveDefaultCity(IUser user)
     {
         // If they do, return true
         if (await UserExtendedService.DoesUserHaveDefaultCity(user)) return true;
-        
+
         // Otherwise respond and return false
         var uname = user.GetUserPreferredName();
         await ReplyAsync($"User {uname} does not have a default city set.");
         return false;
     }
-    
+
     private static string GetWindDirection(float windDeg)
     {
         if (windDeg < 22.5)
@@ -345,6 +345,6 @@ public class WeatherModule : ModuleBase
             return "NW";
         return "N";
     }
-    
+
     #endregion Utility Methods
 }
