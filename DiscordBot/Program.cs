@@ -14,7 +14,7 @@ namespace DiscordBot;
 
 public class Program
 {
-    private bool _isInitialized = false;
+    private int _isInitialized = 0;
 
     private static Rules _rules;
     private static BotSettings _settings;
@@ -52,7 +52,7 @@ public class Program
         {
             // Ready can be called additional times if the bot disconnects for long enough,
             // so we need to make sure we only initialize commands and such for the bot once if it manages to re-establish connection
-            if (_isInitialized) return Task.CompletedTask;
+            if (Interlocked.CompareExchange(ref _isInitialized, 1, 0) != 0) return Task.CompletedTask;
 
             _interactionService = new InteractionService(_client);
             _commandService = new CommandService(new CommandServiceConfig
@@ -69,7 +69,6 @@ public class Program
             logger.LogChannelAndFile("Bot Started.", ExtendedLogSeverity.Positive);
 
             LoggingService.LogToConsole("Bot is connected.", ExtendedLogSeverity.Positive);
-            _isInitialized = true;
 
             _unityHelpService = _services.GetRequiredService<UnityHelpService>();
             _recruitService = _services.GetRequiredService<RecruitService>();
