@@ -95,6 +95,7 @@ public class Program
             .AddSingleton<ILoggingService, LoggingService>()
             .AddSingleton<DatabaseService>()
             .AddSingleton<UserService>()
+            .AddSingleton<ProfileCardService>()
             .AddSingleton<IntroductionWatcherService>()
             .AddSingleton<ModerationService>()
             .AddSingleton<FeedService>()
