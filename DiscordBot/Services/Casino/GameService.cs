@@ -9,7 +9,7 @@ public class GameService
 {
     private readonly ILoggingService _loggingService;
     private readonly BotSettings _settings;
-    private readonly List<IDiscordGameSession> _activeSessions = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, IDiscordGameSession> _activeSessions = new();
     private readonly CasinoService _casinoService;
 
     public GameService(ILoggingService loggingService, BotSettings settings, CasinoService casinoService)
@@ -45,7 +45,7 @@ public class GameService
     {
         var gameInstance = GetGameInstance(game);
         var session = CreateDiscordGameSession(game, gameInstance, maxSeats == 0 ? gameInstance.MaxPlayers : maxSeats, client, user, guild);
-        _activeSessions.Add(session);
+        _activeSessions[session.Id] = session;
         return session;
     }
 
@@ -57,12 +57,14 @@ public class GameService
 
     public IDiscordGameSession? GetActiveSession(string id)
     {
-        return _activeSessions.FirstOrDefault(s => s.Id.ToString() == id);
+        if (Guid.TryParse(id, out var guid) && _activeSessions.TryGetValue(guid, out var session))
+            return session;
+        return null;
     }
 
     public void RemoveGameSession(IDiscordGameSession session)
     {
-        _activeSessions.Remove(session);
+        _activeSessions.TryRemove(session.Id, out _);
     }
 
     public async Task JoinGame(IDiscordGameSession session, ulong userId)
