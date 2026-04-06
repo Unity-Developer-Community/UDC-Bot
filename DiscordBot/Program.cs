@@ -107,6 +107,7 @@ public class Program
             .AddSingleton<EveryoneScoldService>()
             .AddSingleton<MikuService>()
             .AddSingleton<ServerService>()
+            .AddSingleton<DuelService>()
             .AddSingleton<ProfileCardService>()
             .AddSingleton<AuditLogService>()
             .AddSingleton<FeedService>()

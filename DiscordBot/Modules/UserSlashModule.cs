@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Discord.Interactions;
 using DiscordBot.Services;
 using DiscordBot.Settings;
@@ -14,6 +13,7 @@ public class UserSlashModule : InteractionModuleBase
     public CommandHandlingService CommandHandlingService { get; set; }
     public WelcomeService WelcomeService { get; set; }
     public ServerService ServerService { get; set; }
+    public DuelService DuelService { get; set; }
     public BotSettings BotSettings { get; set; }
     public ILoggingService LoggingService { get; set; }
 
@@ -124,21 +124,6 @@ public class UserSlashModule : InteractionModuleBase
 
     #region Duel System
 
-    private static readonly ConcurrentDictionary<string, (ulong challengerId, ulong opponentId)> _activeDuels = new ConcurrentDictionary<string, (ulong, ulong)>();
-    private static readonly Random _random = new Random();
-
-    private static readonly string[] _normalWinMessages =
-    {
-        "{winner} lands a solid hit on {loser} and wins the duel!",
-        "{winner} uses their sword to attack {loser}, but {loser} fails to dodge and {winner} wins!",
-        "{winner} outmaneuvers {loser} with a swift strike and claims victory!",
-        "{winner} blocks {loser}'s attack and counters with a decisive blow!",
-        "{winner} dodges {loser}'s clumsy swing and delivers the winning hit!",
-        "{winner} parries {loser}'s blade and strikes back to win the duel!",
-        "{winner} feints left, strikes right, and defeats {loser}!",
-        "{winner} overwhelms {loser} with superior technique and emerges victorious!"
-    };
-
     [SlashCommand("duel", "Challenge another user to a duel!")]
     public async Task Duel(
         [Summary(description: "The user you want to duel")] IUser opponent,
@@ -163,16 +148,12 @@ public class UserSlashModule : InteractionModuleBase
 
         // Check for active duel
         string duelKey = $"{Context.User.Id}_{opponent.Id}";
-        string reverseDuelKey = $"{opponent.Id}_{Context.User.Id}";
 
-        if (_activeDuels.ContainsKey(duelKey) || _activeDuels.ContainsKey(reverseDuelKey))
+        if (!DuelService.TryStartDuel(duelKey, Context.User.Id, opponent.Id))
         {
             await Context.Interaction.RespondAsync("There's already an active duel between you two!", ephemeral: true);
             return;
         }
-
-        // Store the duel with both user IDs for timeout tracking
-        _activeDuels[duelKey] = (Context.User.Id, opponent.Id);
 
         var embed = new EmbedBuilder()
             .WithColor(Color.Orange)
@@ -200,15 +181,15 @@ public class UserSlashModule : InteractionModuleBase
         _ = Task.Run(async () =>
         {
             await Task.Delay(60000); // 60 seconds
-            if (_activeDuels.ContainsKey(duelKey))
+            var duel = DuelService.GetDuel(duelKey);
+            if (duel != null)
             {
-                var (challengerId, opponentId) = _activeDuels[duelKey];
-                _activeDuels.TryRemove(duelKey, out _);
+                DuelService.TryRemoveDuel(duelKey, out _);
 
                 try
                 {
-                    var challenger = await Context.Guild.GetUserAsync(challengerId);
-                    var challengedUser = await Context.Guild.GetUserAsync(opponentId);
+                    var challenger = await Context.Guild.GetUserAsync(duel.Value.challengerId);
+                    var challengedUser = await Context.Guild.GetUserAsync(duel.Value.opponentId);
 
                     string timeoutMessage = challengedUser != null
                         ? $"⏰ Duel challenge to {challengedUser.Mention} expired."
@@ -250,15 +231,12 @@ public class UserSlashModule : InteractionModuleBase
             return;
         }
 
-        // Check if duel is still active
-        if (!_activeDuels.ContainsKey(duelKey))
+        // Check if duel is still active and remove it
+        if (!DuelService.TryRemoveDuel(duelKey, out _))
         {
             await Context.Interaction.RespondAsync("This duel is no longer active!", ephemeral: true);
             return;
         }
-
-        // Remove from active duels
-        _activeDuels.TryRemove(duelKey, out _);
 
         await Context.Interaction.DeferAsync();
 
@@ -273,7 +251,7 @@ public class UserSlashModule : InteractionModuleBase
         }
 
         // Randomly select winner (50/50)
-        bool challengerWins = _random.Next(2) == 0;
+        bool challengerWins = DuelService.ChallengerWins();
         var winner = challengerWins ? challenger : opponent;
         var loser = challengerWins ? opponent : challenger;
         if (type == "mute")
@@ -288,8 +266,7 @@ public class UserSlashModule : InteractionModuleBase
         }
 
         // Generate flavor message
-        string flavorMessage = _normalWinMessages[_random.Next(_normalWinMessages.Length)];
-        flavorMessage = flavorMessage.Replace("{winner}", winner.Mention).Replace("{loser}", loser.Mention);
+        string flavorMessage = DuelService.GetWinMessage(winner.Mention, loser.Mention);
 
         var resultEmbed = new EmbedBuilder()
             .WithColor(Color.Gold)
@@ -343,15 +320,12 @@ public class UserSlashModule : InteractionModuleBase
             return;
         }
 
-        // Check if duel is still active
-        if (!_activeDuels.ContainsKey(duelKey))
+        // Check if duel is still active and remove it
+        if (!DuelService.TryRemoveDuel(duelKey, out _))
         {
             await Context.Interaction.RespondAsync("This duel is no longer active!", ephemeral: true);
             return;
         }
-
-        // Remove from active duels
-        _activeDuels.TryRemove(duelKey, out _);
 
         // Edit the embed to show refusal instead of deleting
         await Context.Interaction.DeferAsync();
@@ -384,15 +358,12 @@ public class UserSlashModule : InteractionModuleBase
             return;
         }
 
-        // Check if duel is still active
-        if (!_activeDuels.ContainsKey(duelKey))
+        // Check if duel is still active and remove it
+        if (!DuelService.TryRemoveDuel(duelKey, out _))
         {
             await Context.Interaction.RespondAsync("This duel is no longer active!", ephemeral: true);
             return;
         }
-
-        // Remove from active duels
-        _activeDuels.TryRemove(duelKey, out _);
 
         // Edit the embed to show cancellation
         await Context.Interaction.DeferAsync();
