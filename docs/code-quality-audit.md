@@ -319,7 +319,7 @@ signal handling, no resource cleanup on exit.
 | `EmbedModule.cs` — `BuildEmbedFromUrl` | SSRF risk: `IsValidHost()` allow-list exists but `attachment.Url` from Discord CDN bypasses it. Pastebin/hastebin URLs could also contain redirects. User-supplied URLs are downloaded server-side. | Medium |
 | `EmbedModule.cs` | Uses deprecated `WebClient` (obsolete since .NET 6) — should switch to `HttpClient` via `IHttpClientFactory` | Low |
 | `CasinoRepository.cs` — 37+ SQL methods | SQL injection surface is large. All queries are likely parameterized via Insight.Database, but this should be verified explicitly. | Low (verify) |
-| `RoleAttributes.cs` | Direct cast `(SocketGuildUser)` crashes in DM context — precondition bypass could allow unauthorized command execution if the exception is caught upstream | Medium |
+| `RoleAttributes.cs` | ~~Direct cast `(SocketGuildUser)` crashes in DM context — precondition bypass could allow unauthorized command execution if the exception is caught upstream~~ ✅ Fixed | ~~Medium~~ |
 
 ---
 
@@ -356,16 +356,16 @@ no `.cs` files and no test framework configured.
 
 ### Immediate (Bugs)
 
-1. Fix `_isInitialized` race condition in `Program.cs` — use
-   `Interlocked.CompareExchange`
-2. Replace `List<IDiscordGameSession>` with `ConcurrentDictionary` in
-   `GameService.cs`
-3. Fix double `i++` in `EmbedModule.cs` reaction-polling loop (and add
-   `break` after confirmation)
-4. Fix sunrise/sunset copy-paste bug in `WeatherModule.cs`
+1. ~~Fix `_isInitialized` race condition in `Program.cs` — use
+   `Interlocked.CompareExchange`~~ ✅
+2. ~~Replace `List<IDiscordGameSession>` with `ConcurrentDictionary` in
+   `GameService.cs`~~ ✅
+3. ~~Fix double `i++` in `EmbedModule.cs` reaction-polling loop (and add
+   `break` after confirmation)~~ ✅
+4. ~~Fix sunrise/sunset copy-paste bug in `WeatherModule.cs`~~ ✅
 5. Add `using` to all `HttpClient` instances or switch to `IHttpClientFactory`;
    replace deprecated `WebClient` usage
-6. Add null checks in `RoleAttributes.cs` for DM context safety
+6. ~~Add null checks in `RoleAttributes.cs` for DM context safety~~ ✅
 7. Wrap all `async void` event handlers in try-catch
 
 ### Short-term (Architecture)
