@@ -93,7 +93,7 @@ Task.Run(() => ...);
 
 **Fix:** Create a `SafeFireAndForget()` extension that logs exceptions.
 
-#### 2e. `ContainsInviteLink()` — three identical overloads
+#### ~~2e. `ContainsInviteLink()` — three identical overloads~~ (removed — dead code, no callers)
 
 File: `MessageExtensions.cs` — same regex for `IUserMessage`, `string`, and
 `IMessage`. Should be a single implementation on `string` with the others
@@ -382,7 +382,7 @@ no `.cs` files and no test framework configured.
 
 1. Create `EmbedFactory` to reduce embed construction duplication
 2. Create `SafeFireAndForget()` extension to replace `#pragma` + `Task.Run`
-3. Consolidate `ContainsInviteLink()` overloads
+3. ~~Consolidate `ContainsInviteLink()` overloads~~ ✅ removed (dead code)
 4. Add configuration validation for all settings
 5. Audit service lifetimes — consider `Scoped` for interaction-scoped services
 6. Remove all dead/commented-out code
