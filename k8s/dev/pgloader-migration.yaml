@@ -31,12 +31,19 @@ data:
     BEFORE LOAD DO
       \$\$ ALTER TABLE users ADD COLUMN IF NOT EXISTS birthday timestamp; \$\$,
       \$\$ DROP TABLE IF EXISTS token_transactions CASCADE; \$\$,
-      \$\$ CREATE TABLE token_transactions (Id SERIAL PRIMARY KEY, UserID varchar(32) NOT NULL, TargetUserID varchar(32) DEFAULT NULL, Amount bigint NOT NULL, TransactionType varchar(50) NOT NULL, Description text DEFAULT NULL, CreatedAt timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); \$\$,
-      \$\$ CREATE INDEX IF NOT EXISTS idx_user_created ON token_transactions (UserID, CreatedAt); \$\$,
+      \$\$ CREATE TABLE token_transactions (id serial PRIMARY KEY, userid varchar(32) NOT NULL, amount bigint NOT NULL, type integer NOT NULL DEFAULT 0, detailsjson text DEFAULT NULL, createdat timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); \$\$,
       \$\$ TRUNCATE users, casino_users CASCADE; \$\$
 
     AFTER LOAD DO
-      \$\$ ALTER TABLE users DROP COLUMN IF EXISTS birthday; \$\$
+      \$\$ ALTER TABLE users DROP COLUMN IF EXISTS birthday; \$\$,
+      \$\$ ALTER TABLE token_transactions ADD COLUMN targetuserid varchar(32) DEFAULT NULL; \$\$,
+      \$\$ ALTER TABLE token_transactions ADD COLUMN transactiontype varchar(50) NOT NULL DEFAULT 'Admin'; \$\$,
+      \$\$ ALTER TABLE token_transactions ADD COLUMN description text DEFAULT NULL; \$\$,
+      \$\$ UPDATE token_transactions SET transactiontype = CASE type WHEN 0 THEN 'TokenInitialisation' WHEN 1 THEN 'DailyReward' WHEN 2 THEN 'Gift' WHEN 3 THEN 'Game' WHEN 4 THEN 'Admin' ELSE 'Admin' END, description = detailsjson; \$\$,
+      \$\$ ALTER TABLE token_transactions DROP COLUMN type; \$\$,
+      \$\$ ALTER TABLE token_transactions DROP COLUMN detailsjson; \$\$,
+      \$\$ CREATE INDEX IF NOT EXISTS idx_user_created ON token_transactions (userid, createdat); \$\$,
+      \$\$ SELECT setval('token_transactions_id_seq', COALESCE((SELECT MAX(id) FROM token_transactions), 1)); \$\$
     ;
     PGEOF
 
