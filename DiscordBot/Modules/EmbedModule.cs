@@ -233,7 +233,6 @@ public class EmbedModule : ModuleBase
                 var reactions = await message.GetReactionUsersAsync(_thumbUpEmote, 10).FlattenAsync();
                 if (reactions.Count() > 1)
                 {
-                    // Just in case other people are trying to react to the message,we check all reactions and confirm we got one from the user generating the embed.
                     foreach (var reaction in reactions)
                     {
                         if (reaction.Id == Context.User.Id)
@@ -244,7 +243,7 @@ public class EmbedModule : ModuleBase
                     }
                 }
 
-                i++;
+                if (confirmedEmbed) break;
             }
 
             await tempEmbed.DeleteAsync();
