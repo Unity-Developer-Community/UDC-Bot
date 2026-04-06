@@ -74,6 +74,12 @@ public class Program
             _recruitService = _services.GetRequiredService<RecruitService>();
             _services.GetRequiredService<BirthdayAnnouncementService>();
             _services.GetRequiredService<AuditLogService>();
+            _services.GetRequiredService<WelcomeService>();
+            _services.GetRequiredService<XpService>();
+            _services.GetRequiredService<KarmaService>();
+            _services.GetRequiredService<CodeCheckService>();
+            _services.GetRequiredService<EveryoneScoldService>();
+            _services.GetRequiredService<MikuService>();
             _services.GetRequiredService<KarmaResetService>();
 
             return Task.CompletedTask;
@@ -94,7 +100,13 @@ public class Program
             .AddSingleton<CommandHandlingService>()
             .AddSingleton<ILoggingService, LoggingService>()
             .AddSingleton<DatabaseService>()
-            .AddSingleton<UserService>()
+            .AddSingleton<WelcomeService>()
+            .AddSingleton<XpService>()
+            .AddSingleton<KarmaService>()
+            .AddSingleton<CodeCheckService>()
+            .AddSingleton<EveryoneScoldService>()
+            .AddSingleton<MikuService>()
+            .AddSingleton<ServerService>()
             .AddSingleton<ProfileCardService>()
             .AddSingleton<AuditLogService>()
             .AddSingleton<FeedService>()

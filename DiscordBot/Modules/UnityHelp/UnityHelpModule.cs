@@ -11,7 +11,6 @@ public class UnityHelpModule : ModuleBase
     #region Dependency Injection
 
     public UnityHelpService HelpService { get; set; }
-    public UserService UserService { get; set; }
     public BotSettings BotSettings { get; set; }
 
     #endregion // Dependency Injection
@@ -26,7 +25,7 @@ public class UnityHelpModule : ModuleBase
             await Context.Message.DeleteAsync();
         await HelpService.OnUserRequestChannelClose(Context.User, Context.Channel as SocketThreadChannel);
     }
-    
+
     [Command("pending-questions")]
     [Summary("Moderation only command, announces the number of pending questions in the help channel.")]
     [RequireModerator, HideFromHelp, IgnoreBots]

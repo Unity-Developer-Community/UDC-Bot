@@ -1,3 +1,4 @@
+using System.Globalization;
 using Discord.WebSocket;
 using DiscordBot.Settings;
 
@@ -19,6 +20,8 @@ public class AuditLogService
 
         client.MessageDeleted += EventGuard.Guarded<Cacheable<IMessage, ulong>, Cacheable<IMessageChannel, ulong>>(MessageDeleted, nameof(MessageDeleted));
         client.MessageUpdated += EventGuard.Guarded<Cacheable<IMessage, ulong>, SocketMessage, ISocketMessageChannel>(MessageUpdated, nameof(MessageUpdated));
+        client.UserLeft += EventGuard.Guarded<SocketGuild, SocketUser>(UserLeft, nameof(UserLeft));
+        client.GuildMemberUpdated += EventGuard.Guarded<Cacheable<SocketGuildUser, ulong>, SocketGuildUser>(GuildMemberUpdated, nameof(GuildMemberUpdated));
 
         if (settings.BotAnnouncementChannel != null)
             _botAnnouncementChannel = client.GetChannel(settings.BotAnnouncementChannel.Id) as IMessageChannel;
@@ -106,5 +109,36 @@ public class AuditLogService
         var embed = builder.Build();
 
         await _loggingService.Log(LogBehaviour.Channel, string.Empty, ExtendedLogSeverity.Info, embed);
+    }
+
+    private async Task UserLeft(SocketGuild guild, SocketUser user)
+    {
+        if (user.IsBot) return;
+
+        var guildUser = guild.GetUser(user.Id);
+        if (guildUser?.JoinedAt != null)
+        {
+            var joinDate = guildUser.JoinedAt.Value.Date;
+            var timeStayed = DateTime.Now - joinDate;
+            await _loggingService.LogChannelAndFile(
+                $"User Left - After {(timeStayed.Days > 1 ? Math.Floor((double)timeStayed.Days) + " days" : " ")}" +
+                $" {Math.Floor((double)timeStayed.Hours).ToString(CultureInfo.InvariantCulture)} hours {user.Mention} - `{guildUser.GetPreferredAndUsername()}` - ID : `{user.Id}`");
+        }
+        else
+        {
+            await _loggingService.LogChannelAndFile(
+                $"User Left - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}` - Left at {DateTime.Now}");
+        }
+    }
+
+    private async Task GuildMemberUpdated(Cacheable<SocketGuildUser, ulong> oldUserCached, SocketGuildUser user)
+    {
+        var oldUser = await oldUserCached.GetOrDownloadAsync();
+        if (oldUser.Nickname != user.Nickname)
+        {
+            await _loggingService.LogChannelAndFile(
+                $"User {oldUser.GetUserPreferredName()} changed his " +
+                $"username to {user.GetUserPreferredName()}");
+        }
     }
 }

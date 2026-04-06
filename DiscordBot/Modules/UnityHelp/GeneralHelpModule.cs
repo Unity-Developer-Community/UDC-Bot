@@ -9,19 +9,18 @@ namespace DiscordBot.Modules;
 public class GeneralHelpModule : ModuleBase
 {
     #region Dependency Injection
-    
-    public UserService UserService { get; set; }
+
     public BotSettings BotSettings { get; set; }
 
     #endregion // Dependency Injection
-    
+
     [Command("error")]
     [Summary("Uses a C# error code, or Unity error code and returns a link to appropriate documentation.")]
     public async Task RespondWithErrorDocumentation(string error)
     {
         if (Context.User.IsUserBotOrWebhook())
             return;
-        
+
         // If we're dealing with C# error
         if (error.StartsWith("CS"))
         {
@@ -31,10 +30,10 @@ public class GeneralHelpModule : ModuleBase
                 "https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/compiler-messages/",
                 "https://docs.microsoft.com/en-us/dotnet/csharp/misc/"
             };
-            
+
             HtmlDocument errorPage = null;
             string usedUrl = string.Empty;
-            
+
             foreach (var url in urls)
             {
                 errorPage = await WebUtil.GetHtmlDocument($"{url}{error}");

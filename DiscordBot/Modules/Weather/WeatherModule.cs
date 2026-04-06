@@ -347,4 +347,42 @@ public class WeatherModule : ModuleBase
     }
 
     #endregion Utility Methods
+
+    #region City Settings
+
+    [Command("SetCity"), Priority(100)]
+    [Alias("SetDefaultCity")]
+    [Summary("Set 'Default City' which can be used by various commands.")]
+    public async Task SetDefaultCity(params string[] city)
+    {
+        var uname = Context.User.GetUserPreferredName();
+        var fullCityName = string.Join(" ", city);
+        var (exists, result) = await WeatherService.CityExists(fullCityName);
+        if (!exists)
+        {
+            await ReplyAsync($"Sorry, {uname}, but I couldn't find a city with that name.").DeleteAfterSeconds(30);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+        await UserExtendedService.SetUserDefaultCity(Context.User, result.name);
+        await ReplyAsync($"{uname}, your default city has been set to {result.name}.");
+    }
+
+    [Command("RemoveCity"), Priority(100)]
+    [Alias("RemoveDefaultCity")]
+    [Summary("Remove 'Default City' which can be used by various commands.")]
+    public async Task RemoveDefaultCity()
+    {
+        var uname = Context.User.GetUserPreferredName();
+        if (!await UserExtendedService.DoesUserHaveDefaultCity(Context.User))
+        {
+            await ReplyAsync($"{uname}, you don't have a default city set.").DeleteAfterSeconds(30);
+            await Context.Message.DeleteAsync();
+            return;
+        }
+        await UserExtendedService.RemoveUserDefaultCity(Context.User);
+        await ReplyAsync($"{uname}, your default city has been removed.");
+    }
+
+    #endregion City Settings
 }

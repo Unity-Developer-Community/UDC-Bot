@@ -12,7 +12,8 @@ public class UserSlashModule : InteractionModuleBase
     #region Dependency Injection
 
     public CommandHandlingService CommandHandlingService { get; set; }
-    public UserService UserService { get; set; }
+    public WelcomeService WelcomeService { get; set; }
+    public ServerService ServerService { get; set; }
     public BotSettings BotSettings { get; set; }
     public ILoggingService LoggingService { get; set; }
 
@@ -104,7 +105,7 @@ public class UserSlashModule : InteractionModuleBase
     public async Task SlashWelcome()
     {
         await Context.Interaction.RespondAsync(string.Empty,
-            embed: UserService.GetWelcomeEmbed(Context.User.Username), ephemeral: true);
+            embed: WelcomeService.GetWelcomeEmbed(Context.User.Username), ephemeral: true);
     }
 
     [SlashCommand("ping", "Bot latency")]
@@ -112,7 +113,7 @@ public class UserSlashModule : InteractionModuleBase
     {
         await Context.Interaction.RespondAsync("Bot latency: ...", ephemeral: true);
         await Context.Interaction.ModifyOriginalResponseAsync(m =>
-            m.Content = $"Bot latency: {UserService.GetGatewayPing().ToString()}ms");
+            m.Content = $"Bot latency: {ServerService.GetGatewayPing().ToString()}ms");
     }
 
     [SlashCommand("invite", "Returns the invite link for the server.")]

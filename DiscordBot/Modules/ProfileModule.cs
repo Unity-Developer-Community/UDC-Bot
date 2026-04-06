@@ -9,6 +9,25 @@ public class ProfileModule : ModuleBase
     public ProfileCardService ProfileCardService { get; set; }
     public ILoggingService LoggingService { get; set; }
 
+    [Command("Karma"), Priority(95)]
+    [Summary("Description of what Karma is.")]
+    public async Task KarmaDescription(int seconds = 60)
+    {
+        var uname = Context.User.GetUserPreferredName();
+        await ReplyAsync($"{uname}, Karma is tracked on your !profile which helps indicate how much you've helped others and provides a small increase in EXP gain.");
+        await Context.Message.DeleteAfterSeconds(seconds: seconds);
+    }
+
+    [Command("JoinDate"), Priority(91)]
+    [Summary("Display date you joined the server.")]
+    public async Task JoinDate()
+    {
+        var userId = Context.User.Id;
+        var joinDate = ((IGuildUser)Context.User).JoinedAt;
+        await ReplyAsync($"{Context.User.Mention} you joined **{joinDate:dddd dd/MM/yyy HH:mm:ss}**");
+        await Context.Message.DeleteAsync();
+    }
+
     [Command("Profile"), Priority(2)]
     [Summary("Display your profile card.")]
     public async Task DisplayProfile()
