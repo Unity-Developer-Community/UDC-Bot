@@ -182,7 +182,7 @@ public class AirportService
         _airLabsNearbyCityRoute += _airLabsAPIInclude + _airLabsAPIRequiredFields;
     }
 
-    public async Task<AirLabsAirport> GetClosestAirport(double lat, double lng)
+    public async Task<AirLabsAirport?> GetClosestAirport(double lat, double lng)
     {
         var url = string.Format(_airLabsNearbyCityRoute, lat, lng);
 
@@ -194,7 +194,7 @@ public class AirportService
         return result.response.airports.FirstOrDefault(a => !string.IsNullOrEmpty(a.iata_code));
     }
 
-    public async Task<string> GetFlightTickets(string from, string to)
+    public async Task<string?> GetFlightTickets(string from, string to)
     {
 
         return null;
@@ -224,7 +224,7 @@ public class AirportService
         return true;
     }
 
-    public async Task<List<FlightInfo>> GetFlightInfo(string from, string to, int daysFromNow = 2)
+    public async Task<List<FlightInfo>?> GetFlightInfo(string from, string to, int daysFromNow = 2)
     {
         if (!await GetValidationToken())
             return null;

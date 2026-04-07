@@ -15,7 +15,7 @@ public class DatabaseService
     private readonly ILoggingService _logging;
     private string ConnectionString { get; }
 
-    private ICasinoRepo CreateCasinoQuery()
+    private ICasinoRepo? CreateCasinoQuery()
     {
         try
         {
@@ -29,7 +29,7 @@ public class DatabaseService
         }
     }
 
-    private IServerUserRepo CreateQuery()
+    private IServerUserRepo? CreateQuery()
     {
         try
         {
@@ -43,8 +43,8 @@ public class DatabaseService
         }
     }
 
-    public IServerUserRepo Query => CreateQuery();
-    public ICasinoRepo CasinoQuery => CreateCasinoQuery();
+    public IServerUserRepo? Query => CreateQuery();
+    public ICasinoRepo? CasinoQuery => CreateCasinoQuery();
 
     public DatabaseService(ILoggingService logging, BotSettings settings)
     {
@@ -214,7 +214,7 @@ public class DatabaseService
     /// Adds a new user to the database if they don't already exist.
     /// </summary>
     /// <returns>Existing or newly created user. Null on database error.</returns>
-    public async Task<ServerUser> GetOrAddUser(SocketGuildUser socketUser)
+    public async Task<ServerUser?> GetOrAddUser(SocketGuildUser socketUser)
     {
         if (socketUser == null)
         {

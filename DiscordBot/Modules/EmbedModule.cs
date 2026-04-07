@@ -40,7 +40,7 @@ public class EmbedModule : ModuleBase
             await SendEmbedToChannel(builtEmbed, channel, messageId);
     }
 
-    private async Task<Discord.Embed> TryGetEmbedFromUrl(string url)
+    private async Task<Discord.Embed?> TryGetEmbedFromUrl(string url)
     {
         bool result = Uri.TryCreate(url, UriKind.Absolute, out var uriResult)
                       && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps);

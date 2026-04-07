@@ -56,14 +56,14 @@ public class ReleaseNotesParser
         return releaseNotes;
     }
 
-    private static HtmlNode FindH3Sibling(HtmlNode parent, string text)
+    private static HtmlNode? FindH3Sibling(HtmlNode parent, string text)
     {
         return parent.ChildNodes
             .FirstOrDefault(x => x.Name == "h3" && x.InnerText.Contains(text))
             ?.NextSibling;
     }
 
-    private static HtmlNode FindH4Sibling(HtmlNode parent, string text)
+    private static HtmlNode? FindH4Sibling(HtmlNode parent, string text)
     {
         return parent.ChildNodes
             .FirstOrDefault(x => x.Name == "h4" && x.InnerText == text)

@@ -9,7 +9,7 @@ public class SkinModuleJsonConverter : JsonConverter
 
     public override bool CanConvert(Type objectType) => objectType == typeof(ISkinModule);
 
-    public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+    public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
     {
         var jo = JObject.Load(reader);
         Type type;

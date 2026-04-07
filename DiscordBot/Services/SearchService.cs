@@ -7,7 +7,7 @@ public class SearchService
 {
     public record SearchResult(string Title, string Url);
 
-    public record DocSearchResult(string PageName, string Title, string BaseUrl, string Description = null);
+    public record DocSearchResult(string PageName, string Title, string BaseUrl, string? Description = null);
 
     public List<SearchResult> SearchDuckDuckGo(string query, uint maxResults = 3, string site = "")
     {
@@ -43,7 +43,7 @@ public class SearchService
         return results;
     }
 
-    public DocSearchResult FindBestMatch(string query, string[][] database, string baseUrl)
+    public DocSearchResult? FindBestMatch(string query, string[][] database, string baseUrl)
     {
         var minimumScore = double.MaxValue;
         string[] mostSimilarPage = null;
@@ -62,7 +62,7 @@ public class SearchService
         return new DocSearchResult(mostSimilarPage[0], mostSimilarPage[1], baseUrl);
     }
 
-    public string FetchPageDescription(string url, string descriptionXPath, string nextSiblingFilter = null)
+    public string? FetchPageDescription(string url, string descriptionXPath, string? nextSiblingFilter = null)
     {
         var doc = new HtmlWeb().Load(url);
         var node = doc.DocumentNode.SelectSingleNode(descriptionXPath);
@@ -83,7 +83,7 @@ public class SearchService
         return text;
     }
 
-    public string FetchManualLink(string url)
+    public string? FetchManualLink(string url)
     {
         var doc = new HtmlWeb().Load(url);
         var manualLink = doc.DocumentNode.SelectSingleNode("//a[contains(@class, 'switch-link')]");

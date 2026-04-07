@@ -26,13 +26,13 @@ public class WeatherService
     }
 
 
-    public async Task<WeatherContainer.Result> GetWeather(string city, string unit = "metric")
+    public async Task<WeatherContainer.Result?> GetWeather(string city, string unit = "metric")
     {
         var query = $"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={_weatherApiKey}&units={unit}";
         return await SerializeUtil.LoadUrlDeserializeResult<WeatherContainer.Result>(query);
     }
 
-    public async Task<PollutionContainer.Result> GetPollution(double lon, double lat)
+    public async Task<PollutionContainer.Result?> GetPollution(double lon, double lat)
     {
         var query = $"https://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={_weatherApiKey}";
         return await SerializeUtil.LoadUrlDeserializeResult<PollutionContainer.Result>(query);

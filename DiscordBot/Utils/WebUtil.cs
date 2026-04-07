@@ -30,7 +30,7 @@ public static class WebUtil
     /// Returns the Html document of a url, or null if the request fails.
     /// Internally calls GetContent and parses the result.
     /// </summary>
-    public static async Task<HtmlDocument> GetHtmlDocument(string url)
+    public static async Task<HtmlDocument?> GetHtmlDocument(string url)
     {
         try
         {
@@ -49,7 +49,7 @@ public static class WebUtil
     /// Returns the Html node of a url and xpath, or null if the request fails.
     /// Internally calls GetHtmlDocument and parses the result with xpath.
     /// </summary>
-    public static async Task<HtmlNode> GetHtmlNode(string url, string xpath)
+    public static async Task<HtmlNode?> GetHtmlNode(string url, string xpath)
     {
         try
         {
@@ -65,7 +65,7 @@ public static class WebUtil
     /// <summary>
     /// Returns the Html nodes of a url and xpath, or null if the request fails.
     /// </summary>
-    public static async Task<HtmlNodeCollection> GetHtmlNodes(string url, string xpath)
+    public static async Task<HtmlNodeCollection?> GetHtmlNodes(string url, string xpath)
     {
         try
         {
@@ -81,7 +81,7 @@ public static class WebUtil
     /// <summary>
     /// Returns the decoded inner text of a url and xpath, or an empty string if the request fails.
     /// </summary>
-    public static async Task<string> GetHtmlNodeInnerText(string url, string xpath)
+    public static async Task<string?> GetHtmlNodeInnerText(string url, string xpath)
     {
         try
         {
@@ -117,7 +117,7 @@ public static class WebUtil
     /// <summary>
     /// Returns a deserialized object from a JSON string. If the string is empty or can't be deserialized, it returns the default value of the type.
     /// </summary>
-    public static async Task<T> GetObjectFromJson<T>(string url)
+    public static async Task<T?> GetObjectFromJson<T>(string url)
     {
         try
         {

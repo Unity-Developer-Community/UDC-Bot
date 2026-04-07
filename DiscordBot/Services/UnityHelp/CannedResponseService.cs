@@ -259,7 +259,7 @@ public class CannedResponseService
 
     #endregion // Configuration
 
-    public EmbedBuilder GetCannedResponse(CannedResponseType type, IUser requestor = null)
+    public EmbedBuilder? GetCannedResponse(CannedResponseType type, IUser? requestor = null)
     {
         var embed = GetUnbuiltCannedResponse(type);
         if (embed == null)
@@ -272,7 +272,7 @@ public class CannedResponseService
         return embed;
     }
 
-    public EmbedBuilder GetUnbuiltCannedResponse(CannedResponseType type)
+    public EmbedBuilder? GetUnbuiltCannedResponse(CannedResponseType type)
     {
         return type switch
         {

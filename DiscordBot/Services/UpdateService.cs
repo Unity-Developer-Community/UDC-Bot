@@ -110,14 +110,14 @@ public class UpdateService
         catch (OperationCanceledException) { }
     }
 
-    public async Task<string[][]> GetManualDatabase()
+    public async Task<string[][]?> GetManualDatabase()
     {
         if (_manualDatabase == null)
             await LoadDocDatabase();
         return _manualDatabase;
     }
 
-    public async Task<string[][]> GetApiDatabase()
+    public async Task<string[][]?> GetApiDatabase()
     {
         if (_apiDatabase == null)
             await LoadDocDatabase();

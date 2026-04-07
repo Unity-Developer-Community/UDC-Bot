@@ -28,7 +28,7 @@ public class ProfileCardService
         _xpService = xpService;
     }
 
-    private SkinData GetSkinData() =>
+    private SkinData? GetSkinData() =>
         JsonConvert.DeserializeObject<SkinData>(File.ReadAllText($"{_settings.AssetsRootPath}/skins/skin.json"),
             new SkinModuleJsonConverter());
 

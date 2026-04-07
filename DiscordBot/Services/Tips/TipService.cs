@@ -330,7 +330,7 @@ public class TipService
         return JsonConvert.SerializeObject(_tips);
     }
 
-    public Tip GetTip(ulong Id)
+    public Tip? GetTip(ulong Id)
     {
         foreach (var kvp in _tips)
             foreach (var tip in kvp.Value)

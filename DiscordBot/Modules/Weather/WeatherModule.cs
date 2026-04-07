@@ -36,7 +36,7 @@ public class WeatherModule : ModuleBase
 
     #region Temperature
 
-    private async Task<EmbedBuilder> TemperatureEmbed(string city, string replaceCityWith = "")
+    private async Task<EmbedBuilder?> TemperatureEmbed(string city, string replaceCityWith = "")
     {
         WeatherContainer.Result res = await WeatherService.GetWeather(city: city);
         if (!await IsResultsValid(res))
@@ -85,7 +85,7 @@ public class WeatherModule : ModuleBase
 
     #region Weather
 
-    private async Task<EmbedBuilder> WeatherEmbed(string city, string replaceCityWith = "")
+    private async Task<EmbedBuilder?> WeatherEmbed(string city, string replaceCityWith = "")
     {
         WeatherContainer.Result res = await WeatherService.GetWeather(city: city);
         if (!await IsResultsValid(res))
@@ -164,7 +164,7 @@ public class WeatherModule : ModuleBase
 
     #region Pollution
 
-    private async Task<EmbedBuilder> PollutionEmbed(string city, string replaceCityWith = "")
+    private async Task<EmbedBuilder?> PollutionEmbed(string city, string replaceCityWith = "")
     {
         WeatherContainer.Result res = await WeatherService.GetWeather(city: city);
         if (!await IsResultsValid(res))
@@ -241,7 +241,7 @@ public class WeatherModule : ModuleBase
 
     #region Time
 
-    private async Task<EmbedBuilder> TimeEmbed(string city, string replaceCityWith = "")
+    private async Task<EmbedBuilder?> TimeEmbed(string city, string replaceCityWith = "")
     {
         WeatherContainer.Result res = await WeatherService.GetWeather(city: city);
         if (!await IsResultsValid(res))
