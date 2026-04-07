@@ -181,7 +181,7 @@ public class WelcomeService
         }
     }
 
-    private async Task ProcessWelcomeUser(ulong userID, IUser user = null)
+    private async Task ProcessWelcomeUser(ulong userID, IUser? user = null)
     {
         if (_welcomeNoticeUsers.Exists(u => u.id == userID))
             // If we didn't get the user passed in, we try grab it

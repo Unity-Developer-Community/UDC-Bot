@@ -285,7 +285,7 @@ public class CommandHandlingService
         }
     }
 
-    public void AddToCommandHistory(SocketUserMessage message, string error = default)
+    public void AddToCommandHistory(SocketUserMessage message, string? error = default)
     {
         _commandHistory.Add(new CommandHistoryInfo()
         {

@@ -15,7 +15,7 @@ public class EmbedModule : ModuleBase
     /// </summary>
     [RequireAdmin]
     [Command("embed"), Summary("Generate an embed.")]
-    public async Task EmbedCommand(IMessageChannel channel = null, ulong messageId = 0)
+    public async Task EmbedCommand(IMessageChannel? channel = null, ulong messageId = 0)
     {
         await Context.Message.DeleteAsync();
         channel ??= Context.Channel;
@@ -32,7 +32,7 @@ public class EmbedModule : ModuleBase
     }
 
     [Command("embed"), Summary("Generate an embed from an URL (hastebin).")]
-    public async Task EmbedCommand(string url, IMessageChannel channel = null, ulong messageId = 0)
+    public async Task EmbedCommand(string url, IMessageChannel? channel = null, ulong messageId = 0)
     {
         await Context.Message.DeleteAsync();
         Discord.Embed builtEmbed = await TryGetEmbedFromUrl(url);

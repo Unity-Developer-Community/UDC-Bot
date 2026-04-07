@@ -32,7 +32,7 @@ public class QuoteModule : ModuleBase
 
     [Command("Quote"), HideFromHelp]
     [Summary("Quote a message. Syntax : !quote messageid (#channel)")]
-    public async Task QuoteMessage(ulong messageId, IMessageChannel channel = null)
+    public async Task QuoteMessage(ulong messageId, IMessageChannel? channel = null)
     {
         channel ??= Context.Channel;
         var message = await channel.GetMessageAsync(messageId);

@@ -110,7 +110,7 @@ public class LoggingService : ILoggingService
         }
     }
 
-    public async Task Log(LogBehaviour behaviour, string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null)
+    public async Task Log(LogBehaviour behaviour, string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed? embed = null)
     {
         if (behaviour.HasFlag(LogBehaviour.Console))
             LogToConsole(message, severity);
@@ -122,7 +122,7 @@ public class LoggingService : ILoggingService
             await LogToFile(message, severity);
     }
 
-    public async Task LogToChannel(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null)
+    public async Task LogToChannel(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed? embed = null)
     {
         if (_logChannel == null)
             return;
@@ -267,19 +267,19 @@ public interface ILoggingService
     /// <param name="message">Message</param>
     /// <param name="severity">Info, Error, Warn, etc (Included in File and Console logging)</param>
     /// <param name="embed">Embed, only used by Channel Logging</param>
-    Task Log(LogBehaviour behaviour, string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null);
+    Task Log(LogBehaviour behaviour, string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed? embed = null);
 
     /// <summary>
     /// 'Short hand' for logging to all CURRENT supported behaviours, console, channel and file.
     /// Same as calling `Log(LogBehaviour.ConsoleChannelAndFile, message, severity, embed);`
     /// </summary>
-    Task LogAction(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null) =>
+    Task LogAction(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed? embed = null) =>
         Log(LogBehaviour.ConsoleChannelAndFile, message, severity, embed);
 
     /// <summary>
     /// 'Short hand' for logging to channel and file.
     /// Same as calling `Log(LogBehaviour.ChannelAndFile, message, severity, embed);`
     /// </summary>
-    Task LogChannelAndFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null) =>
+    Task LogChannelAndFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed? embed = null) =>
         Log(LogBehaviour.ChannelAndFile, message, severity, embed);
 }

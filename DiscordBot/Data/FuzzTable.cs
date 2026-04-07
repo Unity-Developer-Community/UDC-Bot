@@ -20,7 +20,7 @@ namespace DiscordBot.Data;
 public class FuzzTable
 {
     private static Random random = new();
-    private static Regex parenContents = null;
+    private static Regex? parenContents = null;
     private static TimeSpan timeout = new(10 * 10000/*x10nanoseconds*/);
 
     private List<string> choices = new();

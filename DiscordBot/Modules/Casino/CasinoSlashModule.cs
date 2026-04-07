@@ -215,7 +215,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             await DisplayTransactionHistory(userId: null, page: 1, targetUser: targetUser, isInitialCall: true);
         }
 
-        private async Task DisplayTransactionHistory(string userId = null, int page = 1, SocketGuildUser? targetUser = null, bool isInitialCall = false)
+        private async Task DisplayTransactionHistory(string? userId = null, int page = 1, SocketGuildUser? targetUser = null, bool isInitialCall = false)
         {
             try
             {

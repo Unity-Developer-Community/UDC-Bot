@@ -25,7 +25,7 @@ public class TipService
     private bool _isRunning = false;
     private bool _readOnly = false;
 
-    private Regex keywordPattern = null;
+    private Regex? keywordPattern = null;
 
     public TipService(BotSettings settings, ILoggingService loggingService, IHttpClientFactory httpClientFactory)
     {

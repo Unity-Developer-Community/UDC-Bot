@@ -11,7 +11,7 @@ public class CodeTipModule : ModuleBase
     [Command("CodeTip"), Priority(20)]
     [Summary("Show code formatting example. Syntax: !codetip userToPing(optional)")]
     [Alias("codetips")]
-    public async Task CodeTip(IUser user = null)
+    public async Task CodeTip(IUser? user = null)
     {
         var message = user != null ? user.Mention + ", " : "";
         message += "When posting code, format it like so:" + Environment.NewLine;

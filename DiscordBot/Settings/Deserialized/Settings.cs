@@ -24,7 +24,7 @@ public class BotSettings
 
     #region Fun Commands
 
-    public string UserModuleSlapObjectsTable { get; set; } = null;
+    public string? UserModuleSlapObjectsTable { get; set; } = null;
     //NOTE: Deserializer will not override a List<string> from the json if a default one is made here.
     public List<string> UserModuleSlapChoices { get; set; } = [];
     // = { "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan",

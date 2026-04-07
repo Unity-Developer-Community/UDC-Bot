@@ -79,7 +79,7 @@ public interface IServerUserRepo
     [Sql($"UPDATE {UserProps.TableName} SET {UserProps.Level} = @level WHERE {UserProps.UserID} = @userId")]
     Task UpdateLevel(string userId, int level);
     [Sql($"UPDATE {UserProps.TableName} SET {UserProps.DefaultCity} = @city WHERE {UserProps.UserID} = @userId")]
-    Task UpdateDefaultCity(string userId, string city);
+    Task UpdateDefaultCity(string userId, string? city);
 
     #endregion // Update Values
 

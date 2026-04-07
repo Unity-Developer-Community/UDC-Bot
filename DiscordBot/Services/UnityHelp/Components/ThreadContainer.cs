@@ -13,7 +13,7 @@ public class ThreadContainer
 
 
     public ulong BotsLastMessage { get; set; }
-    public CancellationTokenSource CancellationToken { get; set; } = null!;
+    public CancellationTokenSource? CancellationToken { get; set; }
     public DateTime ExpectedShutdownTime { get; set; }
 
     /// <summary>

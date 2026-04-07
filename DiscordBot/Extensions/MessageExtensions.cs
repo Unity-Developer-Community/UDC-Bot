@@ -2,7 +2,7 @@ namespace DiscordBot.Extensions;
 
 public static class MessageExtensions
 {
-    public static async Task<bool> TrySendMessage(this IDMChannel channel, string message = "", Embed embed = null)
+    public static async Task<bool> TrySendMessage(this IDMChannel channel, string message = "", Embed? embed = null)
     {
         try
         {

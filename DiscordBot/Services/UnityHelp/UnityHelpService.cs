@@ -496,7 +496,7 @@ public class UnityHelpService
 
     #region Bulk Behaviour Handler
 
-    private async Task CloseThreadInTime(ThreadContainer thread, string message, int minutes, Embed embed = null)
+    private async Task CloseThreadInTime(ThreadContainer thread, string message, int minutes, Embed? embed = null)
     {
         await Task.Delay(TimeSpan.FromMinutes(minutes));
         if (thread.HasInteraction)

@@ -142,7 +142,7 @@ public static class StringExtensions
     /// </summary>
     /// <param name="nouns">array or list of element phrases to be listed</param>
     /// <param name="conj">final conjunction; defaults to "and" if not given</param>
-	public static string ToCommaList(this string[] nouns, string conj = null)
+	public static string ToCommaList(this string[] nouns, string? conj = null)
     {
         if (conj == null)
             conj = "and";
