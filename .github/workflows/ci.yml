@@ -1,4 +1,4 @@
-name: .NET Build
+name: .NET Build & Test
 
 on:
   pull_request:
@@ -6,6 +6,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: dotnet-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -15,13 +19,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup .NET Core
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
-      - name: Install dependencies
+      - name: Restore dependencies
         run: dotnet restore
 
       - name: Build
         run: dotnet build --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build --verbosity normal

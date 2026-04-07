@@ -391,7 +391,7 @@ no `.cs` files and no test framework configured.
 
 ### Long-term (Sustainability)
 
-1. Set up test project with xUnit and write tests for critical paths
+1. ✅ Set up test project with xUnit and write tests for critical paths
 2. Split `ICasinoRepo` into focused interfaces
 3. Extract `IWebClient` / `IHtmlParser` from `WebUtil` for testability
 4. Implement session expiry and cleanup for casino game sessions
