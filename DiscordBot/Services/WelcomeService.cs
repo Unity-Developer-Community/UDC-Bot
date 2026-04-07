@@ -13,6 +13,7 @@ public class WelcomeService
     private readonly ILoggingService _loggingService;
 
     private readonly BotSettings _settings;
+    private readonly CancellationToken _shutdownToken;
 
     private readonly List<(ulong id, DateTime time)> _welcomeNoticeUsers = new();
 
@@ -23,12 +24,13 @@ public class WelcomeService
         _welcomeNoticeUsers.Any() ? _welcomeNoticeUsers.Min(x => x.time) : DateTime.MaxValue;
 
     public WelcomeService(DiscordSocketClient client, DatabaseService databaseService, ILoggingService loggingService,
-        BotSettings settings)
+        BotSettings settings, CancellationTokenSource cts)
     {
         _client = client;
         _databaseService = databaseService;
         _loggingService = loggingService;
         _settings = settings;
+        _shutdownToken = cts.Token;
 
         /* Make sure folders we require exist */
         if (!Directory.Exists($"{_settings.ServerRootPath}/images/profiles/"))
@@ -122,11 +124,11 @@ public class WelcomeService
     {
         ulong currentlyProcessedUserId = 0;
         bool firstRun = true;
-        await Task.Delay(10000);
+        await Task.Delay(10000, _shutdownToken);
         try
         {
             List<ulong> toRemove = new();
-            while (true)
+            while (!_shutdownToken.IsCancellationRequested)
             {
                 var now = DateTime.Now;
                 // This could be optimized, however the users in this list won't ever really be large enough to matter.
@@ -153,9 +155,10 @@ public class WelcomeService
 
                 if (firstRun)
                     firstRun = false;
-                await Task.Delay(10000);
+                await Task.Delay(10000, _shutdownToken);
             }
         }
+        catch (OperationCanceledException) { }
         catch (Exception e)
         {
             // Catch and show exception
@@ -172,8 +175,9 @@ public class WelcomeService
             if (firstRun)
                 await _loggingService.LogAction($"{ServiceName}: Welcome service failed on first run!? This should not happen.", ExtendedLogSeverity.Error);
 
-            // Run the service again.
-            Task.Run(DelayedWelcomeService);
+            // Restart unless shutdown was requested
+            if (!_shutdownToken.IsCancellationRequested)
+                Task.Run(DelayedWelcomeService);
         }
     }
 

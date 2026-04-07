@@ -9,6 +9,7 @@ public class CodeCheckService
     private readonly DiscordSocketClient _client;
     private readonly BotSettings _settings;
     private readonly UpdateService _updateService;
+    private readonly CancellationToken _shutdownToken;
 
     private readonly Regex _x3CodeBlock =
         new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multiline | RegexOptions.Singleline);
@@ -22,11 +23,12 @@ public class CodeCheckService
     public Dictionary<ulong, DateTime> CodeReminderCooldown { get; private set; }
 
     public CodeCheckService(DiscordSocketClient client, BotSettings settings,
-        UpdateService updateService)
+        UpdateService updateService, CancellationTokenSource cts)
     {
         _client = client;
         _settings = settings;
         _updateService = updateService;
+        _shutdownToken = cts.Token;
 
         CodeReminderCooldown = new Dictionary<ulong, DateTime>();
 
@@ -52,17 +54,18 @@ public class CodeCheckService
 
     private async void UpdateLoop()
     {
-        while (true)
+        try
         {
-            try
+            while (!_shutdownToken.IsCancellationRequested)
             {
-                await Task.Delay(10000);
+                await Task.Delay(10000, _shutdownToken);
                 SaveData();
             }
-            catch (Exception e)
-            {
-                LoggingService.LogToConsole($"[CodeCheckService.UpdateLoop] Unhandled exception: {e}", LogSeverity.Error);
-            }
+        }
+        catch (OperationCanceledException) { SaveData(); }
+        catch (Exception e)
+        {
+            LoggingService.LogToConsole($"[CodeCheckService.UpdateLoop] Unhandled exception: {e}", LogSeverity.Error);
         }
     }
 

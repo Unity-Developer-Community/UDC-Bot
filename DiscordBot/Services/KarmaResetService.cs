@@ -14,11 +14,13 @@ public class KarmaResetService
 
     private readonly ILoggingService _logging;
     private readonly string _connectionString;
+    private readonly CancellationToken _shutdownToken;
 
-    public KarmaResetService(ILoggingService logging, BotSettings settings)
+    public KarmaResetService(ILoggingService logging, BotSettings settings, CancellationTokenSource cts)
     {
         _logging = logging;
         _connectionString = settings.DbConnectionString;
+        _shutdownToken = cts.Token;
 
         Task.Run(RunLoop);
     }
@@ -26,23 +28,24 @@ public class KarmaResetService
     private async Task RunLoop()
     {
         // Wait for DatabaseService to finish table creation
-        await Task.Delay(TimeSpan.FromSeconds(10));
+        await Task.Delay(TimeSpan.FromSeconds(10), _shutdownToken);
 
         try
         {
             await EnsureMetaTable();
             await CatchUpMissedResets();
         }
+        catch (OperationCanceledException) { return; }
         catch (Exception e)
         {
             await _logging.LogChannelAndFile($"KarmaResetService: Failed during startup: {e.Message}", ExtendedLogSeverity.Warning);
         }
 
-        while (true)
+        try
         {
-            try
+            while (!_shutdownToken.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromHours(1));
+                await Task.Delay(TimeSpan.FromHours(1), _shutdownToken);
 
                 var now = DateTime.UtcNow;
 
@@ -57,10 +60,11 @@ public class KarmaResetService
                         await TryReset("yearly", UserProps.KarmaYearly);
                 }
             }
-            catch (Exception e)
-            {
-                await _logging.LogChannelAndFile($"KarmaResetService: Error during reset check: {e.Message}", ExtendedLogSeverity.Warning);
-            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception e)
+        {
+            await _logging.LogChannelAndFile($"KarmaResetService: Error during reset check: {e.Message}", ExtendedLogSeverity.Warning);
         }
     }
 

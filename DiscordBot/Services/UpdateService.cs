@@ -62,14 +62,15 @@ public class UpdateService
     private UserData _userData;
 
     public UpdateService(DiscordSocketClient client,
-        DatabaseService databaseService, BotSettings settings, FeedService feedService, ILoggingService loggingService)
+        DatabaseService databaseService, BotSettings settings, FeedService feedService, ILoggingService loggingService,
+        CancellationTokenSource cts)
     {
         _client = client;
         _feedService = feedService;
         _loggingService = loggingService as LoggingService;
 
         _settings = settings;
-        _token = new CancellationToken();
+        _token = cts.Token;
 
         UpdateLoop();
     }
@@ -96,14 +97,17 @@ public class UpdateService
     // Saves data to file
     private async Task SaveDataToFile()
     {
-        while (true)
+        try
         {
-            await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/botdata.json", _botData);
-            await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/userdata.json", _userData);
-            await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/feeds.json", _feedData);
-            await Task.Delay(TimeSpan.FromSeconds(20d), _token);
+            while (!_token.IsCancellationRequested)
+            {
+                await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/botdata.json", _botData);
+                await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/userdata.json", _userData);
+                await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/feeds.json", _feedData);
+                await Task.Delay(TimeSpan.FromSeconds(20d), _token);
+            }
         }
-        // ReSharper disable once FunctionNeverReturns
+        catch (OperationCanceledException) { }
     }
 
     public async Task<string[][]> GetManualDatabase()
@@ -165,49 +169,55 @@ public class UpdateService
 
     private async Task UpdateDocDatabase()
     {
-        while (true)
+        try
         {
-            if (_botData.LastUnityDocDatabaseUpdate < DateTime.Now - TimeSpan.FromDays(1d))
-                await DownloadDocDatabase();
+            while (!_token.IsCancellationRequested)
+            {
+                if (_botData.LastUnityDocDatabaseUpdate < DateTime.Now - TimeSpan.FromDays(1d))
+                    await DownloadDocDatabase();
 
-            await Task.Delay(TimeSpan.FromHours(1), _token);
+                await Task.Delay(TimeSpan.FromHours(1), _token);
+            }
         }
-        // ReSharper disable once FunctionNeverReturns
+        catch (OperationCanceledException) { }
     }
 
     private async Task UpdateRssFeeds()
     {
-        await Task.Delay(TimeSpan.FromSeconds(30d), _token);
-        while (true)
+        try
         {
-            try
+            await Task.Delay(TimeSpan.FromSeconds(30d), _token);
+            while (!_token.IsCancellationRequested)
             {
-                if (_feedData != null)
+                try
                 {
-                    if (_feedData.LastUnityReleaseCheck < DateTime.Now - TimeSpan.FromMinutes(5))
+                    if (_feedData != null)
                     {
-                        _feedData.LastUnityReleaseCheck = DateTime.Now;
+                        if (_feedData.LastUnityReleaseCheck < DateTime.Now - TimeSpan.FromMinutes(5))
+                        {
+                            _feedData.LastUnityReleaseCheck = DateTime.Now;
 
-                        await _feedService.CheckUnityBetasAsync(_feedData);
-                        await _feedService.CheckUnityReleasesAsync(_feedData);
-                    }
+                            await _feedService.CheckUnityBetasAsync(_feedData);
+                            await _feedService.CheckUnityReleasesAsync(_feedData);
+                        }
 
-                    if (_feedData.LastUnityBlogCheck < DateTime.Now - TimeSpan.FromMinutes(10))
-                    {
-                        _feedData.LastUnityBlogCheck = DateTime.Now;
+                        if (_feedData.LastUnityBlogCheck < DateTime.Now - TimeSpan.FromMinutes(10))
+                        {
+                            _feedData.LastUnityBlogCheck = DateTime.Now;
 
-                        await _feedService.CheckUnityBlogAsync(_feedData);
+                            await _feedService.CheckUnityBlogAsync(_feedData);
+                        }
                     }
                 }
-            }
-            catch (Exception e)
-            {
-                await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to update RSS feeds, attempting to continue.", ExtendedLogSeverity.Error);
-            }
+                catch (Exception e) when (e is not OperationCanceledException)
+                {
+                    await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to update RSS feeds, attempting to continue.", ExtendedLogSeverity.Error);
+                }
 
-            await Task.Delay(TimeSpan.FromSeconds(30d), _token);
+                await Task.Delay(TimeSpan.FromSeconds(30d), _token);
+            }
         }
-        // ReSharper disable once FunctionNeverReturns
+        catch (OperationCanceledException) { }
     }
 
     public async Task<(string name, string extract, string url)> DownloadWikipediaArticle(string searchQuery)

@@ -375,7 +375,7 @@ no `.cs` files and no test framework configured.
 3. Add `BotSettings.Validate()` post-deserialization
 4. ~~Extract business logic from command handlers into services~~ ✅
 5. ~~Register `IHttpClientFactory` in DI; remove manual `HttpClient` creation~~ ✅
-6. Add graceful shutdown support with `CancellationToken`
+6. ~~Add graceful shutdown support with `CancellationToken`~~ ✅
 7. ~~Move static module state (`_activeDuels`) to services~~ ✅
 
 ### Medium-term (Quality)

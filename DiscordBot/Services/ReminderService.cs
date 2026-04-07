@@ -31,15 +31,18 @@ public class ReminderService
     private readonly ChannelInfo _botCommandsChannel;
     private readonly string _serverRootPath;
     private bool _hasChangedSinceLastSave = false;
+    private readonly CancellationToken _shutdownToken;
 
     private const int _maxUserReminders = 10;
 
-    public ReminderService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings)
+    public ReminderService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings,
+        CancellationTokenSource cts)
     {
         _client = client;
         _loggingService = loggingService;
         _botCommandsChannel = settings.BotCommandsChannel;
         _serverRootPath = settings.ServerRootPath;
+        _shutdownToken = cts.Token;
 
         Initialize();
     }
@@ -112,7 +115,7 @@ public class ReminderService
     {
         try
         {
-            while (true)
+            while (!_shutdownToken.IsCancellationRequested)
             {
                 // We check if there has been a change to the reminders list since the last update.
                 if (_hasChangedSinceLastSave)
@@ -121,7 +124,7 @@ public class ReminderService
                     _hasChangedSinceLastSave = false;
                 }
 
-                await Task.Delay(1000);
+                await Task.Delay(1000, _shutdownToken);
 
                 var now = DateTime.Now;
                 // We wait until we know at least one reminder needs to be checked
@@ -178,6 +181,12 @@ public class ReminderService
                 if (_reminders.Count > 0)
                     _nearestReminder = _reminders.Min(x => x.When);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Save any pending changes on shutdown
+            if (_hasChangedSinceLastSave)
+                SaveReminders();
         }
         catch (Exception e)
         {

@@ -29,11 +29,16 @@ public class Program
     private UnityHelpService _unityHelpService;
     private RecruitService _recruitService;
 
+    private readonly CancellationTokenSource _cts = new();
+
     public static void Main(string[] args) =>
         new Program().MainAsync().GetAwaiter().GetResult();
 
     private async Task MainAsync()
     {
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; _cts.Cancel(); };
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => _cts.Cancel();
+
         DeserializeSettings();
 
         _client = new DiscordSocketClient(new DiscordSocketConfig
@@ -85,12 +90,23 @@ public class Program
             return Task.CompletedTask;
         };
 
-        await Task.Delay(-1);
+        try
+        {
+            await Task.Delay(Timeout.Infinite, _cts.Token);
+        }
+        catch (TaskCanceledException) { }
+
+        LoggingService.LogToConsole("Shutdown signal received, stopping...", ExtendedLogSeverity.Warning);
+        using var shutdownTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try { await _client.StopAsync().WaitAsync(shutdownTimeout.Token); }
+        catch (OperationCanceledException) { LoggingService.LogToConsole("Client stop timed out.", ExtendedLogSeverity.Warning); }
+        LoggingService.LogToConsole("Bot stopped.", ExtendedLogSeverity.Positive);
     }
 
     private IServiceProvider ConfigureServices() =>
         new ServiceCollection()
             .AddHttpClient()
+            .AddSingleton(_cts)
             .AddSingleton(_settings)
             .AddSingleton(_rules)
             .AddSingleton(_userSettings)

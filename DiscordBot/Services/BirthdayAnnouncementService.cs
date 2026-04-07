@@ -15,6 +15,7 @@ public class BirthdayAnnouncementService
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
     private readonly BotSettings _settings;
+    private readonly CancellationToken _shutdownToken;
     
     // Track birthdays that have been announced today to avoid spam
     private readonly HashSet<string> _announcedToday = new();
@@ -24,11 +25,13 @@ public class BirthdayAnnouncementService
     private const string NextBirthdayUrl = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&range=C15:C15";
     private const string BirthdayTableUrl = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
     
-    public BirthdayAnnouncementService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings)
+    public BirthdayAnnouncementService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings,
+        CancellationTokenSource cts)
     {
         _client = client;
         _loggingService = loggingService;
         _settings = settings;
+        _shutdownToken = cts.Token;
         
         Initialize();
     }
@@ -58,7 +61,7 @@ public class BirthdayAnnouncementService
     {
         try
         {
-            while (IsRunning)
+            while (!_shutdownToken.IsCancellationRequested)
             {
                 // Check if it's a new day and reset announced birthdays
                 if (DateTime.Today > _lastAnnouncementDate)
@@ -72,9 +75,10 @@ public class BirthdayAnnouncementService
                 
                 // Wait for the configured interval
                 var intervalMs = _settings.BirthdayCheckIntervalMinutes * 60 * 1000;
-                await Task.Delay(intervalMs);
+                await Task.Delay(intervalMs, _shutdownToken);
             }
         }
+        catch (OperationCanceledException) { }
         catch (Exception e)
         {
             await _loggingService.LogChannelAndFile($"[{ServiceName}] Birthday announcement service has crashed.\nException: {e.Message}", ExtendedLogSeverity.Warning);
