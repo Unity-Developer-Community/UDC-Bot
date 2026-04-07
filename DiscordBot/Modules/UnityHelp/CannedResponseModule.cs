@@ -11,8 +11,8 @@ public class CannedResponseModule : ModuleBase
 {
     #region Dependency Injection
 
-    public BotSettings BotSettings { get; set; }
-    public CannedResponseService CannedResponseService { get; set; }
+    public BotSettings BotSettings { get; set; } = null!;
+    public CannedResponseService CannedResponseService { get; set; } = null!;
 
     #endregion // Dependency Injection
 

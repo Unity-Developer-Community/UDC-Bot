@@ -23,9 +23,9 @@ public class FeedService
 
     private class ForumNewsFeed
     {
-        public string TitleFormat { get; set; }
-        public string Url { get; set; }
-        public List<string> IncludeTags { get; set; }
+        public string TitleFormat { get; set; } = null!;
+        public string Url { get; set; } = null!;
+        public List<string> IncludeTags { get; set; } = null!;
         public bool IsRelease { get; set; } = false;
     }
 

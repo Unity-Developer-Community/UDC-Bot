@@ -6,8 +6,8 @@ namespace DiscordBot.Modules;
 [Group("UserModule"), Alias("")]
 public class RankModule : ModuleBase
 {
-    public DatabaseService DatabaseService { get; set; }
-    public ILoggingService LoggingService { get; set; }
+    public DatabaseService DatabaseService { get; set; } = null!;
+    public ILoggingService LoggingService { get; set; } = null!;
 
     [Command("Top"), Priority(6)]
     [Summary("Display top 10 users by level.")]

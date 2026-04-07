@@ -10,7 +10,7 @@ public class GeneralHelpModule : ModuleBase
 {
     #region Dependency Injection
 
-    public BotSettings BotSettings { get; set; }
+    public BotSettings BotSettings { get; set; } = null!;
 
     #endregion // Dependency Injection
 

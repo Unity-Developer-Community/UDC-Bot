@@ -19,7 +19,7 @@ public class TipService
     private readonly BotSettings _settings;
     private readonly ILoggingService _loggingService;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly string _imageDirectory;
+    private readonly string _imageDirectory = null!;
 
     private ConcurrentDictionary<string, List<Tip>> _tips = new();
     private bool _isRunning = false;

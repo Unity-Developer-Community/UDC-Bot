@@ -71,7 +71,7 @@ public class UnityHelpService
 
     #region Extra Details
 
-    private readonly IForumChannel _helpChannel;
+    private readonly IForumChannel _helpChannel = null!;
 
     private readonly ForumTag _resolvedForumTag;
 

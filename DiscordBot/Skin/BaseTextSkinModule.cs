@@ -21,17 +21,17 @@ public abstract class BaseTextSkinModule : ISkinModule
 
     public bool StrokeAntiAlias { get; set; }
     public bool TextAntiAlias { get; set; }
-    public string StrokeColor { get; set; }
+    public string StrokeColor { get; set; } = string.Empty;
     public double StrokeWidth { get; set; }
-    public string FillColor { get; set; }
+    public string FillColor { get; set; } = string.Empty;
     public string Font { get; set; }
     public double FontPointSize { get; set; }
-    public string Text { get; set; }
+    public string Text { get; set; } = string.Empty;
     public double TextKerning { get; set; }
     [JsonConverter(typeof(StringEnumConverter))]
     public TextAlignment TextAlignment { get; set; }
 
-    public virtual string Type { get; set; }
+    public virtual string Type { get; set; } = string.Empty;
 
     public virtual Drawables GetDrawables(ProfileData data)
     {

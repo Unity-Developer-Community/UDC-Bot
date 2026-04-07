@@ -8,7 +8,7 @@ namespace DiscordBot.Modules;
 [Group("UserModule"), Alias("")]
 public class ConvertModule : ModuleBase
 {
-    public CurrencyService CurrencyService { get; set; }
+    public CurrencyService CurrencyService { get; set; } = null!;
 
     [Command("FtoC"), Priority(28)]
     [Summary("Converts a temperature in fahrenheit to celsius. Syntax : !ftoc temperature")]

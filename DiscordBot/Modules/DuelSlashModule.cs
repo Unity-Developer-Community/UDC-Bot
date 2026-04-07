@@ -5,8 +5,8 @@ namespace DiscordBot.Modules;
 
 public class DuelSlashModule : InteractionModuleBase
 {
-    public DuelService DuelService { get; set; }
-    public ILoggingService LoggingService { get; set; }
+    public DuelService DuelService { get; set; } = null!;
+    public ILoggingService LoggingService { get; set; } = null!;
 
     [SlashCommand("duel", "Challenge another user to a duel!")]
     public async Task Duel(

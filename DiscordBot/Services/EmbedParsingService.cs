@@ -18,44 +18,44 @@ public class EmbedParsingService
     {
         public class Footer
         {
-            public string icon_url;
-            public string text;
+            public string icon_url = string.Empty;
+            public string text = string.Empty;
         }
 
         public class Thumbnail
         {
-            public string url;
+            public string url = string.Empty;
         }
 
         public class Image
         {
-            public string url;
+            public string url = string.Empty;
         }
 
         public class Author
         {
-            public string name;
-            public string url;
-            public string icon_url;
+            public string name = string.Empty;
+            public string url = string.Empty;
+            public string icon_url = string.Empty;
         }
 
         public class Field
         {
-            public string name;
-            public string value;
+            public string name = string.Empty;
+            public string value = string.Empty;
             public bool? inline;
         }
 
-        public string title;
-        public string description;
-        public string url;
+        public string title = string.Empty;
+        public string description = string.Empty;
+        public string url = string.Empty;
         public uint? color;
         public DateTimeOffset? timestamp;
-        public Footer footer;
-        public Thumbnail thumbnail;
-        public Image image;
-        public Author author;
-        public Field[] fields;
+        public Footer footer = null!;
+        public Thumbnail thumbnail = null!;
+        public Image image = null!;
+        public Author author = null!;
+        public Field[] fields = [];
     }
 #pragma warning restore 0649
 

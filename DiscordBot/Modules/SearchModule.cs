@@ -10,10 +10,10 @@ namespace DiscordBot.Modules;
 [Group("UserModule"), Alias("")]
 public class SearchModule : ModuleBase
 {
-    public ILoggingService LoggingService { get; set; }
-    public BotSettings Settings { get; set; }
-    public UpdateService UpdateService { get; set; }
-    public SearchService SearchService { get; set; }
+    public ILoggingService LoggingService { get; set; } = null!;
+    public BotSettings Settings { get; set; } = null!;
+    public UpdateService UpdateService { get; set; } = null!;
+    public SearchService SearchService { get; set; } = null!;
 
     [Command("Search"), Priority(25)]
     [Summary("Searches DuckDuckGo for results. Syntax: !search c# lambda help")]

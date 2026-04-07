@@ -5,8 +5,8 @@ namespace DiscordBot.Domain;
 public class ProfileData
 {
     public ulong UserId { get; set; }
-    public string Nickname { get; set; }
-    public string Username { get; set; }
+    public string Nickname { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
     public long XpTotal { get; set; }
     public long XpRank { get; set; }
     public long KarmaRank { get; set; }
@@ -18,5 +18,5 @@ public class ProfileData
     public int MaxXpShown { get; set; }
     public float XpPercentage { get; set; }
     public Color MainRoleColor { get; set; }
-    public MagickImage Picture { get; set; }
+    public MagickImage Picture { get; set; } = null!;
 }

@@ -10,8 +10,8 @@ public class UnityHelpModule : ModuleBase
 {
     #region Dependency Injection
 
-    public UnityHelpService HelpService { get; set; }
-    public BotSettings BotSettings { get; set; }
+    public UnityHelpService HelpService { get; set; } = null!;
+    public BotSettings BotSettings { get; set; } = null!;
 
     #endregion // Dependency Injection
 

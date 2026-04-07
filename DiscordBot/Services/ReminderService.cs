@@ -9,7 +9,7 @@ public class ReminderItem
     public ulong ChannelId { get; set; }
     public ulong MessageId { get; set; }
     public ulong UserId { get; set; }
-    public string Message { get; set; }
+    public string Message { get; set; } = null!;
     public DateTime When { get; set; }
 }
 

@@ -6,10 +6,10 @@ namespace DiscordBot.Modules;
 
 public class ServerSlashModule : InteractionModuleBase
 {
-    public CommandHandlingService CommandHandlingService { get; set; }
-    public WelcomeService WelcomeService { get; set; }
-    public ServerService ServerService { get; set; }
-    public BotSettings BotSettings { get; set; }
+    public CommandHandlingService CommandHandlingService { get; set; } = null!;
+    public WelcomeService WelcomeService { get; set; } = null!;
+    public ServerService ServerService { get; set; } = null!;
+    public BotSettings BotSettings { get; set; } = null!;
 
     #region Help
 

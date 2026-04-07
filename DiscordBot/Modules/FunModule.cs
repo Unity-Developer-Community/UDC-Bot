@@ -9,8 +9,8 @@ namespace DiscordBot.Modules;
 [Group("UserModule"), Alias("")]
 public class FunModule : ModuleBase
 {
-    public ILoggingService LoggingService { get; set; }
-    public BotSettings Settings { get; set; }
+    public ILoggingService LoggingService { get; set; } = null!;
+    public BotSettings Settings { get; set; } = null!;
 
     private readonly Random _random = new();
     private FuzzTable _slapObjects = new();

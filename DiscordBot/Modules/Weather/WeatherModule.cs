@@ -13,8 +13,8 @@ public class WeatherModule : ModuleBase
 {
     #region Dependency Injection
 
-    public WeatherService WeatherService { get; set; }
-    public UserExtendedService UserExtendedService { get; set; }
+    public WeatherService WeatherService { get; set; } = null!;
+    public UserExtendedService UserExtendedService { get; set; } = null!;
 
     #endregion
 

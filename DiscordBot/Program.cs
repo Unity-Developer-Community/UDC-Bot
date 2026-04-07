@@ -16,18 +16,18 @@ public class Program
 {
     private int _isInitialized = 0;
 
-    private static Rules _rules;
-    private static BotSettings _settings;
-    private static UserSettings _userSettings;
-    private DiscordSocketClient _client;
-    private CommandHandlingService _commandHandlingService;
+    private static Rules _rules = null!;
+    private static BotSettings _settings = null!;
+    private static UserSettings _userSettings = null!;
+    private DiscordSocketClient _client = null!;
+    private CommandHandlingService _commandHandlingService = null!;
 
-    private CommandService _commandService;
-    private InteractionService _interactionService;
-    private IServiceProvider _services;
+    private CommandService _commandService = null!;
+    private InteractionService _interactionService = null!;
+    private IServiceProvider _services = null!;
 
-    private UnityHelpService _unityHelpService;
-    private RecruitService _recruitService;
+    private UnityHelpService _unityHelpService = null!;
+    private RecruitService _recruitService = null!;
 
     private readonly CancellationTokenSource _cts = new();
 

@@ -11,9 +11,9 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 {
     #region Dependency Injection
 
-    public CasinoService CasinoService { get; set; }
-    public ILoggingService LoggingService { get; set; }
-    public BotSettings BotSettings { get; set; }
+    public CasinoService CasinoService { get; set; } = null!;
+    public ILoggingService LoggingService { get; set; } = null!;
+    public BotSettings BotSettings { get; set; } = null!;
 
     #endregion
 
@@ -38,10 +38,10 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     [Group("tokens", "Token management commands")]
     public class TokenCommands : InteractionModuleBase<SocketInteractionContext>
     {
-        public CasinoService CasinoService { get; set; }
-        public ILoggingService LoggingService { get; set; }
-        public BotSettings BotSettings { get; set; }
-        public TransactionFormatter TransactionFormatter { get; set; }
+        public CasinoService CasinoService { get; set; } = null!;
+        public ILoggingService LoggingService { get; set; } = null!;
+        public BotSettings BotSettings { get; set; } = null!;
+        public TransactionFormatter TransactionFormatter { get; set; } = null!;
 
         private async Task<bool> CheckChannelPermissions()
         {

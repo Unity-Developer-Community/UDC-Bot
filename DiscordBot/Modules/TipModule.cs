@@ -13,9 +13,9 @@ public class TipModule : ModuleBase
 {
     #region Dependency Injection
 
-    public CommandHandlingService CommandHandlingService { get; set; }
-    public BotSettings Settings { get; set; }
-    public TipService TipService { get; set; }
+    public CommandHandlingService CommandHandlingService { get; set; } = null!;
+    public BotSettings Settings { get; set; } = null!;
+    public TipService TipService { get; set; } = null!;
 
     #endregion
 

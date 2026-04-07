@@ -4,11 +4,11 @@ public class BotSettings
 {
     #region Important Settings
 
-    public string Token { get; set; }
-    public string Invite { get; set; }
+    public string Token { get; set; } = string.Empty;
+    public string Invite { get; set; } = string.Empty;
 
-    public string DbConnectionString { get; set; }
-    public string ServerRootPath { get; set; }
+    public string DbConnectionString { get; set; } = string.Empty;
+    public string ServerRootPath { get; set; } = string.Empty;
     public string AssetsRootPath { get; set; } = "./Assets";
     public char Prefix { get; set; }
     public ulong GuildId { get; set; }
@@ -26,11 +26,11 @@ public class BotSettings
 
     public string UserModuleSlapObjectsTable { get; set; } = null;
     //NOTE: Deserializer will not override a List<string> from the json if a default one is made here.
-    public List<string> UserModuleSlapChoices { get; set; }
+    public List<string> UserModuleSlapChoices { get; set; } = [];
     // = { "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan",
     //     "life choice", "bug report", "unhandled exception", "null pointer", "keyboard",
     //     "cheese wheel", "banana peel", "unresolved bug", "low poly donut" };
-    public List<string> UserModuleSlapFails { get; set; }
+    public List<string> UserModuleSlapFails { get; set; } = [];
     // = { "hurting themselves" };
 
     #endregion // Fun Commands
@@ -47,7 +47,7 @@ public class BotSettings
 
     public bool BirthdayAnnouncementEnabled { get; set; } = true;
     public int BirthdayCheckIntervalMinutes { get; set; } = 240; // Check every 4 hours by default
-    public ChannelInfo BirthdayAnnouncementChannel { get; set; }
+    public ChannelInfo BirthdayAnnouncementChannel { get; set; } = null!;
 
     #endregion // Birthday Announcements
 
@@ -55,28 +55,28 @@ public class BotSettings
 
     #region Channels
 
-    public ChannelInfo IntroductionChannel { get; set; }
-    public ChannelInfo GeneralChannel { get; set; }
-    public ChannelInfo GenericHelpChannel { get; set; }
+    public ChannelInfo IntroductionChannel { get; set; } = null!;
+    public ChannelInfo GeneralChannel { get; set; } = null!;
+    public ChannelInfo GenericHelpChannel { get; set; } = null!;
 
-    public ChannelInfo BotAnnouncementChannel { get; set; }
-    public ChannelInfo BotCommandsChannel { get; set; }
-    public ChannelInfo UnityNewsChannel { get; set; }
-    public ChannelInfo UnityReleasesChannel { get; set; }
-    public ChannelInfo RulesChannel { get; set; }
+    public ChannelInfo BotAnnouncementChannel { get; set; } = null!;
+    public ChannelInfo BotCommandsChannel { get; set; } = null!;
+    public ChannelInfo UnityNewsChannel { get; set; } = null!;
+    public ChannelInfo UnityReleasesChannel { get; set; } = null!;
+    public ChannelInfo RulesChannel { get; set; } = null!;
 
     // Recruitment Channels
 
-    public ChannelInfo RecruitmentChannel { get; set; }
+    public ChannelInfo RecruitmentChannel { get; set; } = null!;
 
-    public ChannelInfo MemeChannel { get; set; }
+    public ChannelInfo MemeChannel { get; set; } = null!;
 
     #region Complaint Channel
 
     public ulong ComplaintCategoryId { get; set; }
-    public string ComplaintChannelPrefix { get; set; }
+    public string ComplaintChannelPrefix { get; set; } = string.Empty;
     public ulong ClosedComplaintCategoryId { get; set; }
-    public string ClosedComplaintChannelPrefix { get; set; }
+    public string ClosedComplaintChannelPrefix { get; set; } = string.Empty;
 
     #endregion // Complaint Channel
 
@@ -93,10 +93,10 @@ public class BotSettings
 
     #region Recruitment Thread
 
-    public string TagLookingToHire { get; set; }
-    public string TagLookingForWork { get; set; }
-    public string TagUnpaidCollab { get; set; }
-    public string TagPositionFilled { get; set; }
+    public string TagLookingToHire { get; set; } = string.Empty;
+    public string TagLookingForWork { get; set; } = string.Empty;
+    public string TagUnpaidCollab { get; set; } = string.Empty;
+    public string TagPositionFilled { get; set; } = string.Empty;
 
     public int EditPermissionAccessTimeMin { get; set; } = 3;
 
@@ -106,7 +106,7 @@ public class BotSettings
 
     #region Tips
 
-    public string TipImageDirectory { get; set; }
+    public string TipImageDirectory { get; set; } = string.Empty;
 
     public int TipMaxImageFileSize { get; set; } = 1024 * 1024 * 10; // 10MB
     // Unlikely, but we prevent exploitation by limiting the max directory size to avoid VPS disk space issues
@@ -114,18 +114,18 @@ public class BotSettings
 
     #endregion // Tips
 
-    public string TagUnitHelpResolvedTag { get; set; }
+    public string TagUnitHelpResolvedTag { get; set; } = string.Empty;
 
     #endregion // Unity Help Threads
 
     #region API Keys
 
-    public string WeatherAPIKey { get; set; }
+    public string WeatherAPIKey { get; set; } = string.Empty;
 
-    public string FlightAPIKey { get; set; }
-    public string FlightAPISecret { get; set; }
+    public string FlightAPIKey { get; set; } = string.Empty;
+    public string FlightAPISecret { get; set; } = string.Empty;
 
-    public string AirLabAPIKey { get; set; }
+    public string AirLabAPIKey { get; set; } = string.Empty;
 
     #endregion // API Keys
 
@@ -144,7 +144,7 @@ public class BotSettings
 
     #region Other
 
-    public string WikipediaSearchPage { get; set; }
+    public string WikipediaSearchPage { get; set; } = string.Empty;
 
     #endregion // Other
 
@@ -155,7 +155,7 @@ public class BotSettings
 // Channel Information. Description and Channel ID
 public class ChannelInfo
 {
-    public string Desc { get; set; }
+    public string Desc { get; set; } = string.Empty;
     public ulong Id { get; set; }
 }
 

@@ -26,9 +26,9 @@ public class UserData
 
 public class FaqData
 {
-    public string Question { get; set; }
-    public string Answer { get; set; }
-    public string[] Keywords { get; set; }
+    public string Question { get; set; } = null!;
+    public string Answer { get; set; } = null!;
+    public string[] Keywords { get; set; } = null!;
 }
 
 public class FeedData
@@ -47,19 +47,19 @@ public class FeedData
 public class UpdateService
 {
     private const string ServiceName = "UpdateService";
-    private readonly ILoggingService _loggingService;
+    private readonly ILoggingService _loggingService = null!;
     private readonly FeedService _feedService;
     private readonly BotSettings _settings;
     private readonly CancellationToken _token;
-    private string[][] _apiDatabase;
+    private string[][] _apiDatabase = null!;
 
-    private BotData _botData;
+    private BotData _botData = null!;
     private readonly DiscordSocketClient _client;
-    private List<FaqData> _faqData;
-    private FeedData _feedData;
+    private List<FaqData> _faqData = null!;
+    private FeedData _feedData = null!;
 
-    private string[][] _manualDatabase;
-    private UserData _userData;
+    private string[][] _manualDatabase = null!;
+    private UserData _userData = null!;
 
     public UpdateService(DiscordSocketClient client,
         DatabaseService databaseService, BotSettings settings, FeedService feedService, ILoggingService loggingService,
@@ -297,12 +297,12 @@ public class UpdateService
         public long Index { get; set; }
 
         [JsonProperty("title")]
-        public string Title { get; set; }
+        public string Title { get; set; } = null!;
 
         [JsonProperty("extract")]
-        public string Extract { get; set; }
+        public string Extract { get; set; } = null!;
 
         [JsonProperty("fullurl")]
-        public Uri FullUrl { get; set; }
+        public Uri FullUrl { get; set; } = null!;
     }
 }

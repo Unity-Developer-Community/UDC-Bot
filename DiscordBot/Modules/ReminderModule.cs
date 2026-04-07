@@ -12,8 +12,8 @@ public class ReminderModule : ModuleBase
 {
     #region Dependency Injection
 
-    public ReminderService ReminderService { get; set; }
-    public BotSettings Settings { get; set; }
+    public ReminderService ReminderService { get; set; } = null!;
+    public BotSettings Settings { get; set; } = null!;
 
     #endregion
 

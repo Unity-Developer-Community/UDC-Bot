@@ -265,7 +265,7 @@ public class BirthdayAnnouncementService
 
 public class BirthdayInfo
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public DateTime BirthDate { get; set; }
     public int? Age { get; set; }
 }

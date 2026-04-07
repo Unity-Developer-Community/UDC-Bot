@@ -12,9 +12,9 @@ public class CannedInteractiveModule : InteractionModuleBase
 {
     #region Dependency Injection
 
-    public UnityHelpService HelpService { get; set; }
-    public BotSettings BotSettings { get; set; }
-    public CannedResponseService CannedResponseService { get; set; }
+    public UnityHelpService HelpService { get; set; } = null!;
+    public BotSettings BotSettings { get; set; } = null!;
+    public CannedResponseService CannedResponseService { get; set; } = null!;
 
     #endregion // Dependency Injection
 

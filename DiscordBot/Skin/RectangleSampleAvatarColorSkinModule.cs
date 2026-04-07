@@ -13,9 +13,9 @@ public class RectangleSampleAvatarColorSkinModule : ISkinModule
     public int Width { get; set; }
     public int Height { get; set; }
     public bool WhiteFix { get; set; }
-    public string DefaultColor { get; set; }
+    public string DefaultColor { get; set; } = string.Empty;
 
-    public string Type { get; set; }
+    public string Type { get; set; } = string.Empty;
 
     public Drawables GetDrawables(ProfileData data)
     {

@@ -29,39 +29,39 @@ public class AirportService
 
     public class AmadeusRoot
     {
-        public List<FlightInfo> data { get; set; }
+        public List<FlightInfo> data { get; set; } = [];
     }
 
     public class FlightInfo
     {
-        public string type { get; set; }
-        public string id { get; set; }
-        public string source { get; set; }
+        public string type { get; set; } = string.Empty;
+        public string id { get; set; } = string.Empty;
+        public string source { get; set; } = string.Empty;
         public bool instantTicketingRequired { get; set; }
         public bool nonHomogeneous { get; set; }
         public bool oneWay { get; set; }
-        public string lastTicketingDate { get; set; }
+        public string lastTicketingDate { get; set; } = string.Empty;
         public int numberOfBookableSeats { get; set; }
-        public List<Itinerary> itineraries { get; set; }
-        public Price price { get; set; }
-        public PricingOptions pricingOptions { get; set; }
-        public List<string> validatingAirlineCodes { get; set; }
+        public List<Itinerary> itineraries { get; set; } = [];
+        public Price price { get; set; } = null!;
+        public PricingOptions pricingOptions { get; set; } = null!;
+        public List<string> validatingAirlineCodes { get; set; } = [];
         // public List<TravelerPricing> travelerPricings { get; set; }
     }
 
     public class PricingOptions
     {
-        public List<string> fareType { get; set; }
+        public List<string> fareType { get; set; } = [];
         public bool includedCheckedBagsOnly { get; set; }
     }
 
     public class Price
     {
-        public string currency { get; set; }
-        public string total { get; set; }
-        public string @base { get; set; }
-        public List<Fee> fees { get; set; }
-        public string grandTotal { get; set; }
+        public string currency { get; set; } = string.Empty;
+        public string total { get; set; } = string.Empty;
+        public string @base { get; set; } = string.Empty;
+        public List<Fee> fees { get; set; } = [];
+        public string grandTotal { get; set; } = string.Empty;
 
         public double GrandTotalNumber()
         {
@@ -71,47 +71,47 @@ public class AirportService
 
     public class Fee
     {
-        public string amount { get; set; }
-        public string type { get; set; }
+        public string amount { get; set; } = string.Empty;
+        public string type { get; set; } = string.Empty;
     }
 
     public class Itinerary
     {
-        public string duration { get; set; }
-        public List<Segment> segments { get; set; }
+        public string duration { get; set; } = string.Empty;
+        public List<Segment> segments { get; set; } = [];
     }
 
     public class Segment
     {
-        public FlightDetails departure { get; set; }
-        public FlightDetails arrival { get; set; }
-        public string carrierCode { get; set; }
-        public string number { get; set; }
+        public FlightDetails departure { get; set; } = null!;
+        public FlightDetails arrival { get; set; } = null!;
+        public string carrierCode { get; set; } = string.Empty;
+        public string number { get; set; } = string.Empty;
         // public Aircraft aircraft { get; set; }
         // public Operating operating { get; set; }
-        public string duration { get; set; }
-        public string id { get; set; }
+        public string duration { get; set; } = string.Empty;
+        public string id { get; set; } = string.Empty;
         public int numberOfStops { get; set; }
         public bool blacklistedInEU { get; set; }
     }
 
     public class FlightDetails
     {
-        public string iataCode { get; set; }
+        public string iataCode { get; set; } = string.Empty;
         public DateTime at { get; set; }
     }
 
     public class AmadeusAuthRoot
     {
-        public string type { get; set; }
-        public string username { get; set; }
-        public string application_name { get; set; }
-        public string client_id { get; set; }
-        public string token_type { get; set; }
-        public string access_token { get; set; }
+        public string type { get; set; } = string.Empty;
+        public string username { get; set; } = string.Empty;
+        public string application_name { get; set; } = string.Empty;
+        public string client_id { get; set; } = string.Empty;
+        public string token_type { get; set; } = string.Empty;
+        public string access_token { get; set; } = string.Empty;
         public int expires_in { get; set; }
-        public string state { get; set; }
-        public string scope { get; set; }
+        public string state { get; set; } = string.Empty;
+        public string scope { get; set; } = string.Empty;
     }
 
     #endregion // Return Results
@@ -129,15 +129,15 @@ public class AirportService
 
     public class AirLabsAirport
     {
-        public string icao_code { get; set; }
-        public string country_code { get; set; }
-        public string iata_code { get; set; }
+        public string icao_code { get; set; } = string.Empty;
+        public string country_code { get; set; } = string.Empty;
+        public string iata_code { get; set; } = string.Empty;
         public double lng { get; set; }
-        public string city { get; set; }
-        public string timezone { get; set; }
-        public string name { get; set; }
-        public string city_code { get; set; }
-        public string slug { get; set; }
+        public string city { get; set; } = string.Empty;
+        public string timezone { get; set; } = string.Empty;
+        public string name { get; set; } = string.Empty;
+        public string city_code { get; set; } = string.Empty;
+        public string slug { get; set; } = string.Empty;
         public double lat { get; set; }
         public int popularity { get; set; }
         public double distance { get; set; }
@@ -145,12 +145,12 @@ public class AirportService
 
     public class AirLabsCity
     {
-        public string country_code { get; set; }
+        public string country_code { get; set; } = string.Empty;
         public double lng { get; set; }
-        public string timezone { get; set; }
-        public string name { get; set; }
-        public string city_code { get; set; }
-        public string slug { get; set; }
+        public string timezone { get; set; } = string.Empty;
+        public string name { get; set; } = string.Empty;
+        public string city_code { get; set; } = string.Empty;
+        public string slug { get; set; } = string.Empty;
         public double lat { get; set; }
         public int popularity { get; set; }
         public double distance { get; set; }
@@ -158,13 +158,13 @@ public class AirportService
 
     public class AirLabsRoot
     {
-        public List<AirLabsAirport> airports { get; set; }
-        public List<AirLabsCity> cities { get; set; }
+        public List<AirLabsAirport> airports { get; set; } = [];
+        public List<AirLabsCity> cities { get; set; } = [];
     }
 
     public class AirLabsSuperRoot
     {
-        public AirLabsRoot response { get; set; }
+        public AirLabsRoot response { get; set; } = null!;
     }
 
     #endregion // Return Results

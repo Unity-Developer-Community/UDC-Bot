@@ -6,7 +6,7 @@ namespace DiscordBot.Modules;
 [Group("UserModule"), Alias("")]
 public class CodeTipModule : ModuleBase
 {
-    public CodeCheckService CodeCheckService { get; set; }
+    public CodeCheckService CodeCheckService { get; set; } = null!;
 
     [Command("CodeTip"), Priority(20)]
     [Summary("Show code formatting example. Syntax: !codetip userToPing(optional)")]

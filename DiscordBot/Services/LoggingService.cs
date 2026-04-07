@@ -67,7 +67,7 @@ public class LoggingService : ILoggingService
 {
     private const string ServiceName = "LoggingService";
 
-    private readonly ISocketMessageChannel _logChannel;
+    private readonly ISocketMessageChannel _logChannel = null!;
 
     // Configuration
     private const long MaxLogSize = 1024 * 1024 * 2; // 2MB

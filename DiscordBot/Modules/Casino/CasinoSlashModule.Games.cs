@@ -17,7 +17,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 {
     #region Dependency Injection
 
-    public GameService GameService { get; set; }
+    public GameService GameService { get; set; } = null!;
 
     #endregion
     #region Helper Methods

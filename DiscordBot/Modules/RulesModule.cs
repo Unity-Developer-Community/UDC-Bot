@@ -10,9 +10,9 @@ namespace DiscordBot.Modules;
 [Group("UserModule"), Alias("")]
 public class RulesModule : ModuleBase
 {
-    public WelcomeService WelcomeService { get; set; }
-    public UpdateService UpdateService { get; set; }
-    public Rules Rules { get; set; }
+    public WelcomeService WelcomeService { get; set; } = null!;
+    public UpdateService UpdateService { get; set; } = null!;
+    public Rules Rules { get; set; } = null!;
 
     [Command("Rules"), Priority(1)]
     [Summary("Rules of current channel by DM.")]

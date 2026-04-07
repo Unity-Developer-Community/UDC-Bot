@@ -5,7 +5,7 @@ namespace DiscordBot.Extensions;
 public class ServerUser
 {
     // ReSharper disable once InconsistentNaming
-    public string UserID { get; set; }
+    public string UserID { get; set; } = string.Empty;
     public int Karma { get; set; }
     public int KarmaWeekly { get; set; }
     public int KarmaMonthly { get; set; }

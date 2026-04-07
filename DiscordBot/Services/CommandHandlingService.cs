@@ -13,10 +13,10 @@ namespace DiscordBot.Services;
 
 public class CommandHistoryInfo
 {
-    public string Command { get; set; }
-    public string User { get; set; }
+    public string Command { get; set; } = null!;
+    public string User { get; set; } = null!;
     public ulong UserId { get; set; }
-    public string Channel { get; set; }
+    public string Channel { get; set; } = null!;
     public DateTime Time { get; set; }
     public string Error { get; set; } = string.Empty;
 }

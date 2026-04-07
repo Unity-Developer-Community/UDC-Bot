@@ -6,8 +6,8 @@ namespace DiscordBot.Modules;
 [Group("UserModule"), Alias("")]
 public class ProfileModule : ModuleBase
 {
-    public ProfileCardService ProfileCardService { get; set; }
-    public ILoggingService LoggingService { get; set; }
+    public ProfileCardService ProfileCardService { get; set; } = null!;
+    public ILoggingService LoggingService { get; set; } = null!;
 
     [Command("Karma"), Priority(95)]
     [Summary("Description of what Karma is.")]

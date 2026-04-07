@@ -8,9 +8,9 @@ namespace DiscordBot.Modules;
 [Group("UserModule"), Alias("")]
 public class ServerModule : ModuleBase
 {
-    public CommandHandlingService CommandHandlingService { get; set; }
-    public ServerService ServerService { get; set; }
-    public BotSettings Settings { get; set; }
+    public CommandHandlingService CommandHandlingService { get; set; } = null!;
+    public ServerService ServerService { get; set; } = null!;
+    public BotSettings Settings { get; set; } = null!;
 
     [Command("Help"), Priority(100)]
     [Summary("Does what you see now.")]

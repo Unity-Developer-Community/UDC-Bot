@@ -16,8 +16,8 @@ public class CurrencyService
 
     private class Currency
     {
-        public string Name { get; set; }
-        public string Short { get; set; }
+        public string Name { get; set; } = null!;
+        public string Short { get; set; } = null!;
     }
 
     #endregion // Configuration

@@ -19,7 +19,7 @@ public class RecruitService
     private readonly ForumTag _tagUnpaidCollab;
     private readonly ForumTag _tagPosFilled;
 
-    private readonly IForumChannel _recruitChannel;
+    private readonly IForumChannel _recruitChannel = null!;
 
     #endregion // Extra Details
 
@@ -39,12 +39,12 @@ public class RecruitService
     private const string MessageToBeEdited = "This post will remain editable until %s, make any desired changes to your thread. After that the thread will be locked.";
 
 
-    private Embed _userHiringButNoPrice;
-    private Embed _userWantsWorkButNoPrice;
+    private Embed _userHiringButNoPrice = null!;
+    private Embed _userWantsWorkButNoPrice = null!;
 
-    private Embed _userDidntUseTags;
-    private Embed _userRevShareMentioned;
-    private Embed _userMoreThanOneTagUsed;
+    private Embed _userDidntUseTags = null!;
+    private Embed _userRevShareMentioned = null!;
+    private Embed _userMoreThanOneTagUsed = null!;
 
     Dictionary<ulong, bool> _botSanityCheck = new Dictionary<ulong, bool>();
 

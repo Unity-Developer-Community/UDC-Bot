@@ -14,7 +14,7 @@ public class AvatarBorderSkinModule : ISkinModule
     public double StartY { get; set; }
     public double Size { get; set; }
 
-    public string Type { get; set; }
+    public string Type { get; set; } = string.Empty;
 
     public Drawables GetDrawables(ProfileData data)
     {

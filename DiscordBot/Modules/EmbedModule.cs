@@ -8,7 +8,7 @@ namespace DiscordBot.Modules;
 [RequireAdmin]
 public class EmbedModule : ModuleBase
 {
-    public EmbedParsingService EmbedParsingService { get; set; }
+    public EmbedParsingService EmbedParsingService { get; set; } = null!;
 
     /// <summary>
     /// Generate an embed

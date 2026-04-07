@@ -26,7 +26,7 @@ public class XpBarSkinModule : ISkinModule
     public string InsideStrokeColor { get; set; }
     public string InsideFillColor { get; set; }
 
-    public string Type { get; set; }
+    public string Type { get; set; } = string.Empty;
 
     public Drawables GetDrawables(ProfileData data)
     {

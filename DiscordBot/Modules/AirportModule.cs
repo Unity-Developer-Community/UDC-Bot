@@ -11,10 +11,10 @@ public class AirportModule : ModuleBase
 {
     #region Dependency Injection
 
-    public AirportService AirportService { get; set; }
-    public BotSettings Settings { get; set; }
+    public AirportService AirportService { get; set; } = null!;
+    public BotSettings Settings { get; set; } = null!;
     // Needed to locate cities lon/lat easier
-    public WeatherService WeatherService { get; set; }
+    public WeatherService WeatherService { get; set; } = null!;
 
     #endregion // Dependency Injection
 
@@ -22,14 +22,14 @@ public class AirportModule : ModuleBase
 
     public class FlightResults
     {
-        public string iata { get; set; }
-        public string fs { get; set; }
-        public string name { get; set; }
+        public string iata { get; set; } = string.Empty;
+        public string fs { get; set; } = string.Empty;
+        public string name { get; set; } = string.Empty;
     }
 
     public class FlightRoot
     {
-        public List<FlightResults> data { get; set; }
+        public List<FlightResults> data { get; set; } = [];
     }
 
     #endregion // API Results
