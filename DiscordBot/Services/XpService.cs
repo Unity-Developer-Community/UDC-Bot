@@ -35,17 +35,17 @@ public class XpService
         client.MessageReceived += EventGuard.Guarded<SocketMessage>(UpdateXp, nameof(UpdateXp));
     }
 
-    private async Task UpdateXp(SocketMessage messageParam)
+    private Task UpdateXp(SocketMessage messageParam)
     {
         if (messageParam.Author.IsBot)
-            return;
+            return Task.CompletedTask;
 
         if (_noXpChannels.Contains(messageParam.Channel.Id))
-            return;
+            return Task.CompletedTask;
 
         var userId = messageParam.Author.Id;
         if (_xpCooldown.HasUser(userId))
-            return;
+            return Task.CompletedTask;
 
         var waitTime = _rand.Next(_xpMinCooldown, _xpMaxCooldown);
         float baseXp = _rand.Next(_xpMinPerMessage, _xpMaxPerMessage);
@@ -79,6 +79,8 @@ public class XpService
 
             await LevelUp(messageParam, userId);
         });
+
+        return Task.CompletedTask;
     }
 
     private async Task LevelUp(SocketMessage messageParam, ulong userId)

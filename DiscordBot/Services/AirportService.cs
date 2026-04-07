@@ -196,12 +196,6 @@ public class AirportService
         return result.response.airports.FirstOrDefault(a => !string.IsNullOrEmpty(a.iata_code));
     }
 
-    public async Task<string?> GetFlightTickets(string from, string to)
-    {
-
-        return null;
-    }
-
     #region Utility Methods
 
     public async Task<bool> GetValidationToken()

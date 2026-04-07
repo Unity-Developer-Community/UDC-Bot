@@ -300,19 +300,4 @@ public class CommandHandlingService
             _commandHistory.RemoveAt(0);
     }
 
-    public async Task<string> GetCommandHistory(int count = 10)
-    {
-        if (count > _commandHistory.Count)
-            count = _commandHistory.Count;
-        if (count == 0)
-            count = 10;
-
-        var commandHistory = new StringBuilder();
-        for (var i = _commandHistory.Count - 1; i >= 0 && count > 0; i--, count--)
-        {
-            var command = _commandHistory[i];
-            commandHistory.AppendLine($"{command.Time} - {command.User}[{command.UserId}] used {command.Command} in {command.Channel} {(string.IsNullOrEmpty(command.Error) ? string.Empty : $"Error: {command.Error}")}");
-        }
-        return commandHistory.ToString();
-    }
 }
