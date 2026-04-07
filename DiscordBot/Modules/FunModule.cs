@@ -23,7 +23,7 @@ public class FunModule : ModuleBase
         try
         {
             if (_slapObjects.Count == 0)
-                _slapObjects.Load(Settings.UserModuleSlapObjectsTable);
+                _slapObjects.Load(Settings.UserModuleSlapObjectsTable!);
         }
         catch (Exception e)
         {

@@ -24,7 +24,7 @@ public class CustomTextSkinModule : BaseTextSkinModule
         var mc = reg.Matches(Text);
         foreach (var match in mc)
         {
-            var prop = typeof(ProfileData).GetProperty(match.ToString());
+            var prop = typeof(ProfileData).GetProperty(match.ToString()!);
             if (prop == null) continue;
             var value = (dynamic?)prop.GetValue(data, null);
             Text = Text.Replace("{" + match + "}", value.ToString());

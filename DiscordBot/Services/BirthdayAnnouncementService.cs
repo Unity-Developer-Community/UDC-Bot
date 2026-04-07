@@ -174,7 +174,7 @@ public class BirthdayAnnouncementService
         return birthdays;
     }
 
-    private bool TryParseBirthdayDate(string dateString, string yearString, out DateTime birthDate)
+    private bool TryParseBirthdayDate(string dateString, string? yearString, out DateTime birthDate)
     {
         birthDate = default;
 

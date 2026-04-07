@@ -70,7 +70,7 @@ public class ReleaseNotesParser
             ?.NextSibling;
     }
 
-    private string BuildSection(string title, HtmlNode node, string contents = "",
+    private string BuildSection(string title, HtmlNode? node, string contents = "",
         int maxLength = Constants.MaxLengthChannelMessage - MaxFeedLengthBuffer)
     {
         if (node == null)
@@ -109,7 +109,7 @@ public class ReleaseNotesParser
         return summary;
     }
 
-    private static string GetNodeLiCountString(string title, HtmlNode node)
+    private static string GetNodeLiCountString(string title, HtmlNode? node)
     {
         if (node == null)
             return string.Empty;

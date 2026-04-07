@@ -53,7 +53,7 @@ public class RulesModule : ModuleBase
     [Summary("Condensed version of the rules and links to quality resources.")]
     public async Task ServerWelcome()
     {
-        if (!await WelcomeService.DMFormattedWelcome(Context.User as SocketGuildUser))
+        if (!await WelcomeService.DMFormattedWelcome((Context.User as SocketGuildUser)!))
         {
             await ReplyAsync("Could not send welcome, your DMs are disabled.").DeleteAfterSeconds(seconds: 2);
         }

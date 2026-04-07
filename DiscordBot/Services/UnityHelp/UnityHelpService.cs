@@ -430,7 +430,7 @@ public class UnityHelpService
 
         LoggingService.DebugLog($"[{ServiceName}] Help Message Updated: {after.Id} - {after.Content}", LogSeverity.Debug);
 #pragma warning disable CS4014
-        Task.Run(() => OnMessageUpdated(beforeMsg, after, channel as SocketThreadChannel));
+        Task.Run(() => OnMessageUpdated(beforeMsg, after, (channel as SocketThreadChannel)!));
 #pragma warning restore CS4014
 
         if (after.Reactions.ContainsKey(CloseEmoji))
@@ -724,7 +724,7 @@ public class UnityHelpService
     }
 
     // Check if the user is the expected id and return true if so, if not then return false (Special: Moderator will return true)
-    private bool IsValidAuthorUser(SocketGuildUser user, ulong authorId)
+    private bool IsValidAuthorUser(SocketGuildUser? user, ulong authorId)
     {
         if (user == null || user.IsUserBotOrWebhook())
             return false;

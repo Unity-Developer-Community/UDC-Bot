@@ -23,7 +23,7 @@ public class UnityHelpModule : ModuleBase
             return;
         if (!IsValidUser() || !IsInHelpChannel())
             await Context.Message.DeleteAsync();
-        await HelpService.OnUserRequestChannelClose(Context.User, Context.Channel as SocketThreadChannel);
+        await HelpService.OnUserRequestChannelClose(Context.User, (Context.Channel as SocketThreadChannel)!);
     }
 
     [Command("pending-questions")]

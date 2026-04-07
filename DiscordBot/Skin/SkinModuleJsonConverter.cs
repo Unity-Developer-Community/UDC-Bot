@@ -15,7 +15,7 @@ public class SkinModuleJsonConverter : JsonConverter
         Type type;
         try
         {
-            var t = $"DiscordBot.Skin.{jo["Type"].Value<string>()}SkinModule";
+            var t = $"DiscordBot.Skin.{jo["Type"]!.Value<string>()}SkinModule";
             type = Type.GetType(t)!;
             return jo.ToObject(type);
         }

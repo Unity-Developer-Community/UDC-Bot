@@ -35,6 +35,7 @@ public class EmbedModule : ModuleBase
     public async Task EmbedCommand(string url, IMessageChannel? channel = null, ulong messageId = 0)
     {
         await Context.Message.DeleteAsync();
+        channel ??= Context.Channel;
         Discord.Embed? builtEmbed = await TryGetEmbedFromUrl(url);
         if (builtEmbed != null)
             await SendEmbedToChannel(builtEmbed, channel, messageId);

@@ -58,7 +58,7 @@ public class SearchModule : ModuleBase
     {
         var pages = await UpdateService.GetManualDatabase();
         var query = string.Join(" ", queries);
-        var match = SearchService.FindBestMatch(query, pages, "https://docs.unity3d.com/Manual");
+        var match = SearchService.FindBestMatch(query, pages!, "https://docs.unity3d.com/Manual");
 
         if (match != null)
         {
@@ -89,7 +89,7 @@ public class SearchModule : ModuleBase
     {
         var pages = await UpdateService.GetApiDatabase();
         var query = string.Join(" ", queries);
-        var match = SearchService.FindBestMatch(query, pages, "https://docs.unity3d.com/ScriptReference");
+        var match = SearchService.FindBestMatch(query, pages!, "https://docs.unity3d.com/ScriptReference");
 
         if (match != null)
         {
@@ -132,7 +132,7 @@ public class SearchModule : ModuleBase
             return;
         }
 
-        await ReplyAsync(embed: GetWikipediaEmbed(article.name, article.extract, article.url));
+        await ReplyAsync(embed: GetWikipediaEmbed(article.name!, article.extract!, article.url!));
     }
 
     private Embed GetWikipediaEmbed(string subject, string articleExtract, string articleUrl)

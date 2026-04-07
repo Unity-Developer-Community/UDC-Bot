@@ -36,7 +36,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
         }
 
         var response =
-            await HelpService.OnUserRequestChannelClose(Context.User, Context.Channel as SocketThreadChannel);
+            await HelpService.OnUserRequestChannelClose(Context.User, (Context.Channel as SocketThreadChannel)!);
         await Context.Interaction.FollowupAsync(response, ephemeral: true);
     }
 
