@@ -14,7 +14,6 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.6" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.6" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <PackageReference Include="Pathoschild.NaturalTimeParser" Version="0.2.0-alpha" />
     <PackageReference Include="System.ServiceModel.Syndication" Version="9.0.6" />
   </ItemGroup>
   <ItemGroup>
