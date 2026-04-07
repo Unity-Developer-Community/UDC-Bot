@@ -149,38 +149,13 @@ public class UpdateService
             var api = await htmlWeb.LoadFromWebAsync("https://docs.unity3d.com/ScriptReference/docdata/index.js");
             var apiInput = api.DocumentNode.OuterHtml;
 
-            _manualDatabase = ConvertJsToArray(manualInput, true);
-            _apiDatabase = ConvertJsToArray(apiInput, false);
+            _manualDatabase = UnityDocParser.ConvertJsToArray(manualInput, true);
+            _apiDatabase = UnityDocParser.ConvertJsToArray(apiInput, false);
 
             if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unitymanual.json", _manualDatabase))
                 await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to save unitymanual.json", ExtendedLogSeverity.Warning);
             if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unityapi.json", _apiDatabase))
                 await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to save unityapi.json", ExtendedLogSeverity.Warning);
-
-            string[][] ConvertJsToArray(string data, bool isManual)
-            {
-                var list = new List<string[]>();
-                string pagesInput;
-                if (isManual)
-                {
-                    pagesInput = data.Split("info = [")[0].Split("pages=")[1];
-                    pagesInput = pagesInput.Substring(2, pagesInput.Length - 4);
-                }
-                else
-                {
-                    pagesInput = data.Split("info =")[0];
-                    pagesInput = pagesInput.Substring(63, pagesInput.Length - 65);
-                }
-
-                foreach (var s in pagesInput.Split("],["))
-                {
-                    var ps = s.Split(",");
-                    list.Add(new[] { ps[0].Replace("\"", ""), ps[1].Replace("\"", "") });
-                    //Console.WriteLine(ps[0].Replace("\"", "") + "," + ps[1].Replace("\"", ""));
-                }
-
-                return list.ToArray();
-            }
         }
         catch (Exception e)
         {

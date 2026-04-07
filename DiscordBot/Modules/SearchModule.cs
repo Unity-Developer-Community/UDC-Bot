@@ -4,7 +4,6 @@ using Discord.Commands;
 using DiscordBot.Services;
 using DiscordBot.Settings;
 using DiscordBot.Attributes;
-using HtmlAgilityPack;
 
 namespace DiscordBot.Modules;
 
@@ -14,6 +13,7 @@ public class SearchModule : ModuleBase
     public ILoggingService LoggingService { get; set; }
     public BotSettings Settings { get; set; }
     public UpdateService UpdateService { get; set; }
+    public SearchService SearchService { get; set; }
 
     [Command("Search"), Priority(25)]
     [Summary("Searches DuckDuckGo for results. Syntax: !search c# lambda help")]
@@ -31,88 +31,52 @@ public class SearchModule : ModuleBase
     [Alias("s", "ddg")]
     public async Task SearchResults(string query, uint resNum = 3, string site = "")
     {
-        resNum = resNum <= 5 ? resNum : 5;
+        var results = SearchService.SearchDuckDuckGo(query, resNum, site);
+
+        var resultTitle = string.Empty;
+        for (int i = 0; i < results.Count; i++)
+        {
+            resultTitle += $"{i + 1}. {results[i].Title} [__Read More__]({results[i].Url})\n";
+        }
+
         var searchQuery = "https://duckduckgo.com/html/?q=" + query.Replace(' ', '+');
-
         if (site != string.Empty) searchQuery += "+site:" + site;
-
-        var doc = new HtmlWeb().Load(searchQuery);
-        var counter = 1;
 
         EmbedBuilder embedBuilder = new();
         embedBuilder.Title = $"Q: {WebUtility.UrlDecode(query)}";
-        string resultTitle = string.Empty;
-
-        foreach (var row in doc.DocumentNode.SelectNodes("/html/body/div[1]/div[3]/div/div/div[*]/div/h2/a"))
-        {
-            if (counter > resNum) break;
-
-            row.Attributes["href"].Value = row.Attributes["href"].Value.Replace("//duckduckgo.com/l/?uddg=", string.Empty);
-
-            if (counter <= resNum && IsValidResult(row))
-            {
-                var url = WebUtility.UrlDecode(row.Attributes["href"].Value);
-
-                int andCount = url.Count(c => c == '&');
-                url = url.Substring(0, url.LastIndexOf('&'));
-
-                resultTitle += $"{counter}. {(row.InnerText.Length > 60 ? $"{row.InnerText[..60]}.." : row.InnerText)}" + $" [__Read More..__{(andCount > 1 ? "~" : string.Empty)}]({url})\n";
-
-                counter++;
-            }
-        }
-
         embedBuilder.AddField("Search Query", searchQuery);
-        embedBuilder.AddField("Results", resultTitle, inline: false);
-
+        embedBuilder.AddField("Results", resultTitle.Length > 0 ? resultTitle : "No results found.", inline: false);
         embedBuilder.Color = new Color(81, 50, 169);
         embedBuilder.Footer = new EmbedFooterBuilder().WithText("Results sourced from DuckDuckGo.");
 
-        var embed = embedBuilder.Build();
-        await ReplyAsync(embed: embed);
-    }
-
-    bool IsValidResult(HtmlNode node)
-    {
-        return (!node.Attributes["href"].Value.Contains("duckduckgo.com") &&
-                !node.Attributes["href"].Value.Contains("duck.co"));
+        await ReplyAsync(embed: embedBuilder.Build());
     }
 
     [Command("Manual"), Priority(8)]
     [Summary("Searches Unity3D manual for results. Syntax : !manual \"query\"")]
     public async Task SearchManual(params string[] queries)
     {
-        var minimumScore = double.MaxValue;
-        string[] mostSimilarPage = null;
         var pages = await UpdateService.GetManualDatabase();
         var query = string.Join(" ", queries);
-        foreach (var p in pages)
-        {
-            var curScore = CalculateScore(p[1], query);
-            if (!(curScore < minimumScore)) continue;
+        var match = SearchService.FindBestMatch(query, pages, "https://docs.unity3d.com/Manual");
 
-            minimumScore = curScore;
-            mostSimilarPage = p;
-        }
-
-        if (mostSimilarPage != null)
+        if (match != null)
         {
+            var url = $"{match.BaseUrl}/{match.PageName}.html";
+
             EmbedBuilder embedBuilder = new();
-            embedBuilder.Title = $"Found {mostSimilarPage[0]}";
-            embedBuilder.Description = $"**{mostSimilarPage[1]}** - [Read More..](https://docs.unity3d.com/Manual/{mostSimilarPage[0]}.html)";
+            embedBuilder.Title = $"Found {match.PageName}";
+            embedBuilder.Description = $"**{match.Title}** - [Read More..]({url})";
             embedBuilder.Color = new Color(81, 50, 169);
             embedBuilder.Footer = new EmbedFooterBuilder().WithText("Results sourced from Unity3D Docs.");
             var message = await ReplyAsync(embed: embedBuilder.Build());
 
-            var doc = new HtmlWeb().Load($"https://docs.unity3d.com/Manual/{mostSimilarPage[0]}.html");
-            var descriptionNode = doc.DocumentNode.SelectSingleNode("//h1");
-            if (descriptionNode == null) return;
-            descriptionNode = descriptionNode.SelectSingleNode("following-sibling::p");
-            descriptionNode.Descendants().Where(n => n.GetAttributeValue("class", "").Contains("tooltip")).ToList().ForEach(n => n.Remove());
-            var description = descriptionNode.InnerText;
-
-            embedBuilder.WithDescription($"**Description:** {(description.Length > 500 ? $"{description[..500]}.." : description)}\n" + $"[Read More..](https://docs.unity3d.com/Manual/{mostSimilarPage[0]}.html)");
-            await message.ModifyAsync(msg => msg.Embed = embedBuilder.Build());
+            var description = SearchService.FetchPageDescription(url, "//h1", "following-sibling::p");
+            if (description != null)
+            {
+                embedBuilder.WithDescription($"**Description:** {description}\n[Read More..]({url})");
+                await message.ModifyAsync(msg => msg.Embed = embedBuilder.Build());
+            }
         }
         else
             await ReplyAsync("No Results Found.").DeleteAfterSeconds(seconds: 10);
@@ -123,48 +87,30 @@ public class SearchModule : ModuleBase
     [Alias("ref", "reference", "api", "docs")]
     public async Task SearchApi(params string[] queries)
     {
-        var minimumScore = double.MaxValue;
-        string[] mostSimilarPage = null;
         var pages = await UpdateService.GetApiDatabase();
         var query = string.Join(" ", queries);
-        foreach (var p in pages)
-        {
-            var curScore = CalculateScore(p[1], query);
-            if (!(curScore < minimumScore)) continue;
+        var match = SearchService.FindBestMatch(query, pages, "https://docs.unity3d.com/ScriptReference");
 
-            minimumScore = curScore;
-            mostSimilarPage = p;
-        }
-
-        if (mostSimilarPage != null)
+        if (match != null)
         {
+            var url = $"{match.BaseUrl}/{match.PageName}.html";
+
             EmbedBuilder embedBuilder = new();
-            embedBuilder.Title = $"Found {mostSimilarPage[0]}";
-            embedBuilder.Description = $"**{mostSimilarPage[1]}** - [Read More..](https://docs.unity3d.com/ScriptReference/{mostSimilarPage[0]}.html)";
+            embedBuilder.Title = $"Found {match.PageName}";
+            embedBuilder.Description = $"**{match.Title}** - [Read More..]({url})";
             embedBuilder.Color = new Color(81, 50, 169);
             embedBuilder.Footer = new EmbedFooterBuilder().WithText("Results sourced from Unity3D Docs.");
             var message = await ReplyAsync(embed: embedBuilder.Build());
 
-            var doc = new HtmlWeb().Load($"https://docs.unity3d.com/ScriptReference/{mostSimilarPage[0]}.html");
-            var descriptionNode = doc.DocumentNode.SelectSingleNode("//h3[contains(text(), 'Description')]");
+            var description = SearchService.FetchPageDescription(url, "//h3[contains(text(), 'Description')]", "following-sibling::p");
+            var manualLink = SearchService.FetchManualLink(url);
 
-            string descriptionString = "";
-            string manualLinkString = "";
-            if (descriptionNode != null)
-            {
-                var description = descriptionNode.SelectSingleNode("following-sibling::p").InnerText;
-                descriptionString =
-                    $"**Description:** {(description.Length > 500 ? $"{description[..500]}.." : description)}\n" +
-                    $"[Read More..](https://docs.unity3d.com/ScriptReference/{mostSimilarPage[0]}.html)";
-            }
-
-            var manualLink = doc.DocumentNode.SelectSingleNode("//a[contains(@class, 'switch-link')]");
-            if (manualLink != null && manualLink.Attributes.Contains("title"))
-            {
-                var manualLinkText = manualLink.GetAttributes("title").First().Value;
-                var manualLinkUrl = "https://docs.unity3d.com/" + manualLink.GetAttributeValue("href", "");
-                manualLinkString = $"\n**Manual:** [{manualLinkText}]({manualLinkUrl})";
-            }
+            string descriptionString = description != null
+                ? $"**Description:** {description}\n[Read More..]({url})"
+                : string.Empty;
+            string manualLinkString = manualLink != null
+                ? $"\n**Manual:** {manualLink}"
+                : string.Empty;
 
             embedBuilder.WithDescription(descriptionString + manualLinkString);
             await message.ModifyAsync(msg => msg.Embed = embedBuilder.Build());
@@ -197,26 +143,5 @@ public class SearchModule : ModuleBase
             .WithUrl(articleUrl)
             .WithColor(new Color(0x33CC00));
         return builder.Build();
-    }
-
-    private double CalculateScore(string s1, string s2)
-    {
-        double curScore = 0;
-        var i = 0;
-
-        foreach (var q in s1.Split(' '))
-        {
-            foreach (var x in s2.Split(' '))
-            {
-                i++;
-                if (x.Equals(q))
-                    curScore -= 50;
-                else
-                    curScore += x.CalculateLevenshteinDistance(q);
-            }
-        }
-
-        curScore /= i;
-        return curScore;
     }
 }

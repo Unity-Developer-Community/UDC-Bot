@@ -41,6 +41,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
         public CasinoService CasinoService { get; set; }
         public ILoggingService LoggingService { get; set; }
         public BotSettings BotSettings { get; set; }
+        public TransactionFormatter TransactionFormatter { get; set; }
 
         private async Task<bool> CheckChannelPermissions()
         {
@@ -301,7 +302,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 foreach (var transaction in transactions)
                 {
                     var amountText = transaction.Amount >= 0 ? $"+{transaction.Amount}" : transaction.Amount.ToString();
-                    var (emoji, transactionTitle, transactionDescription) = FormatTransactionDisplay(transaction, isAllUsersRequest);
+                    var (emoji, transactionTitle, transactionDescription) = TransactionFormatter.Format(transaction, Context.Guild, isAllUsersRequest);
 
                     embed.AddField($"{emoji} {transactionTitle}",
                         $"{amountText} tokens - *{TimestampTag.FromDateTime(transaction.CreatedAt)}*\n{transactionDescription}",
@@ -378,82 +379,6 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             await DisplayTransactionHistory(userId: userId == "all" ? null : userId, page: page, targetUser: targetUser, isInitialCall: false);
         }
 
-        private (string emoji, string title, string description) FormatTransactionDisplay(TokenTransaction transaction, bool showUserInfo = false)
-        {
-            var (emoji, title, description) = transaction.Kind switch
-            {
-                TransactionKind.TokenInitialisation => ("🎯", "Account Created", ""),
-                TransactionKind.DailyReward => ("📅", "Daily Reward", ""),
-                TransactionKind.Gift => GetGiftDisplay(transaction),
-                TransactionKind.Game => GetGameDisplay(transaction),
-                TransactionKind.Admin => GetAdminDisplay(transaction),
-                _ => ("❓", transaction.TransactionType, "")
-            };
-
-            // If showing user info (for all-users view), prepend user name to title
-            if (showUserInfo)
-            {
-                var user = Context.Guild.GetUser(ulong.Parse(transaction.UserID));
-                var username = user?.DisplayName ?? "Unknown User";
-                return (emoji, $"{username}: {title}", description);
-            }
-
-            return (emoji, title, description);
-        }
-
-        private (string emoji, string title, string description) GetGiftDisplay(TokenTransaction transaction)
-        {
-            SocketGuildUser? user = null;
-            var userId = transaction.Details?.GetValueOrDefault(transaction.Amount >= 0 ? "from" : "to");
-            if (userId != null) user = Context.Guild.GetUser(ulong.Parse(userId));
-
-            string title = transaction.Amount > 0 ? "Gift Received" : "Gift Sent";
-            if (user != null) title = transaction.Amount > 0 ? $"Gift from {user.DisplayName}" : $"Gift to {user.DisplayName}";
-
-            return ("🎁", title, "");
-        }
-
-        private (string emoji, string title, string description) GetGameDisplay(TokenTransaction transaction)
-        {
-            var gameName = transaction.Details?.GetValueOrDefault("game");
-
-            string emoji = transaction.Amount >= 0 ? "📈" : "📉";
-            string title = transaction.Amount >= 0 ? "Won" : "Lost";
-            if (gameName != null) title += $" {CapitalizeFirst(gameName)}";
-
-            return (emoji, title, "");
-        }
-
-        private (string emoji, string title, string description) GetAdminDisplay(TokenTransaction transaction)
-        {
-            var adminId = transaction.Details?.GetValueOrDefault("admin");
-            var action = transaction.Details?.GetValueOrDefault("action");
-            SocketGuildUser? admin = null;
-            if (adminId != null) admin = Context.Guild.GetUser(ulong.Parse(adminId));
-
-            string title = action switch
-            {
-                "add" => "Tokens Added",
-                "set" => "Tokens Set",
-                _ => $"UNKNOWN ACTION: {action}"
-            };
-            string description = action switch
-            {
-                "set" => "This overrides past transactions",
-                _ => ""
-            };
-
-            if (admin != null) title += $" by Admin {admin.DisplayName}";
-
-            return ("⚙️", title, description);
-        }
-
-        private string CapitalizeFirst(string input)
-        {
-            if (string.IsNullOrEmpty(input))
-                return input;
-            return char.ToUpper(input[0]) + input.Substring(1).ToLower();
-        }
 
 
         #region Admin Commands

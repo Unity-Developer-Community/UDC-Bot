@@ -373,7 +373,7 @@ no `.cs` files and no test framework configured.
 1. ~~Split `UserService` into focused services~~ ✅
 2. Split `BotSettings` into domain-specific config classes
 3. Add `BotSettings.Validate()` post-deserialization
-4. Extract business logic from command handlers into services
+4. ~~Extract business logic from command handlers into services~~ ✅
 5. ~~Register `IHttpClientFactory` in DI; remove manual `HttpClient` creation~~ ✅
 6. Add graceful shutdown support with `CancellationToken`
 7. ~~Move static module state (`_activeDuels`) to services~~ ✅

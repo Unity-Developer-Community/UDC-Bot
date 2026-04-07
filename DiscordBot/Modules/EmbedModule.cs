@@ -1,8 +1,6 @@
-using System.Net.Http;
-using System.Text;
 using Discord.Commands;
 using DiscordBot.Attributes;
-using Newtonsoft.Json;
+using DiscordBot.Services;
 
 // ReSharper disable all UnusedMember.Local
 namespace DiscordBot.Modules;
@@ -10,53 +8,7 @@ namespace DiscordBot.Modules;
 [RequireAdmin]
 public class EmbedModule : ModuleBase
 {
-    public IHttpClientFactory HttpClientFactory { get; set; }
-
-#pragma warning disable 0649
-    private class Embed
-    {
-        public class Footer
-        {
-            public string icon_url;
-            public string text;
-        }
-
-        public class Thumbnail
-        {
-            public string url;
-        }
-
-        public class Image
-        {
-            public string url;
-        }
-
-        public class Author
-        {
-            public string name;
-            public string url;
-            public string icon_url;
-        }
-
-        public class Field
-        {
-            public string name;
-            public string value;
-            public bool? inline;
-        }
-
-        public string title;
-        public string description;
-        public string url;
-        public uint? color;
-        public DateTimeOffset? timestamp;
-        public Footer footer;
-        public Thumbnail thumbnail;
-        public Image image;
-        public Author author;
-        public Field[] fields;
-    }
-#pragma warning restore 0649
+    public EmbedParsingService EmbedParsingService { get; set; }
 
     /// <summary>
     /// Generate an embed
@@ -74,7 +26,7 @@ public class EmbedModule : ModuleBase
             return;
         }
         var attachment = Context.Message.Attachments.ElementAt(0);
-        var embed = await BuildEmbedFromUrl(attachment.Url);
+        var embed = await EmbedParsingService.BuildEmbedFromUrl(attachment.Url);
 
         await SendEmbedToChannel(embed, channel, messageId);
     }
@@ -88,124 +40,28 @@ public class EmbedModule : ModuleBase
             await SendEmbedToChannel(builtEmbed, channel, messageId);
     }
 
-    // Checks if the the argument is a url and if the host is supported. If so it will try to return a built embeded object. Returns null if invalid.
     private async Task<Discord.Embed> TryGetEmbedFromUrl(string url)
     {
-        Uri uriResult;
-        bool result = Uri.TryCreate(url, UriKind.Absolute, out uriResult)
+        bool result = Uri.TryCreate(url, UriKind.Absolute, out var uriResult)
                       && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps);
         if (!result)
         {
             await ReplyAsync($"{Context.User.Mention}, the parameter is not a valid URL.").DeleteAfterSeconds(5);
             return null;
         }
-        if (!IsValidHost(uriResult.Host))
+        if (!EmbedParsingService.IsValidHost(uriResult.Host))
         {
             await ReplyAsync($"{Context.User.Mention}, supported URLs: [https://hastebin.com, https://pastebin.com, https://gdl.space, https://hastepaste.com, http://pastie.org].").DeleteAfterSeconds(5);
             return null;
         }
-        string download_url = GetDownUrlFromUri(uriResult);
-        var builtEmbed = await BuildEmbedFromUrl(download_url);
+        string downloadUrl = EmbedParsingService.GetDownloadUrl(uriResult);
+        var builtEmbed = await EmbedParsingService.BuildEmbedFromUrl(downloadUrl);
         if (builtEmbed.Length == 0)
         {
             await ReplyAsync("Failed to generate embed from url.").DeleteAfterSeconds(seconds: 10f);
             return null;
         }
         return builtEmbed;
-    }
-
-    private async Task<Discord.Embed> BuildEmbedFromUrl(string url)
-    {
-        using var client = HttpClientFactory.CreateClient();
-        var buffer = await client.GetByteArrayAsync(url);
-        string json = Encoding.UTF8.GetString(buffer);
-
-        return BuildEmbed(json);
-    }
-
-    private bool IsValidHost(string url)
-    {
-        switch (url)
-        {
-            case "hastebin.com":
-            case "gdl.space":
-            case "hastepaste.com":
-            case "pastebin.com":
-            case "pastie.org":
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    private string GetDownUrlFromUri(Uri uri)
-    {
-        switch (uri.Host)
-        {
-            case "hastebin.com":
-            case "gdl.space":
-                return $"https://{uri.Host}/raw{uri.AbsolutePath}";
-            case "hastepaste.com":
-                return $"https://hastepaste.com/raw{uri.AbsolutePath.Substring(5)}";
-            case "pastebin.com":
-                return $"https://pastebin.com/raw{uri.AbsolutePath}";
-            case "pastie.org":
-                return $"{uri.OriginalString}/raw";
-        }
-        return string.Empty;
-    }
-
-    private Discord.Embed BuildEmbed(string json)
-    {
-        try
-        {
-            var embed_data = JsonConvert.DeserializeObject<Embed>(json);
-            var embedBuilder = new EmbedBuilder();
-            if (!String.IsNullOrEmpty(embed_data.title)) embedBuilder.Title = embed_data.title;
-            if (!String.IsNullOrEmpty(embed_data.description)) embedBuilder.Description = embed_data.description;
-            if (!String.IsNullOrEmpty(embed_data.url)) embedBuilder.Url = embed_data.url;
-            if (embed_data.color.HasValue) embedBuilder.Color = new Color(embed_data.color.Value);
-            if (embed_data.timestamp.HasValue) embedBuilder.Timestamp = embed_data.timestamp.Value;
-
-            if (embed_data.footer != null)
-            {
-                embedBuilder.Footer = new EmbedFooterBuilder();
-                if (!String.IsNullOrEmpty(embed_data.footer.icon_url)) embedBuilder.Footer.IconUrl = embed_data.footer.icon_url;
-                if (!String.IsNullOrEmpty(embed_data.footer.text)) embedBuilder.Footer.Text = embed_data.footer.text;
-            }
-
-            if (embed_data.thumbnail != null && !String.IsNullOrEmpty(embed_data.thumbnail.url)) embedBuilder.ThumbnailUrl = embed_data.thumbnail.url;
-            if (embed_data.image != null && !String.IsNullOrEmpty(embed_data.image.url)) embedBuilder.ImageUrl = embed_data.image.url;
-
-            if (embed_data.author != null)
-            {
-                embedBuilder.Author = new EmbedAuthorBuilder();
-                if (!String.IsNullOrEmpty(embed_data.author.icon_url)) embedBuilder.Author.IconUrl = embed_data.author.icon_url;
-                if (!String.IsNullOrEmpty(embed_data.author.name)) embedBuilder.Author.Name = embed_data.author.name;
-                if (!String.IsNullOrEmpty(embed_data.author.url)) embedBuilder.Author.Url = embed_data.author.url;
-            }
-
-            if (embed_data.fields != null)
-            {
-                foreach (var field in embed_data.fields)
-                {
-                    var f = new EmbedFieldBuilder();
-                    if (!String.IsNullOrEmpty(field.name)) f.Name = field.name;
-                    if (!String.IsNullOrEmpty(field.value)) f.Value = field.value;
-                    if (field.inline.HasValue) f.IsInline = field.inline.Value;
-                    embedBuilder.AddField(f);
-                }
-            }
-
-            return embedBuilder.Build();
-        }
-        catch (Exception e)
-        {
-            Console.Error.WriteLine(e);
-            ReplyAsync($"{Context.User.Mention}, the provided JSON is invalid.").DeleteAfterSeconds(5);
-        }
-
-        return null;
     }
 
     private readonly IEmote _thumbUpEmote = new Emoji("👍");
