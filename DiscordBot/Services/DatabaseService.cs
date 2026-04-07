@@ -70,7 +70,9 @@ public class DatabaseService
             // Test connection, if it fails we create the table and set keys
             try
             {
-                var userCount = await Query.TestConnection();
+                var query = Query;
+                if (query == null) return;
+                var userCount = await query.TestConnection();
                 await _logging.LogAction(
                     $"{ServiceName}: Connected to database successfully. {userCount} users in database.",
                     ExtendedLogSeverity.Positive);
@@ -118,7 +120,9 @@ public class DatabaseService
             // Create casino tables if they don't exist
             try
             {
-                var casinoUserCount = await CasinoQuery.TestCasinoConnection();
+                var casinoQuery = CasinoQuery;
+                if (casinoQuery == null) return;
+                var casinoUserCount = await casinoQuery.TestCasinoConnection();
                 await _logging.LogAction(
                     $"DatabaseService: Connected to casino tables successfully. {casinoUserCount} casino users in database.",
                     ExtendedLogSeverity.Positive);
@@ -185,7 +189,9 @@ public class DatabaseService
                 if (!user.IsBot)
                 {
                     var userIdString = user.Id.ToString();
-                    var serverUser = await Query.GetUser(userIdString);
+                    var q = Query;
+                    if (q == null) continue;
+                    var serverUser = await q.GetUser(userIdString);
                     if (serverUser == null)
                     {
                         await GetOrAddUser(user as SocketGuildUser);
@@ -266,9 +272,11 @@ public class DatabaseService
     {
         try
         {
-            var user = await Query.GetUser(id.ToString());
+            var query = Query;
+            if (query == null) return;
+            var user = await query.GetUser(id.ToString());
             if (user != null)
-                await Query.RemoveUser(user.UserID);
+                await query.RemoveUser(user.UserID);
         }
         catch (Exception e)
         {
@@ -279,6 +287,8 @@ public class DatabaseService
 
     public async Task<bool> UserExists(ulong id)
     {
-        return (await Query.GetUser(id.ToString()) != null);
+        var query = Query;
+        if (query == null) return false;
+        return (await query.GetUser(id.ToString()) != null);
     }
 }

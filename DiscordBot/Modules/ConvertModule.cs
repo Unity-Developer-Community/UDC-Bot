@@ -36,8 +36,8 @@ public class ConvertModule : ModuleBase
     public async Task Translate(string text, string language = "en")
     {
         var msg = await ReplyAsync($"Here: <https://translate.google.com/#auto/{language}/{text.Replace(" ", "%20")}>");
-        await Context.Message.DeleteAfterSeconds(seconds: 1);
-        await msg.DeleteAfterSeconds(seconds: 20);
+        await Context.Message.DeleteAfterSeconds(seconds: 1)!;
+        await msg.DeleteAfterSeconds(seconds: 20)!;
     }
 
     [Command("CurrencyName"), Priority(29)]

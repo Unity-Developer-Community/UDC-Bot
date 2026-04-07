@@ -39,7 +39,7 @@ public class CurrencyService
             return -1;
 
         // json[fromCurrency][toCurrency]
-        var value = response.SelectToken($"{fromCurrency}.{toCurrency}");
+        var value = response?.SelectToken($"{fromCurrency}.{toCurrency}");
         if (value == null)
             return -1;
 
@@ -72,6 +72,8 @@ public class CurrencyService
     {
         var url = ApiUrl + ValidCurrenciesEndpoint;
         var currencies = await WebUtil.GetObjectFromJson<Dictionary<string, string>>(url);
+        if (currencies == null)
+            return;
 
         // Json is weird format of `Code: Name` each in dependant ie; {"1inch":"1inch Network","aave":"Aave"}
         foreach (var currency in currencies)

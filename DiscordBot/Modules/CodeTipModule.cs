@@ -17,7 +17,7 @@ public class CodeTipModule : ModuleBase
         message += "When posting code, format it like so:" + Environment.NewLine;
         message += CodeCheckService.CodeFormattingExample;
         await Context.Message.DeleteAsync();
-        await ReplyAsync(message).DeleteAfterSeconds(seconds: 60);
+        await ReplyAsync(message).DeleteAfterSeconds(seconds: 60)!;
     }
 
     [Command("DisableCodeTips"), Priority(91)]
@@ -29,7 +29,7 @@ public class CodeTipModule : ModuleBase
         {
             CodeCheckService.CodeReminderCooldown.SetPermanent(Context.User.Id, true);
             var uname = Context.User.GetUserPreferredName();
-            await ReplyAsync($"{uname}, you will no longer be reminded about correct code formatting.").DeleteAfterTime(20);
+            await ReplyAsync($"{uname}, you will no longer be reminded about correct code formatting.").DeleteAfterTime(20)!;
         }
     }
 }

@@ -23,6 +23,7 @@ public class CannedResponseModule : ModuleBase
             return;
 
         var embed = CannedResponseService.GetCannedResponse(type, Context.User);
+        if (embed == null) return;
         await Context.Message.DeleteAsync();
 
         await ReplyAsync(string.Empty, false, embed.Build());

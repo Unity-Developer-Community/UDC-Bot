@@ -18,8 +18,8 @@ public class BirthdayModule : ModuleBase
         var tableText = await WebUtil.GetHtmlNodeInnerText(nextBirthday, "/html/body/table/tr[2]/td");
         var message = $"**{tableText}**";
 
-        await ReplyAsync(message).DeleteAfterTime(minutes: 3);
-        await Context.Message.DeleteAfterTime(minutes: 3);
+        await (ReplyAsync(message).DeleteAfterTime(minutes: 3) ?? Task.CompletedTask);
+        await (Context.Message.DeleteAfterTime(minutes: 3) ?? Task.CompletedTask);
     }
 
     [Command("Birthday"), Priority(27)]
@@ -36,17 +36,21 @@ public class BirthdayModule : ModuleBase
         HtmlAgilityPack.HtmlNode? matchedNode = null;
         var matchedLength = int.MaxValue;
 
-        foreach (var row in relevantNodes)
+        if (relevantNodes != null)
         {
-            var nameNode = row.SelectSingleNode("td[2]");
-            var name = nameNode.InnerText;
+            foreach (var row in relevantNodes)
+            {
+                var nameNode = row.SelectSingleNode("td[2]");
+                if (nameNode == null) continue;
+                var name = nameNode.InnerText;
 
-            if (!name.ToLower().Contains(searchName.ToLower()) || name.Length >= matchedLength)
-                continue;
+                if (!name.ToLower().Contains(searchName.ToLower()) || name.Length >= matchedLength)
+                    continue;
 
-            matchedNode = row;
-            matchedLength = name.Length;
-            if (name.Length == searchName.Length) break;
+                matchedNode = row;
+                matchedLength = name.Length;
+                if (name.Length == searchName.Length) break;
+            }
         }
 
         if (matchedNode != null)
@@ -54,29 +58,32 @@ public class BirthdayModule : ModuleBase
             var dateNode = matchedNode.SelectSingleNode("td[1]");
             var yearNode = matchedNode.SelectSingleNode("td[3]");
 
-            var provider = CultureInfo.InvariantCulture;
-            var wrongFormat = "M/d/yyyy";
-
-            var dateString = dateNode.InnerText;
-            if (!yearNode.InnerText.Contains("&nbsp;")) dateString = dateString + "/" + yearNode.InnerText;
-
-            dateString = dateString.Trim();
-
-            try
+            if (dateNode != null && yearNode != null)
             {
-                birthdate = DateTime.ParseExact(dateString, wrongFormat, provider);
-            }
-            catch (FormatException)
-            {
-                birthdate = DateTime.ParseExact(dateString, "M/d", provider);
+                var provider = CultureInfo.InvariantCulture;
+                var wrongFormat = "M/d/yyyy";
+
+                var dateString = dateNode.InnerText;
+                if (!yearNode.InnerText.Contains("&nbsp;")) dateString = dateString + "/" + yearNode.InnerText;
+
+                dateString = dateString.Trim();
+
+                try
+                {
+                    birthdate = DateTime.ParseExact(dateString, wrongFormat, provider);
+                }
+                catch (FormatException)
+                {
+                    birthdate = DateTime.ParseExact(dateString, "M/d", provider);
+                }
             }
         }
 
         if (birthdate == default)
         {
-            await ReplyAsync(
+            await (ReplyAsync(
                     $"Sorry, I couldn't find **{searchName}**'s birthday date. They can add it at https://docs.google.com/forms/d/e/1FAIpQLSfUglZtJ3pyMwhRk5jApYpvqT3EtKmLBXijCXYNwHY-v-lKxQ/viewform !")
-                .DeleteAfterSeconds(30);
+                .DeleteAfterSeconds(30) ?? Task.CompletedTask);
         }
         else
         {
@@ -85,9 +92,9 @@ public class BirthdayModule : ModuleBase
                 $"**{searchName}**'s birthdate: __**{birthdate.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture)}**__ " +
                 $"({(int)((DateTime.Now - birthdate).TotalDays / 365)}yo)";
 
-            await ReplyAsync(message).DeleteAfterTime(minutes: 3);
+            await (ReplyAsync(message).DeleteAfterTime(minutes: 3) ?? Task.CompletedTask);
         }
 
-        await Context.Message.DeleteAfterTime(minutes: 3);
+        await (Context.Message.DeleteAfterTime(minutes: 3) ?? Task.CompletedTask);
     }
 }

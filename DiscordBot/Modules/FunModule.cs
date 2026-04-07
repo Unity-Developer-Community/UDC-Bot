@@ -47,7 +47,7 @@ public class FunModule : ModuleBase
         {
             await Context.Channel.SendMessageAsync(
                 $"**{uname}** slaps away an invisible pest.");
-            await Context.Message.DeleteAfterSeconds(seconds: 1);
+            await Context.Message.DeleteAfterSeconds(seconds: 1)!;
             return;
         }
 
@@ -73,7 +73,7 @@ public class FunModule : ModuleBase
         }
 
         await Context.Channel.SendMessageAsync(sb.ToString());
-        await Context.Message.DeleteAfterSeconds(seconds: 1);
+        await Context.Message.DeleteAfterSeconds(seconds: 1)!;
     }
 
     [Command("CoinFlip"), Priority(22)]
@@ -85,7 +85,7 @@ public class FunModule : ModuleBase
 
         var uname = Context.User.GetUserPreferredName();
         await ReplyAsync($"**{uname}** flipped a coin and got **{coin[_random.Next() % 2]}**!");
-        await Context.Message.DeleteAfterSeconds(seconds: 1);
+        await Context.Message.DeleteAfterSeconds(seconds: 1)!;
     }
 
     [Command("Roll"), Priority(23)]
@@ -101,7 +101,7 @@ public class FunModule : ModuleBase
     {
         if (sides < 1 || sides > 1000)
         {
-            await ReplyAsync("Invalid number of sides. Please choose a number between 1 and 1000.").DeleteAfterSeconds(seconds: 10);
+            await ReplyAsync("Invalid number of sides. Please choose a number between 1 and 1000.").DeleteAfterSeconds(seconds: 10)!;
             await Context.Message.DeleteAsync();
             return;
         }
@@ -117,7 +117,7 @@ public class FunModule : ModuleBase
             message = " :x: " + message + " [Needed: " + number + "]";
 
         await ReplyAsync(message);
-        await Context.Message.DeleteAfterSeconds(seconds: 1);
+        await Context.Message.DeleteAfterSeconds(seconds: 1)!;
     }
 
     [Command("D20"), Priority(23)]

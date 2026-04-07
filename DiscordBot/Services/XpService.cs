@@ -58,6 +58,10 @@ public class XpService
             if (user == null)
                 return;
 
+            var query = _databaseService.Query;
+            if (query is null)
+                return;
+
             bonusXp += baseXp * (1f + user.Karma / 100f);
 
             if (((IGuildUser)messageParam.Author).RoleIds.Count < 2)
@@ -68,7 +72,7 @@ public class XpService
 
             var xpGain = (int)Math.Round((baseXp + bonusXp) * reduceXp);
 
-            await _databaseService.Query.UpdateXp(userId.ToString(), user.Exp + (long)xpGain);
+            await query.UpdateXp(userId.ToString(), user.Exp + (long)xpGain);
 
             _loggingService.LogXp(messageParam.Channel.Name, messageParam.Author.Username, baseXp, bonusXp, reduceXp,
                 xpGain);
@@ -79,21 +83,24 @@ public class XpService
 
     private async Task LevelUp(SocketMessage messageParam, ulong userId)
     {
-        var level = await _databaseService.Query.GetLevel(userId.ToString());
-        var xp = await _databaseService.Query.GetXp(userId.ToString());
+        var query = _databaseService.Query;
+        if (query is null) return;
+
+        var level = await query.GetLevel(userId.ToString());
+        var xp = await query.GetXp(userId.ToString());
 
         var xpHigh = GetXpHigh(level);
 
         if (xp < xpHigh)
             return;
 
-        await _databaseService.Query.UpdateLevel(userId.ToString(), level + 1);
+        await query.UpdateLevel(userId.ToString(), level + 1);
 
         if (level <= 3)
             return;
 
         var msg = messageParam.Author.GetUserPreferredName().ToBold() + " has leveled up!";
-        await messageParam.Channel.SendMessageAsync(msg).DeleteAfterTime(60);
+        await (messageParam.Channel.SendMessageAsync(msg).DeleteAfterTime(60) ?? Task.CompletedTask);
     }
 
     public double GetXpLow(int level) => 70d - 139.5d * (level + 1d) + 69.5 * Math.Pow(level + 1d, 2d);

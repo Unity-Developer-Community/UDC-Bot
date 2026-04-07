@@ -18,8 +18,10 @@ public class UserExtendedService
 
     public async Task<bool> SetUserDefaultCity(IUser user, string city)
     {
+        var query = _databaseService.Query;
+        if (query is null) return false;
         // Update Database
-        await _databaseService.Query.UpdateDefaultCity(user.Id.ToString(), city);
+        await query.UpdateDefaultCity(user.Id.ToString(), city);
         // Update Cache
         _cityCachedName[user.Id] = city;
         return true;
@@ -31,8 +33,10 @@ public class UserExtendedService
         if (_cityCachedName.ContainsKey(user.Id))
             return true;
 
+        var query = _databaseService.Query;
+        if (query is null) return false;
         // Check database
-        var res = await _databaseService.Query.GetDefaultCity(user.Id.ToString());
+        var res = await query.GetDefaultCity(user.Id.ToString());
         if (string.IsNullOrEmpty(res))
             return false;
 
@@ -50,8 +54,10 @@ public class UserExtendedService
 
     public async Task<bool> RemoveUserDefaultCity(IUser user)
     {
+        var query = _databaseService.Query;
+        if (query is null) return false;
         // Update Database
-        await _databaseService.Query.UpdateDefaultCity(user.Id.ToString(), null);
+        await query.UpdateDefaultCity(user.Id.ToString(), null);
         // Update Cache
         _cityCachedName.Remove(user.Id);
         return true;

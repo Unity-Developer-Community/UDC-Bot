@@ -33,7 +33,7 @@ public class RulesModule : ModuleBase
 
         sentMessage = await dm.TrySendMessage($"{rule.Header}{(rule.Content.Length > 0 ? rule.Content : $"There is no special rule for {channel.Name} channel.\nPlease follow global rules (you can get them by typing `!globalrules`)")}");
         if (!sentMessage)
-            await ReplyAsync("Could not send rules, your DMs are disabled.").DeleteAfterSeconds(seconds: 10);
+            await ReplyAsync("Could not send rules, your DMs are disabled.").DeleteAfterSeconds(seconds: 10)!;
     }
 
     [Command("GlobalRules"), Priority(99)]
@@ -45,7 +45,7 @@ public class RulesModule : ModuleBase
         await Context.Message.DeleteAsync();
         if (!await dm.TrySendMessage(globalRules))
         {
-            await ReplyAsync("Could not send rules, your DMs are disabled.").DeleteAfterSeconds(seconds: 10);
+            await ReplyAsync("Could not send rules, your DMs are disabled.").DeleteAfterSeconds(seconds: 10)!;
         }
     }
 
@@ -55,9 +55,9 @@ public class RulesModule : ModuleBase
     {
         if (!await WelcomeService.DMFormattedWelcome((Context.User as SocketGuildUser)!))
         {
-            await ReplyAsync("Could not send welcome, your DMs are disabled.").DeleteAfterSeconds(seconds: 2);
+            await ReplyAsync("Could not send welcome, your DMs are disabled.").DeleteAfterSeconds(seconds: 2)!;
         }
-        await Context.Message.DeleteAfterSeconds(seconds: 4);
+        await Context.Message.DeleteAfterSeconds(seconds: 4)!;
     }
 
     [Command("Channels"), Priority(92)]
@@ -77,7 +77,7 @@ public class RulesModule : ModuleBase
         {
             if (!await dm.TrySendMessage(message))
             {
-                await ReplyAsync("Could not send channel descriptions, your DMs are disabled.").DeleteAfterSeconds(seconds: 10);
+                await ReplyAsync("Could not send channel descriptions, your DMs are disabled.").DeleteAfterSeconds(seconds: 10)!;
                 break;
             }
         }
@@ -145,7 +145,7 @@ public class RulesModule : ModuleBase
             keywordSb.Clear();
         }
 
-        await ReplyAsync(sb.ToString()).DeleteAfterTime(minutes: 3);
+        await ReplyAsync(sb.ToString()).DeleteAfterTime(minutes: 3)!;
     }
 
     private Embed GetFaqEmbed(FaqData faq)

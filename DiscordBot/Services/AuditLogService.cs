@@ -74,7 +74,7 @@ public class AuditLogService
 
         if (content == after.Content)
             return;
-        if (content.Length == 0 && beforeMessage.Attachments.Count == 0)
+        if (content.Length == 0 && (beforeMessage?.Attachments.Count ?? 0) == 0)
             return;
 
         bool isTruncated = false;
@@ -93,7 +93,7 @@ public class AuditLogService
         if (isCached)
         {
             builder.AddField($"Previous message content {(isTruncated ? "(truncated)" : "")}", content);
-            if (beforeMessage.Attachments.Count > 0)
+            if (beforeMessage?.Attachments.Count > 0)
             {
                 var attachments = beforeMessage.Attachments.Where(x => after.Attachments.All(y => y.Url != x.Url));
                 var removedAttachments = attachments.ToList();

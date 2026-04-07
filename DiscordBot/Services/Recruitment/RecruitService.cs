@@ -108,6 +108,8 @@ public class RecruitService
 
     private async Task GatewayOnThreadCreated(SocketThreadChannel thread)
     {
+        if (_recruitChannel == null)
+            return;
         if (!thread.IsThreadInChannel(_recruitChannel.Id))
             return;
         if (thread.Owner.IsUserBotOrWebhook())
@@ -200,6 +202,8 @@ public class RecruitService
         if (thread == null)
             return;
 
+        if (_recruitChannel == null)
+            return;
         if (!thread.IsThreadInChannel(_recruitChannel.Id))
             return;
         if (message.Author.IsUserBotOrWebhook())
@@ -252,7 +256,7 @@ public class RecruitService
         if (message.Content.Length < MinimumLengthMessage)
         {
             var ourResponse = await thread.SendMessageAsync(embed: GetShortMessageEmbed());
-            await ourResponse.DeleteAfterSeconds(ShortMessageNoticeDurationInSec);
+            await (ourResponse.DeleteAfterSeconds(ShortMessageNoticeDurationInSec) ?? Task.CompletedTask);
         }
     }
 
@@ -263,7 +267,7 @@ public class RecruitService
         await parentChannel.AddPermissionOverwriteAsync(thread.Owner, new OverwritePermissions(sendMessages: PermValue.Allow));
 
         // We give them a bit of time to edit their post, then remove the permission
-        await message.DeleteAfterSeconds((_editTimePermissionInMin * 60) + 2);
+        await (message.DeleteAfterSeconds((_editTimePermissionInMin * 60) + 2) ?? Task.CompletedTask);
         await parentChannel.RemovePermissionOverwriteAsync(thread.Owner);
 
         // Lock the thread so anyone else can't post even when they have edit permissions
@@ -382,7 +386,7 @@ public class RecruitService
     private async Task DeleteThread(SocketThreadChannel thread)
     {
         await thread.SendMessageAsync(embed: GetDeletedMessageEmbed());
-        await thread.DeleteAfterSeconds(TimeBeforeDeletingForumInSec);
+        await (thread.DeleteAfterSeconds(TimeBeforeDeletingForumInSec) ?? Task.CompletedTask);
     }
 
     private string GetDynamicTimeStampString(int addSeconds)

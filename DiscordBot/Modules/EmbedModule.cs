@@ -22,7 +22,7 @@ public class EmbedModule : ModuleBase
 
         if (Context.Message.Attachments.Count < 1)
         {
-            await ReplyAsync($"{Context.User.Mention}, you must provide a JSON file or a JSON url.").DeleteAfterSeconds(5);
+            await ReplyAsync($"{Context.User.Mention}, you must provide a JSON file or a JSON url.").DeleteAfterSeconds(5)!;
             return;
         }
         var attachment = Context.Message.Attachments.ElementAt(0);
@@ -47,19 +47,19 @@ public class EmbedModule : ModuleBase
                       && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps);
         if (!result)
         {
-            await ReplyAsync($"{Context.User.Mention}, the parameter is not a valid URL.").DeleteAfterSeconds(5);
+            await ReplyAsync($"{Context.User.Mention}, the parameter is not a valid URL.").DeleteAfterSeconds(5)!;
             return null;
         }
-        if (!EmbedParsingService.IsValidHost(uriResult.Host))
+        if (!EmbedParsingService.IsValidHost(uriResult!.Host))
         {
-            await ReplyAsync($"{Context.User.Mention}, supported URLs: [https://hastebin.com, https://pastebin.com, https://gdl.space, https://hastepaste.com, http://pastie.org].").DeleteAfterSeconds(5);
+            await ReplyAsync($"{Context.User.Mention}, supported URLs: [https://hastebin.com, https://pastebin.com, https://gdl.space, https://hastepaste.com, http://pastie.org].").DeleteAfterSeconds(5)!;
             return null;
         }
         string downloadUrl = EmbedParsingService.GetDownloadUrl(uriResult);
         var builtEmbed = await EmbedParsingService.BuildEmbedFromUrl(downloadUrl);
         if (builtEmbed.Length == 0)
         {
-            await ReplyAsync("Failed to generate embed from url.").DeleteAfterSeconds(seconds: 10f);
+            await ReplyAsync("Failed to generate embed from url.").DeleteAfterSeconds(seconds: 10f)!;
             return null;
         }
         return builtEmbed;
@@ -108,7 +108,7 @@ public class EmbedModule : ModuleBase
             // If no reaction, we assume it was bad and abort
             if (!confirmedEmbed)
             {
-                await ReplyAsync("Reaction not detected, embed aborted.").DeleteAfterSeconds(seconds: 5);
+                await ReplyAsync("Reaction not detected, embed aborted.").DeleteAfterSeconds(seconds: 5)!;
                 return;
             }
         }
@@ -118,7 +118,7 @@ public class EmbedModule : ModuleBase
             var messageToEdit = await channel.GetMessageAsync(messageId) as IUserMessage;
             if (messageToEdit == null)
             {
-                await ReplyAsync($"Bot doesn't own the message ID ``{messageId}`` used").DeleteAfterSeconds(5);
+                await ReplyAsync($"Bot doesn't own the message ID ``{messageId}`` used").DeleteAfterSeconds(5)!;
                 return;
             }
 
@@ -128,13 +128,13 @@ public class EmbedModule : ModuleBase
                 x.Content = "";
                 x.Embed = embed;
             });
-            await ReplyAsync("Message replaced!").DeleteAfterSeconds(5);
+            await ReplyAsync("Message replaced!").DeleteAfterSeconds(5)!;
         }
         else
         {
             await channel.SendMessageAsync(embed: embed);
             if (Context.Channel != channel)
-                await ReplyAsync("Embed Posted!").DeleteAfterSeconds(5);
+                await ReplyAsync("Embed Posted!").DeleteAfterSeconds(5)!;
         }
     }
 }

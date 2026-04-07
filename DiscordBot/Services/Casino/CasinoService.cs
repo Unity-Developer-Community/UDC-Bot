@@ -24,7 +24,8 @@ public class CasinoService
     {
         try
         {
-            var user = await _databaseService.CasinoQuery.GetCasinoUser(userId);
+            var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
+            var user = await casinoQuery.GetCasinoUser(userId);
             if (user != null)
                 return user;
 
@@ -38,7 +39,7 @@ public class CasinoService
                 LastDailyReward = DateTime.UtcNow.AddDays(-1) // Set to a past date so user can claim their first daily reward immediately
             };
 
-            var createdUser = await _databaseService.CasinoQuery.InsertCasinoUser(newUser);
+            var createdUser = await casinoQuery.InsertCasinoUser(newUser);
             await RecordTransaction(userId, _settings.CasinoStartingTokens, TransactionKind.TokenInitialisation);
             await _loggingService.LogChannelAndFile($"{ServiceName}: Created new casino user {userId} with {_settings.CasinoStartingTokens} starting tokens");
             return createdUser;
@@ -53,6 +54,7 @@ public class CasinoService
 
     public async Task<bool> TransferTokens(string fromUserId, string toUserId, long amount)
     {
+        var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
         var fromUser = await GetOrCreateCasinoUser(fromUserId);
         var toUser = await GetOrCreateCasinoUser(toUserId);
 
@@ -60,8 +62,8 @@ public class CasinoService
             return false;
 
         // Update balances
-        await _databaseService.CasinoQuery.UpdateTokens(fromUserId, fromUser.Tokens - amount, DateTime.UtcNow);
-        await _databaseService.CasinoQuery.UpdateTokens(toUserId, toUser.Tokens + amount, DateTime.UtcNow);
+        await casinoQuery.UpdateTokens(fromUserId, fromUser.Tokens - amount, DateTime.UtcNow);
+        await casinoQuery.UpdateTokens(toUserId, toUser.Tokens + amount, DateTime.UtcNow);
 
         // Record transactions
         await RecordTransaction(fromUserId, -amount, TransactionKind.Gift, new Dictionary<string, string>
@@ -80,12 +82,13 @@ public class CasinoService
     {
         try
         {
+            var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
             var user = await GetOrCreateCasinoUser(userId);
             var newBalance = user.Tokens + deltaTokens;
             // Prevent negative balance
             if (newBalance < 0) newBalance = 0;
 
-            await _databaseService.CasinoQuery.UpdateTokens(userId, newBalance, DateTime.UtcNow);
+            await casinoQuery.UpdateTokens(userId, newBalance, DateTime.UtcNow);
             await RecordTransaction(userId, deltaTokens, transactionType, details);
         }
         catch (Exception ex)
@@ -98,7 +101,8 @@ public class CasinoService
 
     public async Task SetUserTokens(string userId, long amount, string adminUserId)
     {
-        await _databaseService.CasinoQuery.UpdateTokens(userId, amount, DateTime.UtcNow);
+        var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
+        await casinoQuery.UpdateTokens(userId, amount, DateTime.UtcNow);
 
         await RecordTransaction(userId, amount, TransactionKind.Admin, new Dictionary<string, string>
         {
@@ -109,25 +113,29 @@ public class CasinoService
 
     public async Task<List<CasinoUser>> GetLeaderboard(int limit = 10)
     {
-        var topUsers = await _databaseService.CasinoQuery.GetTopTokenHolders(limit);
+        var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
+        var topUsers = await casinoQuery.GetTopTokenHolders(limit);
         return topUsers.ToList();
     }
 
     public async Task<List<TokenTransaction>> GetUserTransactionHistory(string userId, int limit = 10)
     {
         await GetOrCreateCasinoUser(userId);
-        var transactions = await _databaseService.CasinoQuery.GetUserTransactionHistory(userId, limit);
+        var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
+        var transactions = await casinoQuery.GetUserTransactionHistory(userId, limit);
         return transactions.ToList();
     }
 
     public async Task<List<TokenTransaction>> GetAllRecentTransactions(int limit = 10)
     {
-        var transactions = await _databaseService.CasinoQuery.GetRecentTransactions(limit);
+        var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
+        var transactions = await casinoQuery.GetRecentTransactions(limit);
         return transactions.ToList();
     }
 
     private async Task RecordTransaction(string userId, long amount, TransactionKind type, Dictionary<string, string>? details = null)
     {
+        var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
         var transaction = new TokenTransaction
         {
             UserID = userId,
@@ -137,7 +145,7 @@ public class CasinoService
             Details = details
         };
 
-        await _databaseService.CasinoQuery.InsertTransaction(transaction);
+        await casinoQuery.InsertTransaction(transaction);
     }
 
     #endregion
@@ -148,7 +156,8 @@ public class CasinoService
     {
         try
         {
-            var gameTransactions = await _databaseService.CasinoQuery.GetTransactionsOfType(nameof(TransactionKind.Game));
+            var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
+            var gameTransactions = await casinoQuery.GetTransactionsOfType(nameof(TransactionKind.Game));
 
             // Group transactions by game type
             var gameGroups = gameTransactions
@@ -206,7 +215,8 @@ public class CasinoService
     {
         try
         {
-            var gameTransactions = await _databaseService.CasinoQuery.GetTransactionsOfType(nameof(TransactionKind.Game));
+            var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
+            var gameTransactions = await casinoQuery.GetTransactionsOfType(nameof(TransactionKind.Game));
 
             // Filter by game if specified
             var filteredTransactions = gameTransactions
@@ -319,6 +329,7 @@ public class CasinoService
     {
         try
         {
+            var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
             var user = await GetOrCreateCasinoUser(userId);
             var now = DateTime.UtcNow;
             var nextRewardTime = user.LastDailyReward.AddSeconds(_settings.CasinoDailyRewardIntervalSeconds);
@@ -331,7 +342,7 @@ public class CasinoService
             // User can claim daily reward
             var tokensAwarded = _settings.CasinoDailyRewardTokens;
             var newBalance = user.Tokens + tokensAwarded;
-            await _databaseService.CasinoQuery.UpdateTokensAndDailyReward(userId, newBalance, now, now);
+            await casinoQuery.UpdateTokensAndDailyReward(userId, newBalance, now, now);
             await RecordTransaction(userId, tokensAwarded, TransactionKind.DailyReward);
 
             await _loggingService.LogChannelAndFile($"{ServiceName}: User {userId} claimed daily reward of {tokensAwarded} tokens");
@@ -357,8 +368,9 @@ public class CasinoService
 
     public async Task ResetAllCasinoData()
     {
-        await _databaseService.CasinoQuery.ClearAllCasinoUsers();
-        await _databaseService.CasinoQuery.ClearAllTransactions();
+        var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
+        await casinoQuery.ClearAllCasinoUsers();
+        await casinoQuery.ClearAllTransactions();
 
         await _loggingService.LogChannelAndFile($"{ServiceName}: All casino data has been reset.");
     }

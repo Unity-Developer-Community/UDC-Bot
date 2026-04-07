@@ -42,7 +42,7 @@ public class TipModule : ModuleBase
         var tips = TipService.GetTips(terms);
         if (tips.Count == 0)
         {
-            await ReplyAsync("No tips for the keywords provided were found.").DeleteAfterSeconds(5);
+            await ReplyAsync("No tips for the keywords provided were found.").DeleteAfterSeconds(5)!;
             return;
         }
 
@@ -107,7 +107,7 @@ public class TipModule : ModuleBase
         Tip? tip = TipService.GetTip(tipId);
         if (tip == null)
         {
-            await Context.Channel.SendMessageAsync("No such tip found to be removed.").DeleteAfterSeconds(5);
+            await Context.Channel.SendMessageAsync("No such tip found to be removed.").DeleteAfterSeconds(5)!;
             return;
         }
 
@@ -122,7 +122,7 @@ public class TipModule : ModuleBase
         Tip? tip = TipService.GetTip(tipId);
         if (tip == null)
         {
-            await Context.Channel.SendMessageAsync("No such tip found to be replaced.").DeleteAfterSeconds(5);
+            await Context.Channel.SendMessageAsync("No such tip found to be replaced.").DeleteAfterSeconds(5)!;
             return;
         }
 
@@ -158,12 +158,12 @@ public class TipModule : ModuleBase
             tips = TipService.GetTips(terms);
             if (tips.Count == 0)
             {
-                await ReplyAsync("No tips for the keywords provided were found.").DeleteAfterSeconds(5);
+                await ReplyAsync("No tips for the keywords provided were found.").DeleteAfterSeconds(5)!;
                 return;
             }
             if (tips.Count >= floodCount)
             {
-                await ReplyAsync($"Total of {tips.Count} tips found for the keywords provided; refine your search.").DeleteAfterSeconds(5);
+                await ReplyAsync($"Total of {tips.Count} tips found for the keywords provided; refine your search.").DeleteAfterSeconds(5)!;
                 return;
             }
         }

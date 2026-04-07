@@ -264,7 +264,7 @@ public class CommandHandlingService
         }
 
         AddToCommandHistory(message, resultString);
-        await context.Channel.SendMessageAsync(resultString).DeleteAfterSeconds(10);
+        await context.Channel.SendMessageAsync(resultString).DeleteAfterSeconds(10)!;
     }
 
     private async Task HandleInteraction(SocketInteraction arg)

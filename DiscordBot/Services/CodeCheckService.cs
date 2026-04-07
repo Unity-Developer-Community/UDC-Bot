@@ -103,9 +103,9 @@ public class CodeCheckService
                 return;
             if (foundTrippleCodeBlock.Groups["CodeBlock"].Success)
             {
-                await messageParam.Channel.SendMessageAsync(
+                await (messageParam.Channel.SendMessageAsync(
                         $"{messageParam.Author.Mention} when using code blocks remember to use the ***syntax highlights*** to improve readability.\n{_codeReminderFormattingExample}")
-                    .DeleteAfterSeconds(seconds: 60);
+                    .DeleteAfterSeconds(seconds: 60) ?? Task.CompletedTask);
                 return;
             }
 
@@ -119,21 +119,21 @@ public class CodeCheckService
 
             if (!foundDoubleCodeBlock && hits >= 3)
             {
-                await messageParam.Channel.SendMessageAsync(
+                await (messageParam.Channel.SendMessageAsync(
                         $"{messageParam.Author.Mention} are you sharing C# scripts? Remember to use codeblocks to help readability!\n{_codeReminderFormattingExample}")
-                    .DeleteAfterSeconds(seconds: 60);
+                    .DeleteAfterSeconds(seconds: 60) ?? Task.CompletedTask);
                 if (content.Length > _maxCodeBlockLengthWarning)
                 {
-                    await messageParam.Channel.SendMessageAsync(
+                    await (messageParam.Channel.SendMessageAsync(
                         "The code you're sharing is quite long, maybe use a free service like <https://hastebin.com> and share the link here instead.")
-                        .DeleteAfterSeconds(seconds: 60);
+                        .DeleteAfterSeconds(seconds: 60) ?? Task.CompletedTask);
                 }
             }
             else if (foundDoubleCodeBlock && hits > 0)
             {
-                await messageParam.Channel.SendMessageAsync(
+                await (messageParam.Channel.SendMessageAsync(
                         $"{messageParam.Author.Mention} when using code blocks remember to use \\`\\`\\`cs as this will help improve readability for C# scripts.\n{_codeReminderFormattingExample}")
-                    .DeleteAfterSeconds(seconds: 60);
+                    .DeleteAfterSeconds(seconds: 60) ?? Task.CompletedTask);
             }
         }
     }

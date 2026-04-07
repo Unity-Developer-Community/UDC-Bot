@@ -27,10 +27,10 @@ public class EveryoneScoldService
             _everyoneScoldCooldown[messageParam.Author.Id] =
                 DateTime.Now.AddSeconds(_settings.EveryoneScoldPeriodSeconds);
 
-            await messageParam.Channel.SendMessageAsync(
+            await (messageParam.Channel.SendMessageAsync(
                     $"Please don't try to alert **everyone** on the server, {messageParam.Author.Mention}!\n" +
                     "If you are asking a question, people will help you when they have time.")
-                .DeleteAfterTime(minutes: 2);
+                .DeleteAfterTime(minutes: 2) ?? Task.CompletedTask);
         }
     }
 }

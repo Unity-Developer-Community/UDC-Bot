@@ -71,6 +71,8 @@ public class ProfileCardService
 
             using var profileCard = new MagickImageCollection();
             var skin = GetSkinData();
+            if (skin == null)
+                return profileCardPath;
             var profile = new ProfileData
             {
                 Karma = karma,

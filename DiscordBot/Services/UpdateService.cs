@@ -242,7 +242,9 @@ public class UpdateService
 
             if (job.TryGetValue("query", out var query))
             {
-                var pages = JsonConvert.DeserializeObject<List<WikiPage>>(job[query.Path]["pages"].ToString(), new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+                var pagesToken = job[query.Path]?["pages"];
+                if (pagesToken == null) return (null, null, null);
+                var pages = JsonConvert.DeserializeObject<List<WikiPage>>(pagesToken.ToString(), new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
                 if (pages != null && pages.Count > 0)
                 {

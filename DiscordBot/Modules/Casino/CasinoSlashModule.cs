@@ -236,7 +236,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                     }
 
                     if (isAdminRequest)
-                        queryUserId = targetUser.Id.ToString();
+                        queryUserId = targetUser!.Id.ToString();
                 }
 
                 const int transactionsPerPage = 5;

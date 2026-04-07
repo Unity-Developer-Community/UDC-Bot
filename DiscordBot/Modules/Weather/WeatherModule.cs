@@ -31,7 +31,7 @@ public class WeatherModule : ModuleBase
             .WithDescription(
                 "If the city isn't correct you will need to include the correct [city codes](https://www.iso.org/obp/ui/#search).\n**Example Usage**: *!Weather Wellington, UK*");
         await Context.Message.DeleteAsync();
-        await ReplyAsync(embed: builder.Build()).DeleteAfterSeconds(seconds: 30);
+        await ReplyAsync(embed: builder.Build()).DeleteAfterSeconds(seconds: 30)!;
     }
 
     #region Temperature
@@ -39,7 +39,7 @@ public class WeatherModule : ModuleBase
     private async Task<EmbedBuilder?> TemperatureEmbed(string city, string replaceCityWith = "")
     {
         WeatherContainer.Result? res = await WeatherService.GetWeather(city: city);
-        if (!await IsResultsValid(res))
+        if (!await IsResultsValid(res) || res is null)
             return null;
 
         EmbedBuilder builder = new EmbedBuilder()
@@ -88,7 +88,7 @@ public class WeatherModule : ModuleBase
     private async Task<EmbedBuilder?> WeatherEmbed(string city, string replaceCityWith = "")
     {
         WeatherContainer.Result? res = await WeatherService.GetWeather(city: city);
-        if (!await IsResultsValid(res))
+        if (!await IsResultsValid(res) || res is null)
             return null;
 
         string extraInfo = string.Empty;
@@ -167,13 +167,15 @@ public class WeatherModule : ModuleBase
     private async Task<EmbedBuilder?> PollutionEmbed(string city, string replaceCityWith = "")
     {
         WeatherContainer.Result? res = await WeatherService.GetWeather(city: city);
-        if (!await IsResultsValid(res))
+        if (!await IsResultsValid(res) || res is null)
             return null;
 
         // We can't really combine the call as having WeatherResults helps with other details
         PollutionContainer.Result? polResult =
             await WeatherService.GetPollution(Math.Round(res.coord.Lon, 4), Math.Round(res.coord.Lat, 4));
 
+        if (polResult is null)
+            return null;
 
         var comp = polResult.list[0].components;
         double combined = comp.CarbonMonoxide + comp.NitrogenMonoxide + comp.NitrogenDioxide + comp.Ozone +
@@ -244,7 +246,7 @@ public class WeatherModule : ModuleBase
     private async Task<EmbedBuilder?> TimeEmbed(string city, string replaceCityWith = "")
     {
         WeatherContainer.Result? res = await WeatherService.GetWeather(city: city);
-        if (!await IsResultsValid(res))
+        if (!await IsResultsValid(res) || res is null)
             return null;
 
         var timezone = res.timezone / 3600;
@@ -358,9 +360,9 @@ public class WeatherModule : ModuleBase
         var uname = Context.User.GetUserPreferredName();
         var fullCityName = string.Join(" ", city);
         var (exists, result) = await WeatherService.CityExists(fullCityName);
-        if (!exists)
+        if (!exists || result is null)
         {
-            await ReplyAsync($"Sorry, {uname}, but I couldn't find a city with that name.").DeleteAfterSeconds(30);
+            await ReplyAsync($"Sorry, {uname}, but I couldn't find a city with that name.").DeleteAfterSeconds(30)!;
             await Context.Message.DeleteAsync();
             return;
         }
@@ -376,7 +378,7 @@ public class WeatherModule : ModuleBase
         var uname = Context.User.GetUserPreferredName();
         if (!await UserExtendedService.DoesUserHaveDefaultCity(Context.User))
         {
-            await ReplyAsync($"{uname}, you don't have a default city set.").DeleteAfterSeconds(30);
+            await ReplyAsync($"{uname}, you don't have a default city set.").DeleteAfterSeconds(30)!;
             await Context.Message.DeleteAsync();
             return;
         }

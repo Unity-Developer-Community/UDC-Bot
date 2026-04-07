@@ -90,6 +90,7 @@ public class EmbedParsingService
     {
         var embedData = JsonConvert.DeserializeObject<EmbedData>(json);
         var builder = new Discord.EmbedBuilder();
+        if (embedData == null) return builder.Build();
 
         if (!string.IsNullOrEmpty(embedData.title)) builder.Title = embedData.title;
         if (!string.IsNullOrEmpty(embedData.description)) builder.Description = embedData.description;

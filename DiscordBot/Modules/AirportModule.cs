@@ -43,8 +43,8 @@ public class AirportModule : ModuleBase
         // Make sure command is in Bot-Commands or OffTopic
         if (Context.Channel.Id != Settings.BotCommandsChannel.Id && Context.Channel.Id != Settings.GeneralChannel.Id)
         {
-            await ReplyAsync($"Command can only be used in <#{Settings.BotCommandsChannel.Id}> or <#{Settings.GeneralChannel.Id}>.").DeleteAfterSeconds(5f);
-            await Context.Message.DeleteAfterSeconds(2f);
+            await (ReplyAsync($"Command can only be used in <#{Settings.BotCommandsChannel.Id}> or <#{Settings.GeneralChannel.Id}>.").DeleteAfterSeconds(5f) ?? Task.CompletedTask);
+            await (Context.Message.DeleteAfterSeconds(2f) ?? Task.CompletedTask);
             return;
         }
 
@@ -86,7 +86,7 @@ public class AirportModule : ModuleBase
         {
             embed.Description += "\\nNo flights found, sorry.";
             await msg.ModifyAsync(x => x.Embed = embed.Build());
-            await msg.DeleteAfterSeconds(30f);
+            await (msg.DeleteAfterSeconds(30f) ?? Task.CompletedTask);
             return;
         }
 
@@ -131,7 +131,7 @@ public class AirportModule : ModuleBase
         {
             embed.Description += $"\n{city} could not be found.";
             await msg.ModifyAsync(x => x.Embed = embed.Build());
-            await msg.DeleteAfterSeconds(10f);
+            await (msg.DeleteAfterSeconds(10f) ?? Task.CompletedTask);
             return null;
         }
         return cityResult;
@@ -144,7 +144,7 @@ public class AirportModule : ModuleBase
         {
             embed.Description += $"\nAirport near {weather.name} ({weather.sys.country}) could not be found.";
             await msg.ModifyAsync(x => x.Embed = embed.Build());
-            await msg.DeleteAfterSeconds(10f);
+            await (msg.DeleteAfterSeconds(10f) ?? Task.CompletedTask);
             return null;
         }
         return airportResult;

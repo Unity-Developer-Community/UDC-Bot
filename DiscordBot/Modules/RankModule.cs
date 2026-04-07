@@ -14,11 +14,13 @@ public class RankModule : ModuleBase
     [Alias("toplevel", "ranking")]
     public async Task TopLevel()
     {
-        var users = await DatabaseService.Query.GetTopLevel(10);
+        var query = DatabaseService.Query;
+        if (query == null) return;
+        var users = await query.GetTopLevel(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.Level)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Level");
-        await ReplyAsync(embed: embed).DeleteAfterTime(minutes: 1);
+        await (ReplyAsync(embed: embed).DeleteAfterTime(minutes: 1) ?? Task.CompletedTask);
     }
 
     [Command("TopKarma"), Priority(5)]
@@ -26,11 +28,13 @@ public class RankModule : ModuleBase
     [Alias("karmarank", "rankingkarma", "topk")]
     public async Task TopKarma()
     {
-        var users = await DatabaseService.Query.GetTopKarma(10);
+        var query = DatabaseService.Query;
+        if (query == null) return;
+        var users = await query.GetTopKarma(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.Karma)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Karma");
-        await ReplyAsync(embed: embed).DeleteAfterTime(minutes: 1);
+        await (ReplyAsync(embed: embed).DeleteAfterTime(minutes: 1) ?? Task.CompletedTask);
     }
 
     [Command("TopKarmaWeekly"), Priority(5)]
@@ -38,11 +42,13 @@ public class RankModule : ModuleBase
     [Alias("karmarankweekly", "rankingkarmaweekly", "topkw")]
     public async Task TopKarmaWeekly()
     {
-        var users = await DatabaseService.Query.GetTopKarmaWeekly(10);
+        var query = DatabaseService.Query;
+        if (query == null) return;
+        var users = await query.GetTopKarmaWeekly(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.KarmaWeekly)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Weekly Karma");
-        await ReplyAsync(embed: embed).DeleteAfterTime(minutes: 1);
+        await (ReplyAsync(embed: embed).DeleteAfterTime(minutes: 1) ?? Task.CompletedTask);
     }
 
     [Command("TopKarmaMonthly"), Priority(5)]
@@ -50,11 +56,13 @@ public class RankModule : ModuleBase
     [Alias("karmarankmonthly", "rankingkarmamonthly", "topkm")]
     public async Task TopKarmaMonthly()
     {
-        var users = await DatabaseService.Query.GetTopKarmaMonthly(10);
+        var query = DatabaseService.Query;
+        if (query == null) return;
+        var users = await query.GetTopKarmaMonthly(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.KarmaMonthly)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Monthly Karma");
-        await ReplyAsync(embed: embed).DeleteAfterTime(minutes: 1);
+        await (ReplyAsync(embed: embed).DeleteAfterTime(minutes: 1) ?? Task.CompletedTask);
     }
 
     [Command("TopKarmaYearly"), Priority(5)]
@@ -62,11 +70,13 @@ public class RankModule : ModuleBase
     [Alias("karmaranktearly", "rankingkarmayearly", "topky")]
     public async Task TopKarmaYearly()
     {
-        var users = await DatabaseService.Query.GetTopKarmaYearly(10);
+        var query = DatabaseService.Query;
+        if (query == null) return;
+        var users = await query.GetTopKarmaYearly(10);
         var userList = users.Select(user => (ulong.Parse(user.UserID), user.KarmaYearly)).ToList();
 
         var embed = await GenerateRankEmbedFromList(userList, "Yearly Karma");
-        await ReplyAsync(embed: embed).DeleteAfterTime(minutes: 1);
+        await (ReplyAsync(embed: embed).DeleteAfterTime(minutes: 1) ?? Task.CompletedTask);
     }
 
     private async Task<Embed> GenerateRankEmbedFromList(List<(ulong userID, int value)> data, string labelName)

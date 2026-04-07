@@ -29,7 +29,7 @@ public class ServerModule : ModuleBase
             }
             catch (Exception)
             {
-                await ReplyAsync($"Your direct messages are disabled, please use <#{Settings.BotCommandsChannel.Id}> instead!").DeleteAfterSeconds(10);
+                await ReplyAsync($"Your direct messages are disabled, please use <#{Settings.BotCommandsChannel.Id}> instead!").DeleteAfterSeconds(10)!;
             }
         }
         else
@@ -51,9 +51,9 @@ public class ServerModule : ModuleBase
         var time = message.CreatedAt.Subtract(Context.Message.Timestamp);
         await message.ModifyAsync(m =>
             m.Content = $"Pong (**{time.TotalMilliseconds}** *ms* / gateway **{ServerService.GetGatewayPing()}** *ms*)");
-        await message.DeleteAfterTime(seconds: 10);
+        await message.DeleteAfterTime(seconds: 10)!;
 
-        await Context.Message.DeleteAfterTime(seconds: 5);
+        await Context.Message.DeleteAfterTime(seconds: 5)!;
     }
 
     [Command("Members"), Priority(90)]

@@ -34,7 +34,7 @@ public class TicketModule : ModuleBase
         if (channels.Any(channel => channel.Name == channelName && (!categoryExist || ((INestedChannel)channel).CategoryId == Settings.ComplaintCategoryId)))
         {
             await ReplyAsync($"{Context.User.Mention}, you already have an open complaint! Please use that channel!")
-                .DeleteAfterSeconds(15);
+                .DeleteAfterSeconds(15)!;
             return;
         }
 

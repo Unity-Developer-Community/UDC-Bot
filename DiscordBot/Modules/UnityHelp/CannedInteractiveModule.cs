@@ -26,6 +26,7 @@ public class CannedInteractiveModule : InteractionModuleBase
             return;
 
         var embed = CannedResponseService.GetCannedResponse((CannedResponseType)type);
+        if (embed == null) return;
         await Context.Interaction.RespondAsync(string.Empty, embed: embed.Build());
     }
 
@@ -36,6 +37,7 @@ public class CannedInteractiveModule : InteractionModuleBase
             return;
 
         var embed = CannedResponseService.GetCannedResponse((CannedResponseType)type);
+        if (embed == null) return;
         await Context.Interaction.RespondAsync(string.Empty, embed: embed.Build());
     }
 }

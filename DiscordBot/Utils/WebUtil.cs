@@ -54,7 +54,7 @@ public static class WebUtil
         try
         {
             var doc = await GetHtmlDocument(url);
-            return doc.DocumentNode.SelectSingleNode(xpath);
+            return doc?.DocumentNode.SelectSingleNode(xpath);
         }
         catch (Exception)
         {
@@ -70,7 +70,7 @@ public static class WebUtil
         try
         {
             var doc = await GetHtmlDocument(url);
-            return doc.DocumentNode.SelectNodes(xpath);
+            return doc?.DocumentNode.SelectNodes(xpath);
         }
         catch (Exception)
         {

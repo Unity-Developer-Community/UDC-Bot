@@ -518,12 +518,16 @@ public class UnityHelpService
         await CancelPreviousWarning(thread, expectedShutdownTime);
 
         thread.CancellationToken ??= new CancellationTokenSource();
+        if (threadChannel == null)
+            return;
+
         // Send our message
         if (!string.IsNullOrEmpty(message))
         {
             await threadChannel.SendMessageAsync(message);
         }
         thread.ExpectedShutdownTime = expectedShutdownTime;
+        // Wait for the time to pass
         await Task.Delay(minutes * 60 * 1000, thread.CancellationToken.Token);
         if (await IsTaskCancelled(thread))
             return;
@@ -541,6 +545,8 @@ public class UnityHelpService
         // Check if token already created, each thread shares its own token with any relevant action (close, delete, etc)
         await CancelPreviousWarning(thread, expectedWarnTime);
         thread.CancellationToken ??= new CancellationTokenSource();
+        if (threadChannel == null)
+            return;
 
         thread.ExpectedShutdownTime = expectedWarnTime;
         await Task.Delay(minutes * 60 * 1000, thread.CancellationToken.Token);
@@ -569,8 +575,10 @@ public class UnityHelpService
         var threadChannel = _client.GetChannel(thread.ThreadId) as SocketThreadChannel;
 
         thread.CancellationToken ??= new CancellationTokenSource();
+        if (threadChannel == null)
+            return;
+
         thread.ExpectedShutdownTime = expectedShutdownTime;
-        // Wait for the time to pass
         await Task.Delay(NoResponseNotResolvedIdleTime * 60 * 1000, thread.CancellationToken.Token);
         if (await IsTaskCancelled(thread))
             return;

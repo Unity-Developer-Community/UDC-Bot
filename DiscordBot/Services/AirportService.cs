@@ -187,6 +187,8 @@ public class AirportService
         var url = string.Format(_airLabsNearbyCityRoute, lat, lng);
 
         var result = await SerializeUtil.LoadUrlDeserializeResult<AirLabsSuperRoot>(url);
+        if (result?.response?.airports == null)
+            return null;
 
         // Sort by popularity
         result.response.airports.Sort((a, b) => b.popularity.CompareTo(a.popularity));

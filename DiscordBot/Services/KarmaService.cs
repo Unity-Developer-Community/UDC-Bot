@@ -70,12 +70,12 @@ public class KarmaService
         {
             if (_thanksCooldown.HasUser(userId))
             {
-                await messageParam.Channel.SendMessageAsync(
-                        $"{messageParam.Author.Mention} you must wait " +
+                await messageParam.Channel!.SendMessageAsync(
+                        $"{messageParam.Author!.Mention} you must wait " +
                         $"{DateTime.Now - _thanksCooldown[userId]:ss} " +
                         "seconds before giving another karma point." + Environment.NewLine +
                         "(In the future, if you are trying to thank multiple people, include all their names in the thanks message.)")
-                    .DeleteAfterTime(defaultDelTime);
+                    .DeleteAfterTime(defaultDelTime)!;
                 return;
             }
 
@@ -90,11 +90,15 @@ public class KarmaService
             sb.Append(messageParam.Author.GetUserPreferredName().ToBold());
             sb.Append(" gave karma to ");
             sb.Append(mentions.ToArray().ToUserPreferredNameArray().ToBoldArray().ToCommaList());
-            foreach (var mention in mentions)
-                await _databaseService.Query.IncrementKarma(mention.Id.ToString());
+            var dbQuery = _databaseService.Query;
+            if (dbQuery != null)
+            {
+                foreach (var mention in mentions)
+                    await dbQuery.IncrementKarma(mention.Id.ToString());
 
-            var authorKarmaGiven = await _databaseService.Query.GetKarmaGiven(messageParam.Author.Id.ToString());
-            await _databaseService.Query.UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
+                var authorKarmaGiven = await dbQuery.GetKarmaGiven(messageParam.Author.Id.ToString());
+                await dbQuery.UpdateKarmaGiven(messageParam.Author.Id.ToString(), authorKarmaGiven + 1);
+            }
 
             sb.Append(".");
 

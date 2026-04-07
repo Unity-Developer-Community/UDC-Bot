@@ -25,16 +25,15 @@ public class ReminderModule : ModuleBase
     {
         if (Context.Message.MentionedEveryone || Context.Message.MentionedRoleIds.Count > 0)
         {
-            await ReplyAsync("You can't mention groups or roles in a reminder.").DeleteAfterSeconds(seconds: 5);
+            await (ReplyAsync("You can't mention groups or roles in a reminder.").DeleteAfterSeconds(seconds: 5) ?? Task.CompletedTask);
             return;
         }
 
         if (Context.Message.MentionedUserIds.Count > 0)
         {
             // IUserMessage does not guarantee .MentionedUsers so go through the class instead if possible
-            if (Context.Message is SocketMessage)
+            if (Context.Message is SocketMessage sm)
             {
-                var sm = (Context.Message as SocketMessage);
                 // convert <@123> to **Joe**
                 foreach (var user in sm.MentionedUsers)
                     message = Regex.Replace(message, $"[<][@]{user.Id}[>]", user.GetUserPreferredName().ToBold());
@@ -43,7 +42,7 @@ public class ReminderModule : ModuleBase
             }
             else
             {
-                await ReplyAsync($"You can't mention users in a reminder.\n`{message}`").DeleteAfterSeconds(seconds: 5);
+                await (ReplyAsync($"You can't mention users in a reminder.\n`{message}`").DeleteAfterSeconds(seconds: 5) ?? Task.CompletedTask);
                 return;
             }
         }
@@ -52,9 +51,9 @@ public class ReminderModule : ModuleBase
         if (reminderDate < DateTime.Now)
         {
             // There isn't really a way to add negative time
-            await ReplyAsync(
+            await (ReplyAsync(
 "Invalid format for reminder.\\nCorrect Syntax: ``!remindme <1hour5m> <optional message>``")
-                .DeleteAfterSeconds(seconds: 10);
+                .DeleteAfterSeconds(seconds: 10) ?? Task.CompletedTask);
             return;
         }
 
@@ -71,8 +70,8 @@ public class ReminderModule : ModuleBase
         // Check if user has to many reminders and tell them to delete some if so
         if (ReminderService.UserHasTooManyReminders(Context.User.Id))
         {
-            await ReplyAsync("You have too many reminders! Please delete some before adding more.")
-                .DeleteAfterSeconds(seconds: 10);
+            await (ReplyAsync("You have too many reminders! Please delete some before adding more.")
+                .DeleteAfterSeconds(seconds: 10) ?? Task.CompletedTask);
             return;
         }
 
@@ -94,9 +93,9 @@ public class ReminderModule : ModuleBase
 
         ReminderService.AddReminder(reminder);
         await Context.Message.AddReactionAsync(ReminderService.BotResponseEmoji);
-        await ReplyAsync(
+        await (ReplyAsync(
                 $"Reminder set for {Utils.Utils.FormatTime((uint)(reminderDate - DateTime.Now).TotalSeconds)}")
-            .DeleteAfterSeconds(seconds: 10);
+            .DeleteAfterSeconds(seconds: 10) ?? Task.CompletedTask);
     }
 
     [Command("remindme"), HideFromHelp]
@@ -138,7 +137,7 @@ public class ReminderModule : ModuleBase
         var reminders = ReminderService.GetUserReminders(user.Id);
         if (reminders.Count == 0)
         {
-            await ReplyAsync($"{user.Username} has no reminders!").DeleteAfterSeconds(seconds: 5);
+            await (ReplyAsync($"{user.Username} has no reminders!").DeleteAfterSeconds(seconds: 5) ?? Task.CompletedTask);
             return;
         }
 
@@ -154,9 +153,9 @@ public class ReminderModule : ModuleBase
                 $"[Link]({msgLink}) \"{reminder.Message}\"");
         }
         if (await Context.Guild.GetChannelAsync(Settings.BotCommandsChannel.Id) is IMessageChannel botCommands)
-            await botCommands
+            await (botCommands
                 .SendMessageAsync(Context.User.Mention, false, embed.Build())
-                .DeleteAfterSeconds(seconds: 30);
+                .DeleteAfterSeconds(seconds: 30) ?? Task.CompletedTask);
     }
 
     // Removes a users reminders for them
@@ -165,7 +164,7 @@ public class ReminderModule : ModuleBase
     [Summary("Clears user reminders.")]
     public async Task RemoveReminders(IUser user, int index = 0)
     {
-        await Context.Message.DeleteAfterSeconds(seconds: 1);
+        await (Context.Message?.DeleteAfterSeconds(seconds: 1) ?? Task.CompletedTask);
         int removedReminders = ReminderService.RemoveReminders(user, index);
         if (removedReminders == 0)
             return;
@@ -175,7 +174,7 @@ public class ReminderModule : ModuleBase
             return;
         }
 
-        await ReplyAsync($"{removedReminders.ToString()} Reminders removed.").DeleteAfterSeconds(seconds: 2);
+        await (ReplyAsync($"{removedReminders.ToString()} Reminders removed.").DeleteAfterSeconds(seconds: 2) ?? Task.CompletedTask);
     }
 
     [RequireModerator]
@@ -185,15 +184,15 @@ public class ReminderModule : ModuleBase
     {
         if (ReminderService.IsRunning)
         {
-            await ReplyAsync("Reminder service is still running.").DeleteAfterSeconds(seconds: 5);
+            await (ReplyAsync("Reminder service is still running.").DeleteAfterSeconds(seconds: 5) ?? Task.CompletedTask);
             return;
         }
 
         var result = ReminderService.RestartService();
         if (result)
-            await ReplyAsync("Reminder service restarted.").DeleteAfterSeconds(seconds: 5);
+            await (ReplyAsync("Reminder service restarted.").DeleteAfterSeconds(seconds: 5) ?? Task.CompletedTask);
         else
-            await ReplyAsync("Reminder service failed to restart.").DeleteAfterSeconds(seconds: 5);
+            await (ReplyAsync("Reminder service failed to restart.").DeleteAfterSeconds(seconds: 5) ?? Task.CompletedTask);
     }
 
     #endregion

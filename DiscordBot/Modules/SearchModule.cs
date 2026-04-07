@@ -79,7 +79,7 @@ public class SearchModule : ModuleBase
             }
         }
         else
-            await ReplyAsync("No Results Found.").DeleteAfterSeconds(seconds: 10);
+            await ReplyAsync("No Results Found.").DeleteAfterSeconds(seconds: 10)!;
     }
 
     [Command("Doc"), Priority(9)]
@@ -116,7 +116,7 @@ public class SearchModule : ModuleBase
             await message.ModifyAsync(msg => msg.Embed = embedBuilder.Build());
         }
         else
-            await ReplyAsync("No Results Found.").DeleteAfterSeconds(seconds: 10);
+            await ReplyAsync("No Results Found.").DeleteAfterSeconds(seconds: 10)!;
     }
 
     [Command("Wiki"), Priority(26)]

@@ -37,7 +37,7 @@ public class GeneralHelpModule : ModuleBase
             foreach (var url in urls)
             {
                 errorPage = await WebUtil.GetHtmlDocument($"{url}{error}");
-                if (errorPage.DocumentNode.InnerHtml.Contains("Page not found"))
+                if (errorPage == null || errorPage.DocumentNode.InnerHtml.Contains("Page not found"))
                 {
                     continue;
                 }
@@ -81,7 +81,7 @@ public class GeneralHelpModule : ModuleBase
 
     private async Task respondFailure(string errorMessage)
     {
-        await ReplyAsync(errorMessage).DeleteAfterSeconds(30);
-        await Context.Message.DeleteAfterSeconds(30);
+        await (ReplyAsync(errorMessage).DeleteAfterSeconds(30) ?? Task.CompletedTask);
+        await (Context.Message?.DeleteAfterSeconds(30) ?? Task.CompletedTask);
     }
 }

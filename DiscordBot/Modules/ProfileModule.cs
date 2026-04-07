@@ -15,7 +15,7 @@ public class ProfileModule : ModuleBase
     {
         var uname = Context.User.GetUserPreferredName();
         await ReplyAsync($"{uname}, Karma is tracked on your !profile which helps indicate how much you've helped others and provides a small increase in EXP gain.");
-        await Context.Message.DeleteAfterSeconds(seconds: seconds);
+        await (Context.Message?.DeleteAfterSeconds(seconds: seconds) ?? Task.CompletedTask);
     }
 
     [Command("JoinDate"), Priority(91)]
@@ -46,12 +46,12 @@ public class ProfileModule : ModuleBase
             var profileCard = await ProfileCardService.GenerateProfileCard(user);
             if (string.IsNullOrEmpty(profileCard))
             {
-                await ReplyAsync("Failed to generate profile card.").DeleteAfterSeconds(seconds: 10);
+                await (ReplyAsync("Failed to generate profile card.").DeleteAfterSeconds(seconds: 10) ?? Task.CompletedTask);
                 return;
             }
 
             var profile = await Context.Channel.SendFileAsync(profileCard);
-            await profile.DeleteAfterTime(minutes: 3);
+            await (profile?.DeleteAfterTime(minutes: 3) ?? Task.CompletedTask);
         }
         catch (Exception e)
         {

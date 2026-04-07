@@ -33,7 +33,7 @@ public class UnityHelpModule : ModuleBase
     {
         if (!BotSettings.UnityHelpBabySitterEnabled)
         {
-            await ReplyAsync("UnityHelp Service currently disabled.").DeleteAfterSeconds(15);
+            await ReplyAsync("UnityHelp Service currently disabled.").DeleteAfterSeconds(15)!;
             return;
         }
         var trackedQuestionCount = HelpService.GetTrackedQuestionCount();
