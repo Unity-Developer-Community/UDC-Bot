@@ -325,11 +325,6 @@ public class TipService
                 settings));
     }
 
-    public string DumpTipDatabase()
-    {
-        return JsonConvert.SerializeObject(_tips);
-    }
-
     public Tip? GetTip(ulong Id)
     {
         foreach (var kvp in _tips)
