@@ -80,21 +80,21 @@ public class UnityHelpService
     {
         _client = client;
 
-        ModeratorRole = _client.GetGuild(settings.GuildId).GetRole(settings.ModeratorRoleId);
+        ModeratorRole = _client.GetGuild(settings.GuildId).GetRole(settings.Roles.Moderator);
 
-        if (!settings.UnityHelpBabySitterEnabled)
+        if (!settings.UnityHelp.BabySitterEnabled)
         {
-            LoggingService.LogServiceDisabled(ServiceName, nameof(settings.UnityHelpBabySitterEnabled));
+            LoggingService.LogServiceDisabled(ServiceName, nameof(settings.UnityHelp.BabySitterEnabled));
             return;
         }
 
-        // get the help channel settings.GenericHelpChannel
-        _helpChannel = (_client.GetChannel(settings.GenericHelpChannel.Id) as IForumChannel)!;
+        // get the help channel settings.Channels.GenericHelp
+        _helpChannel = (_client.GetChannel(settings.Channels.GenericHelp.Id) as IForumChannel)!;
         if (_helpChannel == null)
         {
             LoggingService.LogToConsole($"[{ServiceName}] Help channel not found", LogSeverity.Error);
         }
-        var resolvedTag = _helpChannel!.Tags.FirstOrDefault(x => x.Id == ulong.Parse(settings.TagUnityHelpResolved));
+        var resolvedTag = _helpChannel!.Tags.FirstOrDefault(x => x.Id == ulong.Parse(settings.UnityHelp.TagResolved));
         if (resolvedTag == null || resolvedTag.Id <= 0)
             LoggingService.LogToConsole($"[{ServiceName}] Resolved tag not found", LogSeverity.Error);
         _resolvedForumTag = resolvedTag;

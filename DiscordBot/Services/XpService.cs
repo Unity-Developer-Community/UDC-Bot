@@ -30,7 +30,7 @@ public class XpService
         _xpMinCooldown = userSettings.XpMinCooldown;
         _xpMaxCooldown = userSettings.XpMaxCooldown;
 
-        _noXpChannels = new List<ulong> { settings.BotCommandsChannel.Id };
+        _noXpChannels = new List<ulong> { settings.Channels.BotCommands.Id };
 
         client.MessageReceived += EventGuard.Guarded<SocketMessage>(UpdateXp, nameof(UpdateXp));
     }

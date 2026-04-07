@@ -24,14 +24,14 @@ public class TicketModule : ModuleBase
     {
         await Context.Message.DeleteAsync();
 
-        var categoryExist = (await Context.Guild.GetCategoriesAsync()).Any(category => category.Id == Settings.ComplaintCategoryId);
+        var categoryExist = (await Context.Guild.GetCategoriesAsync()).Any(category => category.Id == Settings.Channels.ComplaintCategoryId);
 
         var hash = Context.User.Id.ToString().GetSha256().Substring(0, 8);
-        var channelName = ParseToDiscordChannel($"{Settings.ComplaintChannelPrefix}-{hash}");
+        var channelName = ParseToDiscordChannel($"{Settings.Channels.ComplaintPrefix}-{hash}");
 
         var channels = await Context.Guild.GetChannelsAsync();
         // Check if channel with same name already exist in the Complaint Category (if it exists).
-        if (channels.Any(channel => channel.Name == channelName && (!categoryExist || ((INestedChannel)channel).CategoryId == Settings.ComplaintCategoryId)))
+        if (channels.Any(channel => channel.Name == channelName && (!categoryExist || ((INestedChannel)channel).CategoryId == Settings.Channels.ComplaintCategoryId)))
         {
             await ReplyAsync($"{Context.User.Mention}, you already have an open complaint! Please use that channel!")
                 .DeleteAfterSeconds(15)!;
@@ -40,11 +40,11 @@ public class TicketModule : ModuleBase
 
         var newChannel = await Context.Guild.CreateTextChannelAsync(channelName, x =>
         {
-            if (categoryExist) x.CategoryId = Settings.ComplaintCategoryId;
+            if (categoryExist) x.CategoryId = Settings.Channels.ComplaintCategoryId;
         });
 
         var userPerms = new OverwritePermissions(viewChannel: PermValue.Allow);
-        var modRole = Context.Guild.Roles.First(r => r.Id == Settings.ModeratorRoleId);
+        var modRole = Context.Guild.Roles.First(r => r.Id == Settings.Roles.Moderator);
         await newChannel.AddPermissionOverwriteAsync(Context.Guild.EveryoneRole, new OverwritePermissions(viewChannel: PermValue.Deny));
         await newChannel.AddPermissionOverwriteAsync(Context.User, userPerms);
         await newChannel.AddPermissionOverwriteAsync(modRole, userPerms);
@@ -66,9 +66,9 @@ public class TicketModule : ModuleBase
     {
         await Context.Message.DeleteAsync();
 
-        if (!Context.Channel.Name.StartsWith(Settings.ComplaintChannelPrefix.ToLower())) return;
+        if (!Context.Channel.Name.StartsWith(Settings.Channels.ComplaintPrefix.ToLower())) return;
 
-        var categoryExist = (await Context.Guild.GetCategoriesAsync()).Any(category => category.Id == Settings.ClosedComplaintCategoryId);
+        var categoryExist = (await Context.Guild.GetCategoriesAsync()).Any(category => category.Id == Settings.Channels.ClosedComplaintCategoryId);
 
         var currentChannel = await Context.Guild.GetChannelAsync(Context.Channel.Id);
 
@@ -81,10 +81,10 @@ public class TicketModule : ModuleBase
             await currentChannel.RemovePermissionOverwriteAsync(user);
         }
 
-        var newName = Settings.ClosedComplaintChannelPrefix + currentChannel.Name;
+        var newName = Settings.Channels.ClosedComplaintPrefix + currentChannel.Name;
         await currentChannel.ModifyAsync(x =>
         {
-            if (categoryExist) x.CategoryId = Settings.ClosedComplaintCategoryId;
+            if (categoryExist) x.CategoryId = Settings.Channels.ClosedComplaintCategoryId;
             x.Name = newName;
         });
     }
@@ -98,8 +98,8 @@ public class TicketModule : ModuleBase
     {
         await Context.Message.DeleteAsync();
 
-        if (Context.Channel.Name.StartsWith(Settings.ComplaintChannelPrefix.ToLower()) ||
-            Context.Channel.Name.StartsWith(Settings.ClosedComplaintChannelPrefix.ToLower()))
+        if (Context.Channel.Name.StartsWith(Settings.Channels.ComplaintPrefix.ToLower()) ||
+            Context.Channel.Name.StartsWith(Settings.Channels.ClosedComplaintPrefix.ToLower()))
         {
             await Context.Guild.GetChannelAsync(Context.Channel.Id).Result.DeleteAsync();
         }

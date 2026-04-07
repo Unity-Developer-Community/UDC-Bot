@@ -52,17 +52,17 @@ public class RecruitService
     public RecruitService(DiscordSocketClient client, BotSettings settings)
     {
         _client = client;
-        ModeratorRole = _client.GetGuild(settings.GuildId).GetRole(settings.ModeratorRoleId);
+        ModeratorRole = _client.GetGuild(settings.GuildId).GetRole(settings.Roles.Moderator);
 
-        if (!settings.RecruitmentServiceEnabled)
+        if (!settings.Recruitment.Enabled)
         {
-            LoggingService.LogServiceDisabled(ServiceName, nameof(settings.RecruitmentServiceEnabled));
+            LoggingService.LogServiceDisabled(ServiceName, nameof(settings.Recruitment.Enabled));
             return;
         }
-        _editTimePermissionInMin = settings.EditPermissionAccessTimeMin;
+        _editTimePermissionInMin = settings.Recruitment.EditPermissionAccessTimeMin;
 
         // Get target channel
-        _recruitChannel = _client.GetChannel(settings.RecruitmentChannel.Id) as IForumChannel;
+        _recruitChannel = _client.GetChannel(settings.Channels.Recruitment.Id) as IForumChannel;
         if (_recruitChannel == null)
         {
             LoggingService.LogToConsole("[{ServiceName}] Recruitment channel not found.", LogSeverity.Error);
@@ -71,10 +71,10 @@ public class RecruitService
 
         try
         {
-            var lookingToHire = ulong.Parse(settings.TagLookingToHire);
-            var lookingForWork = ulong.Parse(settings.TagLookingForWork);
-            var unpaidCollab = ulong.Parse(settings.TagUnpaidCollab);
-            var positionFilled = ulong.Parse(settings.TagPositionFilled);
+            var lookingToHire = ulong.Parse(settings.Recruitment.TagLookingToHire);
+            var lookingForWork = ulong.Parse(settings.Recruitment.TagLookingForWork);
+            var unpaidCollab = ulong.Parse(settings.Recruitment.TagUnpaidCollab);
+            var positionFilled = ulong.Parse(settings.Recruitment.TagPositionFilled);
 
             var availableTags = _recruitChannel.Tags;
             _tagIsHiring = availableTags.First(x => x.Id == lookingToHire);
@@ -83,10 +83,10 @@ public class RecruitService
             _tagPosFilled = availableTags.First(x => x.Id == positionFilled);
 
             // If any tags are null we print a logging warning
-            if (_tagIsHiring == null) StartUpTagMissing(lookingToHire, nameof(settings.TagLookingToHire));
-            if (_tagWantsWork == null) StartUpTagMissing(lookingForWork, nameof(settings.TagLookingForWork));
-            if (_tagUnpaidCollab == null) StartUpTagMissing(unpaidCollab, nameof(settings.TagUnpaidCollab));
-            if (_tagPosFilled == null) StartUpTagMissing(positionFilled, nameof(settings.TagPositionFilled));
+            if (_tagIsHiring == null) StartUpTagMissing(lookingToHire, nameof(settings.Recruitment.TagLookingToHire));
+            if (_tagWantsWork == null) StartUpTagMissing(lookingForWork, nameof(settings.Recruitment.TagLookingForWork));
+            if (_tagUnpaidCollab == null) StartUpTagMissing(unpaidCollab, nameof(settings.Recruitment.TagUnpaidCollab));
+            if (_tagPosFilled == null) StartUpTagMissing(positionFilled, nameof(settings.Recruitment.TagPositionFilled));
         }
         catch (Exception e)
         {

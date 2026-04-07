@@ -40,14 +40,14 @@ public class TipService
             return;
         }
 
-        if (string.IsNullOrEmpty(_settings.TipImageDirectory))
+        if (string.IsNullOrEmpty(_settings.UnityHelp.TipImageDirectory))
         {
             _loggingService.LogAction($"[{ServiceName}] TipImageDirectory not set, service will not run.", ExtendedLogSeverity.Warning);
             _isRunning = false;
             return;
         }
 
-        _imageDirectory = Path.Combine(_settings.ServerRootPath, _settings.TipImageDirectory);
+        _imageDirectory = Path.Combine(_settings.ServerRootPath, _settings.UnityHelp.TipImageDirectory);
 
         Initialize();
     }
@@ -67,14 +67,14 @@ public class TipService
         else
         {
             var directorySize = new DirectoryInfo(_imageDirectory).EnumerateFiles("*.*", SearchOption.AllDirectories).Sum(file => file.Length);
-            if (directorySize > _settings.TipMaxDirectoryFileSize)
+            if (directorySize > _settings.UnityHelp.TipMaxDirectoryFileSize)
             {
-                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024f:.#} MB, exceeding the limit of {_settings.TipMaxDirectoryFileSize / 1024 / 1024f:.#} MB, no additional content will be added during this session.", ExtendedLogSeverity.Warning);
+                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024f:.#} MB, exceeding the limit of {_settings.UnityHelp.TipMaxDirectoryFileSize / 1024 / 1024f:.#} MB, no additional content will be added during this session.", ExtendedLogSeverity.Warning);
                 _readOnly = true;
             }
             else
             {
-                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024f:.#} MB, within the limit of {_settings.TipMaxDirectoryFileSize / 1024 / 1024f:.#} MB.", ExtendedLogSeverity.Info);
+                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024f:.#} MB, within the limit of {_settings.UnityHelp.TipMaxDirectoryFileSize / 1024 / 1024f:.#} MB.", ExtendedLogSeverity.Info);
                 _loggingService.LogAction($"[{ServiceName}] Tip directory contains {new DirectoryInfo(_imageDirectory).EnumerateFiles("*.*", SearchOption.AllDirectories).Count()} files.",
                     ExtendedLogSeverity.Info);
             }
@@ -104,7 +104,7 @@ public class TipService
 
     private bool IsValidTipAttachment(IAttachment attachment)
     {
-        if (attachment.Size > _settings.TipMaxImageFileSize)
+        if (attachment.Size > _settings.UnityHelp.TipMaxImageFileSize)
             return false;
 
         // Discord-friendly attachment image file formats only

@@ -18,7 +18,7 @@ public class ServerModule : ModuleBase
     public async Task DisplayHelp()
     {
         var commandMessages = CommandHandlingService.GetCommandListMessages("UserModule", false, true, false);
-        if (Context.Channel.Id != Settings.BotCommandsChannel.Id)
+        if (Context.Channel.Id != Settings.Channels.BotCommands.Id)
         {
             try
             {
@@ -29,7 +29,7 @@ public class ServerModule : ModuleBase
             }
             catch (Exception)
             {
-                await ReplyAsync($"Your direct messages are disabled, please use <#{Settings.BotCommandsChannel.Id}> instead!").DeleteAfterSeconds(10)!;
+                await ReplyAsync($"Your direct messages are disabled, please use <#{Settings.Channels.BotCommands.Id}> instead!").DeleteAfterSeconds(10)!;
             }
         }
         else

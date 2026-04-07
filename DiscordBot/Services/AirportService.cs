@@ -169,10 +169,10 @@ public class AirportService
 
     public AirportService(BotSettings botSettings)
     {
-        _flightApiKey = botSettings.FlightAPIKey;
-        _flightSecret = botSettings.FlightAPISecret;
+        _flightApiKey = botSettings.ApiKeys.Flight;
+        _flightSecret = botSettings.ApiKeys.FlightSecret;
 
-        _airLabsAPIInclude = string.Format(_airLabsAPIInclude, botSettings.AirLabAPIKey);
+        _airLabsAPIInclude = string.Format(_airLabsAPIInclude, botSettings.ApiKeys.AirLab);
         _airLabsNearbyCityRoute += _airLabsAPIInclude + _airLabsAPIRequiredFields;
     }
 

@@ -11,12 +11,12 @@ public class BotCommandChannelAttribute : PreconditionAttribute
     {
         var settings = services.GetRequiredService<BotSettings>();
 
-        if (context.Channel.Id == settings.BotCommandsChannel.Id)
+        if (context.Channel.Id == settings.Channels.BotCommands.Id)
         {
             return await Task.FromResult(PreconditionResult.FromSuccess());
         }
 
         _ = context.Message.DeleteAfterSeconds(seconds: 10);
-        return await Task.FromResult(PreconditionResult.FromError($"This command can only be used in <#{settings.BotCommandsChannel.Id.ToString()}>."));
+        return await Task.FromResult(PreconditionResult.FromError($"This command can only be used in <#{settings.Channels.BotCommands.Id.ToString()}>."));
     }
 }

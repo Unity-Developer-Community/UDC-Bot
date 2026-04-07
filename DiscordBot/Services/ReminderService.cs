@@ -40,7 +40,7 @@ public class ReminderService
     {
         _client = client;
         _loggingService = loggingService;
-        _botCommandsChannel = settings.BotCommandsChannel;
+        _botCommandsChannel = settings.Channels.BotCommands;
         _serverRootPath = settings.ServerRootPath;
         _shutdownToken = cts.Token;
 

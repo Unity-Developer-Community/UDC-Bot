@@ -15,85 +15,71 @@ data:
             "Token": "${BOT_TOKEN}",
             "DbConnectionString": "Host=postgresql;Port=5432;Database=udcbot;Username=udcbot;Password=${DB_PASSWORD}",
             "Invite": "InviteLink",
-            /*Server Info*/
             "ServerRootPath": "./SERVER",
             "AssetsRootPath": "./Assets",
-            /* Base info */
             "Prefix": "!",
-            "ModeratorRoleId": "769010537119088690",
-            "GuildId": "566084539664039938", // Replace with your servers guild ID
-            /* Channel IDs for certain channels. */
-            "GeneralChannel": { // Off-topic
-                "desc": "General-Chat Channel",
-                "id": "566084539664039944"
-            },
-            "BotAnnouncementChannel": { // Most bot logs will go here
-                "desc": "Bot-Announcement Channel",
-                "id": "567628191221547008"
-            },
-            "BotCommandsChannel": {
-                "desc": "Bot-Commands Channel",
-                "id": "599583999379243008"
-            },
-            "UnityNewsChannel": {
-                "desc": "Unity News Channel",
-                "id": "1022102744552710154"
-            },
-            "UnityReleasesChannel": {
-                "desc": "Unity Releases Channel",
-                "id": "1022102744552710154"
-            },
-            "RulesChannel": {
-                "desc": "The Rules",
-                "id": "825932695698669618"
-            },
-            /* Role Ids */
-            "SubsReleasesRoleId": "769870886743703584",
-            "TipsUserRoleId": "603187742096228374",
-            /*Complaints Channels Stuff*/
-            "ComplaintCategoryId": "874631331810799626",
-            "ComplaintChannelPrefix": "Complaint",
-            /*Commands Configuration*/
+            "GuildId": "566084539664039938",
             "WikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
-            "WeatherAPIKey": "${WEATHER_KEY}",
-            "FlightAPIKey": "${FLIGHT_KEY}",
-            "FlightAPISecret": "${FLIGHT_SECRET}",
-            "AirLabAPIKey": "${AIRLAB_KEY}",
-            /* Job Recruitment Service */
-            "RecruitmentChannel": {
-                "desc": "Channel for job postings",
-                "id": "1134672948356202678"
+
+            "Channels": {
+                "General": { "desc": "General-Chat Channel", "id": "566084539664039944" },
+                "Introduction": { "desc": "Introduction Channel", "id": "1198575542467838044" },
+                "BotAnnouncement": { "desc": "Bot-Announcement Channel", "id": "567628191221547008" },
+                "BotCommands": { "desc": "Bot-Commands Channel", "id": "599583999379243008" },
+                "UnityNews": { "desc": "Unity News Channel", "id": "1022102744552710154" },
+                "UnityReleases": { "desc": "Unity Releases Channel", "id": "1022102744552710154" },
+                "Rules": { "desc": "The Rules", "id": "825932695698669618" },
+                "Recruitment": { "desc": "Channel for job postings", "id": "1134672948356202678" },
+                "GenericHelp": { "desc": "Unity-Help Channel", "id": "1028254982748778516" },
+                "BirthdayAnnouncement": { "desc": "Channel for birthday announcements", "id": "566084539664039944" },
+                "ComplaintCategoryId": "874631331810799626",
+                "ComplaintPrefix": "Complaint",
+                "ClosedComplaintCategoryId": "0",
+                "ClosedComplaintPrefix": "Closed-"
             },
-            "RecruitmentServiceEnabled": true,
-            "TagLookingToHire": "1134673961779724480",
-            "TagLookingForWork": "1134673990993051658",
-            "TagUnpaidCollab": "1134674009292804117",
-            "TagPositionFilled": "1134674041450545283",
-            /* Unity Help Service */
-            "UnityHelpBabySitterEnabled": true,
-            "GenericHelpChannel": { // Unity-help
-                "desc": "Unity-Help Channel",
-                "id": "1028254982748778516"
+
+            "Roles": {
+                "Moderator": "769010537119088690",
+                "SubsReleases": "769870886743703584",
+                "SubsNews": "0",
+                "TipsUser": "603187742096228374"
             },
-            "TagUnityHelpResolved": "1028255134356086784",
-            "IntroductionChannel": {
-                "desc": "Introduction Channel",
-                "id": "1198575542467838044"
+
+            "ApiKeys": {
+                "Weather": "${WEATHER_KEY}",
+                "Flight": "${FLIGHT_KEY}",
+                "FlightSecret": "${FLIGHT_SECRET}",
+                "AirLab": "${AIRLAB_KEY}"
             },
-            "UserModuleSlapObjectsTable": "Settings/udc-slap.txt",
-            "UserModuleSlapChoices": [
-                "developer manual",
-                "devonlepment server"
-            ],
-            "UserModuleSlapFails": [
-                "developing a rash",
-                "developing a skin condition"
-            ],
-            "TipImageDirectory": "tips",
-            "BirthdayAnnouncementEnabled": true,
-            "BirthdayCheckIntervalMinutes": 1,
-            "BirthdayAnnouncementChannel": {
-                "desc": "Channel for birthday announcements",
-                "id": "566084539664039944"
+
+            "Recruitment": {
+                "Enabled": true,
+                "TagLookingToHire": "1134673961779724480",
+                "TagLookingForWork": "1134673990993051658",
+                "TagUnpaidCollab": "1134674009292804117",
+                "TagPositionFilled": "1134674041450545283"
+            },
+
+            "UnityHelp": {
+                "BabySitterEnabled": true,
+                "TagResolved": "1028255134356086784",
+                "TipImageDirectory": "tips"
+            },
+
+            "FunCommands": {
+                "SlapObjectsTable": "Settings/udc-slap.txt",
+                "SlapChoices": [
+                    "developer manual",
+                    "devonlepment server"
+                ],
+                "SlapFails": [
+                    "developing a rash",
+                    "developing a skin condition"
+                ]
+            },
+
+            "Birthday": {
+                "Enabled": true,
+                "CheckIntervalMinutes": 1
             }
         }

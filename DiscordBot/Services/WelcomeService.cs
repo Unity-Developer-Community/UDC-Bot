@@ -106,7 +106,7 @@ public class WelcomeService
         // Send them the Welcome DM first.
         await DMFormattedWelcome(user);
 
-        var socketTextChannel = _client.GetChannel(_settings.GeneralChannel.Id) as SocketTextChannel;
+        var socketTextChannel = _client.GetChannel(_settings.Channels.General.Id) as SocketTextChannel;
         await _databaseService.GetOrAddUser(user);
 
         await _loggingService.LogChannelAndFile(
@@ -190,7 +190,7 @@ public class WelcomeService
         if (user == null)
             return;
 
-        var offTopic = await _client.GetChannelAsync(_settings.GeneralChannel.Id) as SocketTextChannel;
+        var offTopic = await _client.GetChannelAsync(_settings.Channels.General.Id) as SocketTextChannel;
         if (user is not SocketGuildUser guildUser)
             return;
         var em = WelcomeMessage(guildUser);
@@ -218,7 +218,7 @@ public class WelcomeService
                 ":white_small_square: Do not post the same question in multiple channels.\n" +
                 ":white_small_square: Only post links to your games in the appropriate channels.\n" +
                 ":white_small_square: Some channels have additional rules, please check pinned messages.\n" +
-                $":white_small_square: A more inclusive list of rules can be found in {(_settings.RulesChannel is null || _settings.RulesChannel.Id == 0 ? "#rules" : $"<#{_settings.RulesChannel.Id.ToString()}>")}"
+                $":white_small_square: A more inclusive list of rules can be found in {(_settings.Channels.Rules is null || _settings.Channels.Rules.Id == 0 ? "#rules" : $"<#{_settings.Channels.Rules.Id.ToString()}>")}"
             )
             .AddField("__PROGRAMMING RESOURCES__",
                 ":white_small_square: Official Unity [Manual](https://docs.unity3d.com/Manual/index.html)\n" +

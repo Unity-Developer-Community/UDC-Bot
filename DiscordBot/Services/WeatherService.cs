@@ -15,7 +15,7 @@ public class WeatherService
     public WeatherService(ILoggingService loggingService, BotSettings settings)
     {
         _loggingService = loggingService;
-        _weatherApiKey = settings.WeatherAPIKey;
+        _weatherApiKey = settings.ApiKeys.Weather;
 
         if (string.IsNullOrWhiteSpace(_weatherApiKey))
         {

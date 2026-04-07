@@ -39,20 +39,20 @@ public class BirthdayAnnouncementService
     {
         if (IsRunning) return;
 
-        if (!_settings.BirthdayAnnouncementEnabled)
+        if (!_settings.Birthday.Enabled)
         {
             _loggingService.LogAction($"[{ServiceName}] Birthday announcement service is disabled in settings.", ExtendedLogSeverity.Info);
             return;
         }
 
-        if (_settings.BirthdayAnnouncementChannel?.Id == 0)
+        if (_settings.Channels.BirthdayAnnouncement?.Id == 0)
         {
             _loggingService.LogAction($"[{ServiceName}] Birthday announcement channel not configured.", ExtendedLogSeverity.Warning);
             return;
         }
 
         IsRunning = true;
-        _loggingService.LogAction($"[{ServiceName}] Starting birthday announcement service with {_settings.BirthdayCheckIntervalMinutes} minute intervals.", ExtendedLogSeverity.Info);
+        _loggingService.LogAction($"[{ServiceName}] Starting birthday announcement service with {_settings.Birthday.CheckIntervalMinutes} minute intervals.", ExtendedLogSeverity.Info);
         Task.Run(CheckBirthdaysLoop);
     }
 
@@ -73,7 +73,7 @@ public class BirthdayAnnouncementService
                 await CheckAndAnnounceBirthdays();
 
                 // Wait for the configured interval
-                var intervalMs = _settings.BirthdayCheckIntervalMinutes * 60 * 1000;
+                var intervalMs = _settings.Birthday.CheckIntervalMinutes * 60 * 1000;
                 await Task.Delay(intervalMs, _shutdownToken);
             }
         }
@@ -96,10 +96,10 @@ public class BirthdayAnnouncementService
                 return; // No birthdays today
             }
 
-            var channel = _client.GetChannel(_settings.BirthdayAnnouncementChannel.Id) as SocketTextChannel;
+            var channel = _client.GetChannel(_settings.Channels.BirthdayAnnouncement.Id) as SocketTextChannel;
             if (channel == null)
             {
-                _ = _loggingService.LogAction($"[{ServiceName}] Could not find birthday announcement channel with ID {_settings.BirthdayAnnouncementChannel.Id}", ExtendedLogSeverity.Warning);
+                _ = _loggingService.LogAction($"[{ServiceName}] Could not find birthday announcement channel with ID {_settings.Channels.BirthdayAnnouncement.Id}", ExtendedLogSeverity.Warning);
                 return;
             }
 

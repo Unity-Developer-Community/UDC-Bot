@@ -202,17 +202,17 @@ public class FeedService
 
     public async Task CheckUnityBetasAsync(FeedData feedData)
     {
-        await HandleFeed(feedData, _betaNews, _settings.UnityReleasesChannel.Id, _settings.SubsReleasesRoleId);
+        await HandleFeed(feedData, _betaNews, _settings.Channels.UnityReleases.Id, _settings.Roles.SubsReleases);
     }
 
     public async Task CheckUnityReleasesAsync(FeedData feedData)
     {
-        await HandleFeed(feedData, _releaseNews, _settings.UnityReleasesChannel.Id, _settings.SubsReleasesRoleId);
+        await HandleFeed(feedData, _releaseNews, _settings.Channels.UnityReleases.Id, _settings.Roles.SubsReleases);
     }
 
     public async Task CheckUnityBlogAsync(FeedData feedData)
     {
-        await HandleFeed(feedData, _blogNews, _settings.UnityNewsChannel.Id, _settings.SubsNewsRoleId);
+        await HandleFeed(feedData, _blogNews, _settings.Channels.UnityNews.Id, _settings.Roles.SubsNews);
     }
 
     #endregion // Feed Actions

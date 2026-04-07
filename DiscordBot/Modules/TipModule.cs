@@ -21,9 +21,9 @@ public class TipModule : ModuleBase
 
     private bool IsAuthorized(IUser user)
     {
-        if (user.HasRoleGroup(Settings.ModeratorRoleId))
+        if (user.HasRoleGroup(Settings.Roles.Moderator))
             return true;
-        if (user.HasRoleGroup(Settings.TipsUserRoleId))
+        if (user.HasRoleGroup(Settings.Roles.TipsUser))
             return true;
 
         return false;

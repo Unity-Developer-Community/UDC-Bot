@@ -30,7 +30,7 @@ issues common in organically grown projects. The most impactful problems are:
 | Class | File | Responsibilities | Severity |
 |-------|------|-----------------|----------|
 | `UserService` | `Services/UserService.cs` | XP, karma, muting, code formatting warnings, everyone-mention scold, profile card generation, welcome messages, avatar ops, data persistence, level calculation (~11 concerns) | Critical |
-| `BotSettings` | `Settings/Deserialized/Settings.cs` | 60+ properties across channels, roles, API keys, casino, tips, recruitment, weather in one flat class | High |
+| `BotSettings` | `Settings/Deserialized/Settings.cs` | ~~60+ properties across channels, roles, API keys, casino, tips, recruitment, weather in one flat class~~ Split into 8 nested domain classes ✅ | ~~High~~ Done |
 | `UserModule` | `Modules/UserModule.cs` | 1 000+ lines; text commands, web scraping, role management, search, profile display all in one module | High |
 | `UpdateService` | `Services/UpdateService.cs` | Bot data, user muting lifecycle, FAQ loading, RSS feeds, Wikipedia downloading (5 concerns) | High |
 | `CasinoSlashModule` | `Modules/Casino/CasinoSlashModule.cs` | 500+ lines; token commands, game commands, admin commands, statistics, nested `TokenCommands` class | High |
@@ -371,8 +371,8 @@ no `.cs` files and no test framework configured.
 ### Short-term (Architecture)
 
 1. ~~Split `UserService` into focused services~~ ✅
-2. Split `BotSettings` into domain-specific config classes
-3. Add `BotSettings.Validate()` post-deserialization
+2. ~~Split `BotSettings` into domain-specific config classes~~ ✅
+3. ~~Add `BotSettings.Validate()` post-deserialization~~ ✅
 4. ~~Extract business logic from command handlers into services~~ ✅
 5. ~~Register `IHttpClientFactory` in DI; remove manual `HttpClient` creation~~ ✅
 6. ~~Add graceful shutdown support with `CancellationToken`~~ ✅

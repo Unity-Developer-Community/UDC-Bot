@@ -33,15 +33,15 @@ public class CasinoService
             var newUser = new CasinoUser
             {
                 UserID = userId,
-                Tokens = _settings.CasinoStartingTokens,
+                Tokens = _settings.Casino.StartingTokens,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 LastDailyReward = DateTime.UtcNow.AddDays(-1) // Set to a past date so user can claim their first daily reward immediately
             };
 
             var createdUser = await casinoQuery.InsertCasinoUser(newUser);
-            await RecordTransaction(userId, _settings.CasinoStartingTokens, TransactionKind.TokenInitialisation);
-            await _loggingService.LogChannelAndFile($"{ServiceName}: Created new casino user {userId} with {_settings.CasinoStartingTokens} starting tokens");
+            await RecordTransaction(userId, _settings.Casino.StartingTokens, TransactionKind.TokenInitialisation);
+            await _loggingService.LogChannelAndFile($"{ServiceName}: Created new casino user {userId} with {_settings.Casino.StartingTokens} starting tokens");
             return createdUser;
         }
         catch (Exception ex)
@@ -312,13 +312,13 @@ public class CasinoService
 
     public bool IsChannelAllowed(ulong channelId)
     {
-        if (!_settings.CasinoEnabled)
+        if (!_settings.Casino.Enabled)
             return false;
 
-        if (_settings.CasinoAllowedChannels.Count == 0)
+        if (_settings.Casino.AllowedChannels.Count == 0)
             return true; // If no restrictions, allow all channels
 
-        return _settings.CasinoAllowedChannels.Contains(channelId);
+        return _settings.Casino.AllowedChannels.Contains(channelId);
     }
 
     #endregion
@@ -332,7 +332,7 @@ public class CasinoService
             var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
             var user = await GetOrCreateCasinoUser(userId);
             var now = DateTime.UtcNow;
-            var nextRewardTime = user.LastDailyReward.AddSeconds(_settings.CasinoDailyRewardIntervalSeconds);
+            var nextRewardTime = user.LastDailyReward.AddSeconds(_settings.Casino.DailyRewardIntervalSeconds);
 
             if (now < nextRewardTime)
             {
@@ -340,13 +340,13 @@ public class CasinoService
             }
 
             // User can claim daily reward
-            var tokensAwarded = _settings.CasinoDailyRewardTokens;
+            var tokensAwarded = _settings.Casino.DailyRewardTokens;
             var newBalance = user.Tokens + tokensAwarded;
             await casinoQuery.UpdateTokensAndDailyReward(userId, newBalance, now, now);
             await RecordTransaction(userId, tokensAwarded, TransactionKind.DailyReward);
 
             await _loggingService.LogChannelAndFile($"{ServiceName}: User {userId} claimed daily reward of {tokensAwarded} tokens");
-            return (true, tokensAwarded, newBalance, now.AddSeconds(_settings.CasinoDailyRewardIntervalSeconds));
+            return (true, tokensAwarded, newBalance, now.AddSeconds(_settings.Casino.DailyRewardIntervalSeconds));
         }
         catch (Exception ex)
         {
@@ -359,7 +359,7 @@ public class CasinoService
     public async Task<DateTime> GetNextDailyRewardTime(string userId)
     {
         var user = await GetOrCreateCasinoUser(userId);
-        return user.LastDailyReward.AddSeconds(_settings.CasinoDailyRewardIntervalSeconds);
+        return user.LastDailyReward.AddSeconds(_settings.Casino.DailyRewardIntervalSeconds);
     }
 
     #endregion

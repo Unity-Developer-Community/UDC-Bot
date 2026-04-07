@@ -15,96 +15,78 @@ data:
             "Token": "${BOT_TOKEN}",
             "DbConnectionString": "Host=postgresql;Port=5432;Database=udcbot;Username=udcbot;Password=${DB_PASSWORD}",
             "Invite": "https://discord.gg/bu3bbby",
-            /*Server Info*/
             "ServerRootPath": "./SERVER",
             "AssetsRootPath": "./Assets",
-            /* Base info */
             "Prefix": "!",
-            "ModeratorRoleId": "493514490504019969",
-            "GuildId": "493510779866316801", // Replace with your servers guild ID
-            /* Channel IDs for certain channels. */
-            "GeneralChannel": { // Off-topic
-                "desc": "General-Chat Channel",
-                "id": "493511024037724180"
-            },
-            "BotAnnouncementChannel": { // Most bot logs will go here
-                "desc": "Bot-Announcement Channel",
-                "id": "493512007144833055"
-            },
-            "BotCommandsChannel": {
-                "desc": "Bot-Commands Channel",
-                "id": "493512044973260811"
-            },
-            "RulesChannel": {
-                "desc": "The Rules",
-                "id": "519890141805019137"
-            },
-            /* Role Ids */
-            "SubsNewsRoleId": "1209260621342707772",
-            "SubsReleasesRoleId": "523205962279157771",
-            "TipsUserRoleId": "493514563736698880",
-            /*Complaints Channels Stuff*/
-            "ComplaintCategoryId": "520853507851681797",
-            "ComplaintChannelPrefix": "Complaint",
-            "ClosedComplaintCategoryId": "662084543662129175",
-            "ClosedComplaintChannelPrefix": "Closed-",
-            /*Commands Configuration*/
+            "GuildId": "493510779866316801",
             "WikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
-            "WeatherAPIKey": "${WEATHER_KEY}",
-            "FlightAPIKey": "${FLIGHT_KEY}",
-            "FlightAPISecret": "${FLIGHT_SECRET}",
-            "AirLabAPIKey": "${AIRLAB_KEY}",
-            /* Feed Service */
-            "UnityNewsChannel": {
-                "desc": "Unity News Channel",
-                "id": "1142423451383119975"
+
+            "Channels": {
+                "General": { "desc": "General-Chat Channel", "id": "493511024037724180" },
+                "Introduction": { "desc": "Introduction Channel", "id": "768488410959708210" },
+                "BotAnnouncement": { "desc": "Bot-Announcement Channel", "id": "493512007144833055" },
+                "BotCommands": { "desc": "Bot-Commands Channel", "id": "493512044973260811" },
+                "UnityNews": { "desc": "Unity News Channel", "id": "1142423451383119975" },
+                "UnityReleases": { "desc": "Unity Releases Channel", "id": "1142423451383119975" },
+                "Rules": { "desc": "The Rules", "id": "519890141805019137" },
+                "Recruitment": { "desc": "Channel for job postings", "id": "1019677109171527750" },
+                "GenericHelp": { "desc": "Unity-Help Channel", "id": "1019663870798856212" },
+                "BirthdayAnnouncement": { "desc": "Channel for birthday announcements", "id": "493511024037724180" },
+                "ComplaintCategoryId": "520853507851681797",
+                "ComplaintPrefix": "Complaint",
+                "ClosedComplaintCategoryId": "662084543662129175",
+                "ClosedComplaintPrefix": "Closed-"
             },
-            "UnityReleasesChannel": {
-                "desc": "Unity Releases Channel",
-                "id": "1142423451383119975"
+
+            "Roles": {
+                "Moderator": "493514490504019969",
+                "SubsReleases": "523205962279157771",
+                "SubsNews": "1209260621342707772",
+                "TipsUser": "493514563736698880"
             },
-            /* Recruitment Service */
-            "RecruitmentServiceEnabled": false,
-            "RecruitmentChannel": {
-                "desc": "Channel for job postings",
-                "id": "1019677109171527750"
+
+            "ApiKeys": {
+                "Weather": "${WEATHER_KEY}",
+                "Flight": "${FLIGHT_KEY}",
+                "FlightSecret": "${FLIGHT_SECRET}",
+                "AirLab": "${AIRLAB_KEY}"
             },
-            "TagLookingToHire": "1019680606067630151",
-            "TagLookingForWork": "1019680763756695653",
-            "TagUnpaidCollab": "1019680795641774110",
-            "TagPositionFilled": "1052258665530408991",
-            "EditPermissionAccessTimeMin": 3,
-            /* Unity Help Service */
-            "UnityHelpBabySitterEnabled": false,
-            "GenericHelpChannel": { // Unity-help
-                "desc": "Unity-Help Channel",
-                "id": "1019663870798856212"
+
+            "Recruitment": {
+                "Enabled": false,
+                "TagLookingToHire": "1019680606067630151",
+                "TagLookingForWork": "1019680763756695653",
+                "TagUnpaidCollab": "1019680795641774110",
+                "TagPositionFilled": "1052258665530408991",
+                "EditPermissionAccessTimeMin": 3
             },
-            "TagUnityHelpResolved": "1019672922811551815",
-            "IntroductionChannel": {
-                "desc": "Introduction Channel",
-                "id": "768488410959708210"
+
+            "UnityHelp": {
+                "BabySitterEnabled": false,
+                "TagResolved": "1019672922811551815",
+                "TipImageDirectory": "tips"
             },
-            "UserModuleSlapObjectsTable": "Settings/udc-slap.txt",
-            "UserModuleSlapChoices": [
-                "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan",
-                "life choice", "bug report", "unhandled exception", "null pointer", "keyboard",
-                "kinematic rigidbody", "gameobject", "trigger collider", "update cycle", "json file",
-                "large language model", "hosting invoice", "quality of life patch",
-                "game jam submission", "bucket of fried chicken", "anime waifu pillow",
-                "network-attached storage cabinet", "baguette", "moldy cheese",
-                "cup noodle", "game jam submission", "game library listing",
-                "cheese wheel", "banana peel", "unresolved bug", "low poly donut"
-            ],
-            "UserModuleSlapFails": [
-                "hurting themselves", "making themselves look foolish", "tripping on it",
-                "dropping it on their toes", "breaking their screen with it"
-            ],
-            "TipImageDirectory": "tips",
-            "BirthdayAnnouncementEnabled": true,
-            "BirthdayCheckIntervalMinutes": 60,
-            "BirthdayAnnouncementChannel": {
-                "desc": "Channel for birthday announcements",
-                "id": "493511024037724180"
+
+            "FunCommands": {
+                "SlapObjectsTable": "Settings/udc-slap.txt",
+                "SlapChoices": [
+                    "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan",
+                    "life choice", "bug report", "unhandled exception", "null pointer", "keyboard",
+                    "kinematic rigidbody", "gameobject", "trigger collider", "update cycle", "json file",
+                    "large language model", "hosting invoice", "quality of life patch",
+                    "game jam submission", "bucket of fried chicken", "anime waifu pillow",
+                    "network-attached storage cabinet", "baguette", "moldy cheese",
+                    "cup noodle", "game jam submission", "game library listing",
+                    "cheese wheel", "banana peel", "unresolved bug", "low poly donut"
+                ],
+                "SlapFails": [
+                    "hurting themselves", "making themselves look foolish", "tripping on it",
+                    "dropping it on their toes", "breaking their screen with it"
+                ]
+            },
+
+            "Birthday": {
+                "Enabled": true,
+                "CheckIntervalMinutes": 60
             }
         }

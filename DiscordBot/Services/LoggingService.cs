@@ -98,15 +98,15 @@ public class LoggingService : ILoggingService
         }
 
         // INIT
-        if (settings.BotAnnouncementChannel == null)
+        if (settings.Channels.BotAnnouncement == null)
         {
             LogToConsole($"[{ServiceName}] Error: Logging Channel not set in settings.json", LogSeverity.Error);
             return;
         }
-        _logChannel = client.GetChannel(settings.BotAnnouncementChannel.Id) as ISocketMessageChannel;
+        _logChannel = client.GetChannel(settings.Channels.BotAnnouncement.Id) as ISocketMessageChannel;
         if (_logChannel == null)
         {
-            LogToConsole($"[{ServiceName}] Error: Logging Channel {settings.BotAnnouncementChannel.Id} not found", LogSeverity.Error);
+            LogToConsole($"[{ServiceName}] Error: Logging Channel {settings.Channels.BotAnnouncement.Id} not found", LogSeverity.Error);
         }
     }
 

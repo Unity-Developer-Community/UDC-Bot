@@ -23,8 +23,8 @@ public class AuditLogService
         client.UserLeft += EventGuard.Guarded<SocketGuild, SocketUser>(UserLeft, nameof(UserLeft));
         client.GuildMemberUpdated += EventGuard.Guarded<Cacheable<SocketGuildUser, ulong>, SocketGuildUser>(GuildMemberUpdated, nameof(GuildMemberUpdated));
 
-        if (settings.BotAnnouncementChannel != null)
-            _botAnnouncementChannel = client.GetChannel(settings.BotAnnouncementChannel.Id) as IMessageChannel;
+        if (settings.Channels.BotAnnouncement != null)
+            _botAnnouncementChannel = client.GetChannel(settings.Channels.BotAnnouncement.Id) as IMessageChannel;
     }
 
     private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)

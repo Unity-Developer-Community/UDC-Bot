@@ -2,19 +2,26 @@ namespace DiscordBot.Settings;
 
 public class BotSettings
 {
-    #region Important Settings
-
     public string Token { get; set; } = string.Empty;
     public string Invite { get; set; } = string.Empty;
-
     public string DbConnectionString { get; set; } = string.Empty;
     public string ServerRootPath { get; set; } = string.Empty;
     public string AssetsRootPath { get; set; } = "./Assets";
     public char Prefix { get; set; }
     public ulong GuildId { get; set; }
     public bool LogCommandExecutions { get; set; } = true;
+    public int WelcomeMessageDelaySeconds { get; set; } = 300;
+    public ulong EveryoneScoldPeriodSeconds { get; set; } = 21600;
+    public string WikipediaSearchPage { get; set; } = string.Empty;
 
-    #endregion // Important 
+    public ChannelSettings Channels { get; set; } = new();
+    public RoleSettings Roles { get; set; } = new();
+    public RecruitmentSettings Recruitment { get; set; } = new();
+    public UnityHelpSettings UnityHelp { get; set; } = new();
+    public CasinoSettings Casino { get; set; } = new();
+    public BirthdaySettings Birthday { get; set; } = new();
+    public ApiKeySettings ApiKeys { get; set; } = new();
+    public FunCommandSettings FunCommands { get; set; } = new();
 
     public (List<string> Errors, List<string> Warnings) Validate()
     {
@@ -33,39 +40,39 @@ public class BotSettings
         if (string.IsNullOrWhiteSpace(ServerRootPath))
             warnings.Add("ServerRootPath is empty — runtime data storage may fail");
 
-        ValidateChannel(warnings, GeneralChannel, nameof(GeneralChannel));
-        ValidateChannel(warnings, IntroductionChannel, nameof(IntroductionChannel));
-        ValidateChannel(warnings, BotAnnouncementChannel, nameof(BotAnnouncementChannel));
-        ValidateChannel(warnings, BotCommandsChannel, nameof(BotCommandsChannel));
-        ValidateChannel(warnings, UnityNewsChannel, nameof(UnityNewsChannel));
-        ValidateChannel(warnings, UnityReleasesChannel, nameof(UnityReleasesChannel));
-        ValidateChannel(warnings, RulesChannel, nameof(RulesChannel));
+        ValidateChannel(warnings, Channels.General, nameof(Channels.General));
+        ValidateChannel(warnings, Channels.Introduction, nameof(Channels.Introduction));
+        ValidateChannel(warnings, Channels.BotAnnouncement, nameof(Channels.BotAnnouncement));
+        ValidateChannel(warnings, Channels.BotCommands, nameof(Channels.BotCommands));
+        ValidateChannel(warnings, Channels.UnityNews, nameof(Channels.UnityNews));
+        ValidateChannel(warnings, Channels.UnityReleases, nameof(Channels.UnityReleases));
+        ValidateChannel(warnings, Channels.Rules, nameof(Channels.Rules));
 
-        if (BirthdayAnnouncementEnabled)
-            ValidateChannel(warnings, BirthdayAnnouncementChannel, nameof(BirthdayAnnouncementChannel));
+        if (Birthday.Enabled)
+            ValidateChannel(warnings, Channels.BirthdayAnnouncement, nameof(Channels.BirthdayAnnouncement));
 
-        if (RecruitmentServiceEnabled)
+        if (Recruitment.Enabled)
         {
-            ValidateChannel(warnings, RecruitmentChannel, nameof(RecruitmentChannel));
-            if (string.IsNullOrWhiteSpace(TagLookingToHire))
-                warnings.Add("RecruitmentService enabled but TagLookingToHire is empty");
-            if (string.IsNullOrWhiteSpace(TagLookingForWork))
-                warnings.Add("RecruitmentService enabled but TagLookingForWork is empty");
-            if (string.IsNullOrWhiteSpace(TagUnpaidCollab))
-                warnings.Add("RecruitmentService enabled but TagUnpaidCollab is empty");
-            if (string.IsNullOrWhiteSpace(TagPositionFilled))
-                warnings.Add("RecruitmentService enabled but TagPositionFilled is empty");
+            ValidateChannel(warnings, Channels.Recruitment, nameof(Channels.Recruitment));
+            if (string.IsNullOrWhiteSpace(Recruitment.TagLookingToHire))
+                warnings.Add("Recruitment enabled but TagLookingToHire is empty");
+            if (string.IsNullOrWhiteSpace(Recruitment.TagLookingForWork))
+                warnings.Add("Recruitment enabled but TagLookingForWork is empty");
+            if (string.IsNullOrWhiteSpace(Recruitment.TagUnpaidCollab))
+                warnings.Add("Recruitment enabled but TagUnpaidCollab is empty");
+            if (string.IsNullOrWhiteSpace(Recruitment.TagPositionFilled))
+                warnings.Add("Recruitment enabled but TagPositionFilled is empty");
         }
 
-        if (UnityHelpBabySitterEnabled)
+        if (UnityHelp.BabySitterEnabled)
         {
-            ValidateChannel(warnings, GenericHelpChannel, nameof(GenericHelpChannel));
-            if (string.IsNullOrWhiteSpace(TagUnityHelpResolved))
-                warnings.Add("UnityHelpBabySitter enabled but TagUnityHelpResolved is empty");
+            ValidateChannel(warnings, Channels.GenericHelp, nameof(Channels.GenericHelp));
+            if (string.IsNullOrWhiteSpace(UnityHelp.TagResolved))
+                warnings.Add("UnityHelp BabySitter enabled but TagResolved is empty");
         }
 
-        if (CasinoEnabled && CasinoStartingTokens < 0)
-            errors.Add("CasinoStartingTokens is negative");
+        if (Casino.Enabled && Casino.StartingTokens < 0)
+            errors.Add("Casino.StartingTokens is negative");
 
         return (errors, warnings);
     }
@@ -75,148 +82,88 @@ public class BotSettings
         if (channel is null || channel.Id == 0)
             warnings.Add($"{name} is not configured (null or Id=0)");
     }
+}
 
-    #region Configuration
-
-    public int WelcomeMessageDelaySeconds { get; set; } = 300;
-    // How long between when the bot will scold a user for trying to ping everyone. Default 6 hours
-    public ulong EveryoneScoldPeriodSeconds { get; set; } = 21600;
-
-    #region Fun Commands
-
-    public string? UserModuleSlapObjectsTable { get; set; } = null;
-    //NOTE: Deserializer will not override a List<string> from the json if a default one is made here.
-    public List<string> UserModuleSlapChoices { get; set; } = [];
-    // = { "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan",
-    //     "life choice", "bug report", "unhandled exception", "null pointer", "keyboard",
-    //     "cheese wheel", "banana peel", "unresolved bug", "low poly donut" };
-    public List<string> UserModuleSlapFails { get; set; } = [];
-    // = { "hurting themselves" };
-
-    #endregion // Fun Commands
-
-    #region Service Enabling
-    // Used for enabling/disabling services in the bot
-
-    public bool RecruitmentServiceEnabled { get; set; } = false;
-    public bool UnityHelpBabySitterEnabled { get; set; } = false;
-
-    #endregion // Service Enabling
-
-    #region Birthday Announcements
-
-    public bool BirthdayAnnouncementEnabled { get; set; } = true;
-    public int BirthdayCheckIntervalMinutes { get; set; } = 240; // Check every 4 hours by default
-    public ChannelInfo BirthdayAnnouncementChannel { get; set; } = null!;
-
-    #endregion // Birthday Announcements
-
-    #endregion // Configuration
-
-    #region Channels
-
-    public ChannelInfo IntroductionChannel { get; set; } = null!;
-    public ChannelInfo GeneralChannel { get; set; } = null!;
-    public ChannelInfo GenericHelpChannel { get; set; } = null!;
-
-    public ChannelInfo BotAnnouncementChannel { get; set; } = null!;
-    public ChannelInfo BotCommandsChannel { get; set; } = null!;
-    public ChannelInfo UnityNewsChannel { get; set; } = null!;
-    public ChannelInfo UnityReleasesChannel { get; set; } = null!;
-    public ChannelInfo RulesChannel { get; set; } = null!;
-
-    // Recruitment Channels
-
-    public ChannelInfo RecruitmentChannel { get; set; } = null!;
-
-    public ChannelInfo MemeChannel { get; set; } = null!;
-
-    #region Complaint Channel
+public class ChannelSettings
+{
+    public ChannelInfo Introduction { get; set; } = null!;
+    public ChannelInfo General { get; set; } = null!;
+    public ChannelInfo GenericHelp { get; set; } = null!;
+    public ChannelInfo BotAnnouncement { get; set; } = null!;
+    public ChannelInfo BotCommands { get; set; } = null!;
+    public ChannelInfo UnityNews { get; set; } = null!;
+    public ChannelInfo UnityReleases { get; set; } = null!;
+    public ChannelInfo Rules { get; set; } = null!;
+    public ChannelInfo Recruitment { get; set; } = null!;
+    public ChannelInfo Meme { get; set; } = null!;
+    public ChannelInfo BirthdayAnnouncement { get; set; } = null!;
 
     public ulong ComplaintCategoryId { get; set; }
-    public string ComplaintChannelPrefix { get; set; } = string.Empty;
+    public string ComplaintPrefix { get; set; } = string.Empty;
     public ulong ClosedComplaintCategoryId { get; set; }
-    public string ClosedComplaintChannelPrefix { get; set; } = string.Empty;
+    public string ClosedComplaintPrefix { get; set; } = string.Empty;
+}
 
-    #endregion // Complaint Channel
+public class RoleSettings
+{
+    public ulong SubsReleases { get; set; }
+    public ulong SubsNews { get; set; }
+    public ulong Moderator { get; set; }
+    public ulong TipsUser { get; set; }
+}
 
-    #endregion // Channels
-
-    #region User Roles
-
-    public ulong SubsReleasesRoleId { get; set; }
-    public ulong SubsNewsRoleId { get; set; }
-    public ulong ModeratorRoleId { get; set; }
-    public ulong TipsUserRoleId { get; set; } // e.g., Helpers
-
-    #endregion // User Roles
-
-    #region Recruitment Thread
-
+public class RecruitmentSettings
+{
+    public bool Enabled { get; set; } = false;
     public string TagLookingToHire { get; set; } = string.Empty;
     public string TagLookingForWork { get; set; } = string.Empty;
     public string TagUnpaidCollab { get; set; } = string.Empty;
     public string TagPositionFilled { get; set; } = string.Empty;
-
     public int EditPermissionAccessTimeMin { get; set; } = 3;
-
-    #endregion // Recruitment Thread Tags
-
-    #region Unity Help Threads
-
-    #region Tips
-
-    public string TipImageDirectory { get; set; } = string.Empty;
-
-    public int TipMaxImageFileSize { get; set; } = 1024 * 1024 * 10; // 10MB
-    // Unlikely, but we prevent exploitation by limiting the max directory size to avoid VPS disk space issues
-    public int TipMaxDirectoryFileSize { get; set; } = 1024 * 1024 * 1024; // 1GB
-
-    #endregion // Tips
-
-    public string TagUnityHelpResolved { get; set; } = string.Empty;
-
-    #endregion // Unity Help Threads
-
-    #region API Keys
-
-    public string WeatherAPIKey { get; set; } = string.Empty;
-
-    public string FlightAPIKey { get; set; } = string.Empty;
-    public string FlightAPISecret { get; set; } = string.Empty;
-
-    public string AirLabAPIKey { get; set; } = string.Empty;
-
-    #endregion // API Keys
-
-    #region Casino Settings
-
-    public bool CasinoEnabled { get; set; } = true;
-    public long CasinoStartingTokens { get; set; } = 1000;
-    public List<ulong> CasinoAllowedChannels { get; set; } = new List<ulong>();
-    public int CasinoGameTimeoutMinutes { get; set; } = 5;
-
-    // Daily Reward Settings
-    public long CasinoDailyRewardTokens { get; set; } = 100;
-    public int CasinoDailyRewardIntervalSeconds { get; set; } = 86400; // 24 hours = 86400 seconds
-
-    #endregion // Casino Settings
-
-    #region Other
-
-    public string WikipediaSearchPage { get; set; } = string.Empty;
-
-    #endregion // Other
-
 }
 
-#region Channel Information
+public class UnityHelpSettings
+{
+    public bool BabySitterEnabled { get; set; } = false;
+    public string TagResolved { get; set; } = string.Empty;
+    public string TipImageDirectory { get; set; } = string.Empty;
+    public int TipMaxImageFileSize { get; set; } = 1024 * 1024 * 10;
+    public int TipMaxDirectoryFileSize { get; set; } = 1024 * 1024 * 1024;
+}
 
-// Channel Information. Description and Channel ID
+public class CasinoSettings
+{
+    public bool Enabled { get; set; } = true;
+    public long StartingTokens { get; set; } = 1000;
+    public List<ulong> AllowedChannels { get; set; } = new();
+    public int GameTimeoutMinutes { get; set; } = 5;
+    public long DailyRewardTokens { get; set; } = 100;
+    public int DailyRewardIntervalSeconds { get; set; } = 86400;
+}
+
+public class BirthdaySettings
+{
+    public bool Enabled { get; set; } = true;
+    public int CheckIntervalMinutes { get; set; } = 240;
+}
+
+public class ApiKeySettings
+{
+    public string Weather { get; set; } = string.Empty;
+    public string Flight { get; set; } = string.Empty;
+    public string FlightSecret { get; set; } = string.Empty;
+    public string AirLab { get; set; } = string.Empty;
+}
+
+public class FunCommandSettings
+{
+    public string? SlapObjectsTable { get; set; } = null;
+    public List<string> SlapChoices { get; set; } = [];
+    public List<string> SlapFails { get; set; } = [];
+}
+
 public class ChannelInfo
 {
     public string Desc { get; set; } = string.Empty;
     public ulong Id { get; set; }
 }
-
-#endregion

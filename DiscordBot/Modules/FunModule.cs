@@ -23,21 +23,21 @@ public class FunModule : ModuleBase
         try
         {
             if (_slapObjects.Count == 0)
-                _slapObjects.Load(Settings.UserModuleSlapObjectsTable!);
+                _slapObjects.Load(Settings.FunCommands.SlapObjectsTable!);
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            await LoggingService.LogChannelAndFile($"Error while loading '{Settings.UserModuleSlapObjectsTable}'.\nEx:{e}",
+            await LoggingService.LogChannelAndFile($"Error while loading '{Settings.FunCommands.SlapObjectsTable}'.",
                 ExtendedLogSeverity.LowWarning);
             return;
         }
         if (_slapObjects.Count == 0)
-            _slapObjects.Add(Settings.UserModuleSlapChoices);
+            _slapObjects.Add(Settings.FunCommands.SlapChoices);
         if (_slapObjects.Count == 0)
             _slapObjects.Add("fish|mallet");
 
         if (_slapFails.Count == 0)
-            _slapFails.Add(Settings.UserModuleSlapFails);
+            _slapFails.Add(Settings.FunCommands.SlapFails);
         if (_slapFails.Count == 0)
             _slapFails.Add("hurting themselves");
 

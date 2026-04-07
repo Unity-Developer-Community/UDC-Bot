@@ -17,7 +17,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
     [SlashCommand("resolve-question", "If in unity-help forum channel, resolve the thread")]
     public async Task ResolveQuestion()
     {
-        if (!BotSettings.UnityHelpBabySitterEnabled)
+        if (!BotSettings.UnityHelp.BabySitterEnabled)
             return;
 
         await Context.Interaction.DeferAsync(ephemeral: true);
@@ -31,7 +31,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
         if (!IsInHelpChannel())
         {
             await Context.Interaction.FollowupAsync(
-                $"This command can only be used in <#{BotSettings.GenericHelpChannel.Id}> channels", ephemeral: true);
+                $"This command can only be used in <#{BotSettings.Channels.GenericHelp.Id}> channels", ephemeral: true);
             return;
         }
 
@@ -45,7 +45,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
     [MessageCommand("Correct Answer")]
     public async Task MarkResponseAnswer(IMessage targetResponse)
     {
-        if (!BotSettings.UnityHelpBabySitterEnabled)
+        if (!BotSettings.UnityHelp.BabySitterEnabled)
             return;
 
         await Context.Interaction.DeferAsync(ephemeral: true);
@@ -57,7 +57,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
         if (!IsInHelpChannel())
         {
             await Context.Interaction.FollowupAsync(
-                $"This command can only be used in <#{BotSettings.GenericHelpChannel.Id}> channels", ephemeral: true);
+                $"This command can only be used in <#{BotSettings.Channels.GenericHelp.Id}> channels", ephemeral: true);
             return;
         }
 
@@ -76,7 +76,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
 
     #region Utility
 
-    private bool IsInHelpChannel() => Context.Channel.IsThreadInChannel(BotSettings.GenericHelpChannel.Id);
+    private bool IsInHelpChannel() => Context.Channel.IsThreadInChannel(BotSettings.Channels.GenericHelp.Id);
     private bool IsValidUser() => !Context.User.IsUserBotOrWebhook();
 
     #endregion // Utility

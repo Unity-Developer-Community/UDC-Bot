@@ -41,9 +41,9 @@ public class AirportModule : ModuleBase
     public async Task FlyTo(string from, string to)
     {
         // Make sure command is in Bot-Commands or OffTopic
-        if (Context.Channel.Id != Settings.BotCommandsChannel.Id && Context.Channel.Id != Settings.GeneralChannel.Id)
+        if (Context.Channel.Id != Settings.Channels.BotCommands.Id && Context.Channel.Id != Settings.Channels.General.Id)
         {
-            await (ReplyAsync($"Command can only be used in <#{Settings.BotCommandsChannel.Id}> or <#{Settings.GeneralChannel.Id}>.").DeleteAfterSeconds(5f) ?? Task.CompletedTask);
+            await (ReplyAsync($"Command can only be used in <#{Settings.Channels.BotCommands.Id}> or <#{Settings.Channels.General.Id}>.").DeleteAfterSeconds(5f) ?? Task.CompletedTask);
             await (Context.Message.DeleteAfterSeconds(2f) ?? Task.CompletedTask);
             return;
         }

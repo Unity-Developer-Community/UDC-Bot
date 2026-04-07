@@ -28,7 +28,7 @@ public class RequireModeratorAttribute : PreconditionAttribute
 
         var settings = services.GetRequiredService<BotSettings>();
 
-        if (user.Roles.Any(x => x.Id == settings.ModeratorRoleId)) return Task.FromResult(PreconditionResult.FromSuccess());
+        if (user.Roles.Any(x => x.Id == settings.Roles.Moderator)) return Task.FromResult(PreconditionResult.FromSuccess());
         return Task.FromResult(PreconditionResult.FromError(user + " attempted to use a moderator command!"));
     }
 }

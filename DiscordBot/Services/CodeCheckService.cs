@@ -86,7 +86,7 @@ public class CodeCheckService
 
     public async Task CodeCheck(SocketMessage messageParam)
     {
-        if (messageParam.Author.IsBot || messageParam.Channel.Id == _settings.GeneralChannel.Id)
+        if (messageParam.Author.IsBot || messageParam.Channel.Id == _settings.Channels.General.Id)
             return;
 
         if (messageParam.Content.Length < 200)

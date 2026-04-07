@@ -19,7 +19,7 @@ public class UnityHelpModule : ModuleBase
     [Summary("When a question is answered, use this command to mark it as resolved.")]
     public async Task ResolveAsync()
     {
-        if (!BotSettings.UnityHelpBabySitterEnabled)
+        if (!BotSettings.UnityHelp.BabySitterEnabled)
             return;
         if (!IsValidUser() || !IsInHelpChannel())
             await Context.Message.DeleteAsync();
@@ -31,7 +31,7 @@ public class UnityHelpModule : ModuleBase
     [RequireModerator, HideFromHelp, IgnoreBots]
     public async Task PendingQuestionsAsync()
     {
-        if (!BotSettings.UnityHelpBabySitterEnabled)
+        if (!BotSettings.UnityHelp.BabySitterEnabled)
         {
             await ReplyAsync("UnityHelp Service currently disabled.").DeleteAfterSeconds(15)!;
             return;
@@ -42,7 +42,7 @@ public class UnityHelpModule : ModuleBase
 
     #region Utility
 
-    private bool IsInHelpChannel() => Context.Channel.IsThreadInChannel(BotSettings.GenericHelpChannel.Id);
+    private bool IsInHelpChannel() => Context.Channel.IsThreadInChannel(BotSettings.Channels.GenericHelp.Id);
     private bool IsValidUser() => !Context.User.IsUserBotOrWebhook();
 
     #endregion // Utility
