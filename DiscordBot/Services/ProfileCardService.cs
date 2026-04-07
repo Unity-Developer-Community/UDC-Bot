@@ -116,7 +116,7 @@ public class ProfileCardService
                     profile.Picture = new MagickImage($"{_settings.AssetsRootPath}/images/default.png");
                 }
 
-            profile.Picture.Resize(skin.AvatarSize, skin.AvatarSize);
+            profile.Picture.Resize((uint)skin.AvatarSize, (uint)skin.AvatarSize);
             profileCard.Add(background);
 
             foreach (var layer in skin.Layers)
@@ -130,7 +130,7 @@ public class ProfileCardService
                     background.Composite(image, (int)layer.StartX, (int)layer.StartY, CompositeOperator.Over);
                 }
 
-                var l = new MagickImage(MagickColors.Transparent, (int)layer.Width, (int)layer.Height);
+                var l = new MagickImage(MagickColors.Transparent, (uint)layer.Width, (uint)layer.Height);
                 foreach (var module in layer.Modules) module.GetDrawables(profile).Draw(l);
 
                 background.Composite(l, (int)layer.StartX, (int)layer.StartY, CompositeOperator.Over);

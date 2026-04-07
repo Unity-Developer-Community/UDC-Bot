@@ -1,5 +1,6 @@
 using DiscordBot.Domain;
 using ImageMagick;
+using ImageMagick.Drawing;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
@@ -33,20 +34,23 @@ public abstract class BaseTextSkinModule : ISkinModule
 
     public virtual string Type { get; set; } = string.Empty;
 
-    public virtual Drawables GetDrawables(ProfileData data)
+    public virtual IDrawables<byte> GetDrawables(ProfileData data)
     {
         var position = new PointD(StartX, StartY);
 
-        return new Drawables()
+        var drawables = new Drawables()
             .FontPointSize(FontPointSize)
             .Font(Font)
             .StrokeColor(new MagickColor(StrokeColor))
             .StrokeWidth(StrokeWidth)
-            .StrokeAntialias(StrokeAntiAlias)
             .FillColor(new MagickColor(FillColor))
-            .TextAntialias(TextAntiAlias)
             .TextAlignment(TextAlignment)
             .TextKerning(TextKerning)
             .Text(position.X, position.Y, Text);
+
+        if (StrokeAntiAlias) drawables.EnableStrokeAntialias(); else drawables.DisableStrokeAntialias();
+        if (TextAntiAlias) drawables.EnableTextAntialias(); else drawables.DisableTextAntialias();
+
+        return drawables;
     }
 }
