@@ -19,7 +19,7 @@ public class AirportModule : ModuleBase
     #endregion // Dependency Injection
 
     #region API Results
-    
+
     public class FlightResults
     {
         public string iata { get; set; }
@@ -47,13 +47,13 @@ public class AirportModule : ModuleBase
             await Context.Message.DeleteAfterSeconds(2f);
             return;
         }
-        
+
         EmbedBuilder embed = new();
         embed.Title = "Flight Finder";
 
         embed.Description = "Finding cities";
         var msg = await ReplyAsync(string.Empty, false, embed.Build());
-        
+
         // Use Weather API to get lon/lat of cities
         var fromCity = await GetCity(from, embed, msg);
         if (fromCity == null)
@@ -61,7 +61,7 @@ public class AirportModule : ModuleBase
         var toCity = await GetCity(to, embed, msg);
         if (toCity == null)
             return;
-        
+
         // Find closest Airport using AirLabs API
         embed.Description = "Finding airports";
         await msg.ModifyAsync(x => x.Embed = embed.Build());
@@ -72,11 +72,11 @@ public class AirportModule : ModuleBase
         var toAirport = await GetAirport(toCity, embed, msg);
         if (toAirport == null)
             return;
-        
+
         // Find cheapest flight using GetFlightInfo
         embed.Description = $"Searching {fromAirport.name} to {toAirport.name}";
         await msg.ModifyAsync(x => x.Embed = embed.Build());
-        
+
         var daysUntilTuesday = (int)DateTime.Now.DayOfWeek - 2;
         if (daysUntilTuesday < 0)
             daysUntilTuesday += 7;
@@ -91,7 +91,7 @@ public class AirportModule : ModuleBase
         }
 
         var flight = flights[0];
-        
+
         var itinerary = flight.itineraries.First();
         var numberOfStops = itinerary.segments.Count - 1;
         var departTime = itinerary.segments.First().departure;
@@ -106,7 +106,7 @@ public class AirportModule : ModuleBase
         // embed.Description +=
         //     $"\nSeats remaining: {flight.numberOfBookableSeats}, Bags: {(flight.pricingOptions.includedCheckedBagsOnly ? "Y" : "N")}, OneWay: {(flight.oneWay ? "Y" : "N")}";
         embed.Description += $"\nDepart: {departTime.at:dd/MM/yy HH:MM}, Arrive: {arriveTime.at:dd/MM/yy HH:MM}";
-        
+
         // string price = $"Base: {flight.price.@base}";
         // foreach (var fee in flight.price.fees)
         // {
@@ -121,9 +121,9 @@ public class AirportModule : ModuleBase
     }
 
     #endregion // Commands
-    
+
     #region Utility Methods
-    
+
     private async Task<WeatherContainer.Result> GetCity(string city, EmbedBuilder embed, IUserMessage msg)
     {
         var cityResult = await WeatherService.GetWeather(city);
@@ -136,7 +136,7 @@ public class AirportModule : ModuleBase
         }
         return cityResult;
     }
-    
+
     private async Task<AirportService.AirLabsAirport> GetAirport(WeatherContainer.Result weather, EmbedBuilder embed, IUserMessage msg)
     {
         var airportResult = await AirportService.GetClosestAirport(weather.coord.Lat, weather.coord.Lon);
@@ -151,5 +151,5 @@ public class AirportModule : ModuleBase
     }
 
     #endregion // Utility Methods
-    
+
 }

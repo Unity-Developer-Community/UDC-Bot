@@ -11,7 +11,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
 
     public UnityHelpService HelpService { get; set; }
     public BotSettings BotSettings { get; set; }
-    
+
     #endregion // Dependency Injection
 
     [SlashCommand("resolve-question", "If in unity-help forum channel, resolve the thread")]
@@ -19,7 +19,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
     {
         if (!BotSettings.UnityHelpBabySitterEnabled)
             return;
-        
+
         await Context.Interaction.DeferAsync(ephemeral: true);
 
         if (!IsValidUser())
@@ -47,7 +47,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
     {
         if (!BotSettings.UnityHelpBabySitterEnabled)
             return;
-        
+
         await Context.Interaction.DeferAsync(ephemeral: true);
         if (!IsValidUser())
         {
@@ -68,14 +68,14 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
         }
 
         var response = await HelpService.MarkResponseAsAnswer(Context.User, targetResponse);
-        await Context.Interaction.FollowupAsync( response, ephemeral: true);
+        await Context.Interaction.FollowupAsync(response, ephemeral: true);
     }
 
     #endregion // Context Commands
-    
+
 
     #region Utility
-    
+
     private bool IsInHelpChannel() => Context.Channel.IsThreadInChannel(BotSettings.GenericHelpChannel.Id);
     private bool IsValidUser() => !Context.User.IsUserBotOrWebhook();
 

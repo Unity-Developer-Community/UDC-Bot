@@ -7,13 +7,13 @@ namespace DiscordBot.Services;
 public class RecruitService
 {
     private const string ServiceName = "RecruitmentService";
-    
+
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _logging;
     private SocketRole ModeratorRole { get; set; }
 
     #region Extra Details
-    
+
     private readonly ForumTag _tagIsHiring;
     private readonly ForumTag _tagWantsWork;
     private readonly ForumTag _tagUnpaidCollab;
@@ -22,16 +22,16 @@ public class RecruitService
     private readonly IForumChannel _recruitChannel;
 
     #endregion // Extra Details
-    
+
     #region Configuration
 
-    private static Color DeletedMessageColor => new (255, 50, 50);
-    private static Color WarningMessageColor => new (255, 255, 100);
-    private static Color EditedMessageColor => new (100, 255, 100);
+    private static Color DeletedMessageColor => new(255, 50, 50);
+    private static Color WarningMessageColor => new(255, 255, 100);
+    private static Color EditedMessageColor => new(100, 255, 100);
 
     private const int TimeBeforeDeletingForumInSec = 60;
     private const string MessageToBeDeleted = "Your thread will be deleted in %s because it did not follow the expected guidelines. Try again after the slow mode period has passed.";
-    
+
     private const int MinimumLengthMessage = 120;
     private const int ShortMessageNoticeDurationInSec = 30 * 4;
 
@@ -49,7 +49,7 @@ public class RecruitService
     Dictionary<ulong, bool> _botSanityCheck = new Dictionary<ulong, bool>();
 
     #endregion // Configuration
-    
+
     public RecruitService(DiscordSocketClient client, ILoggingService logging, BotSettings settings)
     {
         _client = client;
@@ -62,7 +62,7 @@ public class RecruitService
             return;
         }
         _editTimePermissionInMin = settings.EditPermissionAccessTimeMin;
-        
+
         // Get target channel
         _recruitChannel = _client.GetChannel(settings.RecruitmentChannel.Id) as IForumChannel;
         if (_recruitChannel == null)
@@ -70,20 +70,20 @@ public class RecruitService
             LoggingService.LogToConsole("[{ServiceName}] Recruitment channel not found.", LogSeverity.Error);
             return;
         }
-        
+
         try
         {
             var lookingToHire = ulong.Parse(settings.TagLookingToHire);
             var lookingForWork = ulong.Parse(settings.TagLookingForWork);
             var unpaidCollab = ulong.Parse(settings.TagUnpaidCollab);
             var positionFilled = ulong.Parse(settings.TagPositionFilled);
-            
+
             var availableTags = _recruitChannel.Tags;
             _tagIsHiring = availableTags.First(x => x.Id == lookingToHire);
             _tagWantsWork = availableTags.First(x => x.Id == lookingForWork);
             _tagUnpaidCollab = availableTags.First(x => x.Id == unpaidCollab);
             _tagPosFilled = availableTags.First(x => x.Id == positionFilled);
-            
+
             // If any tags are null we print a logging warning
             if (_tagIsHiring == null) StartUpTagMissing(lookingToHire, nameof(settings.TagLookingToHire));
             if (_tagWantsWork == null) StartUpTagMissing(lookingForWork, nameof(settings.TagLookingForWork));
@@ -100,10 +100,10 @@ public class RecruitService
         _client.MessageReceived += GatewayOnMessageReceived;
 
         ConstructEmbeds();
-        
+
         LoggingService.LogServiceEnabled(ServiceName);
     }
-    
+
     #region Thread Creation
 
     private async Task GatewayOnThreadCreated(SocketThreadChannel thread)
@@ -127,7 +127,7 @@ public class RecruitService
             _botSanityCheck.Clear();
         _botSanityCheck.Add(thread.Id, true);
         #endregion // Sanity Check
-        
+
         LoggingService.DebugLog($"[{ServiceName}] New Thread Created: {thread.Id} - {thread.Name}", LogSeverity.Debug);
 
         var message = (await thread.GetMessagesAsync(1).FlattenAsync()).FirstOrDefault();
@@ -163,7 +163,7 @@ public class RecruitService
                 }
                 await ThreadHandleRevShare(thread, message);
             }
-            
+
             // Any Notices that we can recommend the user for improvement
             if (message.Content.Length < MinimumLengthMessage)
             {
@@ -184,7 +184,7 @@ public class RecruitService
             var threadMessage = await (channel.GetMessageAsync(thread.Id));
             if (threadMessage == null)
                 return;
-            
+
             // We do one last check to make sure the thread is still valid
             if (isPaidWork && !threadMessage.Content.ContainsCurrencySymbol())
             {
@@ -192,14 +192,14 @@ public class RecruitService
             }
         });
     }
-    
+
     private async Task GatewayOnMessageReceived(SocketMessage message)
     {
         var thread = message.Channel as SocketThreadChannel;
         // check if channel is a thread in a forum
         if (thread == null)
             return;
-        
+
         if (!thread.IsThreadInChannel(_recruitChannel.Id))
             return;
         if (message.Author.IsUserBotOrWebhook())
@@ -234,19 +234,19 @@ public class RecruitService
             await thread.SendMessageAsync(embed: _userRevShareMentioned);
         }
     }
-    
+
     private async Task ThreadHandleMoreThanOneTag(SocketThreadChannel thread)
     {
         await thread.SendMessageAsync(embed: _userMoreThanOneTagUsed);
         await DeleteThread(thread);
     }
-    
+
     private async Task ThreadHandleNoTags(SocketThreadChannel thread)
     {
         await thread.SendMessageAsync(embed: _userDidntUseTags);
         await DeleteThread(thread);
     }
-    
+
     private async Task ThreadHandleShortMessage(SocketThreadChannel thread, IMessage message)
     {
         if (message.Content.Length < MinimumLengthMessage)
@@ -255,21 +255,21 @@ public class RecruitService
             await ourResponse.DeleteAfterSeconds(ShortMessageNoticeDurationInSec);
         }
     }
-    
+
     private async Task GrantEditPermissions(SocketThreadChannel thread)
     {
         var parentChannel = thread.ParentChannel;
         var message = await thread.SendMessageAsync(embed: GetEditPermMessageEmbed());
         await parentChannel.AddPermissionOverwriteAsync(thread.Owner, new OverwritePermissions(sendMessages: PermValue.Allow));
-        
+
         // We give them a bit of time to edit their post, then remove the permission
         await message.DeleteAfterSeconds((_editTimePermissionInMin * 60) + 2);
         await parentChannel.RemovePermissionOverwriteAsync(thread.Owner);
-        
+
         // Lock the thread so anyone else can't post even when they have edit permissions
         await thread.ModifyAsync(x => x.Locked = true);
     }
-    
+
     #endregion // Basic Handlers for posts
 
     #region Basic Logging Assisst
@@ -291,14 +291,14 @@ public class RecruitService
                 $"You have used the `{_tagIsHiring.Name}` tag but have not specified a price of any kind.\n\nPost **must** include a currency symbol or word, e.g. $, dollars, USD, £, pounds, €, EUR, euro, euros, GBP.")
             .WithColor(DeletedMessageColor)
             .Build();
-        
+
         _userWantsWorkButNoPrice = new EmbedBuilder()
             .WithTitle("No payment price detected")
             .WithDescription(
                 $"You have used the `{_tagWantsWork.Name}` tag but have not specified a price of any kind.\n\nPost **must** include a currency symbol or word, e.g. $, dollars, USD, £, pounds, €, EUR, euro, euros, GBP.")
             .WithColor(DeletedMessageColor)
             .Build();
-        
+
         _userRevShareMentioned = new EmbedBuilder()
             .WithTitle("Notice: Rev-Share mentioned")
             .WithDescription(
@@ -306,7 +306,7 @@ public class RecruitService
                 $"Consider using the `{_tagUnpaidCollab.Name}` tag instead if you intend to use rev-share as a source of payment.")
             .WithColor(WarningMessageColor)
             .Build();
-        
+
         _userMoreThanOneTagUsed = new EmbedBuilder()
             .WithTitle("Broken Guideline: Colliding tags used")
             .WithDescription(
@@ -314,7 +314,7 @@ public class RecruitService
                 "Be sure to read the guidelines before posting.")
             .WithColor(DeletedMessageColor)
             .Build();
-        
+
         _userDidntUseTags = new EmbedBuilder()
             .WithTitle("Broken Guideline: No tags used")
             .WithDescription(
@@ -323,7 +323,7 @@ public class RecruitService
             .WithColor(DeletedMessageColor)
             .Build();
     }
-    
+
     private Embed GetDeletedMessageEmbed()
     {
         var message = MessageToBeDeleted.Replace("%s", GetDynamicTimeStampString(TimeBeforeDeletingForumInSec));
@@ -365,11 +365,11 @@ public class RecruitService
     {
         int clashingTagCount = 0;
         var tags = thread.AppliedTags;
-        
+
         if (tags.Contains(_tagIsHiring.Id)) clashingTagCount++;
         if (tags.Contains(_tagWantsWork.Id)) clashingTagCount++;
         if (tags.Contains(_tagUnpaidCollab.Id)) clashingTagCount++;
-        
+
         return clashingTagCount > 1;
     }
 
@@ -378,7 +378,7 @@ public class RecruitService
         var tags = thread.AppliedTags;
         return tags.Contains(_tagIsHiring.Id) || tags.Contains(_tagWantsWork.Id) || tags.Contains(_tagUnpaidCollab.Id);
     }
-    
+
     private async Task DeleteThread(SocketThreadChannel thread)
     {
         await thread.SendMessageAsync(embed: GetDeletedMessageEmbed());
@@ -392,5 +392,5 @@ public class RecruitService
     }
 
     #endregion // Basic Utility
-    
+
 }

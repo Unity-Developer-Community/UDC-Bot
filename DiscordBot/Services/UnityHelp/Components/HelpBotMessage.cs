@@ -12,7 +12,7 @@ public class HelpBotMessage
 {
     public ulong MessageId { get; set; }
     public HelpMessageType Type { get; set; }
-    
+
     public HelpBotMessage(ulong messageId, HelpMessageType type)
     {
         MessageId = messageId;

@@ -12,7 +12,7 @@ public class TicketModule : ModuleBase
 
     public CommandHandlingService CommandHandlingService { get; set; }
     public BotSettings Settings { get; set; }
-        
+
     #endregion
 
     /// <summary>

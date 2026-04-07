@@ -10,17 +10,17 @@ public class ThreadContainer
 
     public bool IsResolved { get; set; } = false;
     public bool HasInteraction { get; set; } = false;
-    
-    
+
+
     public ulong BotsLastMessage { get; set; }
     public CancellationTokenSource CancellationToken { get; set; }
     public DateTime ExpectedShutdownTime { get; set; }
-    
+
     /// <summary>
     /// Any message the bot sends that could need to be tracked/deleted later is stored here.
     /// </summary>
     public Dictionary<HelpMessageType, HelpBotMessage> HelpMessages { get; set; } = new();
-    
+
     public bool HasMessage(HelpMessageType type) => HelpMessages.ContainsKey(type);
     public ulong GetMessageId(HelpMessageType type) => HelpMessages[type].MessageId;
     public void AddMessage(HelpMessageType type, ulong messageId) => HelpMessages.Add(type, new HelpBotMessage(messageId, type));

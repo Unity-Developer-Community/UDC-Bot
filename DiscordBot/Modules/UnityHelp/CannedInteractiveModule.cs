@@ -15,9 +15,9 @@ public class CannedInteractiveModule : InteractionModuleBase
     public UnityHelpService HelpService { get; set; }
     public BotSettings BotSettings { get; set; }
     public CannedResponseService CannedResponseService { get; set; }
-    
+
     #endregion // Dependency Injection
-    
+
     // Responses are any of the CannedResponseType enum
     [SlashCommand("faq", "Prepared responses to help answer common questions")]
     public async Task CannedResponses(CannedHelp type)
@@ -28,7 +28,7 @@ public class CannedInteractiveModule : InteractionModuleBase
         var embed = CannedResponseService.GetCannedResponse((CannedResponseType)type);
         await Context.Interaction.RespondAsync(string.Empty, embed: embed.Build());
     }
-    
+
     [SlashCommand("resources", "Links to resources to help answer common questions")]
     public async Task Resources(CannedResources type)
     {

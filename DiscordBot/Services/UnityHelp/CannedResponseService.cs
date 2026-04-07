@@ -3,9 +3,9 @@ namespace DiscordBot.Service;
 public class CannedResponseService
 {
     private const string ServiceName = "CannedResponseService";
-    
+
     #region Configuration
-    
+
     public enum CannedResponseType
     {
         HowToAsk,
@@ -55,7 +55,7 @@ public class CannedResponseService
         GameTooBig = CannedResponseType.GameTooBig,
         HowToGoogle = CannedResponseType.HowToGoogle,
     }
-    
+
     public enum CannedResources
     {
         Programming = CannedResponseType.Programming,
@@ -70,11 +70,11 @@ public class CannedResponseService
         // PerformanceAndOptimization = CannedResponseType.PerformanceAndOptimization,
         // UIUX = CannedResponseType.UIUX
     }
-    
+
     private readonly Color _defaultEmbedColor = new Color(0x00, 0x80, 0xFF);
 
     #region Canned Help
-    
+
     private readonly EmbedBuilder _howToAskEmbed = new EmbedBuilder
     {
         Title = "How to Ask",
@@ -84,7 +84,7 @@ public class CannedResponseService
                       "See: [How to Ask](https://stackoverflow.com/help/how-to-ask)",
         Url = "https://stackoverflow.com/help/how-to-ask",
     };
-    
+
     private readonly EmbedBuilder _pasteEmbed = new EmbedBuilder
     {
         Title = "How to Paste Code",
@@ -102,14 +102,14 @@ public class CannedResponseService
                       "This will make your code easier to read and copy. If your code is too long, consider using a service like [GitHub Gist](https://gist.github.com/) or [Pastebin](https://pastebin.com/).",
         Url = "https://pastebin.com/",
     };
-    
+
     private readonly EmbedBuilder _noCodeEmbed = new EmbedBuilder
     {
         Title = "No Code Provided",
         Description = "***Where the code at?*** It appears you're trying to ask something that would benefit from showing what you've tried, but you haven't provided much code. " +
                       "Someone who wants to help you won't be able to do so without seeing the code you're working with."
     };
-    
+
     private readonly EmbedBuilder _xyProblemEmbed = new EmbedBuilder
     {
         Title = "XY Problem",
@@ -120,7 +120,7 @@ public class CannedResponseService
                       "- If you've tried something, tell us what you tried",
         Url = "https://xyproblem.info/",
     };
-    
+
     private readonly EmbedBuilder _gameTooBigEmbed = new EmbedBuilder
     {
         Title = "Game Too Big",
@@ -138,7 +138,7 @@ public class CannedResponseService
                       "See: [How to Google](https://www.lifehack.org/articles/technology/20-tips-use-google-search-efficiently.html)",
         Url = "https://www.lifehack.org/articles/technology/20-tips-use-google-search-efficiently.html",
     };
-    
+
     private readonly EmbedBuilder _deltaTime = new EmbedBuilder
     {
         Title = "Frame Independence",
@@ -155,11 +155,11 @@ public class CannedResponseService
                       "[Update](https://docs.unity3d.com/ScriptReference/MonoBehaviour.Update.html) or " +
                       "`fixedDeltaTime` [FixedUpdate](https://docs.unity3d.com/ScriptReference/MonoBehaviour.FixedUpdate.html) for consistent speed.\n" +
                       "See: [Time Frame Management](https://docs.unity3d.com/Manual/TimeFrameManagement.html), " +
-                      "[FixedUpdate](https://docs.unity3d.com/ScriptReference/MonoBehaviour.FixedUpdate.html), " + 
+                      "[FixedUpdate](https://docs.unity3d.com/ScriptReference/MonoBehaviour.FixedUpdate.html), " +
                       "[DeltaTime](https://docs.unity3d.com/ScriptReference/Time-deltaTime.html)",
         Url = "https://docs.unity3d.com/Manual/TimeFrameManagement.html",
     };
-    
+
     private readonly EmbedBuilder _debugging = new EmbedBuilder
     {
         Title = "Debugging in Unity",
@@ -172,7 +172,7 @@ public class CannedResponseService
                       "Debugging improves with practice, enhancing your bug identification and resolution skills.",
         Url = "https://docs.unity3d.com/Manual/ManagedCodeDebugging.html",
     };
-    
+
     private readonly EmbedBuilder _folderStructure = new EmbedBuilder
     {
         Title = "Folder Structure",
@@ -185,11 +185,11 @@ public class CannedResponseService
                       "See: [Organizing Your Project](https://unity.com/how-to/organizing-your-project)",
         Url = "https://unity.com/how-to/organizing-your-project",
     };
-    
+
     #endregion
 
     #region Canned Resources
-    
+
     private readonly EmbedBuilder _programmingEmbed = new EmbedBuilder
     {
         Title = "Programming Resources",
@@ -202,7 +202,7 @@ public class CannedResponseService
                       "- Design Patterns: [Game Programming Patterns](https://gameprogrammingpatterns.com/)",
         Url = "https://learn.unity.com/project/roll-a-ball"
     };
-    
+
     private readonly EmbedBuilder _artEmbed = new EmbedBuilder
     {
         Title = "Art Resources",
@@ -212,7 +212,7 @@ public class CannedResponseService
                       "- Varying Assets: [Itch.io Royalty Free Assets](https://itch.io/game-assets/free/tag-royalty-free)\n" +
                       "- Blender Discord: [Server Invite](https://discord.gg/blender)"
     };
-    
+
     private readonly EmbedBuilder _threeDEmbed = new EmbedBuilder
     {
         Title = "3D Resources",
@@ -222,7 +222,7 @@ public class CannedResponseService
                       "- Varying Assets: [Itch.io Royalty Free Assets](https://itch.io/game-assets/free/tag-3d/tag-royalty-free)\n" +
                       "- Blender Discord: [Server Invite](https://discord.gg/blender)"
     };
-    
+
     private readonly EmbedBuilder _twoDEmbed = new EmbedBuilder
     {
         Title = "2D Resources",
@@ -231,7 +231,7 @@ public class CannedResponseService
                       "- Varying Assets: [Itch.io Royalty Free Assets](https://itch.io/game-assets/free/tag-2d)\n" +
                       "- Blender Discord: [Server Invite](https://discord.gg/blender)"
     };
-    
+
     private readonly EmbedBuilder _audioEmbed = new EmbedBuilder
     {
         Title = "Audio Resources",
@@ -242,7 +242,7 @@ public class CannedResponseService
                       "- Audio Editor: [Audacity](https://www.audacityteam.org/)\n" +
                       "- Sound Design Explained: [PitchBlends](https://www.pitchbends.com/posts/what-is-sound-design)"
     };
-    
+
     private readonly EmbedBuilder _designEmbed = new EmbedBuilder
     {
         Title = "Design Resources",
@@ -254,24 +254,24 @@ public class CannedResponseService
                       "- Iconography: [Flaticon](https://www.flaticon.com/)\n" +
                       "- Free Icons: [Icon Monstr](https://iconmonstr.com/)"
     };
-    
+
     #endregion
-    
+
     #endregion // Configuration
-    
+
     public EmbedBuilder GetCannedResponse(CannedResponseType type, IUser requestor = null)
     {
         var embed = GetUnbuiltCannedResponse(type);
         if (embed == null)
             return null;
-        
+
         if (requestor != null)
             embed.FooterRequestedBy(requestor);
         embed.WithColor(_defaultEmbedColor);
-        
+
         return embed;
     }
-    
+
     public EmbedBuilder GetUnbuiltCannedResponse(CannedResponseType type)
     {
         return type switch

@@ -118,7 +118,7 @@ public static class StringExtensions
         // Return the hexadecimal string.
         return sb.ToString();
     }
-    
+
     /// <summary>
     /// Returns true if the string contains only upper case characters, including spaces and all punctuation ie; "I NEED HELP!?!?!?!#$?!" will return true 
     /// </summary>
@@ -126,7 +126,7 @@ public static class StringExtensions
     {
         return Regex.IsMatch(str, @"^[A-Z\s\p{P}]+$");
     }
-    
+
     public static string ToCapitalizeFirstLetter(this string str)
     {
         if (string.IsNullOrEmpty(str))
@@ -142,31 +142,31 @@ public static class StringExtensions
     /// </summary>
     /// <param name="nouns">array or list of element phrases to be listed</param>
     /// <param name="conj">final conjunction; defaults to "and" if not given</param>
-	public static string ToCommaList(this string[] nouns, string conj=null)
-	{
-		if (conj == null)
-			conj = "and";
-		var sb = new StringBuilder();
-		for (int i = 0; i < nouns.Length; i++)
-		{
-			if (i > 0)
-			{
-				if (nouns.Length > 2)
-					sb.Append(',');
-				sb.Append(' ');
-				if (i == nouns.Length-1)
-					sb.Append(conj).Append(' ');
-			}
-			sb.Append(nouns[i]);
-		}
-		return sb.ToString();
-	}
+	public static string ToCommaList(this string[] nouns, string conj = null)
+    {
+        if (conj == null)
+            conj = "and";
+        var sb = new StringBuilder();
+        for (int i = 0; i < nouns.Length; i++)
+        {
+            if (i > 0)
+            {
+                if (nouns.Length > 2)
+                    sb.Append(',');
+                sb.Append(' ');
+                if (i == nouns.Length - 1)
+                    sb.Append(conj).Append(' ');
+            }
+            sb.Append(nouns[i]);
+        }
+        return sb.ToString();
+    }
 
     public static string ToBold(this string text)
     {
         return $"**{text}**";
     }
-    
+
     public static string[] ToBoldArray(this string[] texts)
     {
         var bolds = new string[texts.Length];

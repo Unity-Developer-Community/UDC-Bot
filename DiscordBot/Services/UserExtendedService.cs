@@ -7,10 +7,10 @@ namespace DiscordBot.Services;
 public class UserExtendedService
 {
     private readonly DatabaseService _databaseService;
-    
+
     // Cached Information
     private Dictionary<ulong, string> _cityCachedName = new();
-    
+
     public UserExtendedService(DatabaseService databaseService)
     {
         _databaseService = databaseService;
@@ -24,30 +24,30 @@ public class UserExtendedService
         _cityCachedName[user.Id] = city;
         return true;
     }
-    
+
     public async Task<bool> DoesUserHaveDefaultCity(IUser user)
     {
         // Quickest check if we have cached result
         if (_cityCachedName.ContainsKey(user.Id))
             return true;
-        
+
         // Check database
         var res = await _databaseService.Query.GetDefaultCity(user.Id.ToString());
         if (string.IsNullOrEmpty(res))
             return false;
-        
+
         // Cache result
         _cityCachedName[user.Id] = res;
         return true;
     }
-    
+
     public async Task<string> GetUserDefaultCity(IUser user)
     {
         if (await DoesUserHaveDefaultCity(user))
             return _cityCachedName[user.Id];
         return "";
     }
-    
+
     public async Task<bool> RemoveUserDefaultCity(IUser user)
     {
         // Update Database

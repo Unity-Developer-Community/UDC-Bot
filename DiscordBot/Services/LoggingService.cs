@@ -53,12 +53,12 @@ public static class ExtendedLogSeverityExtensions
             _ => (LogSeverity)severity
         };
     }
-    
+
     public static ExtendedLogSeverity ToExtended(this LogSeverity severity)
     {
         return (ExtendedLogSeverity)severity;
     }
-    
+
 }
 
 #endregion // Extended Log Severity
@@ -66,17 +66,17 @@ public static class ExtendedLogSeverityExtensions
 public class LoggingService : ILoggingService
 {
     private const string ServiceName = "LoggingService";
-    
+
     private readonly ISocketMessageChannel _logChannel;
-    
+
     // Configuration
     private const long MaxLogSize = 1024 * 1024 * 2; // 2MB
     private const long FileCheckInterval = 1000 * 60 * 60 * 1; // 1 Hour
     private readonly bool _logCommandExecutions;
-    
+
     // Where backup files go
     private readonly string _backupLogFilePath;
-    
+
     private readonly string _logFilePath; // Normal Logs
     private readonly string _logXpFilePath; // XP Logs
 
@@ -85,7 +85,7 @@ public class LoggingService : ILoggingService
     public LoggingService(DiscordSocketClient client, BotSettings settings)
     {
         _logCommandExecutions = settings.LogCommandExecutions;
-        
+
         // Paths
         _backupLogFilePath = settings.ServerRootPath + @"/log_backups/";
         _logFilePath = settings.ServerRootPath + @"/log.txt";
@@ -109,7 +109,7 @@ public class LoggingService : ILoggingService
             LogToConsole($"[{ServiceName}] Error: Logging Channel {settings.BotAnnouncementChannel.Id} not found", LogSeverity.Error);
         }
     }
-    
+
     public async Task Log(LogBehaviour behaviour, string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null)
     {
         if (behaviour.HasFlag(LogBehaviour.Console))
@@ -121,21 +121,21 @@ public class LoggingService : ILoggingService
         if (_logCommandExecutions && behaviour.HasFlag(LogBehaviour.CommandFile))
             await LogToFile(message, severity);
     }
-    
+
     public async Task LogToChannel(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null)
     {
         if (_logChannel == null)
             return;
         await _logChannel.SendMessageAsync(message, false, embed);
     }
-    
+
     public async Task LogToFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info)
-    { 
+    {
         PrepareLogFile(_logFilePath);
         await File.AppendAllTextAsync(_logFilePath,
             $"[{ConsistentDateTimeFormat()}] - [{severity}] - {message} {Environment.NewLine}");
     }
-    
+
     public void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, int totalXp)
     {
         PrepareLogFile(_logXpFilePath);
@@ -160,7 +160,7 @@ public class LoggingService : ILoggingService
     {
         if (DateTime.Now - _lastFileCheck < TimeSpan.FromMilliseconds(FileCheckInterval))
             return;
-        
+
         _lastFileCheck = DateTime.Now;
         if (new FileInfo(path).Length > MaxLogSize)
         {
@@ -169,7 +169,7 @@ public class LoggingService : ILoggingService
             File.Move(path, backupPath);
             LogToConsole($"[{ServiceName}] Log file was backed up to {backupPath}", ExtendedLogSeverity.Info);
         }
-        
+
         if (!File.Exists(path))
         {
             File.Create(path).Dispose();
@@ -177,14 +177,15 @@ public class LoggingService : ILoggingService
             LogToConsole($"[{ServiceName}] Log file was started", ExtendedLogSeverity.Info);
         }
     }
-    
+
     #region Console Messages
     // Logs message to console without changing the colour
-    public static void LogConsole(string message) {
+    public static void LogConsole(string message)
+    {
         Console.WriteLine($"[{ConsistentDateTimeFormat()}] {message}");
     }
 
-    public static void LogToConsole(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info) 
+    public static void LogToConsole(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info)
     {
         ConsoleColor restoreColour = Console.ForegroundColor;
         SetConsoleColour(severity);
@@ -193,14 +194,14 @@ public class LoggingService : ILoggingService
 
         Console.ForegroundColor = restoreColour;
     }
-    
+
     public static void LogToConsole(string message, LogSeverity severity) => LogToConsole(message, severity.ToExtended());
-    
+
     public static void LogServiceDisabled(string service, string varName)
     {
         LogToConsole($"Service \"{service}\" is Disabled, {varName} is false in settings.json", ExtendedLogSeverity.LowWarning);
     }
-    
+
     public static void LogServiceEnabled(string service)
     {
         LogToConsole($"Service \"{service}\" is Enabled", ExtendedLogSeverity.Info);
@@ -246,7 +247,7 @@ public class LoggingService : ILoggingService
         }
     }
     #endregion
-} 
+}
 
 /// <summary>
 /// Interface for the LoggingService, this is only really required if you want to use DI.
@@ -258,7 +259,7 @@ public class LoggingService : ILoggingService
 public interface ILoggingService
 {
     void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, int totalXp);
-    
+
     /// <summary>
     /// Standard logging, this will log to console, channel and file depending on the behaviour.
     /// </summary>
@@ -272,13 +273,13 @@ public interface ILoggingService
     /// 'Short hand' for logging to all CURRENT supported behaviours, console, channel and file.
     /// Same as calling `Log(LogBehaviour.ConsoleChannelAndFile, message, severity, embed);`
     /// </summary>
-    Task LogAction(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null) => 
+    Task LogAction(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null) =>
         Log(LogBehaviour.ConsoleChannelAndFile, message, severity, embed);
-    
+
     /// <summary>
     /// 'Short hand' for logging to channel and file.
     /// Same as calling `Log(LogBehaviour.ChannelAndFile, message, severity, embed);`
     /// </summary>
-    Task LogChannelAndFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null) => 
+    Task LogChannelAndFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null) =>
         Log(LogBehaviour.ChannelAndFile, message, severity, embed);
 }
