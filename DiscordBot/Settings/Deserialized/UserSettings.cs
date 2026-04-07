@@ -12,4 +12,20 @@ public class UserSettings
     public int XpMaxCooldown { get; set; } = 180;
 
     public int CodeReminderCooldown { get; set; } = 86400;
+
+    public List<string> Validate()
+    {
+        var warnings = new List<string>();
+
+        if (XpMinPerMessage > XpMaxPerMessage)
+            warnings.Add($"XpMinPerMessage ({XpMinPerMessage}) > XpMaxPerMessage ({XpMaxPerMessage})");
+        if (XpMinCooldown > XpMaxCooldown)
+            warnings.Add($"XpMinCooldown ({XpMinCooldown}) > XpMaxCooldown ({XpMaxCooldown})");
+        if (ThanksCooldown <= 0)
+            warnings.Add($"ThanksCooldown is {ThanksCooldown} — should be positive");
+        if (Thanks.Count == 0)
+            warnings.Add("Thanks list is empty — thanks/karma feature will never trigger");
+
+        return warnings;
+    }
 }

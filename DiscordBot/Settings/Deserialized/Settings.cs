@@ -16,6 +16,66 @@ public class BotSettings
 
     #endregion // Important 
 
+    public (List<string> Errors, List<string> Warnings) Validate()
+    {
+        var errors = new List<string>();
+        var warnings = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(Token))
+            errors.Add("Token is not configured — bot cannot authenticate");
+        if (GuildId == 0)
+            errors.Add("GuildId is not configured");
+        if (Prefix == '\0')
+            errors.Add("Prefix is not configured");
+        if (string.IsNullOrWhiteSpace(DbConnectionString))
+            errors.Add("DbConnectionString is not configured — database features will fail");
+
+        if (string.IsNullOrWhiteSpace(ServerRootPath))
+            warnings.Add("ServerRootPath is empty — runtime data storage may fail");
+
+        ValidateChannel(warnings, GeneralChannel, nameof(GeneralChannel));
+        ValidateChannel(warnings, IntroductionChannel, nameof(IntroductionChannel));
+        ValidateChannel(warnings, BotAnnouncementChannel, nameof(BotAnnouncementChannel));
+        ValidateChannel(warnings, BotCommandsChannel, nameof(BotCommandsChannel));
+        ValidateChannel(warnings, UnityNewsChannel, nameof(UnityNewsChannel));
+        ValidateChannel(warnings, UnityReleasesChannel, nameof(UnityReleasesChannel));
+        ValidateChannel(warnings, RulesChannel, nameof(RulesChannel));
+
+        if (BirthdayAnnouncementEnabled)
+            ValidateChannel(warnings, BirthdayAnnouncementChannel, nameof(BirthdayAnnouncementChannel));
+
+        if (RecruitmentServiceEnabled)
+        {
+            ValidateChannel(warnings, RecruitmentChannel, nameof(RecruitmentChannel));
+            if (string.IsNullOrWhiteSpace(TagLookingToHire))
+                warnings.Add("RecruitmentService enabled but TagLookingToHire is empty");
+            if (string.IsNullOrWhiteSpace(TagLookingForWork))
+                warnings.Add("RecruitmentService enabled but TagLookingForWork is empty");
+            if (string.IsNullOrWhiteSpace(TagUnpaidCollab))
+                warnings.Add("RecruitmentService enabled but TagUnpaidCollab is empty");
+            if (string.IsNullOrWhiteSpace(TagPositionFilled))
+                warnings.Add("RecruitmentService enabled but TagPositionFilled is empty");
+        }
+
+        if (UnityHelpBabySitterEnabled)
+        {
+            ValidateChannel(warnings, GenericHelpChannel, nameof(GenericHelpChannel));
+            if (string.IsNullOrWhiteSpace(TagUnityHelpResolved))
+                warnings.Add("UnityHelpBabySitter enabled but TagUnityHelpResolved is empty");
+        }
+
+        if (CasinoEnabled && CasinoStartingTokens < 0)
+            errors.Add("CasinoStartingTokens is negative");
+
+        return (errors, warnings);
+    }
+
+    private static void ValidateChannel(List<string> warnings, ChannelInfo? channel, string name)
+    {
+        if (channel is null || channel.Id == 0)
+            warnings.Add($"{name} is not configured (null or Id=0)");
+    }
+
     #region Configuration
 
     public int WelcomeMessageDelaySeconds { get; set; } = 300;

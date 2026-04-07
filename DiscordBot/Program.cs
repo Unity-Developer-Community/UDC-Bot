@@ -153,5 +153,17 @@ public class Program
         _settings = SerializeUtil.DeserializeFile<BotSettings>(@"Settings/Settings.json");
         _rules = SerializeUtil.DeserializeFile<Rules>(@"Settings/Rules.json");
         _userSettings = SerializeUtil.DeserializeFile<UserSettings>(@"Settings/UserSettings.json");
+
+        var (errors, warnings) = _settings.Validate();
+        warnings.AddRange(_userSettings.Validate());
+        foreach (var warning in warnings)
+            Console.WriteLine($"[Settings Warning] {warning}");
+        if (errors.Count > 0)
+        {
+            foreach (var error in errors)
+                Console.Error.WriteLine($"[Settings Error] {error}");
+            throw new InvalidOperationException(
+                $"Bot settings validation failed with {errors.Count} error(s). See output above.");
+        }
     }
 }
