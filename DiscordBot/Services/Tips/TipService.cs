@@ -260,8 +260,8 @@ public class TipService
             return;
         }
 
-        RemoveTip(message, tip);
-        AddTip(message, string.Join(",", tip.Keywords), content);
+        await RemoveTip(message, tip);
+        await AddTip(message, string.Join(",", tip.Keywords), content);
         // REVIEW: causes two CommitTipDatabase calls
     }
 
@@ -272,7 +272,7 @@ public class TipService
         {
             var json = File.ReadAllText(jsonPath);
             _tips = JsonConvert.DeserializeObject<ConcurrentDictionary<string, List<Tip>>>(json)!;
-            _loggingService.LogAction(
+            _ = _loggingService.LogAction(
                 $"[{ServiceName}] Tip index has {_tips.Count} keywords.",
                 ExtendedLogSeverity.Info);
         }
@@ -304,7 +304,7 @@ public class TipService
 
         if (touched)
         {
-            _loggingService.LogAction(
+            _ = _loggingService.LogAction(
                 $"[{ServiceName}] Tip index was de-duplicated.",
                 ExtendedLogSeverity.Info);
             await CommitTipDatabase();

@@ -139,7 +139,7 @@ public class RecruitService
             return;
         }
 
-        Task.Run(async () =>
+        _ = Task.Run(async () =>
         {
             if (!DoesThreadHaveAValidTag(thread))
             {
@@ -169,7 +169,7 @@ public class RecruitService
             // Any Notices that we can recommend the user for improvement
             if (message.Content.Length < MinimumLengthMessage)
             {
-                Task.Run(() => ThreadHandleShortMessage(thread, message));
+                _ = Task.Run(() => ThreadHandleShortMessage(thread, message));
             }
 
             await Task.Delay(millisecondsDelay: 200);

@@ -68,7 +68,7 @@ public class BirthdayAnnouncementService
                 {
                     _announcedToday.Clear();
                     _lastAnnouncementDate = DateTime.Today;
-                    _loggingService.LogAction($"[{ServiceName}] New day detected, reset announced birthdays list.", ExtendedLogSeverity.Info);
+                    _ = _loggingService.LogAction($"[{ServiceName}] New day detected, reset announced birthdays list.", ExtendedLogSeverity.Info);
                 }
 
                 await CheckAndAnnounceBirthdays();
@@ -100,7 +100,7 @@ public class BirthdayAnnouncementService
             var channel = _client.GetChannel(_settings.BirthdayAnnouncementChannel.Id) as SocketTextChannel;
             if (channel == null)
             {
-                _loggingService.LogAction($"[{ServiceName}] Could not find birthday announcement channel with ID {_settings.BirthdayAnnouncementChannel.Id}", ExtendedLogSeverity.Warning);
+                _ = _loggingService.LogAction($"[{ServiceName}] Could not find birthday announcement channel with ID {_settings.BirthdayAnnouncementChannel.Id}", ExtendedLogSeverity.Warning);
                 return;
             }
 
@@ -117,12 +117,12 @@ public class BirthdayAnnouncementService
                 await channel.SendMessageAsync(message);
 
                 _announcedToday.Add(announcementKey);
-                _loggingService.LogAction($"[{ServiceName}] Announced birthday for {birthday.Name}", ExtendedLogSeverity.Info);
+                _ = _loggingService.LogAction($"[{ServiceName}] Announced birthday for {birthday.Name}", ExtendedLogSeverity.Info);
             }
         }
         catch (Exception e)
         {
-            _loggingService.LogAction($"[{ServiceName}] Error checking birthdays: {e.Message}", ExtendedLogSeverity.LowWarning);
+            _ = _loggingService.LogAction($"[{ServiceName}] Error checking birthdays: {e.Message}", ExtendedLogSeverity.LowWarning);
         }
     }
 
@@ -168,7 +168,7 @@ public class BirthdayAnnouncementService
         }
         catch (Exception e)
         {
-            _loggingService.LogAction($"[{ServiceName}] Error fetching birthday data: {e.Message}", ExtendedLogSeverity.LowWarning);
+            _ = _loggingService.LogAction($"[{ServiceName}] Error fetching birthday data: {e.Message}", ExtendedLogSeverity.LowWarning);
         }
 
         return birthdays;

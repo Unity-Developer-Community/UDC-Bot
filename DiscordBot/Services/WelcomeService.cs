@@ -177,7 +177,7 @@ public class WelcomeService
 
             // Restart unless shutdown was requested
             if (!_shutdownToken.IsCancellationRequested)
-                Task.Run(DelayedWelcomeService);
+                _ = Task.Run(DelayedWelcomeService);
         }
     }
 

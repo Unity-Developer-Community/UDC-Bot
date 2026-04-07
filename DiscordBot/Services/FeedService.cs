@@ -131,7 +131,7 @@ public class FeedService
                     }
                     catch (Exception e)
                     {
-                        _logging.LogChannelAndFile($"[{ServiceName}] Error generating release notes: {e}\nLikely updated format.", ExtendedLogSeverity.Warning);
+                        _ = _logging.LogChannelAndFile($"[{ServiceName}] Error generating release notes: {e}\nLikely updated format.", ExtendedLogSeverity.Warning);
                         releaseNotes = new List<string> { "No release notes found" };
                     }
                     newsContent = releaseNotes[0];
