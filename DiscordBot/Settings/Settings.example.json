@@ -1,19 +1,19 @@
 ﻿{
   /* Auth Info requires creating a Bot which can be done through https://discordapp.com/developers/applications/ (Make sure to give it Administrator Perms)*/
   /* Auth info */
-  "token": "Y O U R _ B O T _ T O K E N",
-  "invite": "InviteLink", // Currently Unused
+  "Token": "Y O U R _ B O T _ T O K E N",
+  "Invite": "InviteLink",
   /* DB Info*/
   "DbConnectionString": "Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=USERPASSWORD",
   /*Server Info*/
-  "serverRootPath": "./SERVER",
-  "assetsRootPath": "./Assets",
+  "ServerRootPath": "./SERVER",
+  "AssetsRootPath": "./Assets",
   /* Base info */
-  "prefix": "!",
+  "Prefix": "!",
   "ModeratorRoleId": "0",
-  "guildId": "0", // Replace with your servers guild ID
+  "GuildId": "0", // Replace with your servers guild ID
   /* Channel IDs for certain channels. */
-  "generalChannel": { // Off-topic
+  "GeneralChannel": { // Off-topic
     "desc": "General-Chat Channel",
     "id": "0"
   },
@@ -21,15 +21,15 @@
     "desc": "Introductions Channel",
     "id": "0"
   },
-  "botAnnouncementChannel": { // Most bot logs will go here
+  "BotAnnouncementChannel": { // Most bot logs will go here
     "desc": "Bot-Announcement Channel",
     "id": "0"
   },
-  "botCommandsChannel": {
+  "BotCommandsChannel": {
     "desc": "Bot-Commands Channel",
     "id": "0"
   },
-  "unityNewsChannel": {
+  "UnityNewsChannel": {
     "desc": "Unity News Channel",
     "id": "0"
   },
@@ -37,12 +37,12 @@
   "SubsNewsRoleId": "0",
   "SubsReleasesRoleId": "0",
   /*Complaints Channels Stuff*/
-  "complaintCategoryId": "0",
-  "complaintChannelPrefix": "Complaint",
-  "closedComplaintChannelPrefix": "Closed-",
-  "closedComplaintCategoryId": "662084543662129175",
+  "ComplaintCategoryId": "0",
+  "ComplaintChannelPrefix": "Complaint",
+  "ClosedComplaintChannelPrefix": "Closed-",
+  "ClosedComplaintCategoryId": "662084543662129175",
   /*Commands Configuration*/
-  "wikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
+  "WikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
   "EveryoneScoldPeriodSeconds": "21600",
   /*API Keys*/
   "WeatherAPIKey": "", // Key for openweathermap.org
@@ -62,7 +62,7 @@
   "EditPermissionAccessTimeMin": 3,
   /* Unity Help Service */
   "UnityHelpBabySitterEnabled": false,
-  "genericHelpChannel": {
+  "GenericHelpChannel": {
     // Unity-help
     "desc": "Unity-Help Channel",
     "id": "0"

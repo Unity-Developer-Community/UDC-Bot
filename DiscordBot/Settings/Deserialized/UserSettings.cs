@@ -12,6 +12,4 @@ public class UserSettings
     public int XpMaxCooldown { get; set; } = 180;
 
     public int CodeReminderCooldown { get; set; } = 86400;
-
-    //TODO Introduce notice for asking for help "Can someone help" when they haven't posted in a couple minutes would be a giveaway that they should be reminded to post their question, and not just ask if someone is there.
 }

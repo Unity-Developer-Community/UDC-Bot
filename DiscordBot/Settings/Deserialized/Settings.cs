@@ -114,7 +114,7 @@ public class BotSettings
 
     #endregion // Tips
 
-    public string TagUnitHelpResolvedTag { get; set; } = string.Empty;
+    public string TagUnityHelpResolved { get; set; } = string.Empty;
 
     #endregion // Unity Help Threads
 

@@ -12,32 +12,26 @@ metadata:
 data:
     Settings.json: |
         {
-            "token": "${BOT_TOKEN}",
+            "Token": "${BOT_TOKEN}",
             "DbConnectionString": "Host=postgresql;Port=5432;Database=udcbot;Username=udcbot;Password=${DB_PASSWORD}",
-            "invite": "https://discord.gg/bu3bbby", // Currently Unused
-            /* DB Info*/
+            "Invite": "https://discord.gg/bu3bbby",
             /*Server Info*/
-            "serverRootPath": "./SERVER",
-            "assetsRootPath": "./Assets",
+            "ServerRootPath": "./SERVER",
+            "AssetsRootPath": "./Assets",
             /* Base info */
-            "prefix": "!",
-            "Administrator": "493514411026153482",
+            "Prefix": "!",
             "ModeratorRoleId": "493514490504019969",
-            "guildId": "493510779866316801", // Replace with your servers guild ID
+            "GuildId": "493510779866316801", // Replace with your servers guild ID
             /* Channel IDs for certain channels. */
-            "generalChannel": { // Off-topic
+            "GeneralChannel": { // Off-topic
                 "desc": "General-Chat Channel",
                 "id": "493511024037724180"
             },
-            "botAnnouncementChannel": { // Most bot logs will go here
+            "BotAnnouncementChannel": { // Most bot logs will go here
                 "desc": "Bot-Announcement Channel",
                 "id": "493512007144833055"
             },
-            "announcementsChannel": { // Not used by bot
-                "desc": "General Announcement Channel",
-                "id": "493510992320528404" // Currently Unused 29/04/21
-            },
-            "botCommandsChannel": {
+            "BotCommandsChannel": {
                 "desc": "Bot-Commands Channel",
                 "id": "493512044973260811"
             },
@@ -49,15 +43,13 @@ data:
             "SubsNewsRoleId": "1209260621342707772",
             "SubsReleasesRoleId": "523205962279157771",
             "TipsUserRoleId": "493514563736698880",
-            "TipsAuthorRoleId": "99999",
             /*Complaints Channels Stuff*/
-            "complaintCategoryId": "520853507851681797",
-            "complaintChannelPrefix": "Complaint",
-            "closedComplaintCategoryId": "662084543662129175",
-            "closedComplaintChannelPrefix": "Closed-",
+            "ComplaintCategoryId": "520853507851681797",
+            "ComplaintChannelPrefix": "Complaint",
+            "ClosedComplaintCategoryId": "662084543662129175",
+            "ClosedComplaintChannelPrefix": "Closed-",
             /*Commands Configuration*/
-            "wikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
-            "IPGeolocationAPIKey": "${IPGEO_KEY}",
+            "WikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
             "WeatherAPIKey": "${WEATHER_KEY}",
             "FlightAPIKey": "${FLIGHT_KEY}",
             "FlightAPISecret": "${FLIGHT_SECRET}",
@@ -88,7 +80,7 @@ data:
                 "desc": "Unity-Help Channel",
                 "id": "1019663870798856212"
             },
-            "TagUnitHelpResolvedTag": "1019672922811551815",
+            "TagUnityHelpResolved": "1019672922811551815",
             "IntroductionChannel": {
                 "desc": "Introduction Channel",
                 "id": "768488410959708210"

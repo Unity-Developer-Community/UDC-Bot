@@ -42,7 +42,12 @@ public class Program
             LogLevel = LogSeverity.Verbose,
             AlwaysDownloadUsers = true,
             MessageCacheSize = 1024,
-            GatewayIntents = GatewayIntents.All,
+            GatewayIntents = GatewayIntents.Guilds
+                           | GatewayIntents.GuildMembers
+                           | GatewayIntents.GuildMessages
+                           | GatewayIntents.GuildMessageReactions
+                           | GatewayIntents.DirectMessages
+                           | GatewayIntents.MessageContent,
         });
         _client.Log += LoggingService.DiscordNetLogger;
 

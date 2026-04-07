@@ -94,7 +94,7 @@ public class UnityHelpService
         {
             LoggingService.LogToConsole($"[{ServiceName}] Help channel not found", LogSeverity.Error);
         }
-        var resolvedTag = _helpChannel!.Tags.FirstOrDefault(x => x.Id == ulong.Parse(settings.TagUnitHelpResolvedTag));
+        var resolvedTag = _helpChannel!.Tags.FirstOrDefault(x => x.Id == ulong.Parse(settings.TagUnityHelpResolved));
         if (resolvedTag == null || resolvedTag.Id <= 0)
             LoggingService.LogToConsole($"[{ServiceName}] Resolved tag not found", LogSeverity.Error);
         _resolvedForumTag = resolvedTag;
