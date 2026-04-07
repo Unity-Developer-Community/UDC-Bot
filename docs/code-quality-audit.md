@@ -270,7 +270,7 @@ signal handling, no resource cleanup on exit.
 
 | Issue | Severity | Details |
 |-------|----------|---------|
-| Duplicate `RectangleD` struct | Low | Defined in both `Skin/RectangleD.cs` and `Domain/RectangleD.cs` |
+| ✅ ~~Duplicate `RectangleD` struct~~ | ~~Low~~ | ~~Resolved — kept `Domain/RectangleD.cs`, deleted `Skin/RectangleD.cs`~~ |
 | Reflection in `SkinModuleJsonConverter` | Medium | `Type.GetType()` on every deserialization; no caching; no null check |
 | Magic threshold in avatar color sampling | Medium | `650` RGB sum threshold unexplained |
 | Inconsistent coordinate types | Low | Some modules use `int`, others use `double` |
@@ -356,34 +356,34 @@ no `.cs` files and no test framework configured.
 
 ### Immediate (Bugs)
 
-1. ~~Fix `_isInitialized` race condition in `Program.cs` — use
-   `Interlocked.CompareExchange`~~ ✅
-2. ~~Replace `List<IDiscordGameSession>` with `ConcurrentDictionary` in
-   `GameService.cs`~~ ✅
-3. ~~Fix double `i++` in `EmbedModule.cs` reaction-polling loop (and add
-   `break` after confirmation)~~ ✅
-4. ~~Fix sunrise/sunset copy-paste bug in `WeatherModule.cs`~~ ✅
-5. ~~Add `using` to all `HttpClient` instances or switch to `IHttpClientFactory`;
-   replace deprecated `WebClient` usage~~ ✅
-6. ~~Add null checks in `RoleAttributes.cs` for DM context safety~~ ✅
-7. ~~Wrap all `async void` event handlers in try-catch~~ ✅
+1. ✅ ~~Fix `_isInitialized` race condition in `Program.cs` — use
+   `Interlocked.CompareExchange`~~
+2. ✅ ~~Replace `List<IDiscordGameSession>` with `ConcurrentDictionary` in
+   `GameService.cs`~~
+3. ✅ ~~Fix double `i++` in `EmbedModule.cs` reaction-polling loop (and add
+   `break` after confirmation)~~
+4. ✅ ~~Fix sunrise/sunset copy-paste bug in `WeatherModule.cs`~~
+5. ✅ ~~Add `using` to all `HttpClient` instances or switch to `IHttpClientFactory`;
+   replace deprecated `WebClient` usage~~
+6. ✅ ~~Add null checks in `RoleAttributes.cs` for DM context safety~~
+7. ✅ ~~Wrap all `async void` event handlers in try-catch~~
 
 ### Short-term (Architecture)
 
-1. ~~Split `UserService` into focused services~~ ✅
-2. ~~Split `BotSettings` into domain-specific config classes~~ ✅
-3. ~~Add `BotSettings.Validate()` post-deserialization~~ ✅
-4. ~~Extract business logic from command handlers into services~~ ✅
-5. ~~Register `IHttpClientFactory` in DI; remove manual `HttpClient` creation~~ ✅
-6. ~~Add graceful shutdown support with `CancellationToken`~~ ✅
-7. ~~Move static module state (`_activeDuels`) to services~~ ✅
+1. ✅ ~~Split `UserService` into focused services~~
+2. ✅ ~~Split `BotSettings` into domain-specific config classes~~
+3. ✅ ~~Add `BotSettings.Validate()` post-deserialization~~
+4. ✅ ~~Extract business logic from command handlers into services~~
+5. ✅ ~~Register `IHttpClientFactory` in DI; remove manual `HttpClient` creation~~
+6. ✅ ~~Add graceful shutdown support with `CancellationToken`~~
+7. ✅ ~~Move static module state (`_activeDuels`) to services~~
 
 ### Medium-term (Quality)
 
 1. Create `EmbedFactory` to reduce embed construction duplication
-2. ~~Create `SafeFireAndForget()` extension to replace `#pragma` + `Task.Run`~~ ✅
-3. ~~Consolidate `ContainsInviteLink()` overloads~~ ✅ removed (dead code)
-4. ~~Add configuration validation for all settings~~ ✅ (covered by S3)
+2. ✅ ~~Create `SafeFireAndForget()` extension to replace `#pragma` + `Task.Run`~~
+3. ✅ ~~Consolidate `ContainsInviteLink()` overloads~~ — removed (dead code)
+4. ✅ ~~Add configuration validation for all settings~~ — covered by S3
 5. Audit service lifetimes — consider `Scoped` for interaction-scoped services
 6. Remove all dead/commented-out code
 7. Standardize naming conventions (event handlers, async methods, service
@@ -391,12 +391,12 @@ no `.cs` files and no test framework configured.
 
 ### Long-term (Sustainability)
 
-1. ✅ Set up test project with xUnit and write tests for critical paths
+1. ✅ ~~Set up test project with xUnit and write tests for critical paths~~
 2. Split `ICasinoRepo` into focused interfaces
 3. Extract `IWebClient` / `IHtmlParser` from `WebUtil` for testability
 4. Implement session expiry and cleanup for casino game sessions
 5. Refactor skin module hierarchy — intermediate base classes, coordinate config
-6. Consolidate duplicate `RectangleD` struct
+6. ✅ ~~Consolidate duplicate `RectangleD` struct~~
 7. Replace `string[][]` database in `UpdateService` with typed structures
 
 ---
