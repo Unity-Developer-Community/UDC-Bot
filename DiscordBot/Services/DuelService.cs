@@ -7,7 +7,6 @@ public class DuelService
 {
     private readonly ConcurrentDictionary<string, (ulong challengerId, ulong opponentId)> _activeDuels = new();
     private readonly Random _random = new();
-    private readonly ILoggingService _loggingService;
 
     private static readonly string[] NormalWinMessages =
     {
@@ -21,9 +20,8 @@ public class DuelService
         "{winner} overwhelms {loser} with superior technique and emerges victorious!"
     };
 
-    public DuelService(ILoggingService loggingService)
+    public DuelService()
     {
-        _loggingService = loggingService;
     }
 
     public bool IsDuelActive(string duelKey) => _activeDuels.ContainsKey(duelKey);

@@ -1,21 +1,16 @@
 using Discord.WebSocket;
 using DiscordBot.Domain;
 using DiscordBot.Modules;
-using DiscordBot.Settings;
 
 namespace DiscordBot.Services;
 
 public class GameService
 {
-    private readonly ILoggingService _loggingService;
-    private readonly BotSettings _settings;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, IDiscordGameSession> _activeSessions = new();
     private readonly CasinoService _casinoService;
 
-    public GameService(ILoggingService loggingService, BotSettings settings, CasinoService casinoService)
+    public GameService(CasinoService casinoService)
     {
-        _loggingService = loggingService;
-        _settings = settings;
         _casinoService = casinoService;
     }
 

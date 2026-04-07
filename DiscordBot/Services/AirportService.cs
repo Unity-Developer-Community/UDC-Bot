@@ -1,7 +1,6 @@
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
-using Discord.WebSocket;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
 using Newtonsoft.Json;
@@ -10,9 +9,6 @@ namespace DiscordBot.Services;
 
 public class AirportService
 {
-    private readonly DiscordSocketClient _client;
-    private readonly ILoggingService _loggingService;
-
     #region Amadeus
 
     private readonly string _flightApiKey;
@@ -171,10 +167,8 @@ public class AirportService
 
     #endregion // AirLabs
 
-    public AirportService(DiscordSocketClient client, ILoggingService loggingService, BotSettings botSettings)
+    public AirportService(BotSettings botSettings)
     {
-        _client = client;
-        _loggingService = loggingService;
         _flightApiKey = botSettings.FlightAPIKey;
         _flightSecret = botSettings.FlightAPISecret;
 

@@ -54,18 +54,15 @@ public class UpdateService
     private string[][] _apiDatabase = null!;
 
     private BotData _botData = null!;
-    private readonly DiscordSocketClient _client;
     private List<FaqData> _faqData = null!;
     private FeedData _feedData = null!;
 
     private string[][] _manualDatabase = null!;
     private UserData _userData = null!;
 
-    public UpdateService(DiscordSocketClient client,
-        DatabaseService databaseService, BotSettings settings, FeedService feedService, ILoggingService loggingService,
+    public UpdateService(DatabaseService databaseService, BotSettings settings, FeedService feedService, ILoggingService loggingService,
         CancellationTokenSource cts)
     {
-        _client = client;
         _feedService = feedService;
         _loggingService = (loggingService as LoggingService)!;
 

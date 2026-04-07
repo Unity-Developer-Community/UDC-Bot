@@ -9,13 +9,11 @@ public class WeatherService
 {
     private const string ServiceName = "FeedService";
 
-    private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
     private readonly string _weatherApiKey;
 
-    public WeatherService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings)
+    public WeatherService(ILoggingService loggingService, BotSettings settings)
     {
-        _client = client;
         _loggingService = loggingService;
         _weatherApiKey = settings.WeatherAPIKey;
 

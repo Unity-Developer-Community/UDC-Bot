@@ -10,8 +10,6 @@ namespace DiscordBot.Services;
 
 public class ProfileCardService
 {
-    private const string ServiceName = "ProfileCardService";
-
     private readonly DatabaseService _databaseService;
     private readonly ILoggingService _loggingService;
     private readonly IHttpClientFactory _httpClientFactory;

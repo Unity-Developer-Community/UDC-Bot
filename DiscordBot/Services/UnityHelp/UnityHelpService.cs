@@ -11,7 +11,6 @@ public class UnityHelpService
     private const string ServiceName = "UnityHelpService";
 
     private readonly DiscordSocketClient _client;
-    private readonly ILoggingService _logging;
     private SocketRole ModeratorRole { get; set; }
 
     #region Configuration
@@ -77,10 +76,9 @@ public class UnityHelpService
 
     #endregion // Extra Details
 
-    public UnityHelpService(DiscordSocketClient client, BotSettings settings, ILoggingService logging)
+    public UnityHelpService(DiscordSocketClient client, BotSettings settings)
     {
         _client = client;
-        _logging = logging;
 
         ModeratorRole = _client.GetGuild(settings.GuildId).GetRole(settings.ModeratorRoleId);
 

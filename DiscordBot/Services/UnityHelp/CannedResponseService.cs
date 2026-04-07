@@ -2,8 +2,6 @@ namespace DiscordBot.Service;
 
 public class CannedResponseService
 {
-    private const string ServiceName = "CannedResponseService";
-
     #region Configuration
 
     public enum CannedResponseType

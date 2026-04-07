@@ -9,7 +9,6 @@ public class RecruitService
     private const string ServiceName = "RecruitmentService";
 
     private readonly DiscordSocketClient _client;
-    private readonly ILoggingService _logging;
     private SocketRole ModeratorRole { get; set; }
 
     #region Extra Details
@@ -50,10 +49,9 @@ public class RecruitService
 
     #endregion // Configuration
 
-    public RecruitService(DiscordSocketClient client, ILoggingService logging, BotSettings settings)
+    public RecruitService(DiscordSocketClient client, BotSettings settings)
     {
         _client = client;
-        _logging = logging;
         ModeratorRole = _client.GetGuild(settings.GuildId).GetRole(settings.ModeratorRoleId);
 
         if (!settings.RecruitmentServiceEnabled)

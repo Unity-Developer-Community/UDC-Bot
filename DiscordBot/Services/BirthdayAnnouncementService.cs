@@ -21,8 +21,7 @@ public class BirthdayAnnouncementService
     private readonly HashSet<string> _announcedToday = new();
     private DateTime _lastAnnouncementDate = DateTime.Today;
 
-    // URLs for birthday data from the existing !bday command
-    private const string NextBirthdayUrl = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&range=C15:C15";
+    // URL for birthday data from the existing !bday command
     private const string BirthdayTableUrl = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
 
     public BirthdayAnnouncementService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings,

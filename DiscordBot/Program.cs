@@ -20,14 +20,10 @@ public class Program
     private static BotSettings _settings = null!;
     private static UserSettings _userSettings = null!;
     private DiscordSocketClient _client = null!;
-    private CommandHandlingService _commandHandlingService = null!;
 
     private CommandService _commandService = null!;
     private InteractionService _interactionService = null!;
     private IServiceProvider _services = null!;
-
-    private UnityHelpService _unityHelpService = null!;
-    private RecruitService _recruitService = null!;
 
     private readonly CancellationTokenSource _cts = new();
 
@@ -67,7 +63,7 @@ public class Program
             });
 
             _services = ConfigureServices();
-            _commandHandlingService = _services.GetRequiredService<CommandHandlingService>();
+            _services.GetRequiredService<CommandHandlingService>();
 
             // Announce, and Log bot started to track issues a bit easier
             var logger = _services.GetRequiredService<ILoggingService>();
@@ -75,8 +71,8 @@ public class Program
 
             LoggingService.LogToConsole("Bot is connected.", ExtendedLogSeverity.Positive);
 
-            _unityHelpService = _services.GetRequiredService<UnityHelpService>();
-            _recruitService = _services.GetRequiredService<RecruitService>();
+            _services.GetRequiredService<UnityHelpService>();
+            _services.GetRequiredService<RecruitService>();
             _services.GetRequiredService<BirthdayAnnouncementService>();
             _services.GetRequiredService<AuditLogService>();
             _services.GetRequiredService<WelcomeService>();
