@@ -16,7 +16,7 @@ public class BotCommandChannelAttribute : PreconditionAttribute
             return await Task.FromResult(PreconditionResult.FromSuccess());
         }
 
-        Task task = context.Message.DeleteAfterSeconds(seconds: 10);
+        _ = context.Message.DeleteAfterSeconds(seconds: 10);
         return await Task.FromResult(PreconditionResult.FromError($"This command can only be used in <#{settings.BotCommandsChannel.Id.ToString()}>."));
     }
 }

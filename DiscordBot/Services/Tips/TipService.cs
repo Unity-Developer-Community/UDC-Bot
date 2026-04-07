@@ -271,7 +271,7 @@ public class TipService
         if (File.Exists(jsonPath))
         {
             var json = File.ReadAllText(jsonPath);
-            _tips = JsonConvert.DeserializeObject<ConcurrentDictionary<string, List<Tip>>>(json);
+            _tips = JsonConvert.DeserializeObject<ConcurrentDictionary<string, List<Tip>>>(json)!;
             _loggingService.LogAction(
                 $"[{ServiceName}] Tip index has {_tips.Count} keywords.",
                 ExtendedLogSeverity.Info);

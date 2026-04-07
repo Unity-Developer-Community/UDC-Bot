@@ -58,7 +58,7 @@ public class ProfileCardService
             var percentage = (float)xpShown / maxXpShown;
 
             var u = (IGuildUser)user;
-            IRole mainRole = null;
+            IRole? mainRole = null;
             foreach (var id in u.RoleIds)
             {
                 var role = u.Guild.GetRole(id);

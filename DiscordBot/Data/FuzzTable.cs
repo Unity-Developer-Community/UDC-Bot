@@ -121,7 +121,7 @@ public class FuzzTable
                     RegexOptions.IgnorePatternWhitespace |
                     RegexOptions.Compiled,
                     timeout);
-        string before = null;
+        string? before = null;
         while (fuzz != before)
         {
             before = fuzz;

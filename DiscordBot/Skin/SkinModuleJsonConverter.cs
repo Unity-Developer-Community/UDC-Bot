@@ -16,7 +16,7 @@ public class SkinModuleJsonConverter : JsonConverter
         try
         {
             var t = $"DiscordBot.Skin.{jo["Type"].Value<string>()}SkinModule";
-            type = Type.GetType(t);
+            type = Type.GetType(t)!;
             return jo.ToObject(type);
         }
         catch (Exception e)
@@ -26,7 +26,7 @@ public class SkinModuleJsonConverter : JsonConverter
         }
     }
 
-    public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+    public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
     {
         throw new NotImplementedException();
     }

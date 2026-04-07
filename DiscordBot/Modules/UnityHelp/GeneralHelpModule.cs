@@ -31,7 +31,7 @@ public class GeneralHelpModule : ModuleBase
                 "https://docs.microsoft.com/en-us/dotnet/csharp/misc/"
             };
 
-            HtmlDocument errorPage = null;
+            HtmlDocument? errorPage = null;
             string usedUrl = string.Empty;
 
             foreach (var url in urls)

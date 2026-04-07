@@ -33,7 +33,7 @@ public class BirthdayModule : ModuleBase
 
         var birthdate = default(DateTime);
 
-        HtmlAgilityPack.HtmlNode matchedNode = null;
+        HtmlAgilityPack.HtmlNode? matchedNode = null;
         var matchedLength = int.MaxValue;
 
         foreach (var row in relevantNodes)

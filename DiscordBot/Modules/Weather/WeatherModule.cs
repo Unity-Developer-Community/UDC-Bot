@@ -38,7 +38,7 @@ public class WeatherModule : ModuleBase
 
     private async Task<EmbedBuilder?> TemperatureEmbed(string city, string replaceCityWith = "")
     {
-        WeatherContainer.Result res = await WeatherService.GetWeather(city: city);
+        WeatherContainer.Result? res = await WeatherService.GetWeather(city: city);
         if (!await IsResultsValid(res))
             return null;
 
@@ -87,7 +87,7 @@ public class WeatherModule : ModuleBase
 
     private async Task<EmbedBuilder?> WeatherEmbed(string city, string replaceCityWith = "")
     {
-        WeatherContainer.Result res = await WeatherService.GetWeather(city: city);
+        WeatherContainer.Result? res = await WeatherService.GetWeather(city: city);
         if (!await IsResultsValid(res))
             return null;
 
@@ -166,12 +166,12 @@ public class WeatherModule : ModuleBase
 
     private async Task<EmbedBuilder?> PollutionEmbed(string city, string replaceCityWith = "")
     {
-        WeatherContainer.Result res = await WeatherService.GetWeather(city: city);
+        WeatherContainer.Result? res = await WeatherService.GetWeather(city: city);
         if (!await IsResultsValid(res))
             return null;
 
         // We can't really combine the call as having WeatherResults helps with other details
-        PollutionContainer.Result polResult =
+        PollutionContainer.Result? polResult =
             await WeatherService.GetPollution(Math.Round(res.coord.Lon, 4), Math.Round(res.coord.Lat, 4));
 
 
@@ -243,7 +243,7 @@ public class WeatherModule : ModuleBase
 
     private async Task<EmbedBuilder?> TimeEmbed(string city, string replaceCityWith = "")
     {
-        WeatherContainer.Result res = await WeatherService.GetWeather(city: city);
+        WeatherContainer.Result? res = await WeatherService.GetWeather(city: city);
         if (!await IsResultsValid(res))
             return null;
 

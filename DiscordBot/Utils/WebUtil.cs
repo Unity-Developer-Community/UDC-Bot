@@ -134,7 +134,7 @@ public static class WebUtil
     /// <summary>
     /// Returns a deserialized object from a JSON string, or null if the string is empty or can't be deserialized.
     /// </summary>
-    public static async Task<(bool success, T result)> TryGetObjectFromJson<T>(string url)
+    public static async Task<(bool success, T? result)> TryGetObjectFromJson<T>(string url)
     {
         try
         {

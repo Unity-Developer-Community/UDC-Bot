@@ -46,7 +46,7 @@ public class SearchService
     public DocSearchResult? FindBestMatch(string query, string[][] database, string baseUrl)
     {
         var minimumScore = double.MaxValue;
-        string[] mostSimilarPage = null;
+        string[]? mostSimilarPage = null;
 
         foreach (var p in database)
         {

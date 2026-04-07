@@ -100,7 +100,7 @@ public class RulesModule : ModuleBase
         else if (queries.Length > 0 && !(queries.Length == 1 && queries[0].Equals("list")))
         {
             var minimumScore = double.MaxValue;
-            FaqData mostSimilarFaq = null;
+            FaqData? mostSimilarFaq = null;
             var query = string.Join(" ", queries);
 
             foreach (var faq in faqDataList)

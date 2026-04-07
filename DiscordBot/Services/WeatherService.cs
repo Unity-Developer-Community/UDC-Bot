@@ -38,7 +38,7 @@ public class WeatherService
         return await SerializeUtil.LoadUrlDeserializeResult<PollutionContainer.Result>(query);
     }
 
-    public async Task<(bool exists, WeatherContainer.Result result)> CityExists(string city)
+    public async Task<(bool exists, WeatherContainer.Result? result)> CityExists(string city)
     {
         var res = await GetWeather(city: city);
         var exists = !object.Equals(res, default(WeatherContainer.Result));

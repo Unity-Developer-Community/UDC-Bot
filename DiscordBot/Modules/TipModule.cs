@@ -104,7 +104,7 @@ public class TipModule : ModuleBase
     [RequireModerator]
     public async Task RemoveTip(ulong tipId)
     {
-        Tip tip = TipService.GetTip(tipId);
+        Tip? tip = TipService.GetTip(tipId);
         if (tip == null)
         {
             await Context.Channel.SendMessageAsync("No such tip found to be removed.").DeleteAfterSeconds(5);
@@ -119,7 +119,7 @@ public class TipModule : ModuleBase
     [RequireModerator]
     public async Task ReplaceTip(ulong tipId, string content = "")
     {
-        Tip tip = TipService.GetTip(tipId);
+        Tip? tip = TipService.GetTip(tipId);
         if (tip == null)
         {
             await Context.Channel.SendMessageAsync("No such tip found to be replaced.").DeleteAfterSeconds(5);
@@ -151,7 +151,7 @@ public class TipModule : ModuleBase
 
         int floodCount = 20;
 
-        List<Tip> tips = null;
+        List<Tip>? tips = null;
         if (keywords?.Length > 0)
         {
             var terms = string.Join(",", keywords);

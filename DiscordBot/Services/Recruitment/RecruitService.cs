@@ -19,7 +19,7 @@ public class RecruitService
     private readonly ForumTag _tagUnpaidCollab;
     private readonly ForumTag _tagPosFilled;
 
-    private readonly IForumChannel _recruitChannel = null!;
+    private readonly IForumChannel? _recruitChannel;
 
     #endregion // Extra Details
 

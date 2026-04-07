@@ -18,7 +18,7 @@ public class CommandHistoryInfo
     public ulong UserId { get; set; }
     public string Channel { get; set; } = null!;
     public DateTime Time { get; set; }
-    public string Error { get; set; } = string.Empty;
+    public string? Error { get; set; } = string.Empty;
 }
 
 public class CommandHandlingService
@@ -119,7 +119,7 @@ public class CommandHandlingService
     public List<string> GetCommandListMessages(string moduleName, bool orderByName = false, bool includeArgs = true, bool includeModuleName = true)
     {
         var tupleKey = (moduleName, orderByName, includeArgs, includeModuleName);
-        if (!_commandListMessages.TryGetValue(tupleKey, out List<string> commandResults))
+        if (!_commandListMessages.TryGetValue(tupleKey, out List<string>? commandResults))
         {
             GenerateCommandListOutputs(tupleKey);
             commandResults = _commandListMessages[tupleKey];
@@ -133,7 +133,7 @@ public class CommandHandlingService
     public string GetCommandList(string moduleName, bool orderByName = false, bool includeArgs = true, bool includeModuleName = true)
     {
         var tupleKey = (moduleName, orderByName, includeArgs, includeModuleName);
-        if (!_commandList.TryGetValue(tupleKey, out string commandResults))
+        if (!_commandList.TryGetValue(tupleKey, out string? commandResults))
         {
             GenerateCommandListOutputs(tupleKey);
             commandResults = _commandList[tupleKey];

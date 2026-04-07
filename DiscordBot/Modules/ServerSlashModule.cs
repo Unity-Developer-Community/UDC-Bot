@@ -57,7 +57,7 @@ public class ServerSlashModule : InteractionModuleBase
         embedBuilder.Title = "User Module Commands";
         embedBuilder.Color = Color.LighterGrey;
 
-        List<string> helpMessages = null;
+        List<string>? helpMessages = null;
         if (search == string.Empty)
         {
             helpMessages = CommandHandlingService.GetCommandListMessages("UserModule", false, true, false);

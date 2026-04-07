@@ -53,7 +53,7 @@ public class DatabaseService
         ConnectionString = settings.DbConnectionString;
         _logging = logging;
 
-        DbConnection c = null;
+        DbConnection? c = null;
         try
         {
             c = new NpgsqlConnection(ConnectionString);

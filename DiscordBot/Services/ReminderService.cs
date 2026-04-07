@@ -137,7 +137,7 @@ public class ReminderService
                 {
                     _reminders.Remove(reminder);
 
-                    IUserMessage message = null;
+                    IUserMessage? message = null;
                     var channel = _client.GetChannel(reminder.ChannelId) as SocketTextChannel;
                     if (channel != null)
                         message = await channel.GetMessageAsync(reminder.MessageId) as IUserMessage;

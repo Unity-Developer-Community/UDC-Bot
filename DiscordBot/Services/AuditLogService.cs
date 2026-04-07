@@ -12,7 +12,7 @@ public class AuditLogService
     private static readonly Color DeletedMessageColor = new(200, 128, 128);
     private static readonly Color EditedMessageColor = new(255, 255, 128);
 
-    private readonly IMessageChannel _botAnnouncementChannel = null!;
+    private readonly IMessageChannel? _botAnnouncementChannel = null!;
 
     public AuditLogService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService)
     {

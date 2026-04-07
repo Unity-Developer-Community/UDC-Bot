@@ -31,7 +31,7 @@ public class TransactionFormatter
     private static (string emoji, string title, string description) FormatGift(
         TokenTransaction transaction, SocketGuild guild)
     {
-        SocketGuildUser user = null;
+        SocketGuildUser? user = null;
         var userId = transaction.Details?.GetValueOrDefault(transaction.Amount >= 0 ? "from" : "to");
         if (userId != null) user = guild.GetUser(ulong.Parse(userId));
 
@@ -57,7 +57,7 @@ public class TransactionFormatter
     {
         var adminId = transaction.Details?.GetValueOrDefault("admin");
         var action = transaction.Details?.GetValueOrDefault("action");
-        SocketGuildUser admin = null;
+        SocketGuildUser? admin = null;
         if (adminId != null) admin = guild.GetUser(ulong.Parse(adminId));
 
         string title = action switch

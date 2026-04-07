@@ -67,7 +67,7 @@ public class UpdateService
     {
         _client = client;
         _feedService = feedService;
-        _loggingService = loggingService as LoggingService;
+        _loggingService = (loggingService as LoggingService)!;
 
         _settings = settings;
         _token = cts.Token;
@@ -132,9 +132,9 @@ public class UpdateService
             File.Exists($"{_settings.ServerRootPath}/unityapi.json"))
         {
             var json = await File.ReadAllTextAsync($"{_settings.ServerRootPath}/unitymanual.json", _token);
-            _manualDatabase = JsonConvert.DeserializeObject<string[][]>(json);
+            _manualDatabase = JsonConvert.DeserializeObject<string[][]>(json)!;
             json = await File.ReadAllTextAsync($"{_settings.ServerRootPath}/unityapi.json", _token);
-            _apiDatabase = JsonConvert.DeserializeObject<string[][]>(json);
+            _apiDatabase = JsonConvert.DeserializeObject<string[][]>(json)!;
         }
         else
             await DownloadDocDatabase();
@@ -220,7 +220,7 @@ public class UpdateService
         catch (OperationCanceledException) { }
     }
 
-    public async Task<(string name, string extract, string url)> DownloadWikipediaArticle(string searchQuery)
+    public async Task<(string? name, string? extract, string? url)> DownloadWikipediaArticle(string searchQuery)
     {
         var wikiSearchUri = Uri.EscapeUriString(_settings.WikipediaSearchPage + searchQuery);
         var htmlWeb = new HtmlWeb { CaptureRedirect = true };

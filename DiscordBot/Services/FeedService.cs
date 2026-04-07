@@ -72,7 +72,7 @@ public class FeedService
 
     private async Task<SyndicationFeed> GetFeedData(string url)
     {
-        SyndicationFeed feed = null;
+        SyndicationFeed? feed = null;
         try
         {
             var content = await Utils.WebUtil.GetXMLContent(url);

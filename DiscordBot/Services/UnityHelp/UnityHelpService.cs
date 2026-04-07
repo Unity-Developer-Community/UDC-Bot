@@ -91,7 +91,7 @@ public class UnityHelpService
         }
 
         // get the help channel settings.GenericHelpChannel
-        _helpChannel = _client.GetChannel(settings.GenericHelpChannel.Id) as IForumChannel;
+        _helpChannel = (_client.GetChannel(settings.GenericHelpChannel.Id) as IForumChannel)!;
         if (_helpChannel == null)
         {
             LoggingService.LogToConsole($"[{ServiceName}] Help channel not found", LogSeverity.Error);
@@ -171,8 +171,6 @@ public class UnityHelpService
         };
         _activeThreads.Add(thread.Id, container);
 
-        bool warnHelpTitle = false;
-
         // Check message length and inform user if too short
         var firstMessage = (await thread.GetMessagesAsync(1).FlattenAsync()).FirstOrDefault();
         container.FirstUserMessage = firstMessage!.Id;
@@ -189,9 +187,6 @@ public class UnityHelpService
             threadTitle = thread.Name.ToLower();
         }
         await thread.ModifyAsync(x => x.Name = threadTitle.ToCapitalizeFirstLetter());
-
-        if (thread.Name.Contains(" help", StringComparison.CurrentCultureIgnoreCase))
-            warnHelpTitle = true;
 
         // If not tags attached, let them know they should add some
         if (thread.AppliedTags.Count == 0)
