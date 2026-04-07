@@ -381,7 +381,7 @@ no `.cs` files and no test framework configured.
 ### Medium-term (Quality)
 
 1. Create `EmbedFactory` to reduce embed construction duplication
-2. Create `SafeFireAndForget()` extension to replace `#pragma` + `Task.Run`
+2. ~~Create `SafeFireAndForget()` extension to replace `#pragma` + `Task.Run`~~ ✅
 3. ~~Consolidate `ContainsInviteLink()` overloads~~ ✅ removed (dead code)
 4. ~~Add configuration validation for all settings~~ ✅ (covered by S3)
 5. Audit service lifetimes — consider `Scoped` for interaction-scoped services

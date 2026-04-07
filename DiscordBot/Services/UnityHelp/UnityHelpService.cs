@@ -137,13 +137,11 @@ public class UnityHelpService
             if (threadContainer.IsResolved)
             {
                 // Run in new task so we don't block the other threads from being processed
-#pragma warning disable CS4014
-                Task.Run(() => CloseThreadInTime(threadContainer, string.Empty,
+                CloseThreadInTime(threadContainer, string.Empty,
                     TimeBeforeClosedForResolvedTag,
                     (threadContainer.PinnedAnswer != 0
                         ? _resolvedWarnOfPendingCloseEmbedHasPin
-                        : _resolvedWarnOfPendingCloseEmbedNoPin)));
-#pragma warning restore CS4014
+                        : _resolvedWarnOfPendingCloseEmbedNoPin)).SafeFireAndForget(ServiceName);
             }
             else
             {
@@ -215,7 +213,7 @@ public class UnityHelpService
             return Task.CompletedTask;
 
         LoggingService.DebugLog($"[{ServiceName}] New Thread Created: {thread.Id} - {thread.Name}", LogSeverity.Debug);
-        Task.Run(() => OnThreadCreated(thread));
+        OnThreadCreated(thread).SafeFireAndForget(ServiceName);
 
         return Task.CompletedTask;
     }
@@ -290,9 +288,7 @@ public class UnityHelpService
 
         LoggingService.DebugLog($"[{ServiceName}] Thread Updated: {after.Id} - {after.Name}", LogSeverity.Debug);
 
-#pragma warning disable CS4014
-        Task.Run(() => OnThreadUpdated(beforeThread, afterThread));
-#pragma warning restore CS4014
+        OnThreadUpdated(beforeThread, afterThread).SafeFireAndForget(ServiceName);
     }
 
     #endregion // Thread Update
@@ -312,9 +308,7 @@ public class UnityHelpService
         LoggingService.DebugLog($"[{ServiceName}] Thread Deleted: {threadId.Id}", LogSeverity.Debug);
         var thread = await threadId.GetOrDownloadAsync();
 
-#pragma warning disable CS4014
-        Task.Run(() => OnThreadDeleted(thread));
-#pragma warning restore CS4014
+        OnThreadDeleted(thread).SafeFireAndForget(ServiceName);
     }
 
     #endregion // Thread Deleted
@@ -357,9 +351,7 @@ public class UnityHelpService
         // If Author is only one who has interacted with the thread, we don't need to update anything else
         if (!thread.HasInteraction && message.Author.Id == thread.Owner)
         {
-#pragma warning disable CS4014
-            Task.Run(() => StealthDeleteThreadInTime(thread));
-#pragma warning restore CS4014
+            StealthDeleteThreadInTime(thread).SafeFireAndForget(ServiceName);
             return;
         }
 
@@ -386,7 +378,7 @@ public class UnityHelpService
             return Task.CompletedTask;
 
         LoggingService.DebugLog($"[{ServiceName}] Help Message Received: {message.Id} - {message.Content}", LogSeverity.Debug);
-        Task.Run(() => OnMessageReceived(message));
+        OnMessageReceived(message).SafeFireAndForget(ServiceName);
         return Task.CompletedTask;
     }
 
@@ -427,9 +419,7 @@ public class UnityHelpService
             return;
 
         LoggingService.DebugLog($"[{ServiceName}] Help Message Updated: {after.Id} - {after.Content}", LogSeverity.Debug);
-#pragma warning disable CS4014
-        Task.Run(() => OnMessageUpdated(beforeMsg, after, (channel as SocketThreadChannel)!));
-#pragma warning restore CS4014
+        OnMessageUpdated(beforeMsg, after, (channel as SocketThreadChannel)!).SafeFireAndForget(ServiceName);
 
         if (after.Reactions.ContainsKey(CloseEmoji))
         {
@@ -458,17 +448,10 @@ public class UnityHelpService
         if (message == null || message.Author.Id != _client.CurrentUser.Id)
             return;
 
-#pragma warning disable CS4014 
-        Task.Run(async () =>
-#pragma warning restore CS4014
-        {
-            // Check the owner is the one reacting
-            var threadOwner = channel.Owner.Id;
-            if (reaction.UserId != threadOwner)
-                return;
+        if (reaction.UserId != channel.Owner.Id)
+            return;
 
-            await CloseThread(channel, true);
-        });
+        CloseThread(channel, true).SafeFireAndForget(ServiceName);
     }
 
     public async Task<string> OnUserRequestChannelClose(IUser user, SocketThreadChannel channel)

@@ -26,6 +26,18 @@ public static class EventGuard
 
 public static class TaskExtensions
 {
+    public static void SafeFireAndForget(this Task task, string? caller = null)
+    {
+        task.ContinueWith(t =>
+        {
+            if (t.Exception is not { } ex) return;
+            if (ex.InnerException is OperationCanceledException) return;
+
+            var prefix = caller != null ? $"[{caller}] " : "";
+            LoggingService.LogToConsole($"{prefix}Fire-and-forget exception: {ex}", LogSeverity.Error);
+        }, TaskContinuationOptions.OnlyOnFaulted);
+    }
+
     public static Task? DeleteAfterTime(this IDeletable message, int seconds = 0, int minutes = 0, int hours = 0, int days = 0) => message?.DeleteAfterTimeSpan(new TimeSpan(days, hours, minutes, seconds));
     public static Task? DeleteAfterSeconds(this IDeletable message, double seconds) => message?.DeleteAfterTimeSpan(TimeSpan.FromSeconds(seconds));
 
