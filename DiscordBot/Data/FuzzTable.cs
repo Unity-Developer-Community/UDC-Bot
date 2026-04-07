@@ -66,7 +66,7 @@ public class FuzzTable
         foreach (string line in File.ReadLines(filename))
         {
             string choice = line.Trim();
-            if (choice.StartsWith('#'))
+            if (choice.Length == 0 || choice.StartsWith('#'))
                 continue;
             Add(choice);
         }
