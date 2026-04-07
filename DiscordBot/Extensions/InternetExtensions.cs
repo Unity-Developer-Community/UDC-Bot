@@ -1,24 +1,17 @@
-using System.IO;
 using System.Net;
+using System.Net.Http;
 
 namespace DiscordBot.Extensions;
 
 public static class InternetExtensions
 {
-    /// <summary>
-    /// Loads a webpage and returns the contents as a string, Return an empty string on failure.
-    /// </summary>
+    private static readonly HttpClient _httpClient = new();
+
     public static async Task<string> GetHttpContents(string uri)
     {
         try
         {
-            var request = (HttpWebRequest)WebRequest.Create(uri);
-            request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
-
-            using var response = (HttpWebResponse)await request.GetResponseAsync();
-            await using var stream = response.GetResponseStream();
-            using var reader = new StreamReader(stream);
-            return await reader.ReadToEndAsync();
+            return await _httpClient.GetStringAsync(uri);
         }
         catch (Exception e)
         {

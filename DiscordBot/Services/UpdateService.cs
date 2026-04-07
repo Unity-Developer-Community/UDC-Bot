@@ -222,7 +222,7 @@ public class UpdateService
 
     public async Task<(string? name, string? extract, string? url)> DownloadWikipediaArticle(string searchQuery)
     {
-        var wikiSearchUri = Uri.EscapeUriString(_settings.WikipediaSearchPage + searchQuery);
+        var wikiSearchUri = _settings.WikipediaSearchPage + Uri.EscapeDataString(searchQuery);
         var htmlWeb = new HtmlWeb { CaptureRedirect = true };
         HtmlDocument wikiSearchResponse;
 
