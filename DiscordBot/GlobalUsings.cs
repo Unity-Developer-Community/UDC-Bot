@@ -35,4 +35,3 @@ global using DiscordBot.Services.Code.Tips;
 global using DiscordBot.Services.Code.Tips.Components;
 global using DiscordBot.Services.Code.Unity;
 global using DiscordBot.Services.Code.Unity.UnityHelp;
-global using DiscordBot.Services.Recruitment;

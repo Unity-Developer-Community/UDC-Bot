@@ -98,8 +98,7 @@ DiscordBot/
 │   ├── Server/              # Welcome, audit log, embed parsing, reminders
 │   ├── Fun/                 # Duels, Miku, Casino/
 │   ├── Utils/               # Search, airport, currency, Weather/
-│   ├── Code/                # Code checking, Tips/, Unity/ (docs, feeds, UnityHelp/)
-│   └── Recruitment/         # Recruitment workflow
+│   └── Code/                # Code checking, Tips/, Unity/ (docs, feeds, UnityHelp/)
 │
 ├── Settings/                # Configuration files
 │   ├── Settings.json        # Main config (gitignored)
@@ -151,7 +150,7 @@ DiscordBot/
 | Domain | Modules | Services |
 |--------|---------|----------|
 | **Profiles** | ProfileModule, RankModule, BirthdayModule | ProfileCardService, XpService, KarmaService, KarmaResetService, UserExtendedService, BirthdayAnnouncementService |
-| **Server** | ServerModule, ServerSlashModule, TicketModule, RulesModule, EmbedModule, QuoteModule, ReminderModule | ServerService, WelcomeService, AuditLogService, EveryoneScoldService, EmbedParsingService, ReminderService |
+| **Server** | ServerModule, ServerSlashModule, TicketModule, RulesModule, EmbedModule, QuoteModule, ReminderModule | ServerService, WelcomeService, AuditLogService, EveryoneScoldService, EmbedParsingService, ReminderService, RecruitService |
 | **Fun** | FunModule, DuelSlashModule, Casino/ | DuelService, MikuService, Casino/ |
 | **Utils** | SearchModule, ConvertModule, AirportModule, Weather/ | SearchService, AirportService, CurrencyService, Weather/ |
 | **Code** | CodeTipModule, TipModule, Unity/UnityHelp/ | CodeCheckService, Tips/, Unity/ (feeds, docs, UnityHelp/) |
