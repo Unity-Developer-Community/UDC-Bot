@@ -14,6 +14,7 @@ public class FeedService
 
     private readonly BotSettings _settings;
     private readonly ILoggingService _logging;
+    private readonly IWebClient _webClient;
     private readonly ReleaseNotesParser _releaseNotesParser;
 
     #region Configurable Settings
@@ -62,11 +63,12 @@ public class FeedService
 
     #endregion // Configurable Settings
 
-    public FeedService(DiscordSocketClient client, BotSettings settings, ILoggingService logging, ReleaseNotesParser releaseNotesParser)
+    public FeedService(DiscordSocketClient client, BotSettings settings, ILoggingService logging, IWebClient webClient, ReleaseNotesParser releaseNotesParser)
     {
         _client = client;
         _settings = settings;
         _logging = logging;
+        _webClient = webClient;
         _releaseNotesParser = releaseNotesParser;
     }
 
@@ -75,7 +77,7 @@ public class FeedService
         SyndicationFeed? feed = null;
         try
         {
-            var content = await Utils.WebUtil.GetXMLContent(url);
+            var content = await _webClient.GetXMLContent(url);
             var reader = XmlReader.Create(new StringReader(content));
             feed = SyndicationFeed.Load(reader);
         }

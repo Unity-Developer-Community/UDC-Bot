@@ -107,6 +107,7 @@ public class Program
     private IServiceProvider ConfigureServices() =>
         new ServiceCollection()
             .AddHttpClient()
+            .AddSingleton<IWebClient, Utils.WebClient>()
             .AddSingleton(_cts)
             .AddSingleton(_settings)
             .AddSingleton(_rules)

@@ -6,6 +6,7 @@ namespace DiscordBot.Services;
 public class CurrencyService
 {
     private const string ServiceName = "CurrencyService";
+    private readonly IWebClient _webClient;
 
     #region Configuration
 
@@ -26,6 +27,11 @@ public class CurrencyService
 
     private static readonly string ApiUrl = $"https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@{TargetDate}/v{ApiVersion}/";
 
+    public CurrencyService(IWebClient webClient)
+    {
+        _webClient = webClient;
+    }
+
     public async Task<float> GetConversion(string toCurrency, string fromCurrency = "usd")
     {
         toCurrency = toCurrency.ToLower();
@@ -34,7 +40,7 @@ public class CurrencyService
         var url = $"{ApiUrl}{ExchangeRatesEndpoint}/{fromCurrency.ToLower()}.min.json";
 
         // Check if success
-        var (success, response) = await WebUtil.TryGetObjectFromJson<JObject>(url);
+        var (success, response) = await _webClient.TryGetObjectFromJson<JObject>(url);
         if (!success)
             return -1;
 
@@ -71,7 +77,7 @@ public class CurrencyService
     private async Task BuildCurrencyList()
     {
         var url = ApiUrl + ValidCurrenciesEndpoint;
-        var currencies = await WebUtil.GetObjectFromJson<Dictionary<string, string>>(url);
+        var currencies = await _webClient.GetObjectFromJson<Dictionary<string, string>>(url);
         if (currencies == null)
             return;
 

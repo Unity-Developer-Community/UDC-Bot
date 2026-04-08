@@ -8,6 +8,8 @@ namespace DiscordBot.Modules;
 [Group("UserModule"), Alias("")]
 public class BirthdayModule : ModuleBase
 {
+    public IWebClient WebClient { get; set; } = null!;
+
     [Command("Birthday"), HideFromHelp]
     [Summary("Display next member birthday.")]
     [Alias("bday")]
@@ -15,7 +17,7 @@ public class BirthdayModule : ModuleBase
     {
         const string nextBirthday = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&range=C15:C15";
 
-        var tableText = await WebUtil.GetHtmlNodeInnerText(nextBirthday, "/html/body/table/tr[2]/td");
+        var tableText = await WebClient.GetHtmlNodeInnerText(nextBirthday, "/html/body/table/tr[2]/td");
         var message = $"**{tableText}**";
 
         await (ReplyAsync(message).DeleteAfterTime(minutes: 3) ?? Task.CompletedTask);
@@ -29,7 +31,7 @@ public class BirthdayModule : ModuleBase
     {
         var searchName = user.Username;
         const string birthdayTable = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
-        var relevantNodes = await WebUtil.GetHtmlNodes(birthdayTable, "/html/body/table/tr");
+        var relevantNodes = await WebClient.GetHtmlNodes(birthdayTable, "/html/body/table/tr");
 
         var birthdate = default(DateTime);
 

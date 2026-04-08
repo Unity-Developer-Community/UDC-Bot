@@ -15,6 +15,7 @@ public class BirthdayAnnouncementService
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
     private readonly BotSettings _settings;
+    private readonly IWebClient _webClient;
     private readonly CancellationToken _shutdownToken;
 
     // Track birthdays that have been announced today to avoid spam
@@ -25,11 +26,12 @@ public class BirthdayAnnouncementService
     private const string BirthdayTableUrl = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
 
     public BirthdayAnnouncementService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings,
-        CancellationTokenSource cts)
+        IWebClient webClient, CancellationTokenSource cts)
     {
         _client = client;
         _loggingService = loggingService;
         _settings = settings;
+        _webClient = webClient;
         _shutdownToken = cts.Token;
 
         Initialize();
@@ -131,7 +133,7 @@ public class BirthdayAnnouncementService
 
         try
         {
-            var relevantNodes = await WebUtil.GetHtmlNodes(BirthdayTableUrl, "/html/body/table/tr");
+            var relevantNodes = await _webClient.GetHtmlNodes(BirthdayTableUrl, "/html/body/table/tr");
             if (relevantNodes == null)
             {
                 return birthdays;

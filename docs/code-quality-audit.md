@@ -34,7 +34,7 @@ issues common in organically grown projects. The most impactful problems are:
 | `UserModule` | `Modules/UserModule.cs` | 1 000+ lines; text commands, web scraping, role management, search, profile display all in one module | High |
 | `UpdateService` | `Services/UpdateService.cs` | Bot data, user muting lifecycle, FAQ loading, RSS feeds, Wikipedia downloading (5 concerns) | High |
 | `CasinoSlashModule` | `Modules/Casino/CasinoSlashModule.cs` | 500+ lines; token commands, game commands, admin commands, statistics, nested `TokenCommands` class | High |
-| `WebUtil` | `Utils/WebUtil.cs` | HTTP fetching, HTML parsing, JSON deserialization, error handling, logging (5 concerns) | Medium |
+| ~~`WebUtil`~~ | ~~`Utils/WebClient.cs`~~ | ~~Refactored to `IWebClient` / `WebClient` with DI~~ ✅ | ~~Medium~~ |
 | `ICasinoRepo` | `Extensions/CasinoRepository.cs` | 37+ SQL method signatures in one interface | Medium |
 
 **Recommended splits:**
@@ -135,7 +135,7 @@ role-add / logging / cooldown / DM logic.
 
 | Location | Issue |
 |----------|-------|
-| `WebUtil.cs` — `new HttpClient()` per call | Starves sockets under load. Use `IHttpClientFactory` or a static instance. |
+| ~~`WebUtil.cs` — `new HttpClient()` per call~~ | ~~Fixed: `WebClient` now uses `IHttpClientFactory`~~ ✅ |
 | `AirportService.cs` — `HttpClient client = new()` | Created without `using`, never disposed. |
 | `DatabaseService.cs` — `Query` property | Returns new `MySqlConnection` each access; may never be disposed by caller. |
 | `UserService.cs` — `GenerateProfileCard()` | MagickImage objects not consistently disposed. |
@@ -393,7 +393,7 @@ no `.cs` files and no test framework configured.
 
 1. ✅ ~~Set up test project with xUnit and write tests for critical paths~~
 2. Split `ICasinoRepo` into focused interfaces
-3. Extract `IWebClient` / `IHtmlParser` from `WebUtil` for testability
+3. ✅ ~~Extract `IWebClient` from `WebUtil` for testability~~ (`IHtmlParser` split intentionally skipped — thin wrappers)
 4. Implement session expiry and cleanup for casino game sessions
 5. Refactor skin module hierarchy — intermediate base classes, coordinate config
 6. ✅ ~~Consolidate duplicate `RectangleD` struct~~

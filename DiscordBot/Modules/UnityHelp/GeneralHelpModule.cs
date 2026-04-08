@@ -11,6 +11,7 @@ public class GeneralHelpModule : ModuleBase
     #region Dependency Injection
 
     public BotSettings BotSettings { get; set; } = null!;
+    public IWebClient WebClient { get; set; } = null!;
 
     #endregion // Dependency Injection
 
@@ -36,7 +37,7 @@ public class GeneralHelpModule : ModuleBase
 
             foreach (var url in urls)
             {
-                errorPage = await WebUtil.GetHtmlDocument($"{url}{error}");
+                errorPage = await WebClient.GetHtmlDocument($"{url}{error}");
                 if (errorPage == null || errorPage.DocumentNode.InnerHtml.Contains("Page not found"))
                 {
                     continue;

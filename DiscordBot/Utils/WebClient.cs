@@ -5,23 +5,29 @@ using Newtonsoft.Json;
 
 namespace DiscordBot.Utils;
 
-public static class WebUtil
+public class WebClient : IWebClient
 {
-    private static readonly HttpClient SharedClient = new();
+    private readonly IHttpClientFactory _httpClientFactory;
+
+    public WebClient(IHttpClientFactory httpClientFactory)
+    {
+        _httpClientFactory = httpClientFactory;
+    }
 
     /// <summary>
     /// Returns the content of a URL as a string, or an empty string if the request fails.
     /// </summary>
-    public static async Task<string> GetContent(string url)
+    public async Task<string> GetContent(string url)
     {
         try
         {
-            var response = await SharedClient.GetAsync(url);
+            using var client = _httpClientFactory.CreateClient();
+            var response = await client.GetAsync(url);
             return await response.Content.ReadAsStringAsync();
         }
         catch (Exception e)
         {
-            LoggingService.LogToConsole($"[WebUtil] Failed to get content from {url}: {e.Message}", ExtendedLogSeverity.LowWarning);
+            LoggingService.LogToConsole($"[WebClient] Failed to get content from {url}: {e.Message}", ExtendedLogSeverity.LowWarning);
             return "";
         }
     }
@@ -30,7 +36,7 @@ public static class WebUtil
     /// Returns the Html document of a url, or null if the request fails.
     /// Internally calls GetContent and parses the result.
     /// </summary>
-    public static async Task<HtmlDocument?> GetHtmlDocument(string url)
+    public async Task<HtmlDocument?> GetHtmlDocument(string url)
     {
         try
         {
@@ -49,7 +55,7 @@ public static class WebUtil
     /// Returns the Html node of a url and xpath, or null if the request fails.
     /// Internally calls GetHtmlDocument and parses the result with xpath.
     /// </summary>
-    public static async Task<HtmlNode?> GetHtmlNode(string url, string xpath)
+    public async Task<HtmlNode?> GetHtmlNode(string url, string xpath)
     {
         try
         {
@@ -65,7 +71,7 @@ public static class WebUtil
     /// <summary>
     /// Returns the Html nodes of a url and xpath, or null if the request fails.
     /// </summary>
-    public static async Task<HtmlNodeCollection?> GetHtmlNodes(string url, string xpath)
+    public async Task<HtmlNodeCollection?> GetHtmlNodes(string url, string xpath)
     {
         try
         {
@@ -81,7 +87,7 @@ public static class WebUtil
     /// <summary>
     /// Returns the decoded inner text of a url and xpath, or an empty string if the request fails.
     /// </summary>
-    public static async Task<string?> GetHtmlNodeInnerText(string url, string xpath)
+    public async Task<string?> GetHtmlNodeInnerText(string url, string xpath)
     {
         try
         {
@@ -97,7 +103,7 @@ public static class WebUtil
     /// <summary>
     /// Returns the content of a url as a sanitized XML string, or an empty string if the request fails.
     /// </summary>
-    public static async Task<string> GetXMLContent(string url)
+    public async Task<string> GetXMLContent(string url)
     {
         try
         {
@@ -109,7 +115,7 @@ public static class WebUtil
         }
         catch (Exception e)
         {
-            LoggingService.LogToConsole($"[WebUtil] Failed to get content from {url}: {e.Message}", ExtendedLogSeverity.LowWarning);
+            LoggingService.LogToConsole($"[WebClient] Failed to get content from {url}: {e.Message}", ExtendedLogSeverity.LowWarning);
             return string.Empty;
         }
     }
@@ -117,7 +123,7 @@ public static class WebUtil
     /// <summary>
     /// Returns a deserialized object from a JSON string. If the string is empty or can't be deserialized, it returns the default value of the type.
     /// </summary>
-    public static async Task<T?> GetObjectFromJson<T>(string url)
+    public async Task<T?> GetObjectFromJson<T>(string url)
     {
         try
         {
@@ -126,7 +132,7 @@ public static class WebUtil
         }
         catch (Exception e)
         {
-            LoggingService.LogToConsole($"[WebUtil] Failed to get content from {url}: {e.Message}", ExtendedLogSeverity.LowWarning);
+            LoggingService.LogToConsole($"[WebClient] Failed to get content from {url}: {e.Message}", ExtendedLogSeverity.LowWarning);
             return default;
         }
     }
@@ -134,7 +140,7 @@ public static class WebUtil
     /// <summary>
     /// Returns a deserialized object from a JSON string, or null if the string is empty or can't be deserialized.
     /// </summary>
-    public static async Task<(bool success, T? result)> TryGetObjectFromJson<T>(string url)
+    public async Task<(bool success, T? result)> TryGetObjectFromJson<T>(string url)
     {
         try
         {
@@ -144,7 +150,7 @@ public static class WebUtil
         }
         catch (Exception e)
         {
-            LoggingService.LogToConsole($"[WebUtil] Failed to get content from {url}: {e.Message}", ExtendedLogSeverity.LowWarning);
+            LoggingService.LogToConsole($"[WebClient] Failed to get content from {url}: {e.Message}", ExtendedLogSeverity.LowWarning);
             return (false, default);
         }
     }
