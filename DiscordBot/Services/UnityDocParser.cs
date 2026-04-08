@@ -1,12 +1,13 @@
+using DiscordBot.Domain;
 using HtmlAgilityPack;
 
 namespace DiscordBot.Services;
 
 public static class UnityDocParser
 {
-    public static string[][] ConvertJsToArray(string data, bool isManual)
+    public static DocEntry[] ConvertJsToArray(string data, bool isManual)
     {
-        var list = new List<string[]>();
+        var list = new List<DocEntry>();
         string pagesInput;
 
         if (isManual)
@@ -23,7 +24,7 @@ public static class UnityDocParser
         foreach (var s in pagesInput.Split("],["))
         {
             var ps = s.Split(",");
-            list.Add(new[] { ps[0].Replace("\"", ""), ps[1].Replace("\"", "") });
+            list.Add(new DocEntry(ps[0].Replace("\"", ""), ps[1].Replace("\"", "")));
         }
 
         return list.ToArray();

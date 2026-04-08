@@ -1,4 +1,5 @@
 using System.Net;
+using DiscordBot.Domain;
 using HtmlAgilityPack;
 
 namespace DiscordBot.Services;
@@ -43,14 +44,14 @@ public class SearchService
         return results;
     }
 
-    public DocSearchResult? FindBestMatch(string query, string[][] database, string baseUrl)
+    public DocSearchResult? FindBestMatch(string query, DocEntry[] database, string baseUrl)
     {
         var minimumScore = double.MaxValue;
-        string[]? mostSimilarPage = null;
+        DocEntry? mostSimilarPage = null;
 
         foreach (var p in database)
         {
-            var curScore = CalculateScore(p[1], query);
+            var curScore = CalculateScore(p.Title, query);
             if (curScore < minimumScore)
             {
                 minimumScore = curScore;
@@ -59,7 +60,7 @@ public class SearchService
         }
 
         if (mostSimilarPage == null) return null;
-        return new DocSearchResult(mostSimilarPage[0], mostSimilarPage[1], baseUrl);
+        return new DocSearchResult(mostSimilarPage.PageName, mostSimilarPage.Title, baseUrl);
     }
 
     public string? FetchPageDescription(string url, string descriptionXPath, string? nextSiblingFilter = null)

@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Text.RegularExpressions;
 using Discord.WebSocket;
+using DiscordBot.Domain;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
 using HtmlAgilityPack;
@@ -51,13 +52,13 @@ public class UpdateService
     private readonly FeedService _feedService;
     private readonly BotSettings _settings;
     private readonly CancellationToken _token;
-    private string[][] _apiDatabase = null!;
+    private DocEntry[] _apiDatabase = null!;
 
     private BotData _botData = null!;
     private List<FaqData> _faqData = null!;
     private FeedData _feedData = null!;
 
-    private string[][] _manualDatabase = null!;
+    private DocEntry[] _manualDatabase = null!;
     private UserData _userData = null!;
 
     public UpdateService(DatabaseService databaseService, BotSettings settings, FeedService feedService, ILoggingService loggingService,
@@ -107,14 +108,14 @@ public class UpdateService
         catch (OperationCanceledException) { }
     }
 
-    public async Task<string[][]?> GetManualDatabase()
+    public async Task<DocEntry[]?> GetManualDatabase()
     {
         if (_manualDatabase == null)
             await LoadDocDatabase();
         return _manualDatabase;
     }
 
-    public async Task<string[][]?> GetApiDatabase()
+    public async Task<DocEntry[]?> GetApiDatabase()
     {
         if (_apiDatabase == null)
             await LoadDocDatabase();
@@ -129,9 +130,9 @@ public class UpdateService
             File.Exists($"{_settings.ServerRootPath}/unityapi.json"))
         {
             var json = await File.ReadAllTextAsync($"{_settings.ServerRootPath}/unitymanual.json", _token);
-            _manualDatabase = JsonConvert.DeserializeObject<string[][]>(json)!;
+            _manualDatabase = JsonConvert.DeserializeObject<DocEntry[]>(json)!;
             json = await File.ReadAllTextAsync($"{_settings.ServerRootPath}/unityapi.json", _token);
-            _apiDatabase = JsonConvert.DeserializeObject<string[][]>(json)!;
+            _apiDatabase = JsonConvert.DeserializeObject<DocEntry[]>(json)!;
         }
         else
             await DownloadDocDatabase();

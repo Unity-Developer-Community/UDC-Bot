@@ -397,7 +397,7 @@ no `.cs` files and no test framework configured.
 4. Implement session expiry and cleanup for casino game sessions
 5. Refactor skin module hierarchy — intermediate base classes, coordinate config
 6. ✅ ~~Consolidate duplicate `RectangleD` struct~~
-7. Replace `string[][]` database in `UpdateService` with typed structures
+7. ✅ ~~Replace `string[][]` database in `UpdateService` with typed `DocEntry` record~~
 
 ---
 
