@@ -2,7 +2,7 @@ using Discord.WebSocket;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
 
-namespace DiscordBot.Services;
+namespace DiscordBot.Services.Recruitment;
 
 public class RecruitService
 {

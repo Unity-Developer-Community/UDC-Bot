@@ -1,0 +1,42 @@
+using Discord.Commands;
+using Discord.Interactions;
+using Discord.WebSocket;
+using DiscordBot.Services;
+using DiscordBot.Settings;
+using static DiscordBot.Services.Code.Unity.UnityHelp.CannedResponseService;
+
+namespace DiscordBot.Modules.Code.Unity.UnityHelp;
+
+public class CannedInteractiveModule : InteractionModuleBase
+{
+    #region Dependency Injection
+
+    public UnityHelpService HelpService { get; set; } = null!;
+    public BotSettings BotSettings { get; set; } = null!;
+    public CannedResponseService CannedResponseService { get; set; } = null!;
+
+    #endregion // Dependency Injection
+
+    // Responses are any of the CannedResponseType enum
+    [SlashCommand("faq", "Prepared responses to help answer common questions")]
+    public async Task CannedResponses(CannedHelp type)
+    {
+        if (Context.User.IsUserBotOrWebhook())
+            return;
+
+        var embed = CannedResponseService.GetCannedResponse((CannedResponseType)type);
+        if (embed == null) return;
+        await Context.Interaction.RespondAsync(string.Empty, embed: embed.Build());
+    }
+
+    [SlashCommand("resources", "Links to resources to help answer common questions")]
+    public async Task Resources(CannedResources type)
+    {
+        if (Context.User.IsUserBotOrWebhook())
+            return;
+
+        var embed = CannedResponseService.GetCannedResponse((CannedResponseType)type);
+        if (embed == null) return;
+        await Context.Interaction.RespondAsync(string.Empty, embed: embed.Build());
+    }
+}
