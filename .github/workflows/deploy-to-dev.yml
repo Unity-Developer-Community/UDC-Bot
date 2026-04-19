@@ -16,8 +16,9 @@ on:
 permissions:
     contents: write
     packages: write
-    pull-requests: read
+    pull-requests: write
     issues: write
+    deployments: write
 
 concurrency:
     group: deploy-dev
@@ -110,9 +111,10 @@ jobs:
                   PR_NUMBER: ${{ inputs.pr_number }}
                   SHORT_SHA: ${{ needs.build.outputs.short_sha }}
                   REPO_OWNER: ${{ github.repository_owner }}
+                  CHECKOUT_REF: ${{ needs.resolve.outputs.checkout_ref }}
               with:
                   script: |
-                      const { PR_NUMBER, SHORT_SHA, REPO_OWNER } = process.env;
+                      const { PR_NUMBER, SHORT_SHA, REPO_OWNER, CHECKOUT_REF } = process.env;
                       const owner = REPO_OWNER.toLowerCase();
                       await github.rest.issues.createComment({
                         owner: context.repo.owner,
@@ -120,6 +122,28 @@ jobs:
                         issue_number: Number(PR_NUMBER),
                         body: `✅ PR deployed to dev!\n\nImage: \`ghcr.io/${owner}/udc-bot-dev:${SHORT_SHA}\`\nArgoCD will sync shortly.`,
                       });
+                      
+                      try {
+                        const deployment = await github.rest.repos.createDeployment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          ref: CHECKOUT_REF,
+                          environment: 'dev',
+                          auto_merge: false,
+                          required_contexts: [],
+                          description: 'Deployed from workflow_dispatch'
+                        });
+                        if (deployment.data.id) {
+                          await github.rest.repos.createDeploymentStatus({
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            deployment_id: deployment.data.id,
+                            state: 'success'
+                          });
+                        }
+                      } catch (e) {
+                        console.error('Failed to create deployment status:', e);
+                      }
 
             - name: Post failure comment
               if: needs.deploy.result == 'failure'
