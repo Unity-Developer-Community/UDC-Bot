@@ -1,0 +1,143 @@
+# Settings.json template for UDC-Bot prod environment.
+# Secrets are substituted at pod startup by the render-config init container via envsubst.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: bot-config
+    namespace: udc-bot-prod
+    labels:
+        app.kubernetes.io/name: udc-bot
+        app.kubernetes.io/part-of: udc-bot
+        environment: prod
+data:
+    Settings.json: |
+        {
+            "token": "${BOT_TOKEN}",
+            "DbConnectionString": "Host=postgresql;Port=5432;Database=udcbot;Username=udcbot;Password=${DB_PASSWORD}",
+            "invite": "https://discord.gg/bu3bbby", // Currently Unused
+            /* DB Info*/
+            /*Server Info*/
+            "serverRootPath": "./SERVER",
+            "assetsRootPath": "./Assets",
+            /* Base info */
+            "prefix": "!",
+            "Administrator": "493514411026153482",
+            "ModeratorRoleId": "493514490504019969",
+            "ModeratorCommandsEnabled": false,
+            "guildId": "493510779866316801", // Replace with your servers guild ID
+            /* All assignable roles as of 29/04/21 */
+            "UserAssignableRoles": {
+                "desc": "All normal user assignable roles available",
+                "roles": [
+                "Audio-Engineers",
+                "Technical-Artists",
+                "Animators",
+                "3D-Artists",
+                "2D-Artists",
+                "XR-Developers",
+                "Programmers",
+                "Writers",
+                "Game-Designers",
+                "Generalists",
+                "Hobbyists",
+                "Students"
+                ]
+            },
+            /* Channel IDs for certain channels. */
+            "generalChannel": { // Off-topic
+                "desc": "General-Chat Channel",
+                "id": "493511024037724180"
+            },
+            "botAnnouncementChannel": { // Most bot logs will go here
+                "desc": "Bot-Announcement Channel",
+                "id": "493512007144833055"
+            },
+            "announcementsChannel": { // Not used by bot
+                "desc": "General Announcement Channel",
+                "id": "493510992320528404" // Currently Unused 29/04/21
+            },
+            "botCommandsChannel": {
+                "desc": "Bot-Commands Channel",
+                "id": "493512044973260811"
+            },
+            "RulesChannel": {
+                "desc": "The Rules",
+                "id": "519890141805019137"
+            },
+            "ReportedMessageChannel": {
+                "desc": "Reported Message Channel",
+                "id": "993446104790220840"
+            },
+            /* Role Ids */
+            "mutedRoleID": "493514472942600202",
+            "SubsNewsRoleId": "1209260621342707772",
+            "SubsReleasesRoleId": "523205962279157771",
+            "TipsUserRoleId": "493514563736698880",
+            "TipsAuthorRoleId": "99999",
+            /*Complaints Channels Stuff*/
+            "complaintCategoryId": "520853507851681797",
+            "complaintChannelPrefix": "Complaint",
+            "closedComplaintCategoryId": "662084543662129175",
+            "closedComplaintChannelPrefix": "Closed-",
+            /*Commands Configuration*/
+            "wikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
+            "IPGeolocationAPIKey": "${IPGEO_KEY}",
+            "WeatherAPIKey": "${WEATHER_KEY}",
+            "FlightAPIKey": "${FLIGHT_KEY}",
+            "FlightAPISecret": "${FLIGHT_SECRET}",
+            "AirLabAPIKey": "${AIRLAB_KEY}",
+            /* Feed Service */
+            "UnityNewsChannel": {
+                "desc": "Unity News Channel",
+                "id": "1142423451383119975"
+            },
+            "UnityReleasesChannel": {
+                "desc": "Unity Releases Channel",
+                "id": "1142423451383119975"
+            },
+            /* Recruitment Service */
+            "RecruitmentServiceEnabled": false,
+            "RecruitmentChannel": {
+                "desc": "Channel for job postings",
+                "id": "1019677109171527750"
+            },
+            "TagLookingToHire": "1019680606067630151",
+            "TagLookingForWork": "1019680763756695653",
+            "TagUnpaidCollab": "1019680795641774110",
+            "TagPositionFilled": "1052258665530408991",
+            "EditPermissionAccessTimeMin": 3,
+            /* Unity Help Service */
+            "UnityHelpBabySitterEnabled": false,
+            "GenericHelpChannel": { // Unity-help
+                "desc": "Unity-Help Channel",
+                "id": "1019663870798856212"
+            },
+            "TagUnitHelpResolvedTag": "1019672922811551815",
+            "IntroductionChannel": {
+                "desc": "Introduction Channel",
+                "id": "768488410959708210"
+            },
+            "IntroductionWatcherServiceEnabled": true,
+            "UserModuleSlapObjectsTable": "Settings/udc-slap.txt",
+            "UserModuleSlapChoices": [
+                "trout", "duck", "truck", "paddle", "magikarp", "sausage", "student loan",
+                "life choice", "bug report", "unhandled exception", "null pointer", "keyboard",
+                "kinematic rigidbody", "gameobject", "trigger collider", "update cycle", "json file",
+                "large language model", "hosting invoice", "quality of life patch",
+                "game jam submission", "bucket of fried chicken", "anime waifu pillow",
+                "network-attached storage cabinet", "baguette", "moldy cheese",
+                "cup noodle", "game jam submission", "game library listing",
+                "cheese wheel", "banana peel", "unresolved bug", "low poly donut"
+            ],
+            "UserModuleSlapFails": [
+                "hurting themselves", "making themselves look foolish", "tripping on it",
+                "dropping it on their toes", "breaking their screen with it"
+            ],
+            "TipImageDirectory": "tips",
+            "BirthdayAnnouncementEnabled": true,
+            "BirthdayCheckIntervalMinutes": 60,
+            "BirthdayAnnouncementChannel": {
+                "desc": "Channel for birthday announcements",
+                "id": "493511024037724180"
+            }
+        }

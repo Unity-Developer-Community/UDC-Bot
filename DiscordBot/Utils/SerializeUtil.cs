@@ -7,7 +7,6 @@ public static class SerializeUtil
 {
     public static T DeserializeFile<T>(string path, bool newFileIfNotExists = true) where T : new()
     {
-        // Check if file exists,
         if (!File.Exists(path))
         {
             if (newFileIfNotExists)
@@ -15,7 +14,7 @@ public static class SerializeUtil
                 LoggingService.LogToConsole($@"Deserialized File at '{path}' does not exist, attempting to generate new file.",
                     LogSeverity.Warning);
                 var deserializedItem = new T();
-                File.WriteAllText(path, JsonConvert.SerializeObject(deserializedItem));
+                AtomicWriteText(path, JsonConvert.SerializeObject(deserializedItem));
             }
             else
             {
@@ -23,9 +22,25 @@ public static class SerializeUtil
             }
         }
 
-        using var file = File.OpenText(path);
-        var content = JsonConvert.DeserializeObject<T>(file.ReadToEnd()) ?? new T();
-        return content;
+        try
+        {
+            using var file = File.OpenText(path);
+            var content = JsonConvert.DeserializeObject<T>(file.ReadToEnd()) ?? new T();
+            return content;
+        }
+        catch (JsonException ex)
+        {
+            LoggingService.LogToConsole(
+                $"Corrupted JSON in '{path}': {ex.Message}. Backing up and resetting to default.", LogSeverity.Error);
+
+            var backupPath = path + $".corrupt-{DateTime.UtcNow:yyyyMMdd-HHmmss}.bak";
+            try { File.Copy(path, backupPath, overwrite: true); }
+            catch { /* best-effort backup */ }
+
+            var fallback = new T();
+            AtomicWriteText(path, JsonConvert.SerializeObject(fallback));
+            return fallback;
+        }
     }
 
     /// <summary> Tests objectToSerialize to confirm not null before saving it to path. </summary>
@@ -38,7 +53,7 @@ public static class SerializeUtil
             return false;
         }
 
-        File.WriteAllText(path, JsonConvert.SerializeObject(objectToSerialize));
+        AtomicWriteText(path, JsonConvert.SerializeObject(objectToSerialize));
         return true;
     }
 
@@ -50,8 +65,22 @@ public static class SerializeUtil
                 LogSeverity.Warning);
             return false;
         }
-        await File.WriteAllTextAsync(path, JsonConvert.SerializeObject(objectToSerialize));
+        await AtomicWriteTextAsync(path, JsonConvert.SerializeObject(objectToSerialize));
         return true;
+    }
+
+    private static void AtomicWriteText(string path, string content)
+    {
+        var tmpPath = path + ".tmp";
+        File.WriteAllText(tmpPath, content);
+        File.Move(tmpPath, path, overwrite: true);
+    }
+
+    private static async Task AtomicWriteTextAsync(string path, string content)
+    {
+        var tmpPath = path + ".tmp";
+        await File.WriteAllTextAsync(tmpPath, content);
+        File.Move(tmpPath, path, overwrite: true);
     }
 
     public static async Task<T> LoadUrlDeserializeResult<T>(string url)
@@ -66,5 +95,5 @@ public static class SerializeUtil
         }
         return resultObject;
     }
-    
+
 }

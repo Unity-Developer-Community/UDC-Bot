@@ -7,7 +7,6 @@ using DiscordBot.Settings;
 using Pathoschild.NaturalTimeParser.Parser;
 using DiscordBot.Attributes;
 using DiscordBot.Utils;
-using Org.BouncyCastle.Asn1.Cms;
 
 namespace DiscordBot.Modules;
 
@@ -22,13 +21,13 @@ public class ModerationModule : ModuleBase
     public BotSettings Settings { get; set; }
     public UserService UserService { get; set; }
     public ModerationService ModerationService { get; set; }
-    
+
     #endregion
-    
+
     private async Task<bool> IsModerationEnabled()
     {
         if (Settings.ModeratorCommandsEnabled) return true;
-        if (await Context.Guild.GetChannelAsync(Settings.BotAnnouncementChannel.Id)is IMessageChannel botAnnouncementChannel)
+        if (await Context.Guild.GetChannelAsync(Settings.BotAnnouncementChannel.Id) is IMessageChannel botAnnouncementChannel)
         {
             var sentMessage = await botAnnouncementChannel.SendMessageAsync($"{Context.User.Mention} some moderation commands are disabled, try using Wick.");
             await Context.Message.DeleteAsync();
@@ -114,7 +113,7 @@ public class ModerationModule : ModuleBase
                 $"You have been muted from UDC for **{Utils.Utils.FormatTime(seconds)}** for the following reason : **{message}**. " +
                 "This is not appealable and any tentative to avoid it will result in your permanent ban."))
         {
-            if (await Context.Guild.GetChannelAsync(Settings.BotCommandsChannel.Id)is ISocketMessageChannel botCommandChannel)
+            if (await Context.Guild.GetChannelAsync(Settings.BotCommandsChannel.Id) is ISocketMessageChannel botCommandChannel)
                 await botCommandChannel.SendMessageAsync(
                     $"I could not DM you {user.Mention}!\nYou have been muted from UDC for **{Utils.Utils.FormatTime(seconds)}** for the following reason : **{message}**. " +
                     "This is not appealable and any tentative to avoid it will result in your permanent ban.");
@@ -442,7 +441,7 @@ public class ModerationModule : ModuleBase
     }
 
     #region General Utility Commands
-    
+
     [Command("WelcomeMessageCount")]
     [Summary("Returns a count of pending welcome messages.")]
     [RequireModerator, HideFromHelp]
@@ -462,7 +461,7 @@ public class ModerationModule : ModuleBase
         }
         await Context.Message.DeleteAsync();
     }
-    
+
     // Command to show the tags available for a specific channel, so the command needs to be run in a channel with tags or specific a channel id to check
     [Command("ChannelTags")]
     [Summary("Returns a list of tags for the current channel.")]
@@ -499,7 +498,7 @@ public class ModerationModule : ModuleBase
     }
 
     #endregion
-        
+
     #region CommandList
     [RequireModerator]
     [Summary("Does what you see now.")]

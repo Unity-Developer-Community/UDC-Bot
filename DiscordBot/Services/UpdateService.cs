@@ -122,7 +122,7 @@ public class UpdateService
                 }
             }, _token);
 
-        _faqData = SerializeUtil.DeserializeFile<List<FaqData>>($"{_settings.ServerRootPath}/FAQs.json");
+        _faqData = SerializeUtil.DeserializeFile<List<FaqData>>("Settings/FAQs.json");
         _feedData = SerializeUtil.DeserializeFile<FeedData>($"{_settings.ServerRootPath}/feeds.json");
     }
 
@@ -186,9 +186,9 @@ public class UpdateService
             _apiDatabase = ConvertJsToArray(apiInput, false);
 
             if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unitymanual.json", _manualDatabase))
-                await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile,$"{ServiceName}: Failed to save unitymanual.json", ExtendedLogSeverity.Warning);
+                await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to save unitymanual.json", ExtendedLogSeverity.Warning);
             if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unityapi.json", _apiDatabase))
-                await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile,$"{ServiceName}: Failed to save unityapi.json", ExtendedLogSeverity.Warning);
+                await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to save unityapi.json", ExtendedLogSeverity.Warning);
 
             string[][] ConvertJsToArray(string data, bool isManual)
             {
@@ -217,7 +217,7 @@ public class UpdateService
         }
         catch (Exception e)
         {
-            await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile,$"{ServiceName}: Failed to download manual/api file\nEx:{e.ToString()}", ExtendedLogSeverity.Warning);
+            await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to download manual/api file\nEx:{e.ToString()}", ExtendedLogSeverity.Warning);
         }
     }
 
@@ -260,7 +260,7 @@ public class UpdateService
             }
             catch (Exception e)
             {
-                await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile,$"{ServiceName}: Failed to update RSS feeds, attempting to continue.", ExtendedLogSeverity.Error);
+                await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to update RSS feeds, attempting to continue.", ExtendedLogSeverity.Error);
             }
 
             await Task.Delay(TimeSpan.FromSeconds(30d), _token);

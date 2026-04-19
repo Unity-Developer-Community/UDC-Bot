@@ -1,7 +1,9 @@
 using Discord.Commands;
+using Discord.WebSocket;
 using DiscordBot.Services;
 using DiscordBot.Settings;
 using DiscordBot.Attributes;
+using System.Text.RegularExpressions;
 
 namespace DiscordBot.Modules;
 
@@ -21,11 +23,29 @@ public class ReminderModule : ModuleBase
     [Summary("Reminds users of a message based on time. Syntax : !remindme 1hour30min Watch a tutorial")]
     public async Task RemindMe(string time, [Remainder] string message)
     {
-        if (Context.Message.MentionedEveryone || Context.Message.MentionedRoleIds.Count > 0 ||
-            Context.Message.MentionedUserIds.Count > 0)
+        if (Context.Message.MentionedEveryone || Context.Message.MentionedRoleIds.Count > 0)
         {
-            await ReplyAsync("You can't mention anyone or roles in a reminder.").DeleteAfterSeconds(seconds: 5);
+            await ReplyAsync("You can't mention groups or roles in a reminder.").DeleteAfterSeconds(seconds: 5);
             return;
+        }
+
+        if (Context.Message.MentionedUserIds.Count > 0)
+        {
+            // IUserMessage does not guarantee .MentionedUsers so go through the class instead if possible
+            if (Context.Message is SocketMessage)
+            {
+                var sm = (Context.Message as SocketMessage);
+                // convert <@123> to **Joe**
+                foreach (var user in sm.MentionedUsers)
+                    message = Regex.Replace(message, $"[<][@]{user.Id}[>]", user.GetUserPreferredName().ToBold());
+                // delete any remaining user mentions that are somehow not in the list
+                message = Regex.Replace(message, $"[<][@][0-9]+[>]", "");
+            }
+            else
+            {
+                await ReplyAsync($"You can't mention users in a reminder.\n`{message}`").DeleteAfterSeconds(seconds: 5);
+                return;
+            }
         }
 
         var reminderDate = Utils.Utils.ParseTimeFromString(time);

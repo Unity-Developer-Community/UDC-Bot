@@ -7,6 +7,7 @@ using Discord.WebSocket;
 using DiscordBot.Domain;
 using DiscordBot.Settings;
 using DiscordBot.Skin;
+using DiscordBot.Data;
 using ImageMagick;
 using Newtonsoft.Json;
 
@@ -15,7 +16,7 @@ namespace DiscordBot.Services;
 public class UserService
 {
     private const string ServiceName = "UserService";
-    
+
     private readonly HashSet<ulong> _canEditThanks; //Doesn't need to be saved
     private readonly DiscordSocketClient _client;
     public readonly string CodeFormattingExample;
@@ -41,8 +42,13 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
     private readonly int _thanksCooldownTime;
     private readonly int _thanksMinJoinTime;
-
     private readonly string _thanksRegex;
+
+    private DateTime _mikuMentioned;
+    private readonly TimeSpan _mikuCooldownTime;
+    private readonly string _mikuRegex;
+    private readonly string _mikuReply;
+
     private readonly UpdateService _updateService;
 
     private readonly Dictionary<ulong, DateTime> _xpCooldown;
@@ -107,6 +113,20 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _thanksMinJoinTime = userSettings.ThanksMinJoinTime;
 
         /*
+        Init Miku
+        Gag feature has no external settings, hardcoded userid refers to Reenaki/Kiki.
+        */
+        _mikuCooldownTime = new TimeSpan(0, 39, 0); // 39min
+        //_mikuCooldownTime = new TimeSpan(0, 0, 39); // test 39sec
+        _mikuMentioned = DateTime.Now - _mikuCooldownTime;
+        _mikuRegex = @"(?i)\b(miku|hatsune|初音ミク|初音|ミク)\b";
+        _mikuReply =
+            "(:three: :nine:|:microphone:|:notes:|:musical_note:|:musical_keyboard:|:mirror_ball:) " +
+            "(Oi, mite, mite,|Heya,|Hey, look,|Did someone mention Miku?) " +
+            "<@358915848515354626> (-chan|)!";
+        //_mikuReply = "Oi, mite, mite, <@427306565184389132> ! :three: :nine:"; // test
+
+        /*
          Init Code analysis
         */
         _codeReminderCooldownTime = userSettings.CodeReminderCooldown;
@@ -140,9 +160,9 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _client.MessageReceived += UpdateXp;
         _client.MessageReceived += Thanks;
         _client.MessageUpdated += ThanksEdited;
+        //_client.MessageReceived += MikuCheck;
         _client.MessageReceived += CodeCheck;
         _client.MessageReceived += ScoldForAtEveryoneUsage;
-        _client.MessageReceived += AutoCreateThread;
         _client.UserJoined += UserJoined;
         _client.GuildMemberUpdated += UserUpdated;
         _client.UserLeft += UserLeft;
@@ -152,7 +172,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
         LoadData();
         UpdateLoop();
-      
+
         Task.Run(DelayedWelcomeService);
     }
 
@@ -218,7 +238,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var userId = messageParam.Author.Id;
         if (_xpCooldown.HasUser(userId))
             return;
-        
+
         var waitTime = _rand.Next(_xpMinCooldown, _xpMaxCooldown);
         float baseXp = _rand.Next(_xpMinPerMessage, _xpMaxPerMessage);
         float bonusXp = 0;
@@ -230,7 +250,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var user = await _databaseService.GetOrAddUser((SocketGuildUser)messageParam.Author);
             if (user == null)
                 return;
-        
+
             bonusXp += baseXp * (1f + user.Karma / 100f);
 
             //Reduce XP for members with no role
@@ -243,7 +263,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
             var xpGain = (int)Math.Round((baseXp + bonusXp) * reduceXp);
 
-            await _databaseService.Query.UpdateXp(userId.ToString(), user.Exp + (uint)xpGain);
+            await _databaseService.Query.UpdateXp(userId.ToString(), user.Exp + (long)xpGain);
 
             _loggingService.LogXp(messageParam.Channel.Name, messageParam.Author.Username, baseXp, bonusXp, reduceXp,
                 xpGain);
@@ -280,12 +300,12 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         //TODO Add level up card
     }
 
-    private double GetXpLow(uint level) => 70d - 139.5d * (level + 1d) + 69.5 * Math.Pow(level + 1d, 2d);
+    private double GetXpLow(int level) => 70d - 139.5d * (level + 1d) + 69.5 * Math.Pow(level + 1d, 2d);
 
-    private double GetXpHigh(uint level) => 70d - 139.5d * (level + 2d) + 69.5 * Math.Pow(level + 2d, 2d);
+    private double GetXpHigh(int level) => 70d - 139.5d * (level + 2d) + 69.5 * Math.Pow(level + 2d, 2d);
 
     private SkinData GetSkinData() =>
-        JsonConvert.DeserializeObject<SkinData>(File.ReadAllText($"{_settings.ServerRootPath}/skins/skin.json"),
+        JsonConvert.DeserializeObject<SkinData>(File.ReadAllText($"{_settings.AssetsRootPath}/skins/skin.json"),
             new SkinModuleJsonConverter());
 
     /// <summary>
@@ -302,7 +322,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var dbRepo = _databaseService.Query;
             if (dbRepo == null)
                 return profileCardPath;
-            
+
             var userData = await dbRepo.GetUser(user.Id.ToString());
 
             var xpTotal = userData.Exp;
@@ -313,8 +333,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var xpLow = GetXpLow(level);
             var xpHigh = GetXpHigh(level);
 
-            var xpShown = (uint)(xpTotal - xpLow);
-            var maxXpShown = (uint)(xpHigh - xpLow);
+            var xpShown = (int)(xpTotal - xpLow);
+            var maxXpShown = (int)(xpHigh - xpLow);
 
             var percentage = (float)xpShown / maxXpShown;
 
@@ -335,8 +355,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var profile = new ProfileData
             {
                 Karma = karma,
-                KarmaRank = (uint)karmaRank,
-                Level = (uint)level,
+                KarmaRank = karmaRank,
+                Level = level,
                 MainRoleColor = mainRole.Color,
                 MaxXpShown = maxXpShown,
                 Nickname = ((IGuildUser)user).Nickname,
@@ -345,16 +365,16 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 XpHigh = xpHigh,
                 XpLow = xpLow,
                 XpPercentage = percentage,
-                XpRank = (uint)xpRank,
+                XpRank = xpRank,
                 XpShown = xpShown,
-                XpTotal = (uint)xpTotal
+                XpTotal = xpTotal
             };
 
-            var background = new MagickImage($"{_settings.ServerRootPath}/skins/{skin.Background}");
+            var background = new MagickImage($"{_settings.AssetsRootPath}/skins/{skin.Background}");
 
             var avatarUrl = user.GetAvatarUrl(ImageFormat.Auto, 256);
             if (string.IsNullOrEmpty(avatarUrl))
-                profile.Picture = new MagickImage($"{_settings.ServerRootPath}/images/default.png");
+                profile.Picture = new MagickImage($"{_settings.AssetsRootPath}/images/default.png");
             else
                 try
                 {
@@ -372,7 +392,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                     LoggingService.LogToConsole(
                         $"Failed to download user profile image for ProfileCard.\nEx:{e.Message}",
                         LogSeverity.Warning);
-                    profile.Picture = new MagickImage($"{_settings.ServerRootPath}/images/default.png");
+                    profile.Picture = new MagickImage($"{_settings.AssetsRootPath}/images/default.png");
                 }
 
             profile.Picture.Resize(skin.AvatarSize, skin.AvatarSize);
@@ -384,7 +404,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 {
                     var image = layer.Image.ToLower() == "avatar"
                         ? profile.Picture
-                        : new MagickImage($"{_settings.ServerRootPath}/skins/{layer.Image}");
+                        : new MagickImage($"{_settings.AssetsRootPath}/skins/{layer.Image}");
 
                     background.Composite(image, (int)layer.StartX, (int)layer.StartY, CompositeOperator.Over);
                 }
@@ -404,7 +424,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         {
             await _loggingService.LogChannelAndFile($"Failed to generate profile card for {user.Username}.\nEx:{e.Message}", ExtendedLogSeverity.LowWarning);
         }
-        
+
         if (!string.IsNullOrEmpty(profileCardPath))
             await Task.Delay(100);
 
@@ -415,7 +435,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         string icon = user.GetAvatarUrl();
         icon = string.IsNullOrEmpty(icon) ? "https://cdn.discordapp.com/embed/avatars/0.png" : icon;
-        
+
         string welcomeString = $"Welcome to Unity Developer Community, {user.GetPreferredAndUsername()}!";
         var builder = new EmbedBuilder()
             .WithDescription(welcomeString)
@@ -436,7 +456,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     {
         if (_canEditThanks.Contains(messageParam.Id)) await Thanks(messageParam);
     }
-    
+
     public async Task Thanks(SocketMessage messageParam)
     {
         //Get guild id
@@ -503,6 +523,31 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         }
     }
 
+    public async Task MikuCheck(SocketMessage messageParam)
+    {
+        //Get guild id
+        var channel = (SocketGuildChannel)messageParam.Channel;
+        var guildId = channel.Guild.Id;
+
+        //Make sure its in the UDC server
+        if (guildId != _settings.GuildId) return;
+
+        if (messageParam.Author.IsBot)
+            return;
+
+        var now = DateTime.Now;
+        if ((DateTime.Now - _mikuMentioned) < _mikuCooldownTime)
+            return;
+
+        var match = Regex.Match(messageParam.Content, _mikuRegex);
+        if (!match.Success)
+            return;
+
+        _mikuMentioned = now;
+        var reply = FuzzTable.Evaluate(_mikuReply);
+        await messageParam.Channel.SendMessageAsync(reply);
+    }
+
     public async Task CodeCheck(SocketMessage messageParam)
     {
         // Don't correct a Bot, don't correct in off-topic
@@ -512,7 +557,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         // We just ignore anything if it is under 200 characters
         if (messageParam.Content.Length < 200)
             return;
-        
+
         var userId = messageParam.Author.Id;
 
         //Simple check to cover most large code posting cases without being an issue for most non-code messages
@@ -608,16 +653,16 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             await ProcessWelcomeUser(user.Id, user.Value);
         }
     }
-    
+
     private async Task CheckForWelcomeMessage(SocketMessage messageParam)
     {
         if (_welcomeNoticeUsers.Count == 0)
             return;
-        
+
         var user = messageParam.Author;
         if (user.IsBot)
             return;
-        
+
         if (_welcomeNoticeUsers.Exists(u => u.id == user.Id))
         {
             _welcomeNoticeUsers.RemoveAll(u => u.id == user.Id);
@@ -677,10 +722,10 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 {
                     currentlyProcessedUserId = userData.id;
                     await ProcessWelcomeUser(userData.id, null);
-                    
+
                     toRemove.Add(userData.id);
                 }
-                
+
                 // Remove all the users we've welcomed from the list
                 if (toRemove.Count > 0)
                 {
@@ -702,7 +747,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         {
             // Catch and show exception
             await _loggingService.LogChannelAndFile($"{ServiceName} Exception during welcome message `{currentlyProcessedUserId}`.\n{e.Message}.", ExtendedLogSeverity.Warning);
-            
+
             // Remove the offending user from the dictionary and run the service again.
             _welcomeNoticeUsers.RemoveAll(u => u.id == currentlyProcessedUserId);
             if (_welcomeNoticeUsers.Count > 200)
@@ -788,46 +833,6 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 $"User {oldUser.GetUserPreferredName()} changed his " +
                 $"username to {user.GetUserPreferredName()}");
         }
-    }
-
-    private async Task AutoCreateThread(SocketMessage messageParam)
-    {
-        if (messageParam.Author.IsBot) return;
-
-        foreach (var prefix in _settings.AutoThreadExclusionPrefixes)
-            if (messageParam.Content.StartsWith(prefix))
-                return;
-
-        foreach (var AutoThreadChannel in _settings.AutoThreadChannels)
-        {
-            var channel = messageParam.Channel as SocketTextChannel;
-            if (channel.Id.Equals(AutoThreadChannel.Id))
-            {
-                try
-                {
-                    ThreadArchiveDuration wantedDuration;
-                    if (!Enum.TryParse<ThreadArchiveDuration>(AutoThreadChannel.Duration, out wantedDuration))
-                        wantedDuration = ThreadArchiveDuration.ThreeDays;
-                    Discord.ThreadArchiveDuration duration =
-                        Utils.Utils.GetMaxThreadDuration(wantedDuration, _client.GetGuild(_settings.GuildId));
-                    var title = AutoThreadChannel.GenerateTitle(messageParam.Author);
-                    var thread = await channel.CreateThreadAsync(title, Discord.ThreadType.PublicThread, duration,
-                        messageParam);
-
-                    if (!String.IsNullOrEmpty(AutoThreadChannel.FirstMessage))
-                    {
-                        var message =
-                            await thread.SendMessageAsync(AutoThreadChannel.GenerateFirstMessage(messageParam.Author));
-                        await message.PinAsync();
-                    }
-                }
-                catch (Exception err)
-                {
-                    LoggingService.LogToConsole($"Failed to CreateThread.\nEx: {err.ToString()}", LogSeverity.Error);
-                }
-            }
-        }
-
     }
 
     #endregion

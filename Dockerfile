@@ -1,28 +1,34 @@
-# Builds application using dotnet's sdk
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 
-WORKDIR /
-COPY ./DiscordBot/ ./app/
 WORKDIR /app/
-
+COPY ./NuGet.config ./
+COPY ./DiscordBot/DiscordBot.csproj ./
 RUN dotnet restore
-RUN dotnet build --configuration Release --no-restore
+COPY ./DiscordBot/ ./
+RUN dotnet publish --configuration Release --no-restore --output /app/publish
 
-
-# Build finale image
-FROM mcr.microsoft.com/dotnet/runtime:6.0
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/runtime:8.0
 
 WORKDIR /app/
 
-COPY --from=build /app/bin/Release/net6.0/ ./
+COPY --from=build /app/publish/ ./
 
-RUN echo "deb http://deb.debian.org/debian bullseye main contrib" > /etc/apt/sources.list
-RUN echo "deb http://security.debian.org/ bullseye-security main contrib" >> /etc/apt/sources.list
-RUN echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
-RUN apt update
-RUN apt install -y ttf-mscorefonts-installer
-RUN apt clean
-RUN apt autoremove -y
-RUN rm -rf /var/lib/apt/lists/
+# Bake immutable static assets (fonts, images, skins) into the image
+COPY ./DiscordBot/Assets/fonts/ ./Assets/fonts/
+COPY ./DiscordBot/Assets/images/ ./Assets/images/
+COPY ./DiscordBot/Assets/skins/ ./Assets/skins/
+
+# Add contrib repo for MS fonts, matching the base image's Debian codename
+RUN . /etc/os-release && \
+    echo "deb https://deb.debian.org/debian ${VERSION_CODENAME} contrib" > /etc/apt/sources.list.d/contrib.list && \
+    echo "deb https://security.debian.org/debian-security ${VERSION_CODENAME}-security contrib" >> /etc/apt/sources.list.d/contrib.list && \
+    echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends ttf-mscorefonts-installer && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["./DiscordBot"]

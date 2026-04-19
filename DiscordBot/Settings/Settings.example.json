@@ -3,18 +3,13 @@
   /* Auth info */
   "token": "Y O U R _ B O T _ T O K E N",
   "invite": "InviteLink", // Currently Unused
-  /* Gmail information for Asset Publisher Role to work. */
-  "gmail": "",
-  "gmailUsername": "YourGmailUsername",
-  "gmailPassword": "YourGmailPassword",
-  /* 'SSL MODE' and 'Allow User Variables' are only required when running on a local machine with XAMPP. This can often be removed. */
   /* DB Info*/
-  "DbConnectionString": "server=localhost;port=3306;database=test;user id=USER;Password=USERPASSWORD;SSL Mode=None;Allow User Variables=True",
+  "DbConnectionString": "Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=USERPASSWORD",
   /*Server Info*/
   "serverRootPath": "./SERVER",
+  "assetsRootPath": "./Assets",
   /* Base info */
   "prefix": "!",
-  "Administrator": "0",
   "ModeratorRoleId": "0",
   "guildId": "0", // Replace with your servers guild ID
   /* All assignable roles as of 29/04/21 */
@@ -48,10 +43,6 @@
     "desc": "Bot-Announcement Channel",
     "id": "0"
   },
-  "announcementsChannel": { // Not used by bot
-    "desc": "General Announcement Channel",
-    "id": "0" // Currently Unused 29/04/21
-  },
   "botCommandsChannel": {
     "desc": "Bot-Commands Channel",
     "id": "0"
@@ -66,11 +57,8 @@
   },
   /* Role Ids */
   "mutedRoleID": "0",
-  "publisherRoleID": "0",
   "SubsNewsRoleId": "0",
   "SubsReleasesRoleId": "0",
-  /*Publisher Stuff*/
-  "assetStoreFrontPage": "https://www.assetstore.unity3d.com/en/",
   /*Complaints Channels Stuff*/
   "complaintCategoryId": "0",
   "complaintChannelPrefix": "Complaint",
@@ -102,8 +90,6 @@
     "desc": "Unity-Help Channel",
     "id": "0"
   },
-  /* React Role Service */
-  "ReactRoleServiceEnabled": false,
   /* Birthday Announcement Service */
   "BirthdayAnnouncementEnabled": true,
   "BirthdayCheckIntervalMinutes": 240, // Check every 4 hours

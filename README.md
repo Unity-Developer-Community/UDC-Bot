@@ -5,6 +5,48 @@ Join us on [Discord](https://discord.gg/bu3bbby) !
 
 The code is provided as-is and there will be no guaranteed support to help make it run.
 
+## Table Of Contents
+
+- [Features](#features)
+- [Architecture](#architecture)
+  - [Services vs Modules](#services-vs-modules)
+  - [Dependency Injection](#dependency-injection)
+  - [Command System](#command-system)
+- [Contributing](#contributing)
+  - [Adding a New Command](#adding-a-new-command)
+  - [Adding a New Slash Command](#adding-a-new-slash-command)
+  - [Creating a New Service](#creating-a-new-service)
+  - [Custom Attributes](#custom-attributes)
+- [Compiling](#compiling)
+  - [Dependencies](#dependencies)
+- [Running](#running)
+  - [Docker](#docker)
+  - [Runtime Dependencies](#runtime-dependencies)
+- [Notes](#notes)
+  - [Logging](#logging)
+  - [Discord.Net](#discordnet)
+- [FAQ](#faq)
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **User Profiles** | XP/level system, karma tracking, profile cards with customizable skins |
+| **Moderation** | Mute, kick, ban, slowmode, message clearing, audit logging |
+| **Slash Commands** | Modern Discord slash command support alongside text commands |
+| **Casino** | Token economy with Blackjack, Poker, and Rock Paper Scissors ([details](docs/casino.md)) |
+| **Weather** | Temperature, conditions, air quality, and local time via OpenWeatherMap |
+| **Reminders** | Persistent scheduled reminders with natural time parsing |
+| **Tips** | Searchable tip database with image support |
+| **Tickets** | Private complaint/support ticket system |
+| **Unity Help** | Help forum thread management, auto-archive, canned responses, FAQ/resources |
+| **Recruitment** | Configurable recruitment workflow |
+| **Birthday Announcements** | Scheduled birthday notifications |
+| **Currency Conversion** | Real-time currency conversion |
+| **Flight Data** | Airport and flight lookups |
+| **RSS Feeds** | Feed parsing and management |
+| **Leaderboards** | XP, karma (weekly/monthly/yearly), and casino token leaderboards |
+
 ## Architecture
 
 This bot follows a **Service-Module** architecture pattern designed for maintainability and separation of concerns.
@@ -12,12 +54,14 @@ This bot follows a **Service-Module** architecture pattern designed for maintain
 ### Services vs Modules
 
 **Services** (`/DiscordBot/Services/`) contain the core business logic and data operations:
+
 - Handle database interactions, API calls, and background tasks
 - Maintain state and provide reusable functionality
 - Examples: `UserService`, `DatabaseService`, `ModerationService`, `LoggingService`
 - Registered as singletons in the dependency injection container
 
 **Modules** (`/DiscordBot/Modules/`) handle Discord command interactions:
+
 - Expose functionality to users via chat commands
 - Use `[Command]` attributes to define command behavior
 - Receive services via dependency injection
@@ -26,14 +70,28 @@ This bot follows a **Service-Module** architecture pattern designed for maintain
 ### Dependency Injection
 
 The bot uses .NET's built-in dependency injection system:
+
 - Services are registered in `Program.cs` using `ConfigureServices()`
 - Modules receive services via public property injection
 - This allows for loose coupling and easier testing
 
 ### Command System
 
-Commands are implemented using Discord.Net's command framework:
-- Commands use attributes like `[Command("commandname")]` and `[Summary("description")]`
+The bot supports both **text commands** and **slash commands**:
+
+**Text Commands** (via `CommandService`):
+
+- Use attributes like `[Command("commandname")]` and `[Summary("description")]`
+- Triggered by the configured prefix (default `!`)
+
+**Slash Commands** (via `InteractionService`):
+
+- Use `[SlashCommand]`, `[Group]`, and `[ComponentInteraction]` attributes
+- Registered per-guild using `GuildId` from settings
+- Support autocomplete, buttons, modals, and select menus
+
+**Shared:**
+
 - Custom attributes provide authorization: `[RequireModerator]`, `[RequireAdmin]`
 - Command routing is handled by `CommandHandlingService`
 
@@ -55,15 +113,44 @@ public async Task MyCommand(string parameter)
 }
 ```
 
-3. **Inject required services** via public properties:
+1. **Inject required services** via public properties:
+
 ```csharp
 public UserService UserService { get; set; }
 public DatabaseService DatabaseService { get; set; }
 ```
 
+### Adding a New Slash Command
+
+1. **Choose an existing interaction module** or create a new one in `/DiscordBot/Modules/`
+2. **Add the slash command method** with proper attributes:
+
+```csharp
+[SlashCommand("mycommand", "Description of what this command does")]
+public async Task MyCommand(
+    [Summary(description: "A parameter")] string parameter)
+{
+    await RespondAsync("Command executed!");
+}
+```
+
+1. **For grouped commands**, use the `[Group]` attribute on the class:
+
+```csharp
+[Group("mygroup", "Group description")]
+public class MySlashModule : InteractionModuleBase<SocketInteractionContext>
+{
+    [SlashCommand("subcommand", "Subcommand description")]
+    public async Task SubCommand() => await RespondAsync("Done!");
+}
+```
+
+> Slash commands are registered per-guild on startup using the `GuildId` setting.
+
 ### Creating a New Service
 
 1. **Create your service class** in `/DiscordBot/Services/`:
+
 ```csharp
 public class MyNewService
 {
@@ -81,12 +168,14 @@ public class MyNewService
 }
 ```
 
-2. **Register the service** in `Program.cs` within `ConfigureServices()`:
+1. **Register the service** in `Program.cs` within `ConfigureServices()`:
+
 ```csharp
 .AddSingleton<MyNewService>()
 ```
 
-3. **Inject it into modules** that need it:
+1. **Inject it into modules** that need it:
+
 ```csharp
 public MyNewService MyNewService { get; set; }
 ```
@@ -113,26 +202,6 @@ public class RequireMyRoleAttribute : PreconditionAttribute
 }
 ```
 
-# Table Of Contents
-<!-- Link to all the headers -->
-- [Architecture](#architecture)
-  - [Services vs Modules](#services-vs-modules)
-  - [Dependency Injection](#dependency-injection)
-  - [Command System](#command-system)
-- [Contributing](#contributing)
-  - [Adding a New Command](#adding-a-new-command)
-  - [Creating a New Service](#creating-a-new-service)
-  - [Custom Attributes](#custom-attributes)
-- [Compiling](#compiling)
-  - [Dependencies](#dependencies)
-- [Running](#running)
-    - [Docker](#docker)
-    - [Runtime Dependencies](#runtime-dependencies)
-- [Notes](#notes)
-    - [Logging](#logging)
-    - [Discord.Net](#discordnet)
-- [FAQ](#faq)
-
 ## Compiling
 
 ### Dependencies
@@ -140,13 +209,16 @@ public class RequireMyRoleAttribute : PreconditionAttribute
 To successfully compile you will need the following:
 
 **Required:**
-- [.NET 6.0 SDK](https://dotnet.microsoft.com/download/dotnet/6.0) or later
+
+- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
 - An IDE such as [Visual Studio](https://visualstudio.microsoft.com/vs/community/), [VS Code](https://code.visualstudio.com/), or [JetBrains Rider](https://www.jetbrains.com/rider/)
 
 **Recommended for Development:**
+
 - [Docker](https://www.docker.com/get-started) and [Docker Compose](https://docs.docker.com/compose/install/) for database containerization
 
 **Build the project:**
+
 ```bash
 dotnet restore
 dotnet build
@@ -173,27 +245,30 @@ dotnet build
 
 > **Important:** Read the comments in `Settings.json` carefully - they explain which settings need to be changed and which are optional.
 
-_For production deployment, consult the [Discord.Net Deployment Guide](https://discord.foxbot.me/docs/guides/deployment/deployment.html)._
+_For production deployment, see the [Deployment Guide](docs/deployment.md)._
 
 ### Docker
 
 **Recommended for development:** Docker simplifies database setup and ensures consistency.
 
 **To run with Docker:**
+
 ```bash
 # Start both database and bot
 docker-compose up
 
 # Start only the database (run bot from IDE for faster development)
-docker-compose up database
+docker-compose up db
 ```
 
 **Development workflow:**
-1. Start the database container: `docker-compose up database`
+
+1. Start the database container: `docker-compose up db`
 2. Update the `DbConnectionString` in `Settings.json` to match your docker-compose configuration
 3. Run the bot from your IDE for faster development iteration
 
 **Full Docker deployment:**
+
 ```bash
 # Build and start everything
 docker-compose up --build --remove-orphans
@@ -208,16 +283,17 @@ docker-compose up -d
 
 **Manual Database Setup (Alternative to Docker):**
 
-If you prefer not to use Docker, you'll need to set up a MySQL database manually:
+If you prefer not to use Docker, you'll need to set up a PostgreSQL database manually:
 
-1. **Install MySQL server:**
-   - **Windows/macOS:** [XAMPP](https://www.apachefriends.org/download.html) (includes MySQL + phpMyAdmin)
-   - **Linux:** `sudo apt install mysql-server` or equivalent
+1. **Install PostgreSQL:**
+   - **Windows:** [PostgreSQL Installer](https://www.postgresql.org/download/windows/)
+   - **macOS:** `brew install postgresql@16`
+   - **Linux:** `sudo apt install postgresql` or equivalent
 
 2. **Create database and user:**
    - Create a new database for the bot
    - Create a user with full permissions to that database
-   - Update the `DbConnectionString` in `Settings.json` with your database details
+   - Update the `DbConnectionString` in `Settings.json` with your connection details (e.g. `Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=YOUR_PASSWORD`)
 
 3. **Initialize database schema:**
    - The bot will attempt to create necessary tables on first run
@@ -225,13 +301,15 @@ If you prefer not to use Docker, you'll need to set up a MySQL database manually
 
 **Additional Linux Requirements:**
 For image processing functionality, install Microsoft Core Fonts:
+
 ```bash
 sudo apt install ttf-mscorefonts-installer
 ```
 
 **Connection String Format:**
+
 ```json
-"DbConnectionString": "Server=localhost;Database=your_db_name;Uid=your_username;Pwd=your_password;"
+"DbConnectionString": "Host=localhost;Port=5432;Database=your_db_name;Username=your_username;Password=your_password"
 ```
 
 ## Notes
@@ -241,6 +319,7 @@ sudo apt install ttf-mscorefonts-installer
 The bot includes comprehensive logging to help with troubleshooting:
 
 **Log Levels and Colors:**
+
 - **Critical/Error:** Red text - Something is broken and needs immediate attention
 - **Warning:** Yellow text - Potential issues that should be investigated  
 - **Info:** White text - General operational information
@@ -249,6 +328,7 @@ The bot includes comprehensive logging to help with troubleshooting:
 **During startup:** Any yellow or red messages likely indicate configuration or connectivity issues.
 
 **Log Locations:**
+
 - Console output for immediate feedback
 - Channel logging (if configured) for persistent records
 - See [LoggingService](https://github.com/Unity-Developer-Community/UDC-Bot/blob/dev/DiscordBot/Services/LoggingService.cs) for implementation details
@@ -258,16 +338,19 @@ The bot includes comprehensive logging to help with troubleshooting:
 This bot is built on [Discord.Net](https://discordnet.dev/), a powerful .NET library for Discord bots.
 
 **Key Concepts to Understand:**
+
 - **Asynchronous Programming:** Extensive use of `async`/`await` patterns
 - **Event-Driven Architecture:** Reactions to Discord events (messages, user joins, etc.)
 - **Polymorphism:** Rich type hierarchy for Discord entities (users, channels, guilds)
 
 **Helpful Resources:**
+
 - [Discord.Net Documentation](https://discordnet.dev/guides/introduction/intro.html)
 - [Discord.Net API Reference](https://discordnet.dev/api/index.html)
 - [Discord Developer Portal](https://discord.com/developers/docs) for Discord API specifics
 
 **Common Patterns in this Bot:**
+
 - Commands return `Task` for async operations
 - Heavy use of dependency injection for service access
 - Event handlers for background functionality (user joins, message processing)
@@ -278,6 +361,7 @@ This bot is built on [Discord.Net](https://discordnet.dev/), a powerful .NET lib
 
 **Q: The bot won't start - what should I check?**
 A: Verify these in order:
+
 1. Bot token is correctly set in `Settings.json`
 2. Database connection string is correct and database is accessible
 3. All required folders (SERVER, Settings) are in the right location
@@ -286,6 +370,7 @@ A: Verify these in order:
 **Q: "Unable to load the service index" or NuGet restore errors**
 A: This is usually a temporary network issue with package sources. Try:
 **Warning:** Clearing NuGet locals will remove all cached packages and temporary files. This may require re-downloading dependencies, which could take significant time on slower connections.
+
 ```bash
 dotnet nuget locals all --clear
 dotnet restore
@@ -293,13 +378,15 @@ dotnet restore
 
 **Q: Database connection fails**
 A: Common causes:
+
 - Incorrect connection string format
 - Database server not running
 - User permissions insufficient
 - Firewall blocking database port
 
 **Q: How do I get a Discord bot token?**
-A: 
+A:
+
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
 2. Create a new application
 3. Go to "Bot" section
@@ -308,6 +395,7 @@ A:
 
 **Q: What permissions does the bot need?**
 A: The bot requires:
+
 - Read Messages
 - Send Messages
 - Manage Messages (for moderation features)
@@ -316,7 +404,8 @@ A: The bot requires:
 - Additional permissions based on enabled features
 
 **Q: How can I contribute or report bugs?**
-A: 
+A:
+
 - Check existing issues on GitHub
 - For bugs: provide console logs and steps to reproduce
 - For contributions: see the [Contributing](#contributing) section above
@@ -324,13 +413,15 @@ A:
 ### Development Tips
 
 **Q: How do I debug commands?**
-A: 
+A:
+
 - Use the logging system: `LoggingService.LogToConsole(message, ExtendedLogSeverity.Info)`
 - Set breakpoints in your IDE when running the bot locally
 - Check the command history in `CommandHandlingService`
 
 **Q: My command isn't working**
 A: Common issues:
+
 - Missing `[Command]` attribute
 - Incorrect parameter types
 - Missing dependency injection setup

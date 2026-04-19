@@ -4,7 +4,8 @@ using DiscordBot.Settings;
 namespace DiscordBot.Services;
 
 [Serializable]
-public class ReminderItem {
+public class ReminderItem
+{
     public ulong ChannelId { get; set; }
     public ulong MessageId { get; set; }
     public ulong UserId { get; set; }
@@ -15,19 +16,20 @@ public class ReminderItem {
 public class ReminderService
 {
     private const string ServiceName = "ReminderService";
-    
+
     // Bot responds to reminder request, any users who also use this emoji on the message will be pinged when the reminder is triggered.
     public static readonly Emoji BotResponseEmoji = new("✅");
-    
+
     public bool IsRunning { get; private set; }
-    
+
     private DateTime _nearestReminder = DateTime.Now;
-        
+
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
     private List<ReminderItem> _reminders = new List<ReminderItem>();
-        
+
     private readonly ChannelInfo _botCommandsChannel;
+    private readonly string _serverRootPath;
     private bool _hasChangedSinceLastSave = false;
 
     private const int _maxUserReminders = 10;
@@ -37,6 +39,7 @@ public class ReminderService
         _client = client;
         _loggingService = loggingService;
         _botCommandsChannel = settings.BotCommandsChannel;
+        _serverRootPath = settings.ServerRootPath;
 
         Initialize();
     }
@@ -44,7 +47,7 @@ public class ReminderService
     private void Initialize()
     {
         if (IsRunning) return;
-        
+
         LoadReminders();
         if (_reminders == null)
         {
@@ -58,27 +61,27 @@ public class ReminderService
     // Serialize Reminders to file
     public void SaveReminders()
     {
-        Utils.SerializeUtil.SerializeFile(@"Settings/reminders.json", _reminders);
+        Utils.SerializeUtil.SerializeFile($"{_serverRootPath}/reminders.json", _reminders);
     }
     private void LoadReminders()
     {
-        _reminders = Utils.SerializeUtil.DeserializeFile<List<ReminderItem>>(@"Settings/reminders.json");
+        _reminders = Utils.SerializeUtil.DeserializeFile<List<ReminderItem>>($"{_serverRootPath}/reminders.json");
     }
     public void AddReminder(ReminderItem reminder)
     {
         _reminders.Add(reminder);
         _hasChangedSinceLastSave = true;
-            
+
         // We check if this reminder is sooner than the next one
         if (_nearestReminder > reminder.When)
             _nearestReminder = reminder.When;
     }
-        
+
     public bool UserHasTooManyReminders(ulong userId)
     {
         return _reminders.FindAll(x => x.UserId == userId).Count >= _maxUserReminders;
     }
-        
+
     public List<ReminderItem> GetUserReminders(ulong userId)
     {
         return _reminders.FindAll(x => x.UserId == userId);
@@ -103,7 +106,7 @@ public class ReminderService
             _hasChangedSinceLastSave = true;
         return count;
     }
-        
+
     // Check if reminders are due in an async task that loops from the constructor
     private async Task CheckReminders()
     {
@@ -119,11 +122,11 @@ public class ReminderService
                 }
 
                 await Task.Delay(1000);
-                    
+
                 var now = DateTime.Now;
                 // We wait until we know at least one reminder needs to be checked
                 if (now <= _nearestReminder || _reminders.Count <= 0) continue;
-                    
+
                 List<ReminderItem> remindersToCheck = _reminders.Where(r => r.When <= now).ToList();
                 _hasChangedSinceLastSave = true;
 
@@ -139,7 +142,7 @@ public class ReminderService
                     // We reply to their original message
                     if (message != null)
                     {
-                        string botResponse = $"{message.Author.Mention} reminder: \"{reminder.Message}\"";
+                        string botResponse = $"Reminding {message.Author.Mention}: \"{reminder.Message}\"";
                         // Get the people who reacted to the message 
                         var includeUsers = await message.GetReactionUsersAsync(BotResponseEmoji, 10).FlattenAsync();
                         string extraUsers = string.Empty;
@@ -152,10 +155,12 @@ public class ReminderService
 
                             extraUsers += $"{includeUser.Mention} ";
                         }
+                        extraUsers = extraUsers.TrimEnd();
+
                         // If there are any extra users, we add them to the bot response
                         if (extraUsers != string.Empty)
-                            botResponse += $"\n\nReacted Extras: {extraUsers}";
-                        
+                            botResponse += $"\n({extraUsers} also signed on {BotResponseEmoji})";
+
                         await message.ReplyAsync(botResponse);
                         continue;
                     }
@@ -163,7 +168,7 @@ public class ReminderService
                     channel ??= _client.GetChannel(_botCommandsChannel.Id) as SocketTextChannel;
                     var user = _client.GetUser(reminder.UserId);
                     if (user == null) continue;
-                    
+
                     if (channel != null)
                         await channel.SendMessageAsync(
                             $"{user.Mention} reminder: \"{reminder.Message}\"");
@@ -181,7 +186,7 @@ public class ReminderService
             IsRunning = false;
         }
     }
-        
+
     public bool RestartService()
     {
         Initialize();

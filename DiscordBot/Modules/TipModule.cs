@@ -85,8 +85,12 @@ public class TipModule : ModuleBase
 			await ReplyAsync(embed: builder.Build());
 		}
 
-		var ids = string.Join(" ", tips.Select(t => t.Id.ToString()).ToArray());
-		await ReplyAsync($"-# Tip ID {ids}");
+		if (tips.Count > 1)
+		{
+			var ids = string.Join(" ", tips.Select(t => t.Id.ToString()).ToArray());
+			await ReplyAsync($"-# Tip ID {ids}");
+		}
+
 		await Context.Message.DeleteAsync();
   		await TipService.CommitTipDatabase();
 	}
@@ -149,6 +153,8 @@ public class TipModule : ModuleBase
 		if (!IsAuthorized(user))
 			return;
 
+   		int floodCount = 20;
+
 		List<Tip> tips = null;
   		if (keywords?.Length > 0)
 		{
@@ -159,11 +165,46 @@ public class TipModule : ModuleBase
 				await ReplyAsync("No tips for the keywords provided were found.").DeleteAfterSeconds(5);
 				return;
 			}
+			if (tips.Count >= floodCount)
+			{
+				await ReplyAsync($"Total of {tips.Count} tips found for the keywords provided; refine your search.").DeleteAfterSeconds(5);
+				return;
+			}
 		}
 		else
   		{
 			tips = TipService.GetAllTips().OrderBy(t => t.Id).ToList();
+			if (tips.Count >= floodCount)
+			{
+				var terms = new HashSet<string>();
+				foreach (var tip in tips)
+					foreach (var term in tip.Keywords)
+						terms.Add(term);
+				await ReplyAsync($"Total of {tips.Count} tips found, add one or more keywords to narrow the search.");
+				var termList = new List<string>();
+				foreach (var tip in terms.OrderBy(k => k))
+					termList.Add(tip);
+				floodCount = 150;
+				while (termList.Count > 0)
+				{
+					int count = termList.Count;
+					if (count > floodCount)
+						count = floodCount-10;
+					string keywordList = "Keywords: ";
+					for (int i = 0; i < count; i++)
+					{
+						keywordList += $"`{termList[0]}`, ";
+						termList.RemoveAt(0);
+					}
+					keywordList = keywordList.Substring(0, keywordList.Length-2);
+					await ReplyAsync(keywordList);
+					if (termList.Count > 0)
+		   				await Task.Delay(500);
+				}
+				return;
+			}
    		}
+
    		int chunkCount = 10;
 	 	int chunkTime = 1500;
    		bool first = true;
