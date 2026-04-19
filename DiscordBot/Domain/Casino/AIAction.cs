@@ -1,4 +1,4 @@
 public class AIAction
 {
-    public Func<Task> Execute { get; set; }
+    public Func<Task> Execute { get; set; } = null!;
 }

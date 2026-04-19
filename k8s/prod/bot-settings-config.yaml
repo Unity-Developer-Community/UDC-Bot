@@ -133,7 +133,6 @@ data:
         "Slàinte"
         ],
         "thanksCooldown": 60, //In seconds
-        "thanksReminderCooldown": 86400, //24 hours in seconds
         "thanksMinJoinTime": 600,
 
         /*Xp parameters*/
@@ -143,13 +142,7 @@ data:
         "xpMaxCooldown": 180,
 
         /*Code parameters*/
-        "codeReminderCooldown": 86400,
-
-        "isSomeoneThere": [
-            "is anyone around?",
-            "can someone help?",
-            "can someone help me?"
-        ]
+        "codeReminderCooldown": 86400
     }
 ---
 apiVersion: v1

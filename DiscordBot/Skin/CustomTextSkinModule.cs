@@ -1,6 +1,7 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using DiscordBot.Domain;
 using ImageMagick;
+using ImageMagick.Drawing;
 
 namespace DiscordBot.Skin;
 
@@ -15,7 +16,7 @@ public class CustomTextSkinModule : BaseTextSkinModule
         FontPointSize = 15;
     }
 
-    public override Drawables GetDrawables(ProfileData data)
+    public override IDrawables<byte> GetDrawables(ProfileData data)
     {
         var textPosition = new PointD(StartX, StartY);
 
@@ -24,26 +25,29 @@ public class CustomTextSkinModule : BaseTextSkinModule
         var mc = reg.Matches(Text);
         foreach (var match in mc)
         {
-            var prop = typeof(ProfileData).GetProperty(match.ToString());
+            var prop = typeof(ProfileData).GetProperty(match.ToString()!);
             if (prop == null) continue;
-            var value = (dynamic)prop.GetValue(data, null);
-            Text = Text.Replace("{" + match + "}", value.ToString());
+            var value = (dynamic?)prop.GetValue(data, null);
+            Text = Text.Replace("{" + match + "}", value?.ToString() ?? string.Empty);
         }
         /* ALL properties of ProfileData.cs can be used!
          * Like {Level} for ProfileData.Level
          * Or {Nickname} for ProfileData.Nickname
          */
 
-        return new Drawables()
+        var drawables = new Drawables()
             .FontPointSize(FontPointSize)
             .Font(Font)
             .StrokeColor(new MagickColor(StrokeColor))
             .StrokeWidth(StrokeWidth)
-            .StrokeAntialias(StrokeAntiAlias)
             .FillColor(new MagickColor(FillColor))
             .TextAlignment(TextAlignment)
-            .TextAntialias(TextAntiAlias)
             .TextKerning(TextKerning)
             .Text(textPosition.X, textPosition.Y, $"{Text ?? Text}");
+
+        if (StrokeAntiAlias) drawables.EnableStrokeAntialias(); else drawables.DisableStrokeAntialias();
+        if (TextAntiAlias) drawables.EnableTextAntialias(); else drawables.DisableTextAntialias();
+
+        return drawables;
     }
 }

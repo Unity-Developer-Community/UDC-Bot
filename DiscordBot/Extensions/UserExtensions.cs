@@ -8,8 +8,8 @@ public static class UserExtensions
     {
         return user.IsBot || user.IsWebhook;
     }
-    
-    public static bool HasRoleGroup(this IUser user, SocketRole role) 
+
+    public static bool HasRoleGroup(this IUser user, SocketRole role)
     {
         return HasRoleGroup(user, role.Id);
     }
@@ -27,7 +27,7 @@ public static class UserExtensions
         var guildUser = user as SocketGuildUser;
         return guildUser?.DisplayName ?? user.Username;
     }
-    
+
     public static string GetPreferredAndUsername(this IUser user)
     {
         var guildUser = user as SocketGuildUser;

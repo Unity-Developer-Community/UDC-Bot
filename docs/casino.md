@@ -236,7 +236,7 @@ Game End Condition → GameService.EndGame() → Payout Calculation → CasinoSe
 ### Configuration
 
 - Channel restrictions via `CasinoService.IsChannelAllowed()`
-- Starting token amounts in `BotSettings.CasinoStartingTokens`
+- Starting token amounts in `BotSettings.Casino.StartingTokens`
 - Daily reward amounts and cooldowns
 - Game-specific parameters (max players, betting limits)
 
