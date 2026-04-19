@@ -89,6 +89,7 @@ jobs:
             manifest_path: k8s/dev/bot.yaml
             manifest_ref: master
             commit_message: ${{ needs.resolve.outputs.commit_message }}
+            environment: dev
         secrets:
             APP_ID: ${{ secrets.APP_ID }}
             APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}

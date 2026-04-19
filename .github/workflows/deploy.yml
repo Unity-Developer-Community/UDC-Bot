@@ -23,6 +23,10 @@ on:
         description: "Commit message template ({sha} will be replaced with short SHA)"
         required: true
         type: string
+      environment:
+        description: "Deployment environment name"
+        required: true
+        type: string
     secrets:
       APP_ID:
         description: "GitHub App ID for bypassing branch protection"
@@ -38,6 +42,7 @@ jobs:
   deploy:
     name: Update Manifest
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     steps:
       - name: Generate GitHub App token
         id: app-token
