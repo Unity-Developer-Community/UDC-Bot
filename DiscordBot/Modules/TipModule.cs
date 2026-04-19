@@ -85,8 +85,12 @@ public class TipModule : ModuleBase
 			await ReplyAsync(embed: builder.Build());
 		}
 
-		var ids = string.Join(" ", tips.Select(t => t.Id.ToString()).ToArray());
-		await ReplyAsync($"-# Tip ID {ids}");
+		if (tips.Count > 1)
+		{
+			var ids = string.Join(" ", tips.Select(t => t.Id.ToString()).ToArray());
+			await ReplyAsync($"-# Tip ID {ids}");
+		}
+
 		await Context.Message.DeleteAsync();
   		await TipService.CommitTipDatabase();
 	}
