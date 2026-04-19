@@ -89,6 +89,7 @@ jobs:
             manifest_path: k8s/dev/bot.yaml
             manifest_ref: master
             commit_message: ${{ needs.resolve.outputs.commit_message }}
+            environment: dev
         secrets:
             APP_ID: ${{ secrets.APP_ID }}
             APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
@@ -103,6 +104,7 @@ jobs:
         steps:
             - name: Post success comment
               if: needs.deploy.result == 'success'
+              continue-on-error: true
               uses: actions/github-script@v7
               env:
                   PR_NUMBER: ${{ inputs.pr_number }}
@@ -121,6 +123,7 @@ jobs:
 
             - name: Post failure comment
               if: needs.deploy.result == 'failure'
+              continue-on-error: true
               uses: actions/github-script@v7
               env:
                   PR_NUMBER: ${{ inputs.pr_number }}
