@@ -175,7 +175,7 @@ data:
     student loan
     ###life choice
     bug report
-    #unhandled exception
+    ###unhandled exception
     ###null pointer
     keyboard
     ###kinematic rigidbody
@@ -230,7 +230,7 @@ data:
     (coffee|orange|melon|turnip)-flavored ice cream parfait
     (batter|chocolate|caramel)-covered icing spatula
     (carrot|turnip|orange) peeler
-    (cardboard|Amazon|Temu|torn) package filled with (overpriced|damaged|stolen) (DDR3|DDR4|DDR5|SODIMM|NVMe|SATA) storage devices
+    (cardboard|Amazon|Temu|torn) package filled with (overpriced|damaged|stolen) (DDR3|DDR4|DDR5|SODIMM|NVMe|SATA) media
     soup ladle
     soup ladle stolen from (a local kebab shop|Woolworth's|Wal\*Mart|their sister's private collection)
     sea anemone
