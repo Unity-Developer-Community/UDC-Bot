@@ -11,6 +11,8 @@ public enum CasinoGame
     [ChoiceDisplay("Rock Paper Scissors")]
     RockPaperScissors,
     Poker,
+    [ChoiceDisplay("Russian Roulette")]
+    RussianRoulette,
 }
 
 public partial class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
