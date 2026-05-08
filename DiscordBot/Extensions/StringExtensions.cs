@@ -175,4 +175,12 @@ public static class StringExtensions
         return bolds;
     }
 
+	public static string[] ToUniqueArray(this string[] texts)
+	{
+		var list = new List<string>(texts.Length);
+		foreach (var text in texts)
+			if (!list.Contains(text))
+				list.Add(text);
+		return list.ToArray();
+	}
 }
