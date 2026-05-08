@@ -26,20 +26,28 @@ public class FuzzTable
 	private List<string> choices = new();
 	private Queue<string> recent = new();
 
+	// By default, multiple equal entries adds weight to their selection.
+	// If true, duplicates are rejected silently.
+	//
+	public bool Unique { get; set; } = false;
+
 	public void Clear()
 	{
 		choices.Clear();
 		recent.Clear();
+		Unique = false;
 	}
 
 	public int Count => choices.Count + recent.Count;
 
 	// Add a string as a valid choice from which to pick.
 	// Note that empty strings or whitespace can be added manually as valid choices.
-	// Duplicate choices are also allowed for weighting.
+	// Duplicate choices are also allowed for weighting, unless Unique is set true.
 	//
 	public void Add(string choice)
 	{
+		if (Unique && choices.Contains(choice))
+			return;
 		choices.Add(choice);
 	}
 

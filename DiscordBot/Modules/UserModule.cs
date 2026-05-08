@@ -623,6 +623,7 @@ public class UserModule : ModuleBase
     {
         try
         {
+            _slapObjects.Unique = true;
             if (_slapObjects.Count == 0)
                 _slapObjects.Load(Settings.UserModuleSlapObjectsTable);
         }
