@@ -690,6 +690,12 @@ public class UserModule : ModuleBase
         await Context.Message.DeleteAfterSeconds(seconds: 1);
     }
 
+    // needs enough for highest allowed !roll dice count
+    static string[] ordinals = new[]
+        { "no", "a", "a pair of", "three", "four", "five", "six", "seven", "eight", "nine",
+          "ten", "eleven", "twelve", "13", "14", "15", "16", "17", "18", "19",
+          };
+
     [Command("Roll"), Priority(23)]
     [Summary("Roll one or more equal dice. Syntax: !roll [dice] {in D&D format or just a number of sides}")]
     public async Task RollDice(string dice = null)
@@ -726,8 +732,10 @@ public class UserModule : ModuleBase
             total += roll;
         }
         var message = $"**{uname}** rolled a D{sides} and got **{total}**!";
-        if (count > 1)
-            message = $"**{uname}** rolled some D{sides} showing {rolls.ToArray().ToCommaList()} for a total of **{total}**!";
+        if (count == 1 && (total == 1 || total == sides))
+            message = $"**{uname}** rolled a D{sides} and got a natural **{total}**!";
+        if (count > 1 && count < ordinals.Length)
+            message = $"**{uname}** rolled {ordinals[count]} D{sides} showing {rolls.ToArray().ToCommaList()} for a total of **{total}**!";
         if (needed < 1)
             message = " :game_die: " + message;
         else if (total >= needed)
