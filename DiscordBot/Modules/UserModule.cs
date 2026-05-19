@@ -717,7 +717,7 @@ public class UserModule : ModuleBase
         }
 
         var uname = Context.User.GetUserPreferredName();
-        var rolls = List<string>(count);
+        var rolls = new List<string>(count);
         int total = 0;
         for (int i = 0; i < count; i++)
         {
