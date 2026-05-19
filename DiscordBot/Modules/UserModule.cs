@@ -725,12 +725,12 @@ public class UserModule : ModuleBase
             rolls.Add($"{roll}");
             total += roll;
         }
-        var message = $"**{uname}** rolled a D{sides} and got **{roll}**!";
+        var message = $"**{uname}** rolled a D{sides} and got **{total}**!";
         if (count > 1)
             message = $"**{uname}** rolled some D{sides} showing {rolls.ToArray().ToCommaList()} for a total of **{total}**!";
         if (needed < 1)
             message = " :game_die: " + message;
-        else if (roll >= needed)
+        else if (total >= needed)
             message = " :white_check_mark: " + message + " [Needed: " + needed + "]";
         else
             message = " :x: " + message + " [Needed: " + needed + "]";
