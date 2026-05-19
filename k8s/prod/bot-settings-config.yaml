@@ -205,11 +205,14 @@ data:
     fishing pole
     lawn mower
     yoga mat
-    yoga mat once owned by (Richard Simmons|JD Vance|Justin Bieber|Kim Kardashian|Madonna|Kanye West|Victor Orban)
+    #yoga mat once owned by (Richard Simmons|JD Vance|Justin Bieber|Kim Kardashian|Madonna|Kanye West|Victor Orban)
+    yoga mat once owned by (JD Vance|Justin Bieber|Kim Kardashian|Madonna|Kanye West|Victor Orban)
     carrying case for (fishing poles|cat-eared headphones|headphones|a limited-edition Miku figurine)
-    pair of (cat-eared headphones|football cleats|golf cleats|chopsticks|scissors|polyester poplin pants)
+    pair of (cat-eared headphones|football cleats|golf cleats|scissors|polyester poplin pants)
     (turnip|cucumber|melon|persimmon)
-    (pro-wrestling|anime|army|Kirby|Zelda|Warhammer|Miku) figurine
+    (pro-wrestling|popular anime|army|Kirby|Zelda|Warhammer|Miku) figurine
+    (PlayStation|Switch|XBOX|Steam|obscure off-brand) game controller
+    nine-tailed whip fashioned from (CAT-5|coaxial cable|leather|hemp rope) strands
     gacha capsule
     gacha capsule with a (Kirby|Miku|Zelda|Doomguy|Shaquille O'Neal) toy inside
     (melon|banana|pineapple|wasabi|anchovy|eggplant)-flavored soda bottle
@@ -234,8 +237,8 @@ data:
     soup ladle
     soup ladle stolen from (a local kebab shop|Woolworth's|Wal\*Mart|their sister's private collection)
     sea anemone
-    stick of butter
-    pair of chopsticks
+    stick of (butter|obsolete memory|overpriced memory|chewing gum|underarm antiperspirant)
+    pair of (child trainer chopsticks|chopsticks|circuitry tweezers|faded rocker jeans|denim jeans|spandex leggings)
     set of (Bluetooth|wireless|custom fabricated|salvaged|3D Printed) speakers
     (bamboo|aluminum|warehouse) broom
     bundle of (out-of-print magazines|newspapers)
@@ -252,7 +255,7 @@ data:
     slice of (cheese|apple|french bread)
     (Croque Monsieur|Monte Cristo|submarine|baloney|peanut-butter and jelly) sandwich
     order of (Eggs Benedict|hashbrown potatoes|curly fries)
-    Order of (Malta|the Garter|the Thistle|Saint Stephen of Hungary|Lenin|Nova Scotia|the Rising Sun)
-    leg of (turkey|lamb|goat|Iberian ham)
+    #Order of (Malta|the Garter|the Thistle|Saint Stephen of Hungary|Lenin|Nova Scotia|the Rising Sun)
+    leg of (turkey|lamb|goat|Iberian ham|a nearby barstool)
     brick of (instant ramen|adobe|terra-cotta clay)
     slice of lemon wrapped around a large gold brick
