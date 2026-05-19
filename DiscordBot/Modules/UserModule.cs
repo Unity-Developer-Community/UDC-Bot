@@ -727,7 +727,7 @@ public class UserModule : ModuleBase
         }
         var message = $"**{uname}** rolled a D{sides} and got **{roll}**!";
         if (count > 1)
-            message = $"**{uname}** rolled some D{sides} showing {rolls.ToArray().ToCommaList()} for a total of **{total**}!";
+            message = $"**{uname}** rolled some D{sides} showing {rolls.ToArray().ToCommaList()} for a total of **{total}**!";
         if (needed < 1)
             message = " :game_die: " + message;
         else if (roll >= needed)
