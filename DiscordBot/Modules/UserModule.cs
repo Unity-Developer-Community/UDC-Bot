@@ -31,6 +31,7 @@ public class UserModule : ModuleBase
     #endregion
 
     private readonly Random _random = new();
+    private FuzzTable _slapBridges = new();
     private FuzzTable _slapObjects = new();
     private FuzzTable _slapFails = new();
 
@@ -633,6 +634,13 @@ public class UserModule : ModuleBase
                 ExtendedLogSeverity.LowWarning);
             return;
         }
+
+        if (_slapBridges.Count == 0)
+        {
+            _slapBridges.Add("(around|about) (a bit|by surprise|suddenly) with (a large|a huge|an oversized|their own private|a suspiciously convenient) ");
+            _slapBridges.Add("(over the head|from behind|across their shoulders) with (a large|a huge|an oversized|their own private|a suspiciously convenient) ");
+        }
+
         if (_slapObjects.Count == 0)
             _slapObjects.Add(Settings.UserModuleSlapChoices);
         if (_slapObjects.Count == 0)
@@ -660,7 +668,7 @@ public class UserModule : ModuleBase
         if (fail)
         {
             sb.Append($"**{uname}** tries to slap {mentions} ");
-            sb.Append("around a bit with a large ");
+            sb.Append(_slapBridges.Pick(true));
             sb.Append(_slapObjects.Pick(true));
             sb.Append(", but misses and ends up ");
             sb.Append(_slapFails.Pick(true));
@@ -669,7 +677,7 @@ public class UserModule : ModuleBase
         else
         {
             sb.Append($"**{uname}** slaps {mentions} ");
-            sb.Append("around a bit with a large ");
+            sb.Append(_slapBridges.Pick(true));
             sb.Append(_slapObjects.Pick(true));
             sb.Append(".");
         }
