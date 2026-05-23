@@ -31,9 +31,9 @@ public class UserModule : ModuleBase
     #endregion
 
     private readonly Random _random = new();
-    private FuzzTable _slapBridges = new();
-    private FuzzTable _slapObjects = new();
-    private FuzzTable _slapFails = new();
+    private static FuzzTable _slapBridges = new();
+    private static FuzzTable _slapObjects = new();
+    private static FuzzTable _slapFails = new();
 
     [Command("Help"), Priority(100)]
     [Summary("Does what you see now.")]
@@ -626,7 +626,10 @@ public class UserModule : ModuleBase
         {
             _slapObjects.Unique = true;
             if (_slapObjects.Count == 0)
+            {
                 _slapObjects.Load(Settings.UserModuleSlapObjectsTable);
+                await LoggingService.LogChannelAndFile($"Loaded {_slapObjects.Count} slap object entries.");
+            }
         }
         catch (Exception e)
         {
