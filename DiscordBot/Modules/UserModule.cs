@@ -651,7 +651,7 @@ public class UserModule : ModuleBase
             return;
         }
 
-#if 1 //SLAPNOM
+#if true //SLAPNOM
         if (Context.User.ID == 162189038965489664 && users.Length == 1 && (_slapCount % 3) == 0)
         {
             var victims = users.ToMentionArray().ToCommaList();
