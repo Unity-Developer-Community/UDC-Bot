@@ -34,6 +34,7 @@ public class UserModule : ModuleBase
     private static FuzzTable _slapBridges = new();
     private static FuzzTable _slapObjects = new();
     private static FuzzTable _slapFails = new();
+    private static int _slapCount = 0;
 
     [Command("Help"), Priority(100)]
     [Summary("Does what you see now.")]
@@ -622,6 +623,8 @@ public class UserModule : ModuleBase
     [Summary("Slap the specified user(s). Syntax : !slap @user1 [@user2 @user3...]")]
     public async Task SlapUser(params IUser[] users)
     {
+        _slapCount++;
+
         try
         {
             _slapObjects.Unique = true;
@@ -638,6 +641,36 @@ public class UserModule : ModuleBase
             return;
         }
 
+        var uname = Context.User.GetUserPreferredName();
+
+        if (users == null || users.Length == 0)
+        {
+            await Context.Channel.SendMessageAsync(
+                $"**{uname}** slaps away an invisible pest.");
+            await Context.Message.DeleteAfterSeconds(seconds: 1);
+            return;
+        }
+
+#if 1 //SLAPNOM
+        if (Context.User.ID == 162189038965489664 && users.Length == 1 && (_slapCount % 3) == 0)
+        {
+            var victims = users.ToMentionArray().ToCommaList();
+            var thing = FuzzTable.Evaluate("(" +
+                "seven slightly-torn old volumes of Nintendo Power Magazine, one of which was opened to the hint page for a Kirby game where the solution is for the player to swallow a purple fish|" +
+                "a contemporary knock-off Nintendo gaming device which is loaded with a few gigabytes of pirated hentai games and missing only two of the entire Final Fantasy series including the spinoffs|" +
+                "one of his dog's chewed up squeakie toys that had fallen into the pool last May but was finally fished out of the filter trap yesterday|" +
+                "a smallish plastic plate that he left on his desk for a couple days, with the remnants of some off-brand ketchup and overcooked chicken tenders on it|" +
+                "a political pamphlet from the latest politician in Florida to have committed the unforgiveable sin of caring for his constituents|" +
+                "his own dog which some people confuse for various other animals including a cat, a rabbit, and one time even an emu|" +
+                "his Discord blocked-users list" +
+                ")");
+            await Context.Channel.SendMessageAsync(
+                $"**{uname}** slaps {victims} across the face with {thing}!");
+            await Context.Message.DeleteAfterSeconds(seconds: 1);
+            return;
+        }
+#endif
+
         if (_slapBridges.Count == 0)
         {
             _slapBridges.Add("(around|about) (a bit|by surprise|suddenly) with (a large|a huge|an oversized|their own private|a suspiciously convenient) ");
@@ -653,16 +686,6 @@ public class UserModule : ModuleBase
             _slapFails.Add(Settings.UserModuleSlapFails);
         if (_slapFails.Count == 0)
             _slapFails.Add("hurting themselves");
-
-        var uname = Context.User.GetUserPreferredName();
-
-        if (users == null || users.Length == 0)
-        {
-            await Context.Channel.SendMessageAsync(
-                $"**{uname}** slaps away an invisible pest.");
-            await Context.Message.DeleteAfterSeconds(seconds: 1);
-            return;
-        }
 
         var sb = new StringBuilder();
         var mentions = users.ToMentionArray().ToCommaList();
