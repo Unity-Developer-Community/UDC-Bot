@@ -652,7 +652,7 @@ public class UserModule : ModuleBase
         }
 
 #if true //SLAPNOM
-        if (Context.User.ID == 162189038965489664 && users.Length == 1 && (_slapCount % 3) == 0)
+        if (Context.User.Id == 162189038965489664 && users.Length == 1 && (_slapCount % 3) == 0)
         {
             var victims = users.ToMentionArray().ToCommaList();
             var thing = FuzzTable.Evaluate("(" +
