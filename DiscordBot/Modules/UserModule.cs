@@ -653,7 +653,7 @@ public class UserModule : ModuleBase
             return;
         }
 
-#if true //NOMNOM
+#if false //NOMNOM
         _slapCount++;
         if (Context.User.Id == 162189038965489664 && users.Length == 1 && (_slapCount % 5) == 0)
         {
@@ -661,8 +661,6 @@ public class UserModule : ModuleBase
             var thing = FuzzTable.Evaluate("(" +
                 "seven slightly-torn old volumes of Nintendo Power Magazine, one of which was opened to the hint page for a Kirby game where the solution is for the player to swallow a purple fish|" +
                 "one of his dog's chewed up squeakie toys that had fallen into the pool last May but was finally fished out of the filter trap yesterday|" +
-                "a political pamphlet from the latest politician in Florida to have committed the unforgiveable sin of caring for his constituents|" +
-                "his own dog which some people confuse for various other animals including a cat, a rabbit, and one time even an emu|" +
                 "his Discord blocked-users list" +
                 ")");
             await Context.Channel.SendMessageAsync(
