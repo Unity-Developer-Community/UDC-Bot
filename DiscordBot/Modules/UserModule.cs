@@ -623,7 +623,7 @@ public class UserModule : ModuleBase
     [Summary("Slap the specified user(s). Syntax : !slap @user1 [@user2 @user3...]")]
     public async Task SlapUser(params IUser[] users)
     {
-#if false
+#if true
         _slapCount++;
 #endif
 
@@ -653,18 +653,12 @@ public class UserModule : ModuleBase
             return;
         }
 
-#if false //NOMNOM
-        _slapCount++;
-        if (Context.User.Id == 162189038965489664 && users.Length == 1 && (_slapCount % 5) == 0)
+#if true //NOMNOM VEKTORKNIGHT
+        if (Context.User.Id == 162189038965489664 ||
+            Context.User.Id == 178201477280563200)
         {
-            var victims = users.ToMentionArray().ToCommaList();
-            var thing = FuzzTable.Evaluate("(" +
-                "seven slightly-torn old volumes of Nintendo Power Magazine, one of which was opened to the hint page for a Kirby game where the solution is for the player to swallow a purple fish|" +
-                "one of his dog's chewed up squeakie toys that had fallen into the pool last May but was finally fished out of the filter trap yesterday|" +
-                "his Discord blocked-users list" +
-                ")");
             await Context.Channel.SendMessageAsync(
-                $"**{uname}** slaps {victims} across the face with {thing}!");
+                $"**{uname}** slaps themself.");
             await Context.Message.DeleteAfterSeconds(seconds: 1);
             return;
         }
