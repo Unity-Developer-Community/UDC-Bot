@@ -1,6 +1,7 @@
 name: .NET Build
 
 on:
+  merge_group:
   pull_request:
     branches: [master, dev]
 
