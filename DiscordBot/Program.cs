@@ -63,6 +63,7 @@ public class Program
 
             _services = ConfigureServices();
             _commandHandlingService = _services.GetRequiredService<CommandHandlingService>();
+            _services.GetRequiredService<ModerationService>();
 
             // Announce, and Log bot started to track issues a bit easier
             var logger = _services.GetRequiredService<ILoggingService>();

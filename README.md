@@ -155,12 +155,12 @@ public class MySlashModule : InteractionModuleBase<SocketInteractionContext>
 public class MyNewService
 {
     private readonly DatabaseService _databaseService;
-    
+
     public MyNewService(DatabaseService databaseService)
     {
         _databaseService = databaseService;
     }
-    
+
     public async Task DoSomethingAsync()
     {
         // Your service logic here
@@ -193,10 +193,10 @@ public class RequireMyRoleAttribute : PreconditionAttribute
     {
         var user = (SocketGuildUser)context.Message.Author;
         var settings = services.GetRequiredService<BotSettings>();
-        
+
         if (user.Roles.Any(x => x.Id == settings.MyRoleId))
             return Task.FromResult(PreconditionResult.FromSuccess());
-            
+
         return Task.FromResult(PreconditionResult.FromError("Access denied!"));
     }
 }
@@ -321,7 +321,7 @@ The bot includes comprehensive logging to help with troubleshooting:
 **Log Levels and Colors:**
 
 - **Critical/Error:** Red text - Something is broken and needs immediate attention
-- **Warning:** Yellow text - Potential issues that should be investigated  
+- **Warning:** Yellow text - Potential issues that should be investigated
 - **Info:** White text - General operational information
 - **Verbose/Debug:** Gray text - Detailed information for development
 
@@ -331,6 +331,7 @@ The bot includes comprehensive logging to help with troubleshooting:
 
 - Console output for immediate feedback
 - Channel logging (if configured) for persistent records
+- Moderation audit records for single and bulk message deletions, bounded thread/forum-post deletion summaries, and genuine message edits
 - See [LoggingService](https://github.com/Unity-Developer-Community/UDC-Bot/blob/dev/DiscordBot/Services/LoggingService.cs) for implementation details
 
 ### Discord.Net Framework
