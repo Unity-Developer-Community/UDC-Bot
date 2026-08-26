@@ -8,8 +8,8 @@ public static class UserExtensions
     {
         return user.IsBot || user.IsWebhook;
     }
-    
-    public static bool HasRoleGroup(this IUser user, SocketRole role) 
+
+    public static bool HasRoleGroup(this IUser user, SocketRole role)
     {
         return HasRoleGroup(user, role.Id);
     }
@@ -21,13 +21,22 @@ public static class UserExtensions
         return guildUser.RoleIds.Any(x => x == roleId);
     }
 
+    /// <summary>
+    /// Checks the configured moderator role and Discord's administrator permission.
+    /// </summary>
+    public static bool IsModeratorOrAdministrator(this IUser user, ulong moderatorRoleId)
+    {
+        return user.HasRoleGroup(moderatorRoleId) ||
+               user is IGuildUser guildUser && guildUser.GuildPermissions.Administrator;
+    }
+
     // Returns the users DisplayName (nickname) if it exists, otherwise returns the username
     public static string GetUserPreferredName(this IUser user)
     {
         var guildUser = user as SocketGuildUser;
         return guildUser?.DisplayName ?? user.Username;
     }
-    
+
     public static string GetPreferredAndUsername(this IUser user)
     {
         var guildUser = user as SocketGuildUser;
