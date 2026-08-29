@@ -36,7 +36,10 @@ public class Program
         if (args.Length > 0 && args[0].Equals("--render-smoke", StringComparison.OrdinalIgnoreCase))
         {
             var outputPath = args.Length > 1 ? args[1] : null;
-            return ProfileCardRenderSmoke.Run(Path.Combine(AppContext.BaseDirectory, "Assets"), outputPath);
+            var assetsRootPath = args.Length > 2
+                ? args[2]
+                : Path.Combine(AppContext.BaseDirectory, "Assets");
+            return ProfileCardRenderSmoke.Run(assetsRootPath, outputPath);
         }
 
         new Program().MainAsync().GetAwaiter().GetResult();

@@ -22,7 +22,8 @@ public sealed class ProfileCardRenderer : IProfileCardRenderer
 
         var skin = LoadSkin();
         using var avatar = LoadAvatar(request.AvatarBytes);
-        avatar.Resize(skin.AvatarSize, skin.AvatarSize);
+        var avatarSize = ToPositiveDimension(skin.AvatarSize, nameof(skin.AvatarSize));
+        avatar.Resize(avatarSize, avatarSize);
 
         var renderRequest = request with { AvatarSampleColor = SampleColor(avatar) };
         using var background = new MagickImage(GetSkinAssetPath(skin.Background));
@@ -101,10 +102,11 @@ public sealed class ProfileCardRenderer : IProfileCardRenderer
         return new Color(color.R, color.G, color.B);
     }
 
-    private void ValidateOutputDimensions(int width, int height)
+    private void ValidateOutputDimensions(uint width, uint height)
     {
-        if (width <= 0 || height <= 0 || width > _options.MaximumOutputWidth ||
-            height > _options.MaximumOutputHeight)
+        var maximumWidth = ToPositiveDimension(_options.MaximumOutputWidth, nameof(_options.MaximumOutputWidth));
+        var maximumHeight = ToPositiveDimension(_options.MaximumOutputHeight, nameof(_options.MaximumOutputHeight));
+        if (width == 0 || height == 0 || width > maximumWidth || height > maximumHeight)
         {
             throw new InvalidOperationException(
                 $"Profile card dimensions {width}x{height} are outside the configured render bounds.");
@@ -116,12 +118,11 @@ public sealed class ProfileCardRenderer : IProfileCardRenderer
 
     private static int ToCoordinate(double value) => checked((int)value);
 
-    private static int ToPositiveDimension(double value, string name)
+    private static uint ToPositiveDimension(double value, string name)
     {
-        var dimension = checked((int)value);
-        if (dimension <= 0)
+        if (!double.IsFinite(value) || value < 1 || value > uint.MaxValue)
             throw new InvalidOperationException($"Profile skin {name} must be greater than zero.");
 
-        return dimension;
+        return checked((uint)value);
     }
 }

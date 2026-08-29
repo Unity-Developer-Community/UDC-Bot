@@ -1,5 +1,6 @@
 using DiscordBot.Services.Rendering;
 using ImageMagick;
+using ImageMagick.Drawing;
 
 namespace DiscordBot.Skin;
 
@@ -17,7 +18,7 @@ public class RectangleSampleAvatarColorSkinModule : ISkinModule
 
     public string Type { get; set; }
 
-    public Drawables GetDrawables(ProfileCardRenderRequest data)
+    public IDrawables<byte> GetDrawables(ProfileCardRenderRequest data)
     {
         var color = new MagickColor(data.AvatarSampleColor.R, data.AvatarSampleColor.G, data.AvatarSampleColor.B);
 

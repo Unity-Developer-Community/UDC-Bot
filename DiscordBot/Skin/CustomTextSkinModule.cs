@@ -1,6 +1,7 @@
 ﻿using System.Text.RegularExpressions;
 using DiscordBot.Services.Rendering;
 using ImageMagick;
+using ImageMagick.Drawing;
 
 namespace DiscordBot.Skin;
 
@@ -15,7 +16,7 @@ public class CustomTextSkinModule : BaseTextSkinModule
         FontPointSize = 15;
     }
 
-    public override Drawables GetDrawables(ProfileCardRenderRequest data)
+    public override IDrawables<byte> GetDrawables(ProfileCardRenderRequest data)
     {
         var textPosition = new PointD(StartX, StartY);
 
@@ -34,15 +35,23 @@ public class CustomTextSkinModule : BaseTextSkinModule
          * For example, {Level} or {Nickname}.
          */
 
-        return new Drawables()
+        IDrawables<byte> drawables = new Drawables()
             .FontPointSize(FontPointSize)
             .Font(Font)
             .StrokeColor(new MagickColor(StrokeColor))
-            .StrokeWidth(StrokeWidth)
-            .StrokeAntialias(StrokeAntiAlias)
-            .FillColor(new MagickColor(FillColor))
-            .TextAlignment(TextAlignment)
-            .TextAntialias(TextAntiAlias)
+            .StrokeWidth(StrokeWidth);
+
+        drawables = StrokeAntiAlias
+            ? drawables.EnableStrokeAntialias()
+            : drawables.DisableStrokeAntialias();
+
+        drawables = drawables.FillColor(new MagickColor(FillColor))
+            .TextAlignment(TextAlignment);
+        drawables = TextAntiAlias
+            ? drawables.EnableTextAntialias()
+            : drawables.DisableTextAntialias();
+
+        return drawables
             .TextKerning(TextKerning)
             .Text(textPosition.X, textPosition.Y, text);
     }

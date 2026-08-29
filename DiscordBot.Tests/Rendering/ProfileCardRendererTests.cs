@@ -18,8 +18,8 @@ public sealed class ProfileCardRendererTests
         var bytes = CreateRenderer().Render(CreateRequest());
         using var actual = new MagickImage(bytes);
 
-        Assert.AreEqual(500, actual.Width);
-        Assert.AreEqual(200, actual.Height);
+        Assert.AreEqual(500u, actual.Width);
+        Assert.AreEqual(200u, actual.Height);
         Assert.IsTrue(actual.HasAlpha, "The profile PNG should retain an alpha channel.");
         Assert.IsGreaterThan(25_000, bytes.Length);
         Assert.IsLessThan(500_000, bytes.Length);
@@ -69,8 +69,8 @@ public sealed class ProfileCardRendererTests
         });
 
         using var image = new MagickImage(bytes);
-        Assert.AreEqual(500, image.Width);
-        Assert.AreEqual(200, image.Height);
+        Assert.AreEqual(500u, image.Width);
+        Assert.AreEqual(200u, image.Height);
     }
 
     [TestMethod]
