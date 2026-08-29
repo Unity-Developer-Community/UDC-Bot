@@ -9,6 +9,10 @@
   "alphaChannel": true,
   "linuxContainerBytes": 139478,
   "hostToLinuxContainerNormalizedRootMeanSquaredError": 0.063707,
+  "targetPackage": "Magick.NET-Q8-x64 14.16.0",
+  "targetLinuxContainerBytes": 176987,
+  "targetLinuxContainerSha256": "4352efbf9bf715575d06737321189504d34b06cb92c09c92c3da70b497753b7d",
+  "sourceToTargetLinuxContainerNormalizedRootMeanSquaredError": 0.0482961,
   "maximumNormalizedRootMeanSquaredError": 0.08,
   "approval": "Before/after PNG requires maintainer review"
 }

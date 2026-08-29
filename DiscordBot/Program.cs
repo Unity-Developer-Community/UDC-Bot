@@ -43,8 +43,38 @@ public class Program
             return ProfileCardRenderSmoke.Run(assetsRootPath, outputPath);
         }
 
+        if (args.Length > 0 && args[0].Equals("--render-stress", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryReadPositiveArgument(args, 1, 100, out var iterations) ||
+                !TryReadPositiveArgument(args, 2, 4, out var parallelism))
+            {
+                Console.Error.WriteLine("Usage: --render-stress [iterations] [parallelism] [assets-root]");
+                return 2;
+            }
+
+            var assetsRootPath = args.Length > 3
+                ? args[3]
+                : Path.Combine(AppContext.BaseDirectory, "Assets");
+            return ProfileCardRenderSmoke.RunStress(assetsRootPath, iterations, parallelism);
+        }
+
         new Program().MainAsync().GetAwaiter().GetResult();
         return 0;
+    }
+
+    private static bool TryReadPositiveArgument(
+        IReadOnlyList<string> arguments,
+        int index,
+        int defaultValue,
+        out int value)
+    {
+        if (arguments.Count <= index)
+        {
+            value = defaultValue;
+            return true;
+        }
+
+        return int.TryParse(arguments[index], out value) && value > 0;
     }
 
     private async Task MainAsync()

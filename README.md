@@ -222,6 +222,7 @@ To successfully compile you will need the following:
 ```bash
 dotnet restore
 dotnet build
+dotnet test --configuration Release
 ```
 
 > **Note:** Docker is highly recommended for local development as it simplifies database setup and ensures consistency across development environments.
@@ -299,12 +300,24 @@ If you prefer not to use Docker, you'll need to set up a PostgreSQL database man
    - The bot will attempt to create necessary tables on first run
    - If it fails due to permissions, you may need to run it with elevated database privileges initially
 
-**Additional Linux Requirements:**
-For image processing functionality, install Microsoft Core Fonts:
+**Profile rendering diagnostics:**
+
+Profile cards use font files under `DiscordBot/Assets/fonts`; no host font discovery or
+system font package is required for this path. Verify the native Magick runtime, assets,
+PNG encoding, and fonts without connecting to Discord or the database:
 
 ```bash
-sudo apt install ttf-mscorefonts-installer
+dotnet run --project DiscordBot/DiscordBot.csproj -- \
+  --render-smoke /tmp/profile-card.png DiscordBot/Assets
+
+dotnet run --project DiscordBot/DiscordBot.csproj -- \
+  --render-stress 100 4 DiscordBot/Assets
 ```
+
+The production image is Linux AMD64 because it uses `Magick.NET-Q8-x64`; its Docker build
+fails early for other target architectures. The image currently retains Microsoft Core
+Fonts pending a separate bundled-font licensing review, although the profile path is proven
+independent of them.
 
 **Connection String Format:**
 

@@ -1,12 +1,16 @@
+ARG TARGETARCH=amd64
+
 # Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+ARG TARGETARCH
 
 WORKDIR /app/
 COPY ./NuGet.config ./
 COPY ./DiscordBot/DiscordBot.csproj ./
-RUN dotnet restore
+RUN test "$TARGETARCH" = "amd64"
+RUN dotnet restore --runtime linux-x64
 COPY ./DiscordBot/ ./
-RUN dotnet publish --configuration Release --no-restore --output /app/publish
+RUN dotnet publish --configuration Release --no-restore --runtime linux-x64 --self-contained false --output /app/publish
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/runtime:8.0

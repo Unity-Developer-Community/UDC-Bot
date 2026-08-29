@@ -51,7 +51,6 @@ DiscordBot/
 │   └── UnityAPI.cs
 │
 ├── Domain/                  # Domain models and game logic
-│   ├── ProfileData.cs
 │   ├── RectangleD.cs
 │   └── Casino/              # Casino game abstractions and implementations
 │       └── Games/           # Blackjack, Poker, RPS game logic
@@ -85,6 +84,7 @@ DiscordBot/
 │   ├── Casino/              # Token management, game sessions
 │   ├── Moderation/          # Moderation sub-services
 │   ├── Recruitment/         # Recruitment workflow
+│   ├── Rendering/           # Bounded Magick renderers, requests, fonts, HTTP input, smoke tools
 │   ├── Tips/                # Tip database management
 │   └── UnityHelp/           # Help thread management
 │
@@ -104,7 +104,6 @@ DiscordBot/
 ├── Utils/                   # Utility classes
 │
 └── SERVER/                  # Runtime-generated data (gitignored)
-    ├── images/profiles/     # Generated profile card images
     ├── log.txt              # Runtime logs
     └── ...
 ```
@@ -137,3 +136,7 @@ DiscordBot/
 
 - Tests go in `DiscordBot.Tests/`
 - Test projects follow the `*.Tests` naming convention
+- `Rendering/Fixtures/profile-card-v7-baseline.png` freezes the pre-upgrade reference; tests
+  compare structural invariants and normalized RMSE rather than encoded PNG bytes.
+- Run `dotnet test --configuration Release`. Use the executable's `--render-smoke` and
+  `--render-stress` modes for final-runtime native/font diagnostics without Discord or a database.

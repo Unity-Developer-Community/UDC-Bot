@@ -59,6 +59,7 @@ Regardless of deployment method, you need:
 
 - A Discord bot token from the [Discord Developer Portal](https://discord.com/developers/applications)
 - A server or machine with Docker installed
+- AMD64 (`x86_64`) build and Kubernetes nodes for the x64 Magick.NET native runtime
 - The repository cloned locally
 
 ## Option A: Kubernetes (k3s/k8s)
@@ -85,7 +86,10 @@ Verify the cluster is running:
 
 ```bash
 kubectl get nodes
+kubectl get nodes -o custom-columns=NAME:.metadata.name,ARCH:.status.nodeInfo.architecture
 ```
+
+Every node eligible to run the bot must report `amd64`.
 
 ### Step 2: Install cert-manager
 
@@ -194,6 +198,9 @@ Access is restricted by IP allowlist.
 kubectl -n udc-bot-prod get pods
 kubectl -n udc-bot-prod logs deployment/udc-bot
 ```
+
+The Docker build itself runs `./DiscordBot --render-smoke` in the final runtime stage. A missing
+native library, skin asset, or bundled font therefore fails the image build before rollout.
 
 ### Updating the Bot
 
@@ -346,6 +353,17 @@ docker-compose up db
 - Bot logs appear in the terminal
 - phpMyAdmin is available at `http://localhost:8080`
 - Database is on `localhost:3306`
+
+To validate the exact built image without Discord or the database:
+
+```bash
+docker run --rm YOUR_IMAGE --render-smoke
+docker run --rm --memory=512m --memory-swap=512m YOUR_IMAGE --render-stress 250 4
+```
+
+The smoke command checks the native Magick load, bundled fonts, 500x200 PNG output, and alpha
+channel. The stress command exercises repeated concurrent renders under the production memory
+ceiling. Both return a non-zero exit code on failure.
 
 ### Production Hardening (if using Compose for production)
 
