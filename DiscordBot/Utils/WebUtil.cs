@@ -10,13 +10,19 @@ public static class WebUtil
     /// <summary>
     /// Returns the content of a URL as a string, or an empty string if the request fails.
     /// </summary>
-    public static async Task<string> GetContent(string url)
+    public static async Task<string> GetContent(
+        string url,
+        CancellationToken cancellationToken = default)
     {
         using var client = new HttpClient();
         try
         {
-            var response = await client.GetAsync(url);
-            return await response.Content.ReadAsStringAsync();
+            var response = await client.GetAsync(url, cancellationToken);
+            return await response.Content.ReadAsStringAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -29,14 +35,20 @@ public static class WebUtil
     /// Returns the Html document of a url, or null if the request fails.
     /// Internally calls GetContent and parses the result.
     /// </summary>
-    public static async Task<HtmlDocument> GetHtmlDocument(string url)
+    public static async Task<HtmlDocument> GetHtmlDocument(
+        string url,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            var html = await GetContent(url);
+            var html = await GetContent(url, cancellationToken);
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
             return doc;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception)
         {
@@ -64,12 +76,19 @@ public static class WebUtil
     /// <summary>
     /// Returns the Html nodes of a url and xpath, or null if the request fails.
     /// </summary>
-    public static async Task<HtmlNodeCollection> GetHtmlNodes(string url, string xpath)
+    public static async Task<HtmlNodeCollection> GetHtmlNodes(
+        string url,
+        string xpath,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            var doc = await GetHtmlDocument(url);
+            var doc = await GetHtmlDocument(url, cancellationToken);
             return doc.DocumentNode.SelectNodes(xpath);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception)
         {

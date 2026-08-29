@@ -1,5 +1,7 @@
 using Discord.WebSocket;
-using DiscordBot.Settings;
+using DiscordBot.Components;
+using DiscordBot.Settings.Options;
+using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services;
 
@@ -13,55 +15,110 @@ public class ReminderItem
     public DateTime When { get; set; }
 }
 
-public class ReminderService
+public class ReminderService : IManagedBotService, IComponentHealthContributor
 {
     private const string ServiceName = "ReminderService";
 
     // Bot responds to reminder request, any users who also use this emoji on the message will be pinged when the reminder is triggered.
     public static readonly Emoji BotResponseEmoji = new("✅");
 
-    public bool IsRunning { get; private set; }
+    public string ComponentId => ComponentIds.Reminders;
+    public bool IsRunning => _loopTask is { IsCompleted: false };
 
-    private DateTime _nearestReminder = DateTime.Now;
+    private DateTime _nearestReminder = DateTime.MaxValue;
 
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
     private List<ReminderItem> _reminders = new List<ReminderItem>();
 
-    private readonly ChannelInfo _botCommandsChannel;
+    private readonly ulong _fallbackChannelId;
     private readonly string _serverRootPath;
     private bool _hasChangedSinceLastSave = false;
+    private readonly object _reminderLock = new();
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+    private CancellationTokenSource? _lifecycleCancellation;
+    private Task? _loopTask;
 
     private const int _maxUserReminders = 10;
 
-    public ReminderService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings)
+    public ReminderService(
+        DiscordSocketClient client,
+        ILoggingService loggingService,
+        IOptions<ReminderOptions> options,
+        IOptions<StorageOptions> storageOptions)
     {
         _client = client;
         _loggingService = loggingService;
-        _botCommandsChannel = settings.BotCommandsChannel;
-        _serverRootPath = settings.ServerRootPath;
-
-        Initialize();
+        _fallbackChannelId = options.Value.FallbackChannelId;
+        _serverRootPath = storageOptions.Value.ServerRootPath;
     }
 
-    private void Initialize()
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (IsRunning) return;
-
-        LoadReminders();
-        if (_reminders == null)
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
         {
-            _loggingService.LogAction($"[{ServiceName}] Error: Could not load reminders from file.", ExtendedLogSeverity.Warning);
-            _reminders = new List<ReminderItem>();
+            if (IsRunning)
+                return;
+
+            LoadReminders();
+            _nearestReminder = _reminders.Count == 0 ? DateTime.MaxValue : _reminders.Min(reminder => reminder.When);
+            _lifecycleCancellation?.Dispose();
+            _lifecycleCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _loopTask = CheckReminders(_lifecycleCancellation.Token);
         }
-        IsRunning = true;
-        Task.Run(CheckReminders);
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_loopTask is null)
+                return;
+
+            await _lifecycleCancellation!.CancelAsync();
+            try
+            {
+                await _loopTask.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (_lifecycleCancellation.IsCancellationRequested)
+            {
+            }
+
+            SaveReminders();
+            _loopTask = null;
+            _lifecycleCancellation.Dispose();
+            _lifecycleCancellation = null;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public Task<ComponentHealthSnapshot> GetHealthAsync(CancellationToken cancellationToken)
+    {
+        int reminderCount;
+        lock (_reminderLock)
+            reminderCount = _reminders.Count;
+        return Task.FromResult(new ComponentHealthSnapshot(
+            IsRunning ? ComponentRuntimeState.Running : ComponentRuntimeState.Stopped,
+            IsRunning ? $"Running with {reminderCount} reminder(s)." : "Stopped.",
+            DateTimeOffset.UtcNow));
     }
 
     // Serialize Reminders to file
     public void SaveReminders()
     {
-        Utils.SerializeUtil.SerializeFile($"{_serverRootPath}/reminders.json", _reminders);
+        List<ReminderItem> snapshot;
+        lock (_reminderLock)
+            snapshot = _reminders.ToList();
+        Utils.SerializeUtil.SerializeFile($"{_serverRootPath}/reminders.json", snapshot);
     }
     private void LoadReminders()
     {
@@ -69,71 +126,94 @@ public class ReminderService
     }
     public void AddReminder(ReminderItem reminder)
     {
-        _reminders.Add(reminder);
-        _hasChangedSinceLastSave = true;
-
-        // We check if this reminder is sooner than the next one
-        if (_nearestReminder > reminder.When)
-            _nearestReminder = reminder.When;
+        lock (_reminderLock)
+        {
+            _reminders.Add(reminder);
+            _hasChangedSinceLastSave = true;
+            if (_nearestReminder > reminder.When)
+                _nearestReminder = reminder.When;
+        }
     }
 
     public bool UserHasTooManyReminders(ulong userId)
     {
-        return _reminders.FindAll(x => x.UserId == userId).Count >= _maxUserReminders;
+        lock (_reminderLock)
+            return _reminders.Count(x => x.UserId == userId) >= _maxUserReminders;
     }
 
     public List<ReminderItem> GetUserReminders(ulong userId)
     {
-        return _reminders.FindAll(x => x.UserId == userId);
+        lock (_reminderLock)
+            return _reminders.FindAll(x => x.UserId == userId);
     }
 
     public int RemoveReminders(IUser user, int index = 0)
     {
-        int count = 0;
-        if (index == 0)
-            count = _reminders.RemoveAll(x => x.UserId == user.Id);
-        else
+        lock (_reminderLock)
         {
-            var userReminders = GetUserReminders(user.Id);
-            if (userReminders.Count < index)
-                return -1;
+            int count;
+            if (index == 0)
+                count = _reminders.RemoveAll(x => x.UserId == user.Id);
+            else
+            {
+                var userReminders = _reminders.FindAll(x => x.UserId == user.Id);
+                if (userReminders.Count < index)
+                    return -1;
 
-            _reminders.Remove(userReminders[index - 1]);
-            count = 1;
+                _reminders.Remove(userReminders[index - 1]);
+                count = 1;
+            }
+
+            if (count != 0)
+            {
+                _hasChangedSinceLastSave = true;
+                _nearestReminder = _reminders.Count == 0
+                    ? DateTime.MaxValue
+                    : _reminders.Min(reminder => reminder.When);
+            }
+            return count;
         }
-
-        if (count != 0)
-            _hasChangedSinceLastSave = true;
-        return count;
     }
 
     // Check if reminders are due in an async task that loops from the constructor
-    private async Task CheckReminders()
+    private async Task CheckReminders(CancellationToken cancellationToken)
     {
         try
         {
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 // We check if there has been a change to the reminders list since the last update.
-                if (_hasChangedSinceLastSave)
+                bool shouldSave;
+                lock (_reminderLock)
                 {
-                    SaveReminders();
+                    shouldSave = _hasChangedSinceLastSave;
                     _hasChangedSinceLastSave = false;
                 }
+                if (shouldSave)
+                {
+                    SaveReminders();
+                }
 
-                await Task.Delay(1000);
+                await Task.Delay(1000, cancellationToken);
 
                 var now = DateTime.Now;
-                // We wait until we know at least one reminder needs to be checked
-                if (now <= _nearestReminder || _reminders.Count <= 0) continue;
+                List<ReminderItem> remindersToCheck;
+                lock (_reminderLock)
+                {
+                    if (now <= _nearestReminder || _reminders.Count == 0)
+                        continue;
 
-                List<ReminderItem> remindersToCheck = _reminders.Where(r => r.When <= now).ToList();
-                _hasChangedSinceLastSave = true;
+                    remindersToCheck = _reminders.Where(reminder => reminder.When <= now).ToList();
+                    foreach (var reminder in remindersToCheck)
+                        _reminders.Remove(reminder);
+                    _hasChangedSinceLastSave = remindersToCheck.Count > 0;
+                    _nearestReminder = _reminders.Count == 0
+                        ? DateTime.MaxValue
+                        : _reminders.Min(reminder => reminder.When);
+                }
 
                 foreach (ReminderItem reminder in remindersToCheck)
                 {
-                    _reminders.Remove(reminder);
-
                     IUserMessage message = null;
                     var channel = _client.GetChannel(reminder.ChannelId) as SocketTextChannel;
                     if (channel != null)
@@ -165,7 +245,7 @@ public class ReminderService
                         continue;
                     }
                     // If channel is null we get the bot command channel, and send the message there
-                    channel ??= _client.GetChannel(_botCommandsChannel.Id) as SocketTextChannel;
+                    channel ??= _client.GetChannel(_fallbackChannelId) as SocketTextChannel;
                     var user = _client.GetUser(reminder.UserId);
                     if (user == null) continue;
 
@@ -174,22 +254,17 @@ public class ReminderService
                             $"{user.Mention} reminder: \"{reminder.Message}\"");
                 }
 
-                // Find the nearest reminder in _reminders and set if there is at least 1 reminder
-                if (_reminders.Count > 0)
-                    _nearestReminder = _reminders.Min(x => x.When);
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception e)
         {
             // Catch and show exception
             await _loggingService.LogChannelAndFile($"Reminder Service has crashed.\nException Msg: {e.Message}.", ExtendedLogSeverity.Warning);
-            IsRunning = false;
+            throw;
         }
     }
 
-    public bool RestartService()
-    {
-        Initialize();
-        return IsRunning;
-    }
 }

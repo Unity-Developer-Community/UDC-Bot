@@ -1,5 +1,7 @@
-using DiscordBot.Settings;
+using DiscordBot.Components;
+using DiscordBot.Settings.Options;
 using Insight.Database;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace DiscordBot.Services;
@@ -8,25 +10,77 @@ namespace DiscordBot.Services;
 /// Replaces MySQL EVENT scheduler — resets weekly/monthly/yearly karma columns on schedule.
 /// Tracks last-reset timestamps so missed resets are caught up on startup.
 /// </summary>
-public class KarmaResetService
+public class KarmaResetService : IManagedBotService, IComponentHealthContributor
 {
     private const string MetaTable = "karma_reset_meta";
 
     private readonly ILoggingService _logging;
     private readonly string _connectionString;
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+    private CancellationTokenSource? _lifecycleCancellation;
+    private Task? _loopTask;
 
-    public KarmaResetService(ILoggingService logging, BotSettings settings)
+    public string ComponentId => ComponentIds.KarmaReset;
+    public bool IsRunning => _loopTask is { IsCompleted: false };
+
+    public KarmaResetService(ILoggingService logging, IOptions<DatabaseOptions> options)
     {
         _logging = logging;
-        _connectionString = settings.DbConnectionString;
-
-        Task.Run(RunLoop);
+        _connectionString = options.Value.ConnectionString;
     }
 
-    private async Task RunLoop()
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (IsRunning)
+                return;
+            _lifecycleCancellation?.Dispose();
+            _lifecycleCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _loopTask = RunLoop(_lifecycleCancellation.Token);
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_loopTask is null)
+                return;
+            await _lifecycleCancellation!.CancelAsync();
+            try
+            {
+                await _loopTask.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (_lifecycleCancellation.IsCancellationRequested)
+            {
+            }
+            _loopTask = null;
+            _lifecycleCancellation.Dispose();
+            _lifecycleCancellation = null;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public Task<ComponentHealthSnapshot> GetHealthAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new ComponentHealthSnapshot(
+            IsRunning ? ComponentRuntimeState.Running : ComponentRuntimeState.Stopped,
+            IsRunning ? "Karma reset loop is running." : "Karma reset loop is stopped.",
+            DateTimeOffset.UtcNow));
+
+    private async Task RunLoop(CancellationToken cancellationToken)
     {
         // Wait for DatabaseService to finish table creation
-        await Task.Delay(TimeSpan.FromSeconds(10));
+        await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
 
         try
         {
@@ -38,11 +92,11 @@ public class KarmaResetService
             await _logging.LogChannelAndFile($"KarmaResetService: Failed during startup: {e.Message}", ExtendedLogSeverity.Warning);
         }
 
-        while (true)
+        while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                await Task.Delay(TimeSpan.FromHours(1));
+                await Task.Delay(TimeSpan.FromHours(1), cancellationToken);
 
                 var now = DateTime.UtcNow;
 
@@ -56,6 +110,10 @@ public class KarmaResetService
                     if (now.Month == 1)
                         await TryReset("yearly", UserProps.KarmaYearly);
                 }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
             }
             catch (Exception e)
             {

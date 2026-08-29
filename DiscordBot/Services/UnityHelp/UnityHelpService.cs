@@ -1,18 +1,21 @@
 using Discord.WebSocket;
-using DiscordBot.Settings;
+using DiscordBot.Components;
+using DiscordBot.Settings.Options;
+using DiscordBot.Settings.Validation;
 using DiscordBot.Services.UnityHelp;
+using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services;
 
 // TODO : (James) Better Slash Command Support
 
-public class UnityHelpService
+public class UnityHelpService : IManagedBotService, IComponentHealthContributor
 {
     private const string ServiceName = "UnityHelpService";
 
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _logging;
-    private SocketRole ModeratorRole { get; set; }
+    private SocketRole ModeratorRole { get; set; } = null!;
     
     #region Configuration
     
@@ -71,52 +74,121 @@ public class UnityHelpService
 
     #region Extra Details
     
-    private readonly IForumChannel _helpChannel;
+    private IForumChannel _helpChannel = null!;
     
-    private readonly ForumTag _resolvedForumTag;
+    private ForumTag _resolvedForumTag;
+    private readonly UnityHelpOptions _options;
+    private readonly ulong _guildId;
+    private readonly ulong _moderatorRoleId;
+    private readonly FeatureConfigurationCatalog _featureConfiguration;
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+    private Task? _loadTask;
+
+    public string ComponentId => ComponentIds.UnityHelp;
+    public bool IsRunning { get; private set; }
 
     #endregion // Extra Details
 
-    public UnityHelpService(DiscordSocketClient client, BotSettings settings, ILoggingService logging)
+    public UnityHelpService(
+        DiscordSocketClient client,
+        IOptions<UnityHelpOptions> unityHelpOptions,
+        IOptions<DiscordGuildOptions> guildOptions,
+        IOptions<AuthorizationOptions> authorizationOptions,
+        FeatureConfigurationCatalog featureConfiguration,
+        ILoggingService logging)
     {
         _client = client;
         _logging = logging;
-        
-        ModeratorRole = _client.GetGuild(settings.GuildId).GetRole(settings.ModeratorRoleId);
+        _options = unityHelpOptions.Value;
+        _guildId = guildOptions.Value.GuildId;
+        _moderatorRoleId = authorizationOptions.Value.ModeratorRoleId;
+        _featureConfiguration = featureConfiguration;
+    }
 
-        if (!settings.UnityHelpBabySitterEnabled)
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
         {
-            LoggingService.LogServiceDisabled(ServiceName, nameof(settings.UnityHelpBabySitterEnabled));
-            return;
+            if (IsRunning)
+                return;
+            if (!_options.Enabled)
+                throw new InvalidOperationException("UnityHelp:Enabled is false.");
+            var configurationStatus = _featureConfiguration.Get(ComponentIds.UnityHelp);
+            if (!configurationStatus.IsConfigured)
+                throw new InvalidOperationException(string.Join(" ", configurationStatus.Errors));
+
+            ModeratorRole = _client.GetGuild(_guildId)?.GetRole(_moderatorRoleId)
+                ?? throw new InvalidOperationException("The configured moderator role was not found.");
+            _helpChannel = _client.GetChannel(_options.ForumChannelId) as IForumChannel
+                ?? throw new InvalidOperationException("The configured Unity Help forum was not found.");
+            _resolvedForumTag = _helpChannel.Tags.FirstOrDefault(x => x.Id == _options.ResolvedTagId);
+            if (_resolvedForumTag.Id == 0)
+                throw new InvalidOperationException("UnityHelp:ResolvedTagId was not found in the forum.");
+
+            _client.ReactionAdded += OnReactionAdded;
+            _client.ThreadCreated += GatewayOnThreadCreated;
+            _client.ThreadUpdated += GatewayOnThreadUpdated;
+            _client.ThreadDeleted += GatewayOnThreadDeleted;
+            _client.ThreadMemberJoined += GatewayOnThreadMemberJoinedThread;
+            _client.ThreadMemberLeft += GatewayOnThreadMemberLeftThread;
+            _client.MessageReceived += GatewayOnMessageReceived;
+            _client.MessageUpdated += GatewayOnMessageUpdated;
+            IsRunning = true;
+            _loadTask = LoadActiveThreads();
+            await _loadTask.WaitAsync(cancellationToken);
+            LoggingService.LogServiceEnabled(ServiceName);
         }
-        
-        // get the help channel settings.GenericHelpChannel
-        _helpChannel = _client.GetChannel(settings.GenericHelpChannel.Id) as IForumChannel;
-        if (_helpChannel == null)
+        catch
         {
-            LoggingService.LogToConsole($"[{ServiceName}] Help channel not found", LogSeverity.Error);
+            if (IsRunning)
+                UnsubscribeEvents();
+            IsRunning = false;
+            throw;
         }
-        var resolvedTag = _helpChannel!.Tags.FirstOrDefault(x => x.Id == ulong.Parse(settings.TagUnitHelpResolvedTag));
-        if (resolvedTag == null || resolvedTag.Id <= 0)
-            LoggingService.LogToConsole($"[{ServiceName}] Resolved tag not found", LogSeverity.Error);
-        _resolvedForumTag = resolvedTag;
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
 
-        // on reaction added, call method
-        _client.ReactionAdded += OnReactionAdded;
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!IsRunning)
+                return;
+            UnsubscribeEvents();
+            foreach (var thread in _activeThreads.Values)
+                thread.CancellationToken?.Cancel();
+            if (_loadTask is not null)
+                await _loadTask.WaitAsync(cancellationToken);
+            _activeThreads.Clear();
+            IsRunning = false;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
 
-        _client.ThreadCreated += GatewayOnThreadCreated;
-        _client.ThreadUpdated += GatewayOnThreadUpdated;
-        _client.ThreadDeleted += GatewayOnThreadDeleted;
-        
-        _client.ThreadMemberJoined += GatewayOnThreadMemberJoinedThread;
-        _client.ThreadMemberLeft += GatewayOnThreadMemberLeftThread;
-        
-        _client.MessageReceived += GatewayOnMessageReceived;
-        _client.MessageUpdated += GatewayOnMessageUpdated;
+    public Task<ComponentHealthSnapshot> GetHealthAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new ComponentHealthSnapshot(
+            IsRunning ? ComponentRuntimeState.Running : ComponentRuntimeState.Stopped,
+            IsRunning ? $"Tracking {_activeThreads.Count} Unity Help thread(s)." : "Unity Help handlers are stopped.",
+            DateTimeOffset.UtcNow));
 
-        Task.Run(LoadActiveThreads);
-        
-        LoggingService.LogServiceEnabled(ServiceName);
+    private void UnsubscribeEvents()
+    {
+        _client.ReactionAdded -= OnReactionAdded;
+        _client.ThreadCreated -= GatewayOnThreadCreated;
+        _client.ThreadUpdated -= GatewayOnThreadUpdated;
+        _client.ThreadDeleted -= GatewayOnThreadDeleted;
+        _client.ThreadMemberJoined -= GatewayOnThreadMemberJoinedThread;
+        _client.ThreadMemberLeft -= GatewayOnThreadMemberLeftThread;
+        _client.MessageReceived -= GatewayOnMessageReceived;
+        _client.MessageUpdated -= GatewayOnMessageUpdated;
     }
 
     private async Task LoadActiveThreads()

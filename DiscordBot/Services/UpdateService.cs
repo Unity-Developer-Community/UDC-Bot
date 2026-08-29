@@ -1,11 +1,14 @@
 ﻿using System.IO;
 using System.Text.RegularExpressions;
 using Discord.WebSocket;
-using DiscordBot.Settings;
+using DiscordBot.Components;
+using DiscordBot.Settings.Options;
+using DiscordBot.Settings.Validation;
 using DiscordBot.Utils;
 using HtmlAgilityPack;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services;
 
@@ -26,13 +29,6 @@ public class UserData
     public Dictionary<ulong, DateTime> CodeReminderCooldown { get; set; }
 }
 
-public class FaqData
-{
-    public string Question { get; set; }
-    public string Answer { get; set; }
-    public string[] Keywords { get; set; }
-}
-
 public class FeedData
 {
     public FeedData()
@@ -46,97 +42,173 @@ public class FeedData
 }
 
 //TODO Download all avatars to cache them
-public class UpdateService
+public class UpdateService : IManagedBotService, IComponentHealthContributor
 {
     private const string ServiceName = "UpdateService";
     private readonly ILoggingService _loggingService;
     private readonly FeedService _feedService;
-    private readonly BotSettings _settings;
-    private readonly CancellationToken _token;
+    private readonly string _serverRootPath;
+    private readonly ulong _guildId;
+    private readonly ulong _mutedRoleId;
+    private readonly string _wikipediaSearchPage;
+    private readonly bool _feedsConfigured;
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+    private CancellationTokenSource? _lifecycleCancellation;
+    private Task? _lifetimeTask;
     private string[][] _apiDatabase;
 
     private BotData _botData;
     private readonly DiscordSocketClient _client;
-    private List<FaqData> _faqData;
     private FeedData _feedData;
 
     private string[][] _manualDatabase;
     private UserData _userData;
 
+    public string ComponentId => ComponentIds.Updates;
+    public bool IsRunning => _lifetimeTask is { IsCompleted: false };
+
     public UpdateService(DiscordSocketClient client,
-        DatabaseService databaseService, BotSettings settings, FeedService feedService, ILoggingService loggingService)
+        FeedService feedService,
+        ILoggingService loggingService,
+        IOptions<StorageOptions> storageOptions,
+        IOptions<DiscordGuildOptions> guildOptions,
+        IOptions<ModerationOptions> moderationOptions,
+        IOptions<KnowledgeSearchOptions> knowledgeSearchOptions,
+        FeatureConfigurationCatalog featureConfiguration)
     {
         _client = client;
         _feedService = feedService;
-        _loggingService = loggingService as LoggingService;
-
-        _settings = settings;
-        _token = new CancellationToken();
-
-        UpdateLoop();
+        _loggingService = loggingService;
+        _serverRootPath = storageOptions.Value.ServerRootPath;
+        _guildId = guildOptions.Value.GuildId;
+        _mutedRoleId = moderationOptions.Value.MutedRoleId;
+        _wikipediaSearchPage = knowledgeSearchOptions.Value.WikipediaSearchPage;
+        _feedsConfigured = featureConfiguration.Get(ComponentIds.Feeds).IsConfigured;
     }
 
-    private void UpdateLoop()
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        ReadDataFromFile();
-        Task.Run(SaveDataToFile, _token);
-        // Task.Run(UpdateUserRanks, _token);
-        Task.Run(UpdateDocDatabase, _token);
-        Task.Run(UpdateRssFeeds, _token);
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (IsRunning)
+                return;
+
+            ReadDataFromFile();
+            _lifecycleCancellation?.Dispose();
+            _lifecycleCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var token = _lifecycleCancellation.Token;
+            _lifetimeTask = Task.WhenAll(
+                SaveDataToFile(token),
+                UpdateDocDatabase(token),
+                _feedsConfigured ? UpdateRssFeeds(token) : Task.CompletedTask,
+                RestoreMutedUsers(token));
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
     }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_lifetimeTask is null)
+                return;
+            await _lifecycleCancellation!.CancelAsync();
+            try
+            {
+                await _lifetimeTask.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (_lifecycleCancellation.IsCancellationRequested)
+            {
+            }
+
+            await SaveDataOnceAsync();
+            _lifetimeTask = null;
+            _lifecycleCancellation.Dispose();
+            _lifecycleCancellation = null;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public Task<ComponentHealthSnapshot> GetHealthAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new ComponentHealthSnapshot(
+            IsRunning ? ComponentRuntimeState.Running : ComponentRuntimeState.Stopped,
+            IsRunning
+                ? _feedsConfigured
+                    ? "Persistence, documentation, and feed workers are running."
+                    : "Persistence and documentation workers are running; feeds are unavailable."
+                : "Update workers are stopped.",
+            DateTimeOffset.UtcNow));
 
     private void ReadDataFromFile()
     {
-        _botData = SerializeUtil.DeserializeFile<BotData>($"{_settings.ServerRootPath}/botdata.json");
+        _botData = SerializeUtil.DeserializeFile<BotData>($"{_serverRootPath}/botdata.json");
 
-        _userData = SerializeUtil.DeserializeFile<UserData>($"{_settings.ServerRootPath}/userdata.json");
-        Task.Run(
-            async () =>
-            {
-                while (_client.ConnectionState != ConnectionState.Connected ||
-                       _client.LoginState != LoginState.LoggedIn)
-                    await Task.Delay(100, _token);
+        _userData = SerializeUtil.DeserializeFile<UserData>($"{_serverRootPath}/userdata.json");
+        _feedData = SerializeUtil.DeserializeFile<FeedData>($"{_serverRootPath}/feeds.json");
+    }
 
-                await Task.Delay(10000, _token);
-                //Check if there are users still muted
-                foreach (var userId in _userData.MutedUsers)
-                {
-                    if (!_userData.MutedUsers.HasUser(userId.Key, true)) continue;
+    private async Task RestoreMutedUsers(CancellationToken cancellationToken)
+    {
+        while (_client.ConnectionState != ConnectionState.Connected ||
+               _client.LoginState != LoginState.LoggedIn)
+            await Task.Delay(100, cancellationToken);
 
-                    var guild = _client.Guilds.First(g => g.Id == _settings.GuildId);
-                    var sgu = guild.GetUser(userId.Key);
-                    if (sgu == null) continue;
+        await Task.Delay(10000, cancellationToken);
+        var removalTasks = new List<Task>();
+        foreach (var userId in _userData.MutedUsers)
+        {
+            if (!_userData.MutedUsers.HasUser(userId.Key, true))
+                continue;
 
-                    IGuildUser user = sgu;
+            var guild = _client.Guilds.First(g => g.Id == _guildId);
+            var socketUser = guild.GetUser(userId.Key);
+            if (socketUser == null)
+                continue;
 
-                    var mutedRole = user.Guild.GetRole(_settings.MutedRoleId);
-                    //Make sure they have the muted role
-                    if (!user.RoleIds.Contains(_settings.MutedRoleId)) await user.AddRoleAsync(mutedRole);
+            IGuildUser user = socketUser;
+            var mutedRole = user.Guild.GetRole(_mutedRoleId);
+            if (!user.RoleIds.Contains(_mutedRoleId))
+                await user.AddRoleAsync(mutedRole);
+            removalTasks.Add(RemoveMuteWhenDue(user, mutedRole, cancellationToken));
+        }
 
-                    //Setup delay to remove role when time is up.
-                    await Task.Run(async () =>
-                    {
-                        await _userData.MutedUsers.AwaitCooldown(user.Id);
-                        await user.RemoveRoleAsync(mutedRole);
-                    }, _token);
-                }
-            }, _token);
+        await Task.WhenAll(removalTasks);
+    }
 
-        _faqData = SerializeUtil.DeserializeFile<List<FaqData>>("Settings/FAQs.json");
-        _feedData = SerializeUtil.DeserializeFile<FeedData>($"{_settings.ServerRootPath}/feeds.json");
+    private async Task RemoveMuteWhenDue(
+        IGuildUser user,
+        IRole mutedRole,
+        CancellationToken cancellationToken)
+    {
+        var remaining = _userData.MutedUsers[user.Id] - DateTime.Now;
+        if (remaining > TimeSpan.Zero)
+            await Task.Delay(remaining, cancellationToken);
+        await user.RemoveRoleAsync(mutedRole);
     }
 
     // Saves data to file
-    private async Task SaveDataToFile()
+    private async Task SaveDataToFile(CancellationToken cancellationToken)
     {
-        while (true)
+        while (!cancellationToken.IsCancellationRequested)
         {
-            await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/botdata.json", _botData);
-            await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/userdata.json", _userData);
-            await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/feeds.json", _feedData);
-            await Task.Delay(TimeSpan.FromSeconds(20d), _token);
+            await SaveDataOnceAsync();
+            await Task.Delay(TimeSpan.FromSeconds(20d), cancellationToken);
         }
-        // ReSharper disable once FunctionNeverReturns
+    }
+
+    private async Task SaveDataOnceAsync()
+    {
+        await SerializeUtil.SerializeFileAsync($"{_serverRootPath}/botdata.json", _botData);
+        await SerializeUtil.SerializeFileAsync($"{_serverRootPath}/userdata.json", _userData);
+        await SerializeUtil.SerializeFileAsync($"{_serverRootPath}/feeds.json", _feedData);
     }
 
     public async Task<string[][]> GetManualDatabase()
@@ -153,16 +225,14 @@ public class UpdateService
         return _apiDatabase;
     }
 
-    public List<FaqData> GetFaqData() => _faqData;
-
     private async Task LoadDocDatabase()
     {
-        if (File.Exists($"{_settings.ServerRootPath}/unitymanual.json") &&
-            File.Exists($"{_settings.ServerRootPath}/unityapi.json"))
+        if (File.Exists($"{_serverRootPath}/unitymanual.json") &&
+            File.Exists($"{_serverRootPath}/unityapi.json"))
         {
-            var json = await File.ReadAllTextAsync($"{_settings.ServerRootPath}/unitymanual.json", _token);
+            var json = await File.ReadAllTextAsync($"{_serverRootPath}/unitymanual.json", CurrentToken);
             _manualDatabase = JsonConvert.DeserializeObject<string[][]>(json);
-            json = await File.ReadAllTextAsync($"{_settings.ServerRootPath}/unityapi.json", _token);
+            json = await File.ReadAllTextAsync($"{_serverRootPath}/unityapi.json", CurrentToken);
             _apiDatabase = JsonConvert.DeserializeObject<string[][]>(json);
         }
         else
@@ -185,9 +255,9 @@ public class UpdateService
             _manualDatabase = ConvertJsToArray(manualInput, true);
             _apiDatabase = ConvertJsToArray(apiInput, false);
 
-            if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unitymanual.json", _manualDatabase))
+            if (!SerializeUtil.SerializeFile($"{_serverRootPath}/unitymanual.json", _manualDatabase))
                 await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to save unitymanual.json", ExtendedLogSeverity.Warning);
-            if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unityapi.json", _apiDatabase))
+            if (!SerializeUtil.SerializeFile($"{_serverRootPath}/unityapi.json", _apiDatabase))
                 await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to save unityapi.json", ExtendedLogSeverity.Warning);
 
             string[][] ConvertJsToArray(string data, bool isManual)
@@ -221,22 +291,22 @@ public class UpdateService
         }
     }
 
-    private async Task UpdateDocDatabase()
+    private async Task UpdateDocDatabase(CancellationToken cancellationToken)
     {
-        while (true)
+        while (!cancellationToken.IsCancellationRequested)
         {
             if (_botData.LastUnityDocDatabaseUpdate < DateTime.Now - TimeSpan.FromDays(1d))
                 await DownloadDocDatabase();
 
-            await Task.Delay(TimeSpan.FromHours(1), _token);
+            await Task.Delay(TimeSpan.FromHours(1), cancellationToken);
         }
         // ReSharper disable once FunctionNeverReturns
     }
 
-    private async Task UpdateRssFeeds()
+    private async Task UpdateRssFeeds(CancellationToken cancellationToken)
     {
-        await Task.Delay(TimeSpan.FromSeconds(30d), _token);
-        while (true)
+        await Task.Delay(TimeSpan.FromSeconds(30d), cancellationToken);
+        while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
@@ -263,20 +333,20 @@ public class UpdateService
                 await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to update RSS feeds, attempting to continue.", ExtendedLogSeverity.Error);
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(30d), _token);
+            await Task.Delay(TimeSpan.FromSeconds(30d), cancellationToken);
         }
         // ReSharper disable once FunctionNeverReturns
     }
 
     public async Task<(string name, string extract, string url)> DownloadWikipediaArticle(string searchQuery)
     {
-        var wikiSearchUri = Uri.EscapeUriString(_settings.WikipediaSearchPage + searchQuery);
+        var wikiSearchUri = Uri.EscapeUriString(_wikipediaSearchPage + searchQuery);
         var htmlWeb = new HtmlWeb { CaptureRedirect = true };
         HtmlDocument wikiSearchResponse;
 
         try
         {
-            wikiSearchResponse = await htmlWeb.LoadFromWebAsync(wikiSearchUri, _token);
+            wikiSearchResponse = await htmlWeb.LoadFromWebAsync(wikiSearchUri, CurrentToken);
         }
         catch
         {
@@ -335,6 +405,8 @@ public class UpdateService
     {
         _userData = data;
     }
+
+    private CancellationToken CurrentToken => _lifecycleCancellation?.Token ?? CancellationToken.None;
 
     /// <summary>
     ///     JSON object for the Wikipedia command to convert results to.

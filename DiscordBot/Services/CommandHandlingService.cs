@@ -4,7 +4,9 @@ using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Attributes;
-using DiscordBot.Settings;
+using DiscordBot.Components;
+using DiscordBot.Settings.Options;
+using Microsoft.Extensions.Options;
 using IResult = Discord.Interactions.IResult;
 using ParameterInfo = Discord.Commands.ParameterInfo;
 using PreconditionGroupResult = Discord.Commands.PreconditionGroupResult;
@@ -21,7 +23,14 @@ public class CommandHistoryInfo
     public string Error { get; set; } = string.Empty;
 }
 
-public class CommandHandlingService
+public interface ICommandRuntime
+{
+    bool IsInitialized { get; }
+    Task StartAsync(CancellationToken cancellationToken);
+    Task StopAsync(CancellationToken cancellationToken);
+}
+
+public class CommandHandlingService : ICommandRuntime
 {
     private const string ServiceName = "CommandHandlingService";
     public bool IsInitialized { get; private set; }
@@ -31,6 +40,11 @@ public class CommandHandlingService
     private readonly InteractionService _interactionService;
     private readonly IServiceProvider _services;
     private readonly ILoggingService _loggingService;
+    private readonly IComponentStateReader _componentState;
+    private readonly ulong _guildId;
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+    private bool _modulesRegistered;
+    private bool _eventsSubscribed;
 
     private const char DefaultPrefix = '!';
     private readonly char _commandPrefix;
@@ -39,6 +53,7 @@ public class CommandHandlingService
     // Tuple of string moduleName, bool orderByName = false, bool includeArgs = true, bool includeModuleName = true for a dictionary
     private readonly Dictionary<(string moduleName, bool orderByName, bool includeArgs, bool includeModuleName), string> _commandList = new();
     private readonly Dictionary<(string moduleName, bool orderByName, bool includeArgs, bool includeModuleName), List<string>> _commandListMessages = new();
+    private readonly object _commandListLock = new();
     
     // A Collection to store the command history
     private const int MaxCommandHistory = 200;
@@ -49,8 +64,10 @@ public class CommandHandlingService
         CommandService commandService,
         InteractionService interactionService,
         IServiceProvider services,
-        BotSettings settings,
-        ILoggingService loggingService
+        IOptions<CommandOptions> commandOptions,
+        IOptions<DiscordGuildOptions> guildOptions,
+        ILoggingService loggingService,
+        IComponentStateReader componentState
     )
     {
         _client = client;
@@ -58,18 +75,10 @@ public class CommandHandlingService
         _interactionService = interactionService;
         _services = services;
         _loggingService = loggingService;
+        _componentState = componentState;
 
-        // Events
-        _client.MessageReceived += HandleCommand;
-        _client.InteractionCreated += HandleInteraction;
-        
-        if (settings.GuildId == default)
-        {
-            _loggingService.Log(LogBehaviour.Console | LogBehaviour.File, $"{ServiceName}: GuildId not set, commands will not be registered.", ExtendedLogSeverity.Critical);
-            return;
-        }
-        
-        _commandPrefix = settings.Prefix;
+        _guildId = guildOptions.Value.GuildId;
+        _commandPrefix = commandOptions.Value.Prefix;
         if (_commandPrefix == default)
         {
             _commandPrefix = DefaultPrefix;
@@ -80,10 +89,25 @@ public class CommandHandlingService
             _loggingService.Log(LogBehaviour.Console, $"{ServiceName}: Prefix set to {_commandPrefix}", ExtendedLogSeverity.Positive);
         }
 
-        // Initialize the command service
-        Task.Run(async () =>
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
         {
-            try
+            if (IsInitialized)
+                return;
+
+            if (!_eventsSubscribed)
+            {
+                _client.MessageReceived += HandleCommand;
+                _client.InteractionCreated += HandleInteraction;
+                _componentState.StateChanged += OnComponentStateChanged;
+                _eventsSubscribed = true;
+            }
+
+            if (!_modulesRegistered)
             {
                 // Discover all of the commands in this assembly and load them.
                 var addedEnumerable = await _commandService.AddModulesAsync(Assembly.GetEntryAssembly(), _services);
@@ -100,15 +124,42 @@ public class CommandHandlingService
                 await _loggingService.Log(LogBehaviour.Console, $"{ServiceName}: {moduleInfos.Sum(x => x.ComponentCommands.Count)} 'Component' commands.", ExtendedLogSeverity.Positive);
                 
                 //TODO Consider global commands? Maybe an attribute?
-                await _interactionService.RegisterCommandsToGuildAsync(settings.GuildId);
+                await _interactionService.RegisterCommandsToGuildAsync(_guildId);
+                _modulesRegistered = true;
+            }
 
-                IsInitialized = true;
-            }
-            catch (Exception e)
+            IsInitialized = true;
+        }
+        catch (Exception e)
+        {
+            await _loggingService.Log(LogBehaviour.Console | LogBehaviour.File, $"[{ServiceName}] Failed to initialize service while adding modules.\nException: {e}", ExtendedLogSeverity.Critical);
+            throw;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_eventsSubscribed)
             {
-                await _loggingService.Log(LogBehaviour.Console | LogBehaviour.File, $"[{ServiceName}] Failed to initialize service while adding modules.\nException: {e}", ExtendedLogSeverity.Critical);
+                _client.MessageReceived -= HandleCommand;
+                _client.InteractionCreated -= HandleInteraction;
+                _componentState.StateChanged -= OnComponentStateChanged;
+                _eventsSubscribed = false;
             }
-        });
+
+            IsInitialized = false;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
     }
     
     #region Command Lists
@@ -119,12 +170,15 @@ public class CommandHandlingService
     public List<string> GetCommandListMessages(string moduleName, bool orderByName = false, bool includeArgs = true, bool includeModuleName = true)
     {
         var tupleKey = (moduleName, orderByName, includeArgs, includeModuleName);
-        if (!_commandListMessages.TryGetValue(tupleKey, out List<string> commandResults))
+        lock (_commandListLock)
         {
-            GenerateCommandListOutputs(tupleKey);
-            commandResults = _commandListMessages[tupleKey];
+            if (!_commandListMessages.TryGetValue(tupleKey, out List<string> commandResults))
+            {
+                GenerateCommandListOutputs(tupleKey);
+                commandResults = _commandListMessages[tupleKey];
+            }
+            return commandResults.ToList();
         }
-        return commandResults;
     }
 
     /// <summary> Generates a command list that can provide users with information. Commands require [Command][Summary] and [Priority](If not ordering by name)
@@ -133,12 +187,15 @@ public class CommandHandlingService
     public string GetCommandList(string moduleName, bool orderByName = false, bool includeArgs = true, bool includeModuleName = true)
     {
         var tupleKey = (moduleName, orderByName, includeArgs, includeModuleName);
-        if (!_commandList.TryGetValue(tupleKey, out string commandResults))
+        lock (_commandListLock)
         {
-            GenerateCommandListOutputs(tupleKey);
-            commandResults = _commandList[tupleKey];
+            if (!_commandList.TryGetValue(tupleKey, out string commandResults))
+            {
+                GenerateCommandListOutputs(tupleKey);
+                commandResults = _commandList[tupleKey];
+            }
+            return commandResults;
         }
-        return commandResults;
     }
     
     private void GenerateCommandListOutputs(
@@ -209,6 +266,8 @@ public class CommandHandlingService
             _commandService.Commands.Where(x =>
             x.Module.Name == input.moduleName && 
             !x.Attributes.Contains(hideFromHelp) &&
+            x.Module.Attributes.OfType<RequireComponentEnabledAttribute>()
+                .All(attribute => _componentState.IsEnabled(attribute.ComponentId)) &&
             (search == string.Empty || x.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase))
         );
         // We try to hide commands that have moderator or admin requirements if onlyNormalUsers is true.
@@ -222,6 +281,15 @@ public class CommandHandlingService
             : commands.OrderBy(c => (c.Priority > 0 ? c.Priority : 1000));
 
         return commands;
+    }
+
+    private void OnComponentStateChanged(object? sender, EventArgs eventArgs)
+    {
+        lock (_commandListLock)
+        {
+            _commandList.Clear();
+            _commandListMessages.Clear();
+        }
     }
 
     #endregion
@@ -275,7 +343,13 @@ public class CommandHandlingService
             var ctx = new SocketInteractionContext(_client, arg);
             // Execute the command and retrieve the result.
             IResult result = await _interactionService.ExecuteCommandAsync(ctx, _services);
-            //TODO maybe do something if result is anything but success
+            if (!result.IsSuccess && !arg.HasResponded)
+            {
+                var response = result.Error == InteractionCommandError.UnmetPrecondition
+                    ? result.ErrorReason
+                    : "The command could not be completed.";
+                await arg.RespondAsync(response, ephemeral: true);
+            }
             
             // TODO: (James) Need to "AddToCommandHistory" for interactions
         }

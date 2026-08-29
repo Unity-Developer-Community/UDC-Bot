@@ -1,64 +1,107 @@
 using System.Globalization;
 using Discord.WebSocket;
-using DiscordBot.Settings;
+using DiscordBot.Components;
+using DiscordBot.Settings.Options;
 using DiscordBot.Utils;
-using HtmlAgilityPack;
+using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services;
 
-public class BirthdayAnnouncementService
+public class BirthdayAnnouncementService : IManagedBotService, IComponentHealthContributor
 {
     private const string ServiceName = "BirthdayAnnouncementService";
     
-    public bool IsRunning { get; private set; }
+    public string ComponentId => ComponentIds.BirthdayAnnouncements;
+    public bool IsRunning => _loopTask is { IsCompleted: false };
     
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
-    private readonly BotSettings _settings;
+    private readonly IBirthdaySource _birthdaySource;
+    private readonly BirthdayOptions _options;
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+    private CancellationTokenSource? _lifecycleCancellation;
+    private Task? _loopTask;
     
     // Track birthdays that have been announced today to avoid spam
     private readonly HashSet<string> _announcedToday = new();
     private DateTime _lastAnnouncementDate = DateTime.Today;
     
-    // URLs for birthday data from the existing !bday command
-    private const string NextBirthdayUrl = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&range=C15:C15";
-    private const string BirthdayTableUrl = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
-    
-    public BirthdayAnnouncementService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings)
+    public BirthdayAnnouncementService(
+        DiscordSocketClient client,
+        ILoggingService loggingService,
+        IBirthdaySource birthdaySource,
+        IOptions<BirthdayOptions> options)
     {
         _client = client;
         _loggingService = loggingService;
-        _settings = settings;
-        
-        Initialize();
+        _birthdaySource = birthdaySource;
+        _options = options.Value;
     }
     
-    private void Initialize()
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (IsRunning) return;
-        
-        if (!_settings.BirthdayAnnouncementEnabled)
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
         {
-            _loggingService.LogAction($"[{ServiceName}] Birthday announcement service is disabled in settings.", ExtendedLogSeverity.Info);
-            return;
+            if (IsRunning)
+                return;
+
+            if (_options.AnnouncementChannelId == 0)
+                throw new InvalidOperationException("BirthdayAnnouncements:AnnouncementChannelId is required.");
+            if (_options.CheckIntervalMinutes <= 0)
+                throw new InvalidOperationException("BirthdayAnnouncements:CheckIntervalMinutes must be greater than zero.");
+
+            _lifecycleCancellation?.Dispose();
+            _lifecycleCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _loopTask = CheckBirthdaysLoop(_lifecycleCancellation.Token);
+            await _loggingService.LogAction(
+                $"[{ServiceName}] Started with {_options.CheckIntervalMinutes} minute intervals.",
+                ExtendedLogSeverity.Info);
         }
-        
-        if (_settings.BirthdayAnnouncementChannel?.Id == 0)
+        finally
         {
-            _loggingService.LogAction($"[{ServiceName}] Birthday announcement channel not configured.", ExtendedLogSeverity.Warning);
-            return;
+            _lifecycleLock.Release();
         }
-        
-        IsRunning = true;
-        _loggingService.LogAction($"[{ServiceName}] Starting birthday announcement service with {_settings.BirthdayCheckIntervalMinutes} minute intervals.", ExtendedLogSeverity.Info);
-        Task.Run(CheckBirthdaysLoop);
     }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_loopTask is null)
+                return;
+
+            await _lifecycleCancellation!.CancelAsync();
+            try
+            {
+                await _loopTask.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (_lifecycleCancellation.IsCancellationRequested)
+            {
+            }
+
+            _loopTask = null;
+            _lifecycleCancellation.Dispose();
+            _lifecycleCancellation = null;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public Task<ComponentHealthSnapshot> GetHealthAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new ComponentHealthSnapshot(
+            IsRunning ? ComponentRuntimeState.Running : ComponentRuntimeState.Stopped,
+            IsRunning ? "Birthday check loop is running." : "Birthday check loop is stopped.",
+            DateTimeOffset.UtcNow));
     
-    private async Task CheckBirthdaysLoop()
+    private async Task CheckBirthdaysLoop(CancellationToken cancellationToken)
     {
         try
         {
-            while (IsRunning)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 // Check if it's a new day and reset announced birthdays
                 if (DateTime.Today > _lastAnnouncementDate)
@@ -68,35 +111,37 @@ public class BirthdayAnnouncementService
                     _loggingService.LogAction($"[{ServiceName}] New day detected, reset announced birthdays list.", ExtendedLogSeverity.Info);
                 }
                 
-                await CheckAndAnnounceBirthdays();
+                await CheckAndAnnounceBirthdays(cancellationToken);
                 
                 // Wait for the configured interval
-                var intervalMs = _settings.BirthdayCheckIntervalMinutes * 60 * 1000;
-                await Task.Delay(intervalMs);
+                await Task.Delay(TimeSpan.FromMinutes(_options.CheckIntervalMinutes), cancellationToken);
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception e)
         {
             await _loggingService.LogChannelAndFile($"[{ServiceName}] Birthday announcement service has crashed.\nException: {e.Message}", ExtendedLogSeverity.Warning);
-            IsRunning = false;
+            throw;
         }
     }
     
-    private async Task CheckAndAnnounceBirthdays()
+    private async Task CheckAndAnnounceBirthdays(CancellationToken cancellationToken)
     {
         try
         {
-            var todaysBirthdays = await GetTodaysBirthdays();
+            var todaysBirthdays = await _birthdaySource.GetTodaysBirthdaysAsync(cancellationToken);
             
             if (todaysBirthdays.Count == 0)
             {
                 return; // No birthdays today
             }
             
-            var channel = _client.GetChannel(_settings.BirthdayAnnouncementChannel.Id) as SocketTextChannel;
+            var channel = _client.GetChannel(_options.AnnouncementChannelId) as SocketTextChannel;
             if (channel == null)
             {
-                _loggingService.LogAction($"[{ServiceName}] Could not find birthday announcement channel with ID {_settings.BirthdayAnnouncementChannel.Id}", ExtendedLogSeverity.Warning);
+                _loggingService.LogAction($"[{ServiceName}] Could not find birthday announcement channel with ID {_options.AnnouncementChannelId}", ExtendedLogSeverity.Warning);
                 return;
             }
             
@@ -116,103 +161,14 @@ public class BirthdayAnnouncementService
                 _loggingService.LogAction($"[{ServiceName}] Announced birthday for {birthday.Name}", ExtendedLogSeverity.Info);
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception e)
         {
             _loggingService.LogAction($"[{ServiceName}] Error checking birthdays: {e.Message}", ExtendedLogSeverity.LowWarning);
         }
-    }
-    
-    private async Task<List<BirthdayInfo>> GetTodaysBirthdays()
-    {
-        var birthdays = new List<BirthdayInfo>();
-        
-        try
-        {
-            var relevantNodes = await WebUtil.GetHtmlNodes(BirthdayTableUrl, "/html/body/table/tr");
-            if (relevantNodes == null)
-            {
-                return birthdays;
-            }
-            
-            var today = DateTime.Today;
-            
-            foreach (var row in relevantNodes)
-            {
-                var nameNode = row.SelectSingleNode("td[2]");
-                var dateNode = row.SelectSingleNode("td[1]");
-                var yearNode = row.SelectSingleNode("td[3]");
-                
-                if (nameNode == null || dateNode == null) continue;
-                
-                var name = nameNode.InnerText?.Trim();
-                if (string.IsNullOrEmpty(name)) continue;
-                
-                var dateString = dateNode.InnerText?.Trim();
-                if (string.IsNullOrEmpty(dateString)) continue;
-                
-                // Try to parse the birthday date
-                if (TryParseBirthdayDate(dateString, yearNode?.InnerText, out var birthDate))
-                {
-                    // Check if this birthday is today (ignoring year)
-                    if (birthDate.Month == today.Month && birthDate.Day == today.Day)
-                    {
-                        var age = CalculateAge(birthDate, today);
-                        birthdays.Add(new BirthdayInfo { Name = name, BirthDate = birthDate, Age = age });
-                    }
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            _loggingService.LogAction($"[{ServiceName}] Error fetching birthday data: {e.Message}", ExtendedLogSeverity.LowWarning);
-        }
-        
-        return birthdays;
-    }
-    
-    private bool TryParseBirthdayDate(string dateString, string yearString, out DateTime birthDate)
-    {
-        birthDate = default;
-        
-        try
-        {
-            var provider = CultureInfo.InvariantCulture;
-            
-            // Add year if available and not empty
-            if (!string.IsNullOrEmpty(yearString) && !yearString.Contains("&nbsp;"))
-            {
-                dateString = $"{dateString}/{yearString.Trim()}";
-                birthDate = DateTime.ParseExact(dateString, "M/d/yyyy", provider);
-            }
-            else
-            {
-                // Parse without year, assume current year for calculation
-                var tempDate = DateTime.ParseExact(dateString, "M/d", provider);
-                birthDate = new DateTime(DateTime.Today.Year, tempDate.Month, tempDate.Day);
-            }
-            
-            return true;
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
-    }
-    
-    private int? CalculateAge(DateTime birthDate, DateTime today)
-    {
-        if (birthDate.Year == today.Year)
-        {
-            return null; // No year information available
-        }
-        
-        var age = today.Year - birthDate.Year;
-        if (today.Month < birthDate.Month || (today.Month == birthDate.Month && today.Day < birthDate.Day))
-        {
-            age--;
-        }
-        
-        return age;
     }
     
     private string FormatBirthdayAnnouncement(BirthdayInfo birthday)
@@ -250,13 +206,6 @@ public class BirthdayAnnouncementService
         };
     }
     
-    public async Task<bool> RestartService()
-    {
-        IsRunning = false;
-        await Task.Delay(1000); // Give some time for the loop to exit
-        Initialize();
-        return IsRunning;
-    }
 }
 
 public class BirthdayInfo
@@ -264,4 +213,94 @@ public class BirthdayInfo
     public string Name { get; set; }
     public DateTime BirthDate { get; set; }
     public int? Age { get; set; }
+}
+
+public interface IBirthdaySource
+{
+    Task<IReadOnlyList<BirthdayInfo>> GetTodaysBirthdaysAsync(CancellationToken cancellationToken);
+}
+
+public sealed class GoogleSheetsBirthdaySource : IBirthdaySource
+{
+    public async Task<IReadOnlyList<BirthdayInfo>> GetTodaysBirthdaysAsync(
+        CancellationToken cancellationToken)
+    {
+        var birthdays = new List<BirthdayInfo>();
+        var relevantNodes = await WebUtil.GetHtmlNodes(
+            BirthdayTableUrl,
+            "/html/body/table/tr",
+            cancellationToken);
+        if (relevantNodes is null)
+            return birthdays;
+
+        var today = DateTime.Today;
+        foreach (var row in relevantNodes)
+        {
+            var name = row.SelectSingleNode("td[2]")?.InnerText?.Trim();
+            var date = row.SelectSingleNode("td[1]")?.InnerText?.Trim();
+            var year = row.SelectSingleNode("td[3]")?.InnerText;
+            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(date) ||
+                !TryParseBirthdayDate(date, year, today, out var birthDate) ||
+                birthDate.Month != today.Month || birthDate.Day != today.Day)
+            {
+                continue;
+            }
+
+            birthdays.Add(new BirthdayInfo
+            {
+                Name = name,
+                BirthDate = birthDate,
+                Age = CalculateAge(birthDate, today)
+            });
+        }
+
+        return birthdays;
+    }
+
+    private const string BirthdayTableUrl = "https://docs.google.com/spreadsheets/d/10iGiKcrBl1fjoBNTzdtjEVYEgOfTveRXdI5cybRTnj4/gviz/tq?tqx=out:html&gid=318080247&range=B:D";
+
+    private static bool TryParseBirthdayDate(
+        string date,
+        string? year,
+        DateTime today,
+        out DateTime birthDate)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(year) && !year.Contains("&nbsp;"))
+            {
+                birthDate = DateTime.ParseExact(
+                    $"{date}/{year.Trim()}",
+                    "M/d/yyyy",
+                    CultureInfo.InvariantCulture);
+            }
+            else
+            {
+                var parsed = DateTime.ParseExact(date, "M/d", CultureInfo.InvariantCulture);
+                birthDate = new DateTime(today.Year, parsed.Month, parsed.Day);
+            }
+
+            return true;
+        }
+        catch (FormatException)
+        {
+            birthDate = default;
+            return false;
+        }
+    }
+
+    private static int? CalculateAge(DateTime birthDate, DateTime today)
+    {
+        if (birthDate.Year == today.Year)
+            return null;
+
+        var age = today.Year - birthDate.Year;
+        if (today.Month < birthDate.Month ||
+            (today.Month == birthDate.Month && today.Day < birthDate.Day))
+        {
+            age--;
+        }
+
+        return age;
+    }
 }

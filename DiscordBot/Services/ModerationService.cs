@@ -1,10 +1,12 @@
 ﻿using Discord.WebSocket;
 using DiscordBot.Services.Moderation;
-using DiscordBot.Settings;
+using DiscordBot.Components;
+using DiscordBot.Settings.Options;
+using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services;
 
-public class ModerationService
+public class ModerationService : IManagedBotService, IComponentHealthContributor
 {
     private readonly ILoggingService _loggingService;
     private readonly DiscordSocketClient _client;
@@ -16,37 +18,96 @@ public class ModerationService
     private static readonly Color DeletedMessageColor = new(200, 128, 128);
     private static readonly Color EditedMessageColor = new(255, 255, 128);
 
-    private readonly IMessageChannel? _botAnnouncementChannel;
-    private readonly IMessageChannel? _memeChannel;
+    private IMessageChannel? _botAnnouncementChannel;
+    private IMessageChannel? _memeChannel;
+    private readonly ulong _announcementChannelId;
+    private readonly ulong _memeChannelId;
     private readonly bool _moderatorNoInviteLinks;
     private readonly ForumPostTracker _forumPostTracker;
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
 
-    public ModerationService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService,
+    public string ComponentId => ComponentIds.Moderation;
+    public bool IsRunning { get; private set; }
+
+    public ModerationService(
+        DiscordSocketClient client,
+        IOptions<ModerationOptions> moderationOptions,
+        IOptions<LoggingOptions> loggingOptions,
+        IOptions<AuthorizationOptions> authorizationOptions,
+        ILoggingService loggingService,
         CommandHandlingService commandHandlingService)
     {
         _client = client;
         _loggingService = loggingService;
         _commandHandlingService = commandHandlingService;
-        _forumPostTracker = new ForumPostTracker(settings.ModeratorRoleId);
+        var moderation = moderationOptions.Value;
+        _forumPostTracker = new ForumPostTracker(authorizationOptions.Value.ModeratorRoleId);
 
-        client.MessageDeleted += MessageDeleted;
-        client.MessagesBulkDeleted += MessagesBulkDeleted;
-        client.MessageUpdated += MessageUpdated;
-        client.MessageReceived += MessageReceived;
-        client.ThreadCreated += ThreadCreated;
-        client.ThreadUpdated += ThreadUpdated;
-        client.ThreadDeleted += ThreadDeleted;
-        client.ChannelDestroyed += ChannelDestroyed;
-
-        if (settings.BotAnnouncementChannel != null)
-            _botAnnouncementChannel = _client.GetChannel(settings.BotAnnouncementChannel.Id) as IMessageChannel;
-        if (settings.MemeChannel != null)
-            _memeChannel = _client.GetChannel(settings.MemeChannel.Id) as IMessageChannel;
-        _moderatorNoInviteLinks = settings.ModeratorNoInviteLinks;
-
-        foreach (var thread in _client.Guilds.SelectMany(guild => guild.ThreadChannels))
-            _forumPostTracker.TrackThread(thread);
+        _announcementChannelId = loggingOptions.Value.AnnouncementChannelId;
+        _memeChannelId = moderation.MemeChannelId;
+        _moderatorNoInviteLinks = moderation.BlockInviteLinks;
     }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (IsRunning)
+                return;
+
+            if (_announcementChannelId != 0)
+                _botAnnouncementChannel = _client.GetChannel(_announcementChannelId) as IMessageChannel;
+            if (_memeChannelId != 0)
+                _memeChannel = _client.GetChannel(_memeChannelId) as IMessageChannel;
+
+            _client.MessageDeleted += MessageDeleted;
+            _client.MessagesBulkDeleted += MessagesBulkDeleted;
+            _client.MessageUpdated += MessageUpdated;
+            _client.MessageReceived += MessageReceived;
+            _client.ThreadCreated += ThreadCreated;
+            _client.ThreadUpdated += ThreadUpdated;
+            _client.ThreadDeleted += ThreadDeleted;
+            _client.ChannelDestroyed += ChannelDestroyed;
+
+            foreach (var thread in _client.Guilds.SelectMany(guild => guild.ThreadChannels))
+                _forumPostTracker.TrackThread(thread);
+            IsRunning = true;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!IsRunning)
+                return;
+            _client.MessageDeleted -= MessageDeleted;
+            _client.MessagesBulkDeleted -= MessagesBulkDeleted;
+            _client.MessageUpdated -= MessageUpdated;
+            _client.MessageReceived -= MessageReceived;
+            _client.ThreadCreated -= ThreadCreated;
+            _client.ThreadUpdated -= ThreadUpdated;
+            _client.ThreadDeleted -= ThreadDeleted;
+            _client.ChannelDestroyed -= ChannelDestroyed;
+            IsRunning = false;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public Task<ComponentHealthSnapshot> GetHealthAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new ComponentHealthSnapshot(
+            IsRunning ? ComponentRuntimeState.Running : ComponentRuntimeState.Stopped,
+            IsRunning ? "Moderation event handlers are subscribed." : "Moderation event handlers are stopped.",
+            DateTimeOffset.UtcNow));
 
     private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
     {

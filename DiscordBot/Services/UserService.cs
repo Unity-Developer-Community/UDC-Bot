@@ -2,14 +2,16 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Discord.WebSocket;
+using DiscordBot.Components;
 using DiscordBot.Domain;
-using DiscordBot.Settings;
+using DiscordBot.Settings.Options;
 using DiscordBot.Data;
 using DiscordBot.Services.Rendering;
+using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services;
 
-public class UserService
+public class UserService : IManagedBotService, IComponentHealthContributor
 {
     private const string ServiceName = "UserService";
 
@@ -32,7 +34,10 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
     private readonly List<ulong> _noXpChannels;
 
-    private readonly BotSettings _settings;
+    private readonly ulong _guildId;
+    private readonly ulong _botCommandsChannelId;
+    private readonly ModerationOptions _moderationOptions;
+    private readonly UserActivityOptions _activityOptions;
     private readonly Dictionary<ulong, DateTime> _thanksCooldown;
     private readonly Dictionary<ulong, DateTime> _everyoneScoldCooldown = new();
 
@@ -48,6 +53,9 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     private readonly string _mikuReply;
 
     private readonly UpdateService _updateService;
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+    private CancellationTokenSource? _lifecycleCancellation;
+    private Task? _lifetimeTask;
 
     private readonly Dictionary<ulong, DateTime> _xpCooldown;
     private readonly int _xpMaxCooldown;
@@ -60,6 +68,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
     public Dictionary<ulong, DateTime> MutedUsers { get; private set; }
     private readonly Color _welcomeColour = new Color(7, 84, 53);
+    public string ComponentId => ComponentIds.UserActivity;
+    public bool IsRunning => _lifetimeTask is { IsCompleted: false };
     public int WaitingWelcomeMessagesCount => _welcomeNoticeUsers.Count;
 
     public DateTime NextWelcomeMessage =>
@@ -67,7 +77,10 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
     public UserService(DiscordSocketClient client, DatabaseService databaseService, ILoggingService loggingService,
         UpdateService updateService, IAvatarDownloader avatarDownloader, IProfileCardRenderer profileCardRenderer,
-        BotSettings settings, UserSettings userSettings)
+        IOptions<UserActivityOptions> activityOptions,
+        IOptions<ModerationOptions> moderationOptions,
+        IOptions<DiscordGuildOptions> guildOptions,
+        IOptions<CommandOptions> commandOptions)
     {
         _client = client;
         _rand = new Random();
@@ -76,7 +89,10 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _avatarDownloader = avatarDownloader;
         _profileCardRenderer = profileCardRenderer;
         _updateService = updateService;
-        _settings = settings;
+        _activityOptions = activityOptions.Value;
+        _moderationOptions = moderationOptions.Value;
+        _guildId = guildOptions.Value.GuildId;
+        _botCommandsChannelId = commandOptions.Value.BotCommandsChannelId;
         MutedUsers = new Dictionary<ulong, DateTime>();
         _xpCooldown = new Dictionary<ulong, DateTime>();
         _canEditThanks = new HashSet<ulong>(32);
@@ -86,22 +102,22 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         //TODO We should make this into a config file that we can confiure during runtime.
         _noXpChannels = new List<ulong>
         {
-            _settings.BotCommandsChannel.Id
+            _botCommandsChannelId
         };
 
         /*
         Init XP
         */
-        _xpMinPerMessage = userSettings.XpMinPerMessage;
-        _xpMaxPerMessage = userSettings.XpMaxPerMessage;
-        _xpMinCooldown = userSettings.XpMinCooldown;
-        _xpMaxCooldown = userSettings.XpMaxCooldown;
+        _xpMinPerMessage = _activityOptions.XpMinPerMessage;
+        _xpMaxPerMessage = _activityOptions.XpMaxPerMessage;
+        _xpMinCooldown = _activityOptions.XpMinCooldown;
+        _xpMaxCooldown = _activityOptions.XpMaxCooldown;
 
         /*
         Init thanks
         */
         var sbThanks = new StringBuilder();
-        var thx = userSettings.Thanks;
+        var thx = _activityOptions.Thanks;
         sbThanks.Append(@"(?i)(?<!\bno\s*)\b(");
         foreach (var t in thx)
             sbThanks.Append(t).Append('|');
@@ -109,8 +125,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         sbThanks.Append(@")\b");
 
         _thanksRegex = sbThanks.ToString();
-        _thanksCooldownTime = userSettings.ThanksCooldown;
-        _thanksMinJoinTime = userSettings.ThanksMinJoinTime;
+        _thanksCooldownTime = _activityOptions.ThanksCooldown;
+        _thanksMinJoinTime = _activityOptions.ThanksMinJoinTime;
 
         /*
         Init Miku
@@ -129,7 +145,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         /*
          Init Code analysis
         */
-        _codeReminderCooldownTime = userSettings.CodeReminderCooldown;
+        _codeReminderCooldownTime = _activityOptions.CodeReminderCooldown;
         CodeFormattingExample = @"\`\`\`cs" + Environment.NewLine +
                                 "Write your code on new line here." + Environment.NewLine +
                                 @"\`\`\`" + Environment.NewLine;
@@ -148,26 +164,92 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         // Check for some collection of characters being set to some other collection of characters and check if end of line or comment.
         _codeBlockWarnPatterns.Add(new Regex("^.+? =.+?($|.*?\\/\\/)", RegexOptions.Multiline));
 
-        /*
-         Event subscriptions
-        */
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (IsRunning)
+                return;
+            LoadData();
+            SubscribeEvents();
+            _lifecycleCancellation?.Dispose();
+            _lifecycleCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var token = _lifecycleCancellation.Token;
+            _lifetimeTask = Task.WhenAll(SaveLoop(token), DelayedWelcomeService(token));
+        }
+        catch
+        {
+            UnsubscribeEvents();
+            throw;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_lifetimeTask is null)
+                return;
+            UnsubscribeEvents();
+            await _lifecycleCancellation!.CancelAsync();
+            try
+            {
+                await _lifetimeTask.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (_lifecycleCancellation.IsCancellationRequested)
+            {
+            }
+            SaveData();
+            _lifetimeTask = null;
+            _lifecycleCancellation.Dispose();
+            _lifecycleCancellation = null;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public Task<ComponentHealthSnapshot> GetHealthAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new ComponentHealthSnapshot(
+            IsRunning ? ComponentRuntimeState.Running : ComponentRuntimeState.Stopped,
+            IsRunning ? "User activity handlers and workers are running." : "User activity is stopped.",
+            DateTimeOffset.UtcNow));
+
+    private void SubscribeEvents()
+    {
         _client.MessageReceived += UpdateXp;
         _client.MessageReceived += Thanks;
         _client.MessageUpdated += ThanksEdited;
-        //_client.MessageReceived += MikuCheck;
         _client.MessageReceived += CodeCheck;
         _client.MessageReceived += ScoldForAtEveryoneUsage;
         _client.UserJoined += UserJoined;
         _client.GuildMemberUpdated += UserUpdated;
         _client.UserLeft += UserLeft;
-
         _client.MessageReceived += CheckForWelcomeMessage;
         _client.UserIsTyping += UserIsTyping;
+    }
 
-        LoadData();
-        UpdateLoop();
-
-        Task.Run(DelayedWelcomeService);
+    private void UnsubscribeEvents()
+    {
+        _client.MessageReceived -= UpdateXp;
+        _client.MessageReceived -= Thanks;
+        _client.MessageUpdated -= ThanksEdited;
+        _client.MessageReceived -= CodeCheck;
+        _client.MessageReceived -= ScoldForAtEveryoneUsage;
+        _client.UserJoined -= UserJoined;
+        _client.GuildMemberUpdated -= UserUpdated;
+        _client.UserLeft -= UserLeft;
+        _client.MessageReceived -= CheckForWelcomeMessage;
+        _client.UserIsTyping -= UserIsTyping;
     }
 
     private async Task UserLeft(SocketGuild guild, SocketUser user)
@@ -194,14 +276,13 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
     public Dictionary<ulong, DateTime> CodeReminderCooldown { get; private set; }
 
-    private async void UpdateLoop()
+    private async Task SaveLoop(CancellationToken cancellationToken)
     {
-        while (true)
+        while (!cancellationToken.IsCancellationRequested)
         {
-            await Task.Delay(10000);
+            await Task.Delay(10000, cancellationToken);
             SaveData();
         }
-        // ReSharper disable once FunctionNeverReturns
     }
 
     private void LoadData()
@@ -427,7 +508,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var guildId = channel.Guild.Id;
 
         //Make sure its in the UDC server
-        if (guildId != _settings.GuildId) return;
+        if (guildId != _guildId) return;
 
         if (messageParam.Author.IsBot)
             return;
@@ -493,7 +574,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         var guildId = channel.Guild.Id;
 
         //Make sure its in the UDC server
-        if (guildId != _settings.GuildId) return;
+        if (guildId != _guildId) return;
 
         if (messageParam.Author.IsBot)
             return;
@@ -514,7 +595,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     public async Task CodeCheck(SocketMessage messageParam)
     {
         // Don't correct a Bot, don't correct in off-topic
-        if (messageParam.Author.IsBot || messageParam.Channel.Id == _settings.GeneralChannel.Id)
+        if (messageParam.Author.IsBot || messageParam.Channel.Id == _moderationOptions.GeneralChannelId)
             return;
 
         // We just ignore anything if it is under 200 characters
@@ -589,7 +670,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 return;
             // We add to dictionary with the time it must be passed before they'll be notified again.
             _everyoneScoldCooldown[messageParam.Author.Id] =
-                DateTime.Now.AddSeconds(_settings.EveryoneScoldPeriodSeconds);
+                DateTime.Now.AddSeconds(_activityOptions.EveryoneScoldPeriodSeconds);
 
             await messageParam.Channel.SendMessageAsync(
                     $"Please don't try to alert **everyone** on the server, {messageParam.Author.Mention}!\n" +
@@ -638,15 +719,15 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         // Send them the Welcome DM first.
         await DMFormattedWelcome(user);
 
-        var socketTextChannel = _client.GetChannel(_settings.GeneralChannel.Id) as SocketTextChannel;
+        var socketTextChannel = _client.GetChannel(_moderationOptions.GeneralChannelId) as SocketTextChannel;
         await _databaseService.GetOrAddUser(user);
 
         // Check if moderator commands are enabled, and if so we check if they were previously muted.
-        if (_settings.ModeratorCommandsEnabled)
+        if (_moderationOptions.CommandsEnabled)
         {
             if (MutedUsers.HasUser(user.Id))
             {
-                await user.AddRoleAsync(socketTextChannel?.Guild.GetRole(_settings.MutedRoleId));
+                await user.AddRoleAsync(socketTextChannel?.Guild.GetRole(_moderationOptions.MutedRoleId));
                 await _loggingService.LogChannelAndFile(
                     $"Currently muted user rejoined - {user.Mention} - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}`");
                 if (socketTextChannel != null)
@@ -663,20 +744,20 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         // We check if they're already in the welcome list, if they are we don't add them again to avoid double posts
         if (_welcomeNoticeUsers.Count == 0 || !_welcomeNoticeUsers.Exists(u => u.id == user.Id))
         {
-            _welcomeNoticeUsers.Add((user.Id, DateTime.Now.AddSeconds(_settings.WelcomeMessageDelaySeconds)));
+            _welcomeNoticeUsers.Add((user.Id, DateTime.Now.AddSeconds(_activityOptions.WelcomeMessageDelaySeconds)));
         }
     }
 
     // Welcomes users to the server after they've been connected for over x number of seconds.
-    private async Task DelayedWelcomeService()
+    private async Task DelayedWelcomeService(CancellationToken cancellationToken)
     {
         ulong currentlyProcessedUserId = 0;
         bool firstRun = true;
-        await Task.Delay(10000);
-        try
+        await Task.Delay(10000, cancellationToken);
+        List<ulong> toRemove = new();
+        while (!cancellationToken.IsCancellationRequested)
         {
-            List<ulong> toRemove = new();
-            while (true)
+            try
             {
                 var now = DateTime.Now;
                 // This could be optimized, however the users in this list won't ever really be large enough to matter.
@@ -703,27 +784,22 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
                 if (firstRun)
                     firstRun = false;
-                await Task.Delay(10000);
             }
-        }
-        catch (Exception e)
-        {
-            // Catch and show exception
-            await _loggingService.LogChannelAndFile($"{ServiceName} Exception during welcome message `{currentlyProcessedUserId}`.\n{e.Message}.", ExtendedLogSeverity.Warning);
-
-            // Remove the offending user from the dictionary and run the service again.
-            _welcomeNoticeUsers.RemoveAll(u => u.id == currentlyProcessedUserId);
-            if (_welcomeNoticeUsers.Count > 200)
+            catch (Exception e)
             {
-                _welcomeNoticeUsers.Clear();
-                await _loggingService.LogAction($"{ServiceName}: Welcome list cleared due to size (+200), this should not happen.", ExtendedLogSeverity.Error);
+                await _loggingService.LogChannelAndFile($"{ServiceName} Exception during welcome message `{currentlyProcessedUserId}`.\n{e.Message}.", ExtendedLogSeverity.Warning);
+                _welcomeNoticeUsers.RemoveAll(u => u.id == currentlyProcessedUserId);
+                if (_welcomeNoticeUsers.Count > 200)
+                {
+                    _welcomeNoticeUsers.Clear();
+                    await _loggingService.LogAction($"{ServiceName}: Welcome list cleared due to size (+200), this should not happen.", ExtendedLogSeverity.Error);
+                }
+
+                if (firstRun)
+                    await _loggingService.LogAction($"{ServiceName}: Welcome service failed on first run!? This should not happen.", ExtendedLogSeverity.Error);
             }
 
-            if (firstRun)
-                await _loggingService.LogAction($"{ServiceName}: Welcome service failed on first run!? This should not happen.", ExtendedLogSeverity.Error);
-
-            // Run the service again.
-            Task.Run(DelayedWelcomeService);
+            await Task.Delay(10000, cancellationToken);
         }
     }
 
@@ -736,7 +812,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (user == null)
             return;
 
-        var offTopic = await _client.GetChannelAsync(_settings.GeneralChannel.Id) as SocketTextChannel;
+        var offTopic = await _client.GetChannelAsync(_moderationOptions.GeneralChannelId) as SocketTextChannel;
         if (user is not SocketGuildUser guildUser)
             return;
         var em = WelcomeMessage(guildUser);
@@ -764,7 +840,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 ":white_small_square: Do not post the same question in multiple channels.\n" +
                 ":white_small_square: Only post links to your games in the appropriate channels.\n" +
                 ":white_small_square: Some channels have additional rules, please check pinned messages.\n" +
-                $":white_small_square: A more inclusive list of rules can be found in {(_settings.RulesChannel is null || _settings.RulesChannel.Id == 0 ? "#rules" : $"<#{_settings.RulesChannel.Id.ToString()}>")}"
+                $":white_small_square: A more inclusive list of rules can be found in {(_moderationOptions.RulesChannelId == 0 ? "#rules" : $"<#{_moderationOptions.RulesChannelId.ToString()}>")}"
             )
             .AddField("__PROGRAMMING RESOURCES__",
                 ":white_small_square: Official Unity [Manual](https://docs.unity3d.com/Manual/index.html)\n" +

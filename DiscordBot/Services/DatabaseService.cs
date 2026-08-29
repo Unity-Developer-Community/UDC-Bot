@@ -1,19 +1,25 @@
 using System.Data.Common;
 using Discord.WebSocket;
+using DiscordBot.Components;
 using DiscordBot.Domain;
-using DiscordBot.Settings;
+using DiscordBot.Settings.Options;
 using Insight.Database;
 using Insight.Database.Providers.PostgreSQL;
 using Npgsql;
+using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services;
 
-public class DatabaseService
+public class DatabaseService : IManagedBotService, IComponentHealthContributor
 {
     private const string ServiceName = "DatabaseService";
 
     private readonly ILoggingService _logging;
     private string ConnectionString { get; }
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+
+    public string ComponentId => ComponentIds.Database;
+    public bool IsRunning { get; private set; }
 
     private ICasinoRepo CreateCasinoQuery()
     {
@@ -46,12 +52,21 @@ public class DatabaseService
     public IServerUserRepo Query => CreateQuery();
     public ICasinoRepo CasinoQuery => CreateCasinoQuery();
 
-    public DatabaseService(ILoggingService logging, BotSettings settings)
+    public DatabaseService(ILoggingService logging, IOptions<DatabaseOptions> options)
     {
         PostgreSQLInsightDbProvider.RegisterProvider();
 
-        ConnectionString = settings.DbConnectionString;
+        ConnectionString = options.Value.ConnectionString;
         _logging = logging;
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (IsRunning)
+                return;
 
         DbConnection c = null;
         try
@@ -62,11 +77,9 @@ public class DatabaseService
         {
             LoggingService.LogToConsole($"SQL Exception: Failed to start DatabaseService.\nMessage: {e}",
                 LogSeverity.Critical);
-            return;
+            throw;
         }
 
-        Task.Run(async () =>
-        {
             // Test connection, if it fails we create the table and set keys
             try
             {
@@ -108,7 +121,7 @@ public class DatabaseService
                         $"SQL Exception: Failed to generate table '{UserProps.TableName}'.\nMessage: {e}",
                         ExtendedLogSeverity.Critical);
                     c.Close();
-                    return;
+                    throw;
                 }
                 await _logging.LogAction($"DatabaseService: Table '{UserProps.TableName}' generated without errors.",
                     ExtendedLogSeverity.Positive);
@@ -158,14 +171,38 @@ public class DatabaseService
                         $"SQL Exception: Failed to generate casino tables.\nMessage: {e}",
                         ExtendedLogSeverity.Critical);
                     c.Close();
-                    return;
+                    throw;
                 }
                 await _logging.LogAction($"DatabaseService: Casino tables generated without errors.",
                     ExtendedLogSeverity.Positive);
                 c.Close();
             }
-        });
+            IsRunning = true;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
     }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            IsRunning = false;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public Task<ComponentHealthSnapshot> GetHealthAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new ComponentHealthSnapshot(
+            IsRunning ? ComponentRuntimeState.Running : ComponentRuntimeState.Stopped,
+            IsRunning ? "Database schema initialization completed." : "Database is stopped.",
+            DateTimeOffset.UtcNow));
 
     public async Task FullDbSync(IGuild guild, IUserMessage message)
     {

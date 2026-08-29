@@ -1,25 +1,36 @@
 using Discord.WebSocket;
-using DiscordBot.Settings;
+using DiscordBot.Components;
+using DiscordBot.Settings.Options;
+using DiscordBot.Settings.Validation;
 using DiscordBot.Utils;
+using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services;
 
-public class RecruitService
+public class RecruitService : IManagedBotService, IComponentHealthContributor
 {
     private const string ServiceName = "RecruitmentService";
     
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _logging;
-    private SocketRole ModeratorRole { get; set; }
+    private SocketRole ModeratorRole { get; set; } = null!;
 
     #region Extra Details
     
-    private readonly ForumTag _tagIsHiring;
-    private readonly ForumTag _tagWantsWork;
-    private readonly ForumTag _tagUnpaidCollab;
-    private readonly ForumTag _tagPosFilled;
+    private ForumTag _tagIsHiring;
+    private ForumTag _tagWantsWork;
+    private ForumTag _tagUnpaidCollab;
+    private ForumTag _tagPosFilled;
 
-    private readonly IForumChannel _recruitChannel;
+    private IForumChannel _recruitChannel = null!;
+    private readonly RecruitmentOptions _options;
+    private readonly ulong _guildId;
+    private readonly ulong _moderatorRoleId;
+    private readonly FeatureConfigurationCatalog _featureConfiguration;
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+
+    public string ComponentId => ComponentIds.Recruitment;
+    public bool IsRunning { get; private set; }
 
     #endregion // Extra Details
     
@@ -50,59 +61,95 @@ public class RecruitService
 
     #endregion // Configuration
     
-    public RecruitService(DiscordSocketClient client, ILoggingService logging, BotSettings settings)
+    public RecruitService(
+        DiscordSocketClient client,
+        ILoggingService logging,
+        IOptions<RecruitmentOptions> recruitmentOptions,
+        IOptions<DiscordGuildOptions> guildOptions,
+        IOptions<AuthorizationOptions> authorizationOptions,
+        FeatureConfigurationCatalog featureConfiguration)
     {
         _client = client;
         _logging = logging;
-        ModeratorRole = _client.GetGuild(settings.GuildId).GetRole(settings.ModeratorRoleId);
+        _options = recruitmentOptions.Value;
+        _guildId = guildOptions.Value.GuildId;
+        _moderatorRoleId = authorizationOptions.Value.ModeratorRoleId;
+        _featureConfiguration = featureConfiguration;
+        _editTimePermissionInMin = _options.EditPermissionMinutes;
+    }
 
-        if (!settings.RecruitmentServiceEnabled)
-        {
-            LoggingService.LogServiceDisabled(ServiceName, nameof(settings.RecruitmentServiceEnabled));
-            return;
-        }
-        _editTimePermissionInMin = settings.EditPermissionAccessTimeMin;
-        
-        // Get target channel
-        _recruitChannel = _client.GetChannel(settings.RecruitmentChannel.Id) as IForumChannel;
-        if (_recruitChannel == null)
-        {
-            LoggingService.LogToConsole("[{ServiceName}] Recruitment channel not found.", LogSeverity.Error);
-            return;
-        }
-        
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
         try
         {
-            var lookingToHire = ulong.Parse(settings.TagLookingToHire);
-            var lookingForWork = ulong.Parse(settings.TagLookingForWork);
-            var unpaidCollab = ulong.Parse(settings.TagUnpaidCollab);
-            var positionFilled = ulong.Parse(settings.TagPositionFilled);
+            if (IsRunning)
+                return;
+            if (!_options.Enabled)
+                throw new InvalidOperationException("Recruitment:Enabled is false.");
+            var configurationStatus = _featureConfiguration.Get(ComponentIds.Recruitment);
+            if (!configurationStatus.IsConfigured)
+                throw new InvalidOperationException(string.Join(" ", configurationStatus.Errors));
+
+            ModeratorRole = _client.GetGuild(_guildId)?.GetRole(_moderatorRoleId)
+                ?? throw new InvalidOperationException("The configured moderator role was not found.");
+        
+            _recruitChannel = _client.GetChannel(_options.ForumChannelId) as IForumChannel
+                ?? throw new InvalidOperationException("The configured recruitment channel was not found.");
+        
+            var lookingToHire = _options.LookingToHireTagId;
+            var lookingForWork = _options.LookingForWorkTagId;
+            var unpaidCollab = _options.UnpaidCollaborationTagId;
+            var positionFilled = _options.PositionFilledTagId;
             
             var availableTags = _recruitChannel.Tags;
-            _tagIsHiring = availableTags.First(x => x.Id == lookingToHire);
-            _tagWantsWork = availableTags.First(x => x.Id == lookingForWork);
-            _tagUnpaidCollab = availableTags.First(x => x.Id == unpaidCollab);
-            _tagPosFilled = availableTags.First(x => x.Id == positionFilled);
-            
-            // If any tags are null we print a logging warning
-            if (_tagIsHiring == null) StartUpTagMissing(lookingToHire, nameof(settings.TagLookingToHire));
-            if (_tagWantsWork == null) StartUpTagMissing(lookingForWork, nameof(settings.TagLookingForWork));
-            if (_tagUnpaidCollab == null) StartUpTagMissing(unpaidCollab, nameof(settings.TagUnpaidCollab));
-            if (_tagPosFilled == null) StartUpTagMissing(positionFilled, nameof(settings.TagPositionFilled));
+            _tagIsHiring = availableTags.FirstOrDefault(x => x.Id == lookingToHire);
+            _tagWantsWork = availableTags.FirstOrDefault(x => x.Id == lookingForWork);
+            _tagUnpaidCollab = availableTags.FirstOrDefault(x => x.Id == unpaidCollab);
+            _tagPosFilled = availableTags.FirstOrDefault(x => x.Id == positionFilled);
+            if (_tagIsHiring.Id == 0)
+                throw new InvalidOperationException("Recruitment:LookingToHireTagId was not found in the forum.");
+            if (_tagWantsWork.Id == 0)
+                throw new InvalidOperationException("Recruitment:LookingForWorkTagId was not found in the forum.");
+            if (_tagUnpaidCollab.Id == 0)
+                throw new InvalidOperationException("Recruitment:UnpaidCollaborationTagId was not found in the forum.");
+            if (_tagPosFilled.Id == 0)
+                throw new InvalidOperationException("Recruitment:PositionFilledTagId was not found in the forum.");
+
+            ConstructEmbeds();
+            _client.ThreadCreated += GatewayOnThreadCreated;
+            _client.MessageReceived += GatewayOnMessageReceived;
+            IsRunning = true;
+            LoggingService.LogServiceEnabled(ServiceName);
         }
-        catch (Exception e)
+        finally
         {
-            LoggingService.LogToConsole($"[{ServiceName}] Error parsing recruitment tags: {e.Message}", LogSeverity.Error);
+            _lifecycleLock.Release();
         }
-
-        // Subscribe to events
-        _client.ThreadCreated += GatewayOnThreadCreated;
-        _client.MessageReceived += GatewayOnMessageReceived;
-
-        ConstructEmbeds();
-        
-        LoggingService.LogServiceEnabled(ServiceName);
     }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!IsRunning)
+                return;
+            _client.ThreadCreated -= GatewayOnThreadCreated;
+            _client.MessageReceived -= GatewayOnMessageReceived;
+            IsRunning = false;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public Task<ComponentHealthSnapshot> GetHealthAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new ComponentHealthSnapshot(
+            IsRunning ? ComponentRuntimeState.Running : ComponentRuntimeState.Stopped,
+            IsRunning ? "Recruitment event handlers are subscribed." : "Recruitment event handlers are stopped.",
+            DateTimeOffset.UtcNow));
     
     #region Thread Creation
 
