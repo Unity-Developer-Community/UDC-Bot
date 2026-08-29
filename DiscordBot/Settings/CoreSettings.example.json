@@ -1,0 +1,21 @@
+{
+  "DiscordGuild": {
+    "GuildId": 1,
+    "Invite": "https://discord.gg/replace-me"
+  },
+  "Storage": {
+    "ServerRootPath": "./SERVER",
+    "AssetsRootPath": "./Assets"
+  },
+  "Commands": {
+    "Prefix": "!",
+    "BotCommandsChannelId": 1
+  },
+  "Logging": {
+    "LogCommandExecutions": true,
+    "AnnouncementChannelId": 1
+  },
+  "Authorization": {
+    "ModeratorRoleId": 1
+  }
+}

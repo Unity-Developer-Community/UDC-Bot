@@ -1,4 +1,6 @@
 /Settings/Settings.json
+/Settings/CoreSettings.json
+/Settings/FeatureSettings.json
 /SERVER/images/profiles/
 /SERVER/images/subtitles/
 /SERVER/log.txt
