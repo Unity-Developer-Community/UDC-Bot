@@ -2,41 +2,118 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build",
-            "command": "dotnet",
+            "label": "dotnet: restore solution",
             "type": "process",
+            "command": "dotnet",
+            "args": [
+                "restore",
+                "DiscordBot.sln"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "dotnet: build solution",
+            "type": "process",
+            "command": "dotnet",
             "args": [
                 "build",
-                "${workspaceFolder}/DiscordBot/DiscordBot.csproj",
-                "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary"
+                "DiscordBot.sln"
             ],
-            "problemMatcher": "$msCompile"
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         },
         {
-            "label": "publish",
-            "command": "dotnet",
+            "label": "dotnet: run bot",
             "type": "process",
+            "command": "dotnet",
             "args": [
-                "publish",
-                "${workspaceFolder}/DiscordBot/DiscordBot.csproj",
-                "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary"
+                "run",
+                "--project",
+                "DiscordBot/DiscordBot.csproj"
             ],
-            "problemMatcher": "$msCompile"
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            }
         },
         {
-            "label": "watch",
-            "command": "dotnet",
+            "label": "dotnet: watch bot",
             "type": "process",
+            "command": "dotnet",
             "args": [
                 "watch",
-                "run",
-                "${workspaceFolder}/DiscordBot/DiscordBot.csproj",
-                "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary"
+                "--project",
+                "DiscordBot/DiscordBot.csproj",
+                "run"
             ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            }
+        },
+        {
+            "label": "dotnet: test solution",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "test",
+                "DiscordBot.sln"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "dotnet: publish bot",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "publish",
+                "DiscordBot/DiscordBot.csproj",
+                "--configuration",
+                "Release"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
             "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "docker: start PostgreSQL",
+            "type": "process",
+            "command": "docker",
+            "args": [
+                "compose",
+                "up",
+                "--detach",
+                "db"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
         }
     ]
 }

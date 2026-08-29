@@ -28,8 +28,8 @@ Versions are defined in `DiscordBot/DiscordBot.csproj` (single source of truth).
 | Discord.Net | Discord API client (commands, interactions, gateway) |
 | Newtonsoft.Json | JSON serialization/deserialization |
 | Microsoft.Extensions.DependencyInjection | DI container |
-| MySql.Data | MySQL database driver |
 | Insight.Database | Micro ORM for database access |
+| Insight.Database.Providers.PostgreSQL | Insight.Database PostgreSQL provider |
 | Magick.NET-Q8-x64 14.16.0 | Q8 image processing (profile cards and skins), Linux/Windows/macOS x64 host support |
 | HtmlAgilityPack | HTML parsing |
 | System.ServiceModel.Syndication | RSS feed parsing |
@@ -39,7 +39,7 @@ Versions are defined in `DiscordBot/DiscordBot.csproj` (single source of truth).
 
 | Component | Details |
 |-----------|---------|
-| Database | MySQL (containerized or standalone) |
+| Database | PostgreSQL 16 (containerized or standalone) |
 | Container Runtime | Docker with multi-stage, framework-dependent `linux-x64` publish |
 | Production Deployment | **Kubernetes** (`k8s/prod/`) — primary deployment method |
 | Dev Server | **Kubernetes** (`k8s/dev/`) |
@@ -51,9 +51,9 @@ Versions are defined in `DiscordBot/DiscordBot.csproj` (single source of truth).
 
 | Tool | Purpose |
 |------|---------|
-| Visual Studio / VS Code / Rider | IDE |
+| Visual Studio / VS Code with C# Dev Kit / Rider | IDE and debugger |
 | Docker Compose | Local database + bot for dev/testing only |
-| PhpMyAdmin | Database administration UI (port 8080) |
+| Adminer | Optional database administration UI (port 8080) |
 | MSTest 4.3.3 | Renderer regression, bounds, failure, and concurrency tests |
 
 ## Profile Rendering Runtime

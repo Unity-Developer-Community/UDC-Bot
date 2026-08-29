@@ -206,99 +206,71 @@ public class RequireMyRoleAttribute : PreconditionAttribute
 
 ### Dependencies
 
-To successfully compile you will need the following:
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0), or a newer SDK capable of targeting .NET 8 with the .NET 8 runtime installed
+- Git
+- PostgreSQL 16, or [Docker](https://www.docker.com/get-started/) with `docker compose`
+- An editor or IDE; VS Code users should install the workspace-recommended C# Dev Kit extension
 
-**Required:**
-
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
-- An IDE such as [Visual Studio](https://visualstudio.microsoft.com/vs/community/), [VS Code](https://code.visualstudio.com/), or [JetBrains Rider](https://www.jetbrains.com/rider/)
-
-**Recommended for Development:**
-
-- [Docker](https://www.docker.com/get-started) and [Docker Compose](https://docs.docker.com/compose/install/) for database containerization
-
-**Build the project:**
+Run solution commands from the repository root:
 
 ```bash
-dotnet restore
-dotnet build
-dotnet test --configuration Release
+dotnet restore DiscordBot.sln
+dotnet build DiscordBot.sln
+dotnet test DiscordBot.sln --configuration Release
 ```
 
-> **Note:** Docker is highly recommended for local development as it simplifies database setup and ensures consistency across development environments.
+See the [local development and debugging guide](docs/development.md) for platform notes, VS Code tasks, F5 launch, process attachment, and troubleshooting.
 
 ## Running
 
 ### Quick Setup
 
-1. **Copy required folders:**
-   - Copy the `DiscordBot/SERVER` folder to your build output directory
-   - If unsure of the location, run the bot once - it will show an error with the expected path
+1. Copy `DiscordBot/Settings/Settings.example.json` to `DiscordBot/Settings/Settings.json`.
+2. Configure a development bot token, guild ID, database connection string, and the channel/role IDs needed by the features you will exercise.
+3. Start PostgreSQL: `docker compose up --detach db`.
+4. Run from the repository root:
 
-2. **Configure settings:**
-   - Copy `DiscordBot/Settings` folder to the `SERVER` folder (exclude the `Deserialized` subfolder)
-   - Copy `Settings.example.json` and rename it to `Settings.json`
-   - Edit `Settings.json` and configure:
-     - **Bot Token:** Get this from the [Discord Developer Portal](https://discord.com/developers/applications)
-     - **DbConnectionString:** Database connection details (see database setup below)
+```bash
+dotnet run --project DiscordBot/DiscordBot.csproj
+```
 
-3. **Choose your database setup:** [Docker](#docker) (recommended) or [Manual setup](#runtime-dependencies)
+VS Code users can instead select `C#: Debug DiscordBot` under **Run and Debug** and press F5. The launch configuration is project-based, so it does not contain a target-framework-specific DLL path.
 
-> **Important:** Read the comments in `Settings.json` carefully - they explain which settings need to be changed and which are optional.
+`DiscordBot/Settings/Settings.json` contains secrets and is ignored by Git. Do not copy it into `.vscode`, build output, documentation, or a tracked environment file.
 
 _For production deployment, see the [Deployment Guide](docs/deployment.md)._
 
 ### Docker
 
-**Recommended for development:** Docker simplifies database setup and ensures consistency.
-
-**To run with Docker:**
+For active development, run only the database in Compose and run the bot under the CLI or debugger:
 
 ```bash
-# Start both database and bot
-docker-compose up
-
-# Start only the database (run bot from IDE for faster development)
-docker-compose up db
+docker compose up --detach db
 ```
 
-**Development workflow:**
+Use this host-side connection string with the checked-in local database values:
 
-1. Start the database container: `docker-compose up db`
-2. Update the `DbConnectionString` in `Settings.json` to match your docker-compose configuration
-3. Run the bot from your IDE for faster development iteration
+```text
+Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=123456789
+```
 
-**Full Docker deployment:**
+To build and run the complete local stack:
 
 ```bash
-# Build and start everything
-docker-compose up --build --remove-orphans
-
-# Run in background
-docker-compose up -d
+docker compose up --build --remove-orphans
 ```
 
-> **Tip:** For active development, use Docker only for the database and run the bot from your IDE - this gives you faster restart times and better debugging capabilities.
+When the bot runs inside Compose, use `Host=db` instead of `Host=localhost`. The Compose file is a local-development environment, not a production deployment.
 
 ### Runtime Dependencies
 
-**Manual Database Setup (Alternative to Docker):**
+If you do not use Docker, install PostgreSQL 16, create a database and user, then set `DbConnectionString` in `DiscordBot/Settings/Settings.json`:
 
-If you prefer not to use Docker, you'll need to set up a PostgreSQL database manually:
+```text
+Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=YOUR_PASSWORD
+```
 
-1. **Install PostgreSQL:**
-   - **Windows:** [PostgreSQL Installer](https://www.postgresql.org/download/windows/)
-   - **macOS:** `brew install postgresql@16`
-   - **Linux:** `sudo apt install postgresql` or equivalent
-
-2. **Create database and user:**
-   - Create a new database for the bot
-   - Create a user with full permissions to that database
-   - Update the `DbConnectionString` in `Settings.json` with your connection details (e.g. `Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=YOUR_PASSWORD`)
-
-3. **Initialize database schema:**
-   - The bot will attempt to create necessary tables on first run
-   - If it fails due to permissions, you may need to run it with elevated database privileges initially
+The bot attempts to create its required tables on first run, so the database user needs suitable permissions.
 
 **Profile rendering diagnostics:**
 
@@ -308,22 +280,16 @@ PNG encoding, and fonts without connecting to Discord or the database:
 
 ```bash
 dotnet run --project DiscordBot/DiscordBot.csproj -- \
-  --render-smoke /tmp/profile-card.png DiscordBot/Assets
+  --render-smoke /tmp/profile-card.png Assets
 
 dotnet run --project DiscordBot/DiscordBot.csproj -- \
-  --render-stress 100 4 DiscordBot/Assets
+  --render-stress 100 4 Assets
 ```
 
 The production image is Linux AMD64 because it uses `Magick.NET-Q8-x64`; its Docker build
 fails early for other target architectures. The image currently retains Microsoft Core
 Fonts pending a separate bundled-font licensing review, although the profile path is proven
 independent of them.
-
-**Connection String Format:**
-
-```json
-"DbConnectionString": "Host=localhost;Port=5432;Database=your_db_name;Username=your_username;Password=your_password"
-```
 
 ## Notes
 
@@ -376,9 +342,9 @@ This bot is built on [Discord.Net](https://discordnet.dev/), a powerful .NET lib
 **Q: The bot won't start - what should I check?**
 A: Verify these in order:
 
-1. Bot token is correctly set in `Settings.json`
+1. Bot token is correctly set in `DiscordBot/Settings/Settings.json`
 2. Database connection string is correct and database is accessible
-3. All required folders (SERVER, Settings) are in the right location
+3. The bot was started through the project command, VS Code task, or F5 profile so the runtime working directory is correct
 4. Check console output for red/yellow log messages indicating specific errors
 
 **Q: "Unable to load the service index" or NuGet restore errors**
@@ -387,7 +353,7 @@ A: This is usually a temporary network issue with package sources. Try:
 
 ```bash
 dotnet nuget locals all --clear
-dotnet restore
+dotnet restore DiscordBot.sln
 ```
 
 **Q: Database connection fails**
@@ -429,8 +395,10 @@ A:
 **Q: How do I debug commands?**
 A:
 
+- Follow the [local development and debugging guide](docs/development.md)
+- In VS Code, select `C#: Debug DiscordBot`, set a breakpoint, and press F5
+- To debug a process started in a terminal, use `C#: Attach to .NET process`
 - Use the logging system: `LoggingService.LogToConsole(message, ExtendedLogSeverity.Info)`
-- Set breakpoints in your IDE when running the bot locally
 - Check the command history in `CommandHandlingService`
 
 **Q: My command isn't working**

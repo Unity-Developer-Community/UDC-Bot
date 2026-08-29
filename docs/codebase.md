@@ -19,7 +19,7 @@ UDC-Bot/
 ├── DiscordBot.Tests/        # Unit tests
 ├── docs/                    # Project documentation
 ├── k8s/                     # Kubernetes manifests (production + dev server)
-├── Settings/                # Root-level settings (deprecated, use DiscordBot/Settings/)
+├── .vscode/                 # Shared launch profiles, tasks, and extension recommendations
 ├── Dockerfile               # Multi-stage Docker build
 ├── docker-compose.yml       # Local development only (database + bot)
 ├── DiscordBot.sln           # Solution file
@@ -77,7 +77,7 @@ DiscordBot/
 │
 ├── Services/                # Business logic and background services
 │   ├── CommandHandlingService.cs  # Command routing
-│   ├── DatabaseService.cs         # MySQL connection/queries
+│   ├── DatabaseService.cs         # PostgreSQL connection/queries
 │   ├── UserService.cs             # XP, levels, karma, profile cards
 │   ├── LoggingService.cs          # Console/channel/file logging
 │   ├── ModerationService.cs       # Audit logging, invite enforcement
@@ -95,6 +95,9 @@ DiscordBot/
 │   ├── UserSettings.json    # XP/karma/thanks tuning
 │   ├── FAQs.json            # FAQ entries
 │   └── Deserialized/        # C# classes for deserialized settings
+│
+├── Properties/
+│   └── launchSettings.json  # Shared project launch profile
 │
 ├── Skin/                    # Profile card skin rendering system
 │   ├── ISkinModule.cs       # Skin module interface

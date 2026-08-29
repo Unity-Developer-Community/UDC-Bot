@@ -18,6 +18,7 @@ post_date: "2026-04-03"
 | Document | Description |
 |----------|-------------|
 | [README.md](../README.md) | Project overview, quick start, setup, and FAQ |
+| [Local Development and Debugging](development.md) | Cross-platform build, run, VS Code debugging, attach, database, and troubleshooting guide |
 | [Casino Architecture](casino.md) | Casino module architecture and game design |
 | [Tech Stack](tech-stack.md) | Languages, frameworks, runtimes, and dependencies |
 | [Codebase Map](codebase.md) | Directory structure, conventions, and where to add new code |
