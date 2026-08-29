@@ -1,7 +1,8 @@
 using Discord.WebSocket;
-using DiscordBot.Settings;
+using DiscordBot.Settings.Options;
 using DiscordBot.Utils;
 using DiscordBot.Modules.Weather;
+using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services;
 
@@ -13,11 +14,11 @@ public class WeatherService
     private readonly ILoggingService _loggingService;
     private readonly string _weatherApiKey;
 
-    public WeatherService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings)
+    public WeatherService(DiscordSocketClient client, ILoggingService loggingService, IOptions<WeatherOptions> options)
     {
         _client = client;
         _loggingService = loggingService;
-        _weatherApiKey = settings.WeatherAPIKey;
+        _weatherApiKey = options.Value.ApiKey;
 
         if (string.IsNullOrWhiteSpace(_weatherApiKey))
         {

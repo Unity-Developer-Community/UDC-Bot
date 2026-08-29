@@ -2,9 +2,10 @@ using System.IO;
 using System.ServiceModel.Syndication;
 using System.Xml;
 using Discord.WebSocket;
-using DiscordBot.Settings;
+using DiscordBot.Settings.Options;
 using DiscordBot.Utils;
 using HtmlAgilityPack;
+using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services;
 
@@ -13,7 +14,8 @@ public class FeedService
     private const string ServiceName = "FeedService";
     private readonly DiscordSocketClient _client;
     
-    private readonly BotSettings _settings;
+    private readonly FeedOptions _options;
+    private readonly DiscordGuildOptions _guildOptions;
     private readonly ILoggingService _logging;
 
     #region Configurable Settings
@@ -62,10 +64,15 @@ public class FeedService
 
     #endregion // Configurable Settings
     
-    public FeedService(DiscordSocketClient client, BotSettings settings, ILoggingService logging)
+    public FeedService(
+        DiscordSocketClient client,
+        IOptions<FeedOptions> options,
+        IOptions<DiscordGuildOptions> guildOptions,
+        ILoggingService logging)
     {
         _client = client;
-        _settings = settings;
+        _options = options.Value;
+        _guildOptions = guildOptions.Value;
         _logging = logging;
     }
     
@@ -129,7 +136,7 @@ public class FeedService
                 }
                 
                 // If a role is provided we add to end of title to ping the role
-                var role = _client.GetGuild(_settings.GuildId).GetRole(roleId ?? 0);
+                var role = _client.GetGuild(_guildOptions.GuildId).GetRole(roleId ?? 0);
                 if (role != null)
                     newsContent += $"\n{role.Mention}";
                 // Link to post
@@ -316,17 +323,17 @@ public class FeedService
 
     public async Task CheckUnityBetasAsync(FeedData feedData)
     {
-        await HandleFeed(feedData, _betaNews, _settings.UnityReleasesChannel.Id, _settings.SubsReleasesRoleId);
+        await HandleFeed(feedData, _betaNews, _options.ReleasesChannelId, _options.ReleasesSubscriberRoleId);
     }
 
     public async Task CheckUnityReleasesAsync(FeedData feedData)
     {
-        await HandleFeed(feedData, _releaseNews, _settings.UnityReleasesChannel.Id, _settings.SubsReleasesRoleId);
+        await HandleFeed(feedData, _releaseNews, _options.ReleasesChannelId, _options.ReleasesSubscriberRoleId);
     }
 
     public async Task CheckUnityBlogAsync(FeedData feedData)
     {
-        await HandleFeed(feedData, _blogNews, _settings.UnityNewsChannel.Id, _settings.SubsNewsRoleId);
+        await HandleFeed(feedData, _blogNews, _options.NewsChannelId, _options.NewsSubscriberRoleId);
     }
 
     #endregion // Feed Actions

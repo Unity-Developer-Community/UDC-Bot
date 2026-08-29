@@ -6,7 +6,8 @@ using System.Net.Http;
 using Discord;
 using Discord.WebSocket;
 using DiscordBot.Services.Tips.Components;
-using DiscordBot.Settings;
+using DiscordBot.Settings.Options;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
 namespace DiscordBot.Services.Tips;
@@ -16,7 +17,7 @@ public class TipService
     private const string ServiceName = "TipService"; 
     private const string DatabaseName = "tips.json";
 
-    private readonly BotSettings _settings;
+    private readonly TipsOptions _options;
     private readonly ILoggingService _loggingService;
     private readonly string _imageDirectory;
 
@@ -26,26 +27,30 @@ public class TipService
 
     private Regex keywordPattern = null;
 
-    public TipService(BotSettings settings, ILoggingService loggingService)
+    public TipService(
+        IOptions<TipsOptions> options,
+        IOptions<StorageOptions> storageOptions,
+        ILoggingService loggingService)
     {
-        _settings = settings;
+        _options = options.Value;
+        var storage = storageOptions.Value;
         _loggingService = loggingService;
 
-        if (string.IsNullOrEmpty(_settings.ServerRootPath))
+        if (string.IsNullOrEmpty(storage.ServerRootPath))
         {
             _loggingService.LogAction($"[{ServiceName}] ServerRootPath not set, service will not run.", ExtendedLogSeverity.Warning);
             _isRunning = false;
             return;
         }
         
-        if (string.IsNullOrEmpty(_settings.TipImageDirectory))
+        if (string.IsNullOrEmpty(_options.ImageDirectory))
         {
             _loggingService.LogAction($"[{ServiceName}] TipImageDirectory not set, service will not run.", ExtendedLogSeverity.Warning);
             _isRunning = false;
             return;
         }
 
-        _imageDirectory = Path.Combine(_settings.ServerRootPath, _settings.TipImageDirectory);
+        _imageDirectory = Path.Combine(storage.ServerRootPath, _options.ImageDirectory);
 
         Initialize();
     }
@@ -65,14 +70,14 @@ public class TipService
         else
         {
             var directorySize = new DirectoryInfo(_imageDirectory).EnumerateFiles("*.*", SearchOption.AllDirectories).Sum(file => file.Length);
-            if (directorySize > _settings.TipMaxDirectoryFileSize)
+            if (directorySize > _options.MaxDirectoryBytes)
             {
-                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024f:.#} MB, exceeding the limit of {_settings.TipMaxDirectoryFileSize / 1024 / 1024f:.#} MB, no additional content will be added during this session.", ExtendedLogSeverity.Warning);
+                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024f:.#} MB, exceeding the limit of {_options.MaxDirectoryBytes / 1024 / 1024f:.#} MB, no additional content will be added during this session.", ExtendedLogSeverity.Warning);
                 _readOnly = true;
             }
             else
             {
-                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024f:.#} MB, within the limit of {_settings.TipMaxDirectoryFileSize / 1024 / 1024f:.#} MB.", ExtendedLogSeverity.Info);
+                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024f:.#} MB, within the limit of {_options.MaxDirectoryBytes / 1024 / 1024f:.#} MB.", ExtendedLogSeverity.Info);
                 _loggingService.LogAction($"[{ServiceName}] Tip directory contains {new DirectoryInfo(_imageDirectory).EnumerateFiles("*.*", SearchOption.AllDirectories).Count()} files.",
                     ExtendedLogSeverity.Info);
             }
@@ -102,7 +107,7 @@ public class TipService
 
     private bool IsValidTipAttachment(IAttachment attachment)
     {
-        if (attachment.Size > _settings.TipMaxImageFileSize)
+        if (attachment.Size > _options.MaxImageBytes)
             return false;
 
         // Discord-friendly attachment image file formats only

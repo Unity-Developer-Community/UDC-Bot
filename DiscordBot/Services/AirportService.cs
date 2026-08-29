@@ -2,8 +2,9 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using Discord.WebSocket;
-using DiscordBot.Settings;
+using DiscordBot.Settings.Options;
 using DiscordBot.Utils;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
 namespace DiscordBot.Services;
@@ -171,14 +172,15 @@ public class AirportService
     
     #endregion // AirLabs
 
-    public AirportService(DiscordSocketClient client, ILoggingService loggingService, BotSettings botSettings)
+    public AirportService(DiscordSocketClient client, ILoggingService loggingService, IOptions<AirportOptions> options)
     {
         _client = client;
         _loggingService = loggingService;
-        _flightApiKey = botSettings.FlightAPIKey;
-        _flightSecret = botSettings.FlightAPISecret;
-        
-        _airLabsAPIInclude = string.Format(_airLabsAPIInclude, botSettings.AirLabAPIKey);
+        var airportOptions = options.Value;
+        _flightApiKey = airportOptions.FlightApiKey;
+        _flightSecret = airportOptions.FlightApiSecret;
+
+        _airLabsAPIInclude = string.Format(_airLabsAPIInclude, airportOptions.AirLabsApiKey);
         _airLabsNearbyCityRoute += _airLabsAPIInclude + _airLabsAPIRequiredFields;
     }
 

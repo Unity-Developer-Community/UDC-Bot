@@ -1,7 +1,8 @@
 ﻿using System.Diagnostics;
 using System.IO;
 using Discord.WebSocket;
-using DiscordBot.Settings;
+using DiscordBot.Settings.Options;
+using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services.Logging;
 
@@ -67,7 +68,8 @@ public class LoggingService : ILoggingService
 {
     private const string ServiceName = "LoggingService";
     
-    private readonly ISocketMessageChannel _logChannel;
+    private readonly DiscordSocketClient _client;
+    private readonly ulong _logChannelId;
     
     // Configuration
     private const long MaxLogSize = 1024 * 1024 * 2; // 2MB
@@ -82,14 +84,20 @@ public class LoggingService : ILoggingService
 
     private DateTime _lastFileCheck;
 
-    public LoggingService(DiscordSocketClient client, BotSettings settings)
+    public LoggingService(
+        DiscordSocketClient client,
+        IOptions<LoggingOptions> loggingOptions,
+        IOptions<StorageOptions> storageOptions)
     {
-        _logCommandExecutions = settings.LogCommandExecutions;
+        _client = client;
+        var logging = loggingOptions.Value;
+        var storage = storageOptions.Value;
+        _logCommandExecutions = logging.LogCommandExecutions;
         
         // Paths
-        _backupLogFilePath = settings.ServerRootPath + @"/log_backups/";
-        _logFilePath = settings.ServerRootPath + @"/log.txt";
-        _logXpFilePath = settings.ServerRootPath + @"/logXP.txt";
+        _backupLogFilePath = storage.ServerRootPath + @"/log_backups/";
+        _logFilePath = storage.ServerRootPath + @"/log.txt";
+        _logXpFilePath = storage.ServerRootPath + @"/logXP.txt";
 
         if (!Directory.Exists(_backupLogFilePath))
         {
@@ -98,15 +106,11 @@ public class LoggingService : ILoggingService
         }
 
         // INIT
-        if (settings.BotAnnouncementChannel == null)
+        _logChannelId = logging.AnnouncementChannelId;
+        if (_logChannelId == 0)
         {
             LogToConsole($"[{ServiceName}] Error: Logging Channel not set in settings.json", LogSeverity.Error);
             return;
-        }
-        _logChannel = client.GetChannel(settings.BotAnnouncementChannel.Id) as ISocketMessageChannel;
-        if (_logChannel == null)
-        {
-            LogToConsole($"[{ServiceName}] Error: Logging Channel {settings.BotAnnouncementChannel.Id} not found", LogSeverity.Error);
         }
     }
     
@@ -124,9 +128,10 @@ public class LoggingService : ILoggingService
     
     public async Task LogToChannel(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null)
     {
-        if (_logChannel == null)
+        var logChannel = _client.GetChannel(_logChannelId) as ISocketMessageChannel;
+        if (logChannel == null)
             return;
-        await _logChannel.SendMessageAsync(message, false, embed);
+        await logChannel.SendMessageAsync(message, false, embed);
     }
     
     public async Task LogToFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info)
