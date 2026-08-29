@@ -1,38 +1,30 @@
-using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
+using DiscordBot.Components;
+using DiscordBot.Hosting;
+using DiscordBot.Policies;
 using DiscordBot.Service;
 using DiscordBot.Services;
 using DiscordBot.Services.Rendering;
 using DiscordBot.Services.Tips;
 using DiscordBot.Settings;
-using DiscordBot.Utils;
+using DiscordBot.Settings.Legacy;
+using DiscordBot.Settings.Options;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using RunMode = Discord.Commands.RunMode;
 
 namespace DiscordBot;
 
-public class Program
+public static class Program
 {
-    private bool _isInitialized = false;
-
-    private static Rules _rules;
-    private static BotSettings _settings;
-    private static UserSettings _userSettings;
-    private DiscordSocketClient _client;
-    private CommandHandlingService _commandHandlingService;
-
-    private CommandService _commandService;
-    private InteractionService _interactionService;
-    private IServiceProvider _services;
-
-    private UnityHelpService _unityHelpService;
-    private RecruitService _recruitService;
-
-    public static int Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
         if (args.Length > 0 && args[0].Equals("--render-smoke", StringComparison.OrdinalIgnoreCase))
         {
@@ -58,8 +50,179 @@ public class Program
             return ProfileCardRenderSmoke.RunStress(assetsRootPath, iterations, parallelism);
         }
 
-        new Program().MainAsync().GetAwaiter().GetResult();
-        return 0;
+        try
+        {
+            using var host = BuildHost(args);
+            await host.RunAsync();
+            return 0;
+        }
+        catch (BotConfigurationException exception)
+        {
+            Console.Error.WriteLine($"Configuration error: {exception.Message}");
+            return 2;
+        }
+        catch (OptionsValidationException exception)
+        {
+            WriteValidationFailures([exception]);
+            return 2;
+        }
+        catch (AggregateException exception) when (
+            exception.Flatten().InnerExceptions.All(inner => inner is OptionsValidationException))
+        {
+            WriteValidationFailures(exception.Flatten().InnerExceptions.Cast<OptionsValidationException>());
+            return 2;
+        }
+    }
+
+    public static IHost BuildHost(
+        string[] args,
+        string? contentRootPath = null,
+        Action<IServiceCollection>? configureTestServices = null,
+        Action<ConfigurationManager>? configureTestConfiguration = null)
+    {
+        var root = contentRootPath ?? Directory.GetCurrentDirectory();
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            Args = args,
+            ContentRootPath = root
+        });
+        builder.Logging.ClearProviders();
+
+        builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        }));
+
+        builder.AddBotConfiguration(root);
+        configureTestConfiguration?.Invoke(builder.Configuration);
+        ConfigureServices(builder.Services, root);
+        configureTestServices?.Invoke(builder.Services);
+        return builder.Build();
+    }
+
+    private static void ConfigureServices(IServiceCollection services, string contentRootPath)
+    {
+        var rulesPath = Path.Combine(contentRootPath, "Settings/Rules.json");
+        var faqPath = Path.Combine(contentRootPath, "Settings/FAQs.json");
+        services.AddSingleton<IRulesCatalog>(new RulesCatalog(
+            StaticContentLoader.LoadRequired<Rules>(rulesPath, "rules catalog")));
+        services.AddSingleton<IFaqCatalog>(new FaqCatalog(
+            StaticContentLoader.LoadRequired<List<FaqData>>(faqPath, "FAQ catalog")));
+
+        services.AddSingleton(serviceProvider =>
+        {
+            var client = new DiscordSocketClient(new DiscordSocketConfig
+            {
+                LogLevel = LogSeverity.Verbose,
+                AlwaysDownloadUsers = true,
+                MessageCacheSize = 1024,
+                GatewayIntents = GatewayIntents.All
+            });
+            client.Log += LoggingService.DiscordNetLogger;
+            return client;
+        });
+        services.AddSingleton(serviceProvider => new CommandService(new CommandServiceConfig
+        {
+            CaseSensitiveCommands = false,
+            DefaultRunMode = RunMode.Async
+        }));
+        services.AddSingleton(serviceProvider =>
+            new InteractionService(serviceProvider.GetRequiredService<DiscordSocketClient>()));
+
+        services.AddSingleton<IDiscordGateway, DiscordGateway>();
+        services.AddSingleton<IBotRuntimeCoordinator, BotRuntimeCoordinator>();
+        services.AddSingleton<CommandHandlingService>();
+        services.AddSingleton<ICommandRuntime>(serviceProvider =>
+            serviceProvider.GetRequiredService<CommandHandlingService>());
+        services.AddSingleton<ILoggingService, LoggingService>();
+
+        services.AddSingleton<IComponentCatalog, DefaultComponentCatalog>();
+        services.AddSingleton<IComponentOverrideStore, ComponentOverrideStore>();
+        services.AddSingleton<ComponentRegistry>();
+        services.AddSingleton<IComponentRegistry>(serviceProvider =>
+            serviceProvider.GetRequiredService<ComponentRegistry>());
+        services.AddSingleton<IComponentStateReader>(serviceProvider =>
+            serviceProvider.GetRequiredService<ComponentRegistry>());
+
+        services.AddSingleton<ICommandChannelPolicy, CommandChannelPolicy>();
+        services.AddSingleton<IBotAuthorizationPolicy, BotAuthorizationPolicy>();
+        services.AddSingleton<IRoleAssignmentPolicy, RoleAssignmentPolicy>();
+        services.AddSingleton<IBotPublicInfo, BotPublicInfo>();
+        services.AddSingleton<IModerationPolicy, ModerationPolicy>();
+        services.AddSingleton<ITicketPolicy, TicketPolicy>();
+        services.AddSingleton<IUnityHelpPolicy, UnityHelpPolicy>();
+        services.AddSingleton<IUserFunPolicy, UserFunPolicy>();
+        services.AddSingleton<ITipsAuthorizationPolicy, TipsAuthorizationPolicy>();
+
+        services.AddSingleton<DatabaseService>();
+        services.AddSingleton(serviceProvider =>
+            new ImageRenderOptions(
+                serviceProvider.GetRequiredService<IOptions<StorageOptions>>().Value.AssetsRootPath));
+        services.AddSingleton<IAvatarDownloader>(serviceProvider =>
+        {
+            var handler = new SocketsHttpHandler
+            {
+                ConnectTimeout = TimeSpan.FromSeconds(5),
+                MaxConnectionsPerServer = 8,
+                PooledConnectionLifetime = TimeSpan.FromMinutes(10)
+            };
+            var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+            return new AvatarDownloader(client, serviceProvider.GetRequiredService<ImageRenderOptions>());
+        });
+        services.AddSingleton<IProfileCardRenderer, ProfileCardRenderer>();
+        services.AddSingleton<UserService>();
+        services.AddSingleton<IntroductionWatcherService>();
+        services.AddSingleton<ModerationService>();
+        services.AddSingleton<FeedService>();
+        services.AddSingleton<UnityHelpService>();
+        services.AddSingleton<RecruitService>();
+        services.AddSingleton<UpdateService>();
+        services.AddSingleton<CurrencyService>();
+        services.AddSingleton<ReminderService>();
+        services.AddSingleton<WeatherService>();
+        services.AddSingleton<AirportService>();
+        services.AddSingleton<TipService>();
+        services.AddSingleton<CannedResponseService>();
+        services.AddSingleton<UserExtendedService>();
+        services.AddSingleton<IBirthdaySource, GoogleSheetsBirthdaySource>();
+        services.AddSingleton<BirthdayAnnouncementService>();
+        services.AddSingleton<CasinoService>();
+        services.AddSingleton<GameService>();
+        services.AddSingleton<KarmaResetService>();
+
+        services.AddSingleton(new ManagedComponentRegistration(
+            ComponentIds.BirthdayAnnouncements,
+            serviceProvider => serviceProvider.GetRequiredService<BirthdayAnnouncementService>()));
+        services.AddSingleton(new ManagedComponentRegistration(
+            ComponentIds.Database,
+            serviceProvider => serviceProvider.GetRequiredService<DatabaseService>()));
+        services.AddSingleton(new ManagedComponentRegistration(
+            ComponentIds.Reminders,
+            serviceProvider => serviceProvider.GetRequiredService<ReminderService>()));
+        services.AddSingleton(new ManagedComponentRegistration(
+            ComponentIds.KarmaReset,
+            serviceProvider => serviceProvider.GetRequiredService<KarmaResetService>()));
+        services.AddSingleton(new ManagedComponentRegistration(
+            ComponentIds.Moderation,
+            serviceProvider => serviceProvider.GetRequiredService<ModerationService>()));
+        services.AddSingleton(new ManagedComponentRegistration(
+            ComponentIds.IntroductionWatcher,
+            serviceProvider => serviceProvider.GetRequiredService<IntroductionWatcherService>()));
+        services.AddSingleton(new ManagedComponentRegistration(
+            ComponentIds.Recruitment,
+            serviceProvider => serviceProvider.GetRequiredService<RecruitService>()));
+        services.AddSingleton(new ManagedComponentRegistration(
+            ComponentIds.UnityHelp,
+            serviceProvider => serviceProvider.GetRequiredService<UnityHelpService>()));
+        services.AddSingleton(new ManagedComponentRegistration(
+            ComponentIds.Updates,
+            serviceProvider => serviceProvider.GetRequiredService<UpdateService>()));
+        services.AddSingleton(new ManagedComponentRegistration(
+            ComponentIds.UserActivity,
+            serviceProvider => serviceProvider.GetRequiredService<UserService>()));
+
+        services.AddHostedService<DiscordBotHostedService>();
     }
 
     private static bool TryReadPositiveArgument(
@@ -77,106 +240,14 @@ public class Program
         return int.TryParse(arguments[index], out value) && value > 0;
     }
 
-    private async Task MainAsync()
+    private static void WriteValidationFailures(IEnumerable<OptionsValidationException> exceptions)
     {
-        DeserializeSettings();
-
-        _client = new DiscordSocketClient(new DiscordSocketConfig
+        Console.Error.WriteLine("Configuration validation failed:");
+        foreach (var failure in exceptions
+                     .SelectMany(exception => exception.Failures)
+                     .Distinct(StringComparer.Ordinal))
         {
-            LogLevel = LogSeverity.Verbose,
-            AlwaysDownloadUsers = true,
-            MessageCacheSize = 1024,
-            GatewayIntents = GatewayIntents.All,
-        });
-        _client.Log += LoggingService.DiscordNetLogger;
-
-        await _client.LoginAsync(TokenType.Bot, _settings.Token);
-        await _client.StartAsync();
-
-        _client.Ready += () =>
-        {
-            // Ready can be called additional times if the bot disconnects for long enough,
-            // so we need to make sure we only initialize commands and such for the bot once if it manages to re-establish connection
-            if (_isInitialized) return Task.CompletedTask;
-
-            _interactionService = new InteractionService(_client);
-            _commandService = new CommandService(new CommandServiceConfig
-            {
-                CaseSensitiveCommands = false,
-                DefaultRunMode = RunMode.Async
-            });
-
-            _services = ConfigureServices();
-            _commandHandlingService = _services.GetRequiredService<CommandHandlingService>();
-            _services.GetRequiredService<ModerationService>();
-
-            // Announce, and Log bot started to track issues a bit easier
-            var logger = _services.GetRequiredService<ILoggingService>();
-            logger.LogChannelAndFile("Bot Started.", ExtendedLogSeverity.Positive);
-
-            LoggingService.LogToConsole("Bot is connected.", ExtendedLogSeverity.Positive);
-            _isInitialized = true;
-
-            _unityHelpService = _services.GetRequiredService<UnityHelpService>();
-            _recruitService = _services.GetRequiredService<RecruitService>();
-            _services.GetRequiredService<IntroductionWatcherService>();
-            _services.GetRequiredService<BirthdayAnnouncementService>();
-            _services.GetRequiredService<KarmaResetService>();
-
-            return Task.CompletedTask;
-        };
-
-        await Task.Delay(-1);
-    }
-
-    private IServiceProvider ConfigureServices() =>
-        new ServiceCollection()
-            .AddSingleton(_settings)
-            .AddSingleton(_rules)
-            .AddSingleton(_userSettings)
-            .AddSingleton(_client)
-            .AddSingleton(_commandService)
-            .AddSingleton(_interactionService)
-            .AddSingleton<CommandHandlingService>()
-            .AddSingleton<ILoggingService, LoggingService>()
-            .AddSingleton<DatabaseService>()
-            .AddSingleton(new ImageRenderOptions(_settings.AssetsRootPath))
-            .AddSingleton<IAvatarDownloader>(services =>
-            {
-                var handler = new SocketsHttpHandler
-                {
-                    ConnectTimeout = TimeSpan.FromSeconds(5),
-                    MaxConnectionsPerServer = 8,
-                    PooledConnectionLifetime = TimeSpan.FromMinutes(10)
-                };
-                var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
-                return new AvatarDownloader(client, services.GetRequiredService<ImageRenderOptions>());
-            })
-            .AddSingleton<IProfileCardRenderer, ProfileCardRenderer>()
-            .AddSingleton<UserService>()
-            .AddSingleton<IntroductionWatcherService>()
-            .AddSingleton<ModerationService>()
-            .AddSingleton<FeedService>()
-            .AddSingleton<UnityHelpService>()
-            .AddSingleton<RecruitService>()
-            .AddSingleton<UpdateService>()
-            .AddSingleton<CurrencyService>()
-            .AddSingleton<ReminderService>()
-            .AddSingleton<WeatherService>()
-            .AddSingleton<AirportService>()
-            .AddSingleton<TipService>()
-            .AddSingleton<CannedResponseService>()
-            .AddSingleton<UserExtendedService>()
-            .AddSingleton<BirthdayAnnouncementService>()
-            .AddSingleton<CasinoService>()
-            .AddSingleton<GameService>()
-            .AddSingleton<KarmaResetService>()
-            .BuildServiceProvider();
-
-    private static void DeserializeSettings()
-    {
-        _settings = SerializeUtil.DeserializeFile<BotSettings>(@"Settings/Settings.json");
-        _rules = SerializeUtil.DeserializeFile<Rules>(@"Settings/Rules.json");
-        _userSettings = SerializeUtil.DeserializeFile<UserSettings>(@"Settings/UserSettings.json");
+            Console.Error.WriteLine($"- {failure}");
+        }
     }
 }
