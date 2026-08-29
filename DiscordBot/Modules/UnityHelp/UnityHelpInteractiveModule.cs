@@ -1,23 +1,26 @@
 using Discord.Interactions;
+using DiscordBot.Attributes;
+using DiscordBot.Modules.Base;
+using DiscordBot.Policies;
 using DiscordBot.Services;
-using DiscordBot.Settings;
 using Discord.WebSocket;
 
 namespace DiscordBot.Modules;
 
-public class UnityHelpInteractiveModule : InteractionModuleBase
+[RequireInteractionComponentEnabled("unity-help")]
+public class UnityHelpInteractiveModule : BotInteractionModuleBase
 {
     #region Dependency Injection
 
     public UnityHelpService HelpService { get; set; }
-    public BotSettings BotSettings { get; set; }
+    public IUnityHelpPolicy UnityHelpPolicy { get; set; }
     
     #endregion // Dependency Injection
 
     [SlashCommand("resolve-question", "If in unity-help forum channel, resolve the thread")]
     public async Task ResolveQuestion()
     {
-        if (!BotSettings.UnityHelpBabySitterEnabled)
+        if (!UnityHelpPolicy.IsAvailable)
             return;
         
         await Context.Interaction.DeferAsync(ephemeral: true);
@@ -31,7 +34,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
         if (!IsInHelpChannel())
         {
             await Context.Interaction.FollowupAsync(
-                $"This command can only be used in <#{BotSettings.GenericHelpChannel.Id}> channels", ephemeral: true);
+                $"This command can only be used in {UnityHelpPolicy.HelpForumMention} channels", ephemeral: true);
             return;
         }
 
@@ -45,7 +48,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
     [MessageCommand("Correct Answer")]
     public async Task MarkResponseAnswer(IMessage targetResponse)
     {
-        if (!BotSettings.UnityHelpBabySitterEnabled)
+        if (!UnityHelpPolicy.IsAvailable)
             return;
         
         await Context.Interaction.DeferAsync(ephemeral: true);
@@ -57,7 +60,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
         if (!IsInHelpChannel())
         {
             await Context.Interaction.FollowupAsync(
-                $"This command can only be used in <#{BotSettings.GenericHelpChannel.Id}> channels", ephemeral: true);
+                $"This command can only be used in {UnityHelpPolicy.HelpForumMention} channels", ephemeral: true);
             return;
         }
 
@@ -76,7 +79,7 @@ public class UnityHelpInteractiveModule : InteractionModuleBase
 
     #region Utility
     
-    private bool IsInHelpChannel() => Context.Channel.IsThreadInChannel(BotSettings.GenericHelpChannel.Id);
+    private bool IsInHelpChannel() => UnityHelpPolicy.IsHelpThread(Context.Channel);
     private bool IsValidUser() => !Context.User.IsUserBotOrWebhook();
 
     #endregion // Utility

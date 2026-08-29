@@ -1,5 +1,5 @@
 using Discord.Commands;
-using DiscordBot.Settings;
+using DiscordBot.Policies;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DiscordBot.Attributes;
@@ -9,14 +9,14 @@ public class BotCommandChannelAttribute : PreconditionAttribute
 {
     public override async Task<PreconditionResult> CheckPermissionsAsync(ICommandContext context, CommandInfo command, IServiceProvider services)
     {
-        var settings = services.GetRequiredService<BotSettings>();
+        var policy = services.GetRequiredService<ICommandChannelPolicy>();
 
-        if (context.Channel.Id == settings.BotCommandsChannel.Id)
+        if (policy.IsCommandChannel(context.Channel.Id))
         {
             return await Task.FromResult(PreconditionResult.FromSuccess());
         }
 
         Task task = context.Message.DeleteAfterSeconds(seconds: 10);
-        return await Task.FromResult(PreconditionResult.FromError($"This command can only be used in <#{settings.BotCommandsChannel.Id.ToString()}>."));
+        return await Task.FromResult(PreconditionResult.FromError($"This command can only be used in {policy.CommandChannelMention}."));
     }
 }

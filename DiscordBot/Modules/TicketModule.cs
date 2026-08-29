@@ -1,17 +1,20 @@
 using Discord.Commands;
 using DiscordBot.Attributes;
+using DiscordBot.Modules.Base;
+using DiscordBot.Policies;
 using DiscordBot.Services;
-using DiscordBot.Settings;
 
 // ReSharper disable all UnusedMember.Local
 namespace DiscordBot.Modules;
 
-public class TicketModule : ModuleBase
+[RequireComponentEnabled("tickets")]
+public class TicketModule : BotCommandModuleBase
 {
     #region Dependency Injection
 
     public CommandHandlingService CommandHandlingService { get; set; }
-    public BotSettings Settings { get; set; }
+    public ITicketPolicy TicketPolicy { get; set; }
+    public IBotAuthorizationPolicy AuthorizationPolicy { get; set; }
         
     #endregion
 
@@ -24,14 +27,14 @@ public class TicketModule : ModuleBase
     {
         await Context.Message.DeleteAsync();
 
-        var categoryExist = (await Context.Guild.GetCategoriesAsync()).Any(category => category.Id == Settings.ComplaintCategoryId);
+        var categoryExist = (await Context.Guild.GetCategoriesAsync()).Any(category => category.Id == TicketPolicy.OpenCategoryId);
 
         var hash = Context.User.Id.ToString().GetSha256().Substring(0, 8);
-        var channelName = ParseToDiscordChannel($"{Settings.ComplaintChannelPrefix}-{hash}");
+        var channelName = ParseToDiscordChannel($"{TicketPolicy.OpenChannelPrefix}-{hash}");
 
         var channels = await Context.Guild.GetChannelsAsync();
         // Check if channel with same name already exist in the Complaint Category (if it exists).
-        if (channels.Any(channel => channel.Name == channelName && (!categoryExist || ((INestedChannel)channel).CategoryId == Settings.ComplaintCategoryId)))
+        if (channels.Any(channel => channel.Name == channelName && (!categoryExist || ((INestedChannel)channel).CategoryId == TicketPolicy.OpenCategoryId)))
         {
             await ReplyAsync($"{Context.User.Mention}, you already have an open complaint! Please use that channel!")
                 .DeleteAfterSeconds(15);
@@ -40,11 +43,12 @@ public class TicketModule : ModuleBase
 
         var newChannel = await Context.Guild.CreateTextChannelAsync(channelName, x =>
         {
-            if (categoryExist) x.CategoryId = Settings.ComplaintCategoryId;
+            if (categoryExist) x.CategoryId = TicketPolicy.OpenCategoryId;
         });
 
         var userPerms = new OverwritePermissions(viewChannel: PermValue.Allow);
-        var modRole = Context.Guild.Roles.First(r => r.Id == Settings.ModeratorRoleId);
+        var modRole = AuthorizationPolicy.GetModeratorRole(Context.Guild)
+            ?? throw new InvalidOperationException("The configured moderator role is unavailable.");
         await newChannel.AddPermissionOverwriteAsync(Context.Guild.EveryoneRole, new OverwritePermissions(viewChannel: PermValue.Deny));
         await newChannel.AddPermissionOverwriteAsync(Context.User, userPerms);
         await newChannel.AddPermissionOverwriteAsync(modRole, userPerms);
@@ -66,9 +70,9 @@ public class TicketModule : ModuleBase
     {
         await Context.Message.DeleteAsync();
 
-        if (!Context.Channel.Name.StartsWith(Settings.ComplaintChannelPrefix.ToLower())) return;
+        if (!Context.Channel.Name.StartsWith(TicketPolicy.OpenChannelPrefix.ToLower())) return;
 
-        var categoryExist = (await Context.Guild.GetCategoriesAsync()).Any(category => category.Id == Settings.ClosedComplaintCategoryId);
+        var categoryExist = (await Context.Guild.GetCategoriesAsync()).Any(category => category.Id == TicketPolicy.ClosedCategoryId);
 
         var currentChannel = await Context.Guild.GetChannelAsync(Context.Channel.Id);
 
@@ -81,10 +85,10 @@ public class TicketModule : ModuleBase
             await currentChannel.RemovePermissionOverwriteAsync(user);
         }
 
-        var newName = Settings.ClosedComplaintChannelPrefix + currentChannel.Name;
+        var newName = TicketPolicy.ClosedChannelPrefix + currentChannel.Name;
         await currentChannel.ModifyAsync(x =>
         {
-            if (categoryExist) x.CategoryId = Settings.ClosedComplaintCategoryId;
+            if (categoryExist) x.CategoryId = TicketPolicy.ClosedCategoryId;
             x.Name = newName;
         });
     }
@@ -98,8 +102,8 @@ public class TicketModule : ModuleBase
     {
         await Context.Message.DeleteAsync();
 
-        if (Context.Channel.Name.StartsWith(Settings.ComplaintChannelPrefix.ToLower()) ||
-            Context.Channel.Name.StartsWith(Settings.ClosedComplaintChannelPrefix.ToLower()))
+        if (Context.Channel.Name.StartsWith(TicketPolicy.OpenChannelPrefix.ToLower()) ||
+            Context.Channel.Name.StartsWith(TicketPolicy.ClosedChannelPrefix.ToLower()))
         {
             await Context.Guild.GetChannelAsync(Context.Channel.Id).Result.DeleteAsync();
         }

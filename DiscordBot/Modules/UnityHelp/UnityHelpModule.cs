@@ -1,18 +1,21 @@
 using Discord.Commands;
+using DiscordBot.Attributes;
+using DiscordBot.Modules.Base;
 using Discord.WebSocket;
 using DiscordBot.Attributes;
+using DiscordBot.Policies;
 using DiscordBot.Services;
-using DiscordBot.Settings;
 
 namespace DiscordBot.Modules;
 
-public class UnityHelpModule : ModuleBase
+[RequireComponentEnabled("unity-help")]
+public class UnityHelpModule : BotCommandModuleBase
 {
     #region Dependency Injection
 
     public UnityHelpService HelpService { get; set; }
     public UserService UserService { get; set; }
-    public BotSettings BotSettings { get; set; }
+    public IUnityHelpPolicy UnityHelpPolicy { get; set; }
 
     #endregion // Dependency Injection
 
@@ -20,7 +23,7 @@ public class UnityHelpModule : ModuleBase
     [Summary("When a question is answered, use this command to mark it as resolved.")]
     public async Task ResolveAsync()
     {
-        if (!BotSettings.UnityHelpBabySitterEnabled)
+        if (!UnityHelpPolicy.IsAvailable)
             return;
         if (!IsValidUser() || !IsInHelpChannel())
             await Context.Message.DeleteAsync();
@@ -32,7 +35,7 @@ public class UnityHelpModule : ModuleBase
     [RequireModerator, HideFromHelp, IgnoreBots]
     public async Task PendingQuestionsAsync()
     {
-        if (!BotSettings.UnityHelpBabySitterEnabled)
+        if (!UnityHelpPolicy.IsAvailable)
         {
             await ReplyAsync("UnityHelp Service currently disabled.").DeleteAfterSeconds(15);
             return;
@@ -43,7 +46,7 @@ public class UnityHelpModule : ModuleBase
 
     #region Utility
 
-    private bool IsInHelpChannel() => Context.Channel.IsThreadInChannel(BotSettings.GenericHelpChannel.Id);
+    private bool IsInHelpChannel() => UnityHelpPolicy.IsHelpThread(Context.Channel);
     private bool IsValidUser() => !Context.User.IsUserBotOrWebhook();
 
     #endregion // Utility

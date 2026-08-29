@@ -1,32 +1,30 @@
 using System.IO;
 using Discord.Commands;
+using Discord.WebSocket;
 using DiscordBot.Attributes;
+using DiscordBot.Modules.Base;
+using DiscordBot.Policies;
 using DiscordBot.Services;
 using DiscordBot.Services.Tips;
 using DiscordBot.Services.Tips.Components;
-using DiscordBot.Settings;
 
 // ReSharper disable all UnusedMember.Local
 namespace DiscordBot.Modules;
 
-public class TipModule : ModuleBase
+[RequireComponentEnabled("tips")]
+public class TipModule : BotCommandModuleBase
 {
 	#region Dependency Injection
 
 	public CommandHandlingService CommandHandlingService { get; set; }
-	public BotSettings Settings { get; set; }
+	public ITipsAuthorizationPolicy AuthorizationPolicy { get; set; }
 	public TipService TipService { get; set; }
 
 	#endregion
 
 	private bool IsAuthorized(IUser user)
 	{
-		if (user.HasRoleGroup(Settings.ModeratorRoleId))
-			return true;
-		if (user.HasRoleGroup(Settings.TipsUserRoleId))
-			return true;
-
-		return false;
+		return user is SocketGuildUser guildUser && AuthorizationPolicy.CanManageTips(guildUser);
  	}
 
 	[Command("Tip")]

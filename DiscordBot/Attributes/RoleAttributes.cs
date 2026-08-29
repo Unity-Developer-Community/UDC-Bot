@@ -1,6 +1,6 @@
 using Discord.Commands;
 using Discord.WebSocket;
-using DiscordBot.Settings;
+using DiscordBot.Policies;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DiscordBot.Attributes;
@@ -23,9 +23,9 @@ public class RequireModeratorAttribute : PreconditionAttribute
     public override Task<PreconditionResult> CheckPermissionsAsync(ICommandContext context, CommandInfo command, IServiceProvider services)
     {
         var user = (SocketGuildUser)context.Message.Author;
-        var settings = services.GetRequiredService<BotSettings>();
+        var authorization = services.GetRequiredService<IBotAuthorizationPolicy>();
 
-        if (user.Roles.Any(x => x.Id == settings.ModeratorRoleId)) return Task.FromResult(PreconditionResult.FromSuccess());
+        if (authorization.IsModerator(user)) return Task.FromResult(PreconditionResult.FromSuccess());
         return Task.FromResult(PreconditionResult.FromError(user + " attempted to use a moderator command!"));
     }
 }

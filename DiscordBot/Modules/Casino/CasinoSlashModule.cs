@@ -1,19 +1,20 @@
 using Discord.Interactions;
+using DiscordBot.Attributes;
+using DiscordBot.Modules.Base;
 using Discord.WebSocket;
 using DiscordBot.Domain;
 using DiscordBot.Services;
-using DiscordBot.Settings;
 
 namespace DiscordBot.Modules;
 
 [Group("casino", "Casino games and token management")]
-public partial class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
+[RequireInteractionComponentEnabled("casino")]
+public partial class CasinoSlashModule : BotInteractionModuleBase
 {
     #region Dependency Injection
 
     public CasinoService CasinoService { get; set; }
     public ILoggingService LoggingService { get; set; }
-    public BotSettings BotSettings { get; set; }
 
     #endregion
 
@@ -36,11 +37,11 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
     #region Token Commands
 
     [Group("tokens", "Token management commands")]
-    public class TokenCommands : InteractionModuleBase<SocketInteractionContext>
+    [RequireInteractionComponentEnabled("casino")]
+    public class TokenCommands : BotInteractionModuleBase
     {
         public CasinoService CasinoService { get; set; }
         public ILoggingService LoggingService { get; set; }
-        public BotSettings BotSettings { get; set; }
 
         private async Task<bool> CheckChannelPermissions()
         {

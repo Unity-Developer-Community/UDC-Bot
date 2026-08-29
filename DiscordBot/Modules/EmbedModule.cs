@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using Discord.Commands;
+using DiscordBot.Modules.Base;
 using DiscordBot.Attributes;
 using Newtonsoft.Json;
 
@@ -8,7 +9,7 @@ using Newtonsoft.Json;
 namespace DiscordBot.Modules;
 
 [RequireAdmin]
-public class EmbedModule : ModuleBase
+public class EmbedModule : BotCommandModuleBase
 {
 
 #pragma warning disable 0649

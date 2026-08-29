@@ -1,19 +1,20 @@
 using Discord.Commands;
 using Discord.Interactions;
+using DiscordBot.Attributes;
+using DiscordBot.Modules.Base;
 using Discord.WebSocket;
 using DiscordBot.Service;
 using DiscordBot.Services;
-using DiscordBot.Settings;
 using static DiscordBot.Service.CannedResponseService;
 
 namespace DiscordBot.Modules;
 
-public class CannedInteractiveModule : InteractionModuleBase
+[RequireInteractionComponentEnabled("unity-help")]
+public class CannedInteractiveModule : BotInteractionModuleBase
 {
     #region Dependency Injection
 
     public UnityHelpService HelpService { get; set; }
-    public BotSettings BotSettings { get; set; }
     public CannedResponseService CannedResponseService { get; set; }
     
     #endregion // Dependency Injection

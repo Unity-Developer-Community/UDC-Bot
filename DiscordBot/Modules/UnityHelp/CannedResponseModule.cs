@@ -1,18 +1,19 @@
 using Discord.Commands;
 using DiscordBot.Attributes;
+using DiscordBot.Modules.Base;
+using DiscordBot.Attributes;
 using DiscordBot.Service;
 using DiscordBot.Services;
-using DiscordBot.Settings;
 using static DiscordBot.Service.CannedResponseService;
 
 namespace DiscordBot.Modules;
 
-public class CannedResponseModule : ModuleBase
+[RequireComponentEnabled("unity-help")]
+public class CannedResponseModule : BotCommandModuleBase
 {
     #region Dependency Injection
     
     public UserService UserService { get; set; }
-    public BotSettings BotSettings { get; set; }
     public CannedResponseService CannedResponseService { get; set; }
     
     #endregion // Dependency Injection

@@ -1,18 +1,21 @@
 using Discord.Commands;
 using DiscordBot.Modules.Weather;
 using DiscordBot.Services;
-using DiscordBot.Settings;
+using DiscordBot.Policies;
+using DiscordBot.Attributes;
+using DiscordBot.Modules.Base;
 
 namespace DiscordBot.Modules;
 
 // Allows UserModule !help to show commands from this module
 [Group("UserModule"), Alias("")]
-public class AirportModule : ModuleBase
+[RequireComponentEnabled("airport")]
+public class AirportModule : BotCommandModuleBase
 {
     #region Dependency Injection
 
     public AirportService AirportService { get; set; }
-    public BotSettings Settings { get; set; }
+    public ICommandChannelPolicy CommandChannelPolicy { get; set; }
     // Needed to locate cities lon/lat easier
     public WeatherService WeatherService { get; set; }
 
@@ -41,9 +44,9 @@ public class AirportModule : ModuleBase
     public async Task FlyTo(string from, string to)
     {
         // Make sure command is in Bot-Commands or OffTopic
-        if (Context.Channel.Id != Settings.BotCommandsChannel.Id && Context.Channel.Id != Settings.GeneralChannel.Id)
+        if (!CommandChannelPolicy.IsCommandOrGeneralChannel(Context.Channel.Id))
         {
-            await ReplyAsync($"Command can only be used in <#{Settings.BotCommandsChannel.Id}> or <#{Settings.GeneralChannel.Id}>.").DeleteAfterSeconds(5f);
+            await ReplyAsync($"Command can only be used in {CommandChannelPolicy.CommandOrGeneralChannelMentions}.").DeleteAfterSeconds(5f);
             await Context.Message.DeleteAfterSeconds(2f);
             return;
         }

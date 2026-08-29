@@ -5,16 +5,18 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Discord.Commands;
 using Discord.WebSocket;
+using DiscordBot.Policies;
 using DiscordBot.Services;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
 using HtmlAgilityPack;
 using DiscordBot.Attributes;
 using DiscordBot.Data;
+using DiscordBot.Modules.Base;
 
 namespace DiscordBot.Modules;
 
-public class UserModule : ModuleBase
+public class UserModule : BotCommandModuleBase
 {
     #region Dependency Injection
 
@@ -26,8 +28,10 @@ public class UserModule : ModuleBase
     public CommandHandlingService CommandHandlingService { get; set; }
     public WeatherService WeatherService { get; set; }
     public UserExtendedService UserExtendedService { get; set; }
-    public BotSettings Settings { get; set; }
-    public Rules Rules { get; set; }
+    public ICommandChannelPolicy CommandChannelPolicy { get; set; }
+    public IUserFunPolicy UserFunPolicy { get; set; }
+    public IRulesCatalog RuleCatalog { get; set; }
+    public IFaqCatalog FaqCatalog { get; set; }
 
     #endregion
 
@@ -43,7 +47,7 @@ public class UserModule : ModuleBase
     public async Task DisplayHelp()
     {
         var commandMessages = CommandHandlingService.GetCommandListMessages("UserModule", false, true, false);
-        if (Context.Channel.Id != Settings.BotCommandsChannel.Id)
+        if (!CommandChannelPolicy.IsCommandChannel(Context.Channel.Id))
         {
             try
             {
@@ -54,7 +58,7 @@ public class UserModule : ModuleBase
             }
             catch (Exception)
             {
-                await ReplyAsync($"Your direct messages are disabled, please use <#{Settings.BotCommandsChannel.Id}> instead!").DeleteAfterSeconds(10);
+                await ReplyAsync($"Your direct messages are disabled, please use {CommandChannelPolicy.CommandChannelMention} instead!").DeleteAfterSeconds(10);
             }
         }
         else
@@ -261,16 +265,17 @@ public class UserModule : ModuleBase
     }
 
     [Group("Role"), BotCommandChannel]
-    public class RoleModule : ModuleBase
+    [RequireComponentEnabled("role-assignment")]
+    public class RoleModule : BotCommandModuleBase
     {
-        public BotSettings Settings { get; set; }
+        public IRoleAssignmentPolicy RoleAssignmentPolicy { get; set; }
         public ILoggingService LoggingService { get; set; }
 
         [Command("Add")]
         [Summary("Add a role to yourself. Syntax: !role add rolename")]
         public async Task AddRoleUser(IRole role)
         {
-            if (!Settings.UserAssignableRoles.Roles.Contains(role.Name))
+            if (!RoleAssignmentPolicy.IsAssignable(role.Name))
             {
                 await ReplyAsync("This role is not assignable.");
                 return;
@@ -289,7 +294,7 @@ public class UserModule : ModuleBase
         [Alias("delete")]
         public async Task RemoveRoleUser(IRole role)
         {
-            if (!Settings.UserAssignableRoles.Roles.Contains(role.Name))
+            if (!RoleAssignmentPolicy.IsAssignable(role.Name))
             {
                 await ReplyAsync("This role is not assignable.");
                 return;
@@ -341,7 +346,7 @@ public class UserModule : ModuleBase
     [Alias("rule")]
     public async Task RulesCommand(IMessageChannel channel)
     {
-        var rule = Rules.Channel.First(x => x.Id == channel.Id);
+        var rule = RuleCatalog.Channels.First(x => x.Id == channel.Id);
         var dm = await Context.User.CreateDMChannelAsync();
         bool sentMessage = false;
 
@@ -354,7 +359,7 @@ public class UserModule : ModuleBase
     [Summary("Global Rules by DM.")]
     public async Task GlobalRules(int seconds = 60)
     {
-        var globalRules = Rules.Channel.First(x => x.Id == 0).Content;
+        var globalRules = RuleCatalog.Channels.First(x => x.Id == 0).Content;
         var dm = await Context.User.CreateDMChannelAsync();
         await Context.Message.DeleteAsync();
         if (!await dm.TrySendMessage(globalRules))
@@ -379,7 +384,7 @@ public class UserModule : ModuleBase
     public async Task ChannelsDescription()
     {
         //Display rules of this channel for x seconds
-        var channelData = Rules.Channel;
+        var channelData = RuleCatalog.Channels;
         var sb = new StringBuilder();
         foreach (var c in channelData)
             sb.Append((await Context.Guild.GetTextChannelAsync(c.Id))?.Mention).Append(" - ").Append(c.Header).Append("\n");
@@ -634,13 +639,13 @@ public class UserModule : ModuleBase
             _slapObjects.Unique = true;
             if (_slapObjects.Count == 0)
             {
-                _slapObjects.Load(Settings.UserModuleSlapObjectsTable);
+                _slapObjects.Load(UserFunPolicy.SlapObjectsTable);
                 await LoggingService.LogChannelAndFile($"Loaded {_slapObjects.Count} slap object entries.");
             }
         }
         catch (Exception e)
         {
-            await LoggingService.LogChannelAndFile($"Error while loading '{Settings.UserModuleSlapObjectsTable}'.\nEx:{e}",
+            await LoggingService.LogChannelAndFile($"Error while loading '{UserFunPolicy.SlapObjectsTable}'.\nEx:{e}",
                 ExtendedLogSeverity.LowWarning);
             return;
         }
@@ -673,12 +678,12 @@ public class UserModule : ModuleBase
         }
 
         if (_slapObjects.Count == 0)
-            _slapObjects.Add(Settings.UserModuleSlapChoices);
+            _slapObjects.Add(UserFunPolicy.SlapChoices.ToList());
         if (_slapObjects.Count == 0)
             _slapObjects.Add("fish|mallet");
 
         if (_slapFails.Count == 0)
-            _slapFails.Add(Settings.UserModuleSlapFails);
+            _slapFails.Add(UserFunPolicy.SlapFailures.ToList());
         if (_slapFails.Count == 0)
             _slapFails.Add("hurting themselves");
 
@@ -1027,7 +1032,7 @@ public class UserModule : ModuleBase
     [Summary("Searches UDC FAQs. Syntax : !faq \"query\"")]
     public async Task SearchFaqs(params string[] queries)
     {
-        var faqDataList = UpdateService.GetFaqData();
+        var faqDataList = FaqCatalog.Entries;
 
         // Check if query is faq ID (e.g. "!faq 1")
         if (queries.Length == 1 && ParseNumber(queries[0]) > 0)
@@ -1071,7 +1076,7 @@ public class UserModule : ModuleBase
             await ListFaqs(faqDataList);
     }
 
-    private async Task ListFaqs(List<FaqData> faqs)
+    private async Task ListFaqs(IReadOnlyList<FaqData> faqs)
     {
         var sb = new StringBuilder(faqs.Count);
         var index = 1;

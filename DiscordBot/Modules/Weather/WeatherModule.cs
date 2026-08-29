@@ -1,5 +1,7 @@
 using Discord.Commands;
 using DiscordBot.Attributes;
+using DiscordBot.Modules.Base;
+using DiscordBot.Attributes;
 using DiscordBot.Modules.Weather;
 using DiscordBot.Services;
 using Newtonsoft.Json;
@@ -9,7 +11,8 @@ namespace DiscordBot.Modules;
 
 // Allows UserModule !help to show commands from this module
 [Group("UserModule"), Alias("")]
-public class WeatherModule : ModuleBase
+[RequireComponentEnabled("weather")]
+public class WeatherModule : BotCommandModuleBase
 {
     #region Dependency Injection
     

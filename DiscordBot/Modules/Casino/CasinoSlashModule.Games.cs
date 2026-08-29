@@ -1,6 +1,7 @@
 using Discord.Interactions;
 using Discord.Net;
 using DiscordBot.Domain;
+using DiscordBot.Modules.Base;
 using DiscordBot.Services;
 
 namespace DiscordBot.Modules;
@@ -13,7 +14,7 @@ public enum CasinoGame
     Poker,
 }
 
-public partial class CasinoSlashModule : InteractionModuleBase<SocketInteractionContext>
+public partial class CasinoSlashModule : BotInteractionModuleBase
 {
     #region Dependency Injection
 

@@ -1,19 +1,24 @@
 using System.Collections.Concurrent;
 using Discord.Interactions;
+using DiscordBot.Attributes;
+using DiscordBot.Components;
+using DiscordBot.Policies;
 using DiscordBot.Services;
-using DiscordBot.Settings;
+using DiscordBot.Modules.Base;
 
 namespace DiscordBot.Modules;
 
 // For commands that only require a single interaction, these can be done automatically and don't require complex setup or configuration.
 // ie; A command that might just return the result of a service method such as Ping, or Welcome
-public class UserSlashModule : InteractionModuleBase
+public class UserSlashModule : BotInteractionModuleBase
 {
     #region Dependency Injection
 
     public CommandHandlingService CommandHandlingService { get; set; }
     public UserService UserService { get; set; }
-    public BotSettings BotSettings { get; set; }
+    public IBotPublicInfo PublicBotInfo { get; set; }
+    public IModerationPolicy ModerationPolicy { get; set; }
+    public IRoleAssignmentPolicy RoleAssignmentPolicy { get; set; }
     public ILoggingService LoggingService { get; set; }
 
     #endregion
@@ -101,6 +106,7 @@ public class UserSlashModule : InteractionModuleBase
     #endregion
 
     [SlashCommand("welcome", "An introduction to the server!")]
+    [RequireInteractionComponentEnabled(ComponentIds.UserActivity)]
     public async Task SlashWelcome()
     {
         await Context.Interaction.RespondAsync(string.Empty,
@@ -108,6 +114,7 @@ public class UserSlashModule : InteractionModuleBase
     }
 
     [SlashCommand("ping", "Bot latency")]
+    [RequireInteractionComponentEnabled(ComponentIds.UserActivity)]
     public async Task Ping()
     {
         await Context.Interaction.RespondAsync("Bot latency: ...", ephemeral: true);
@@ -118,12 +125,13 @@ public class UserSlashModule : InteractionModuleBase
     [SlashCommand("invite", "Returns the invite link for the server.")]
     public async Task ReturnInvite()
     {
-        await Context.Interaction.RespondAsync(text: BotSettings.Invite, ephemeral: true);
+        await Context.Interaction.RespondAsync(text: PublicBotInfo.Invite, ephemeral: true);
     }
 
     #region Moderation
 
     [MessageCommand("Report Message")]
+    [RequireInteractionComponentEnabled(ComponentIds.Moderation)]
     public async Task ReportMessage(IMessage reportedMessage)
     {
         if (reportedMessage.Author.Id == Context.User.Id)
@@ -157,11 +165,12 @@ public class UserSlashModule : InteractionModuleBase
 
     // Responds to the modal.
     [ModalInteraction("report_*")]
+    [RequireInteractionComponentEnabled(ComponentIds.Moderation)]
     public async Task ModalResponse(ulong id, ReportMessageModal modal)
     {
         var reportedMessage = await Context.Channel.GetMessageAsync(id);
 
-        var reportedMessageChannel = await Context.Guild.GetTextChannelAsync(BotSettings.ReportedMessageChannel.Id);
+        var reportedMessageChannel = await ModerationPolicy.GetReportedMessageChannelAsync(Context.Guild);
         if (reportedMessageChannel == null)
             return;
 
@@ -202,13 +211,14 @@ public class UserSlashModule : InteractionModuleBase
     #region User Roles
 
     [SlashCommand("roles", "Give or Remove roles for yourself (Programmer, Artist, Designer, etc)")]
+    [RequireInteractionComponentEnabled(ComponentIds.RoleAssignment)]
     public async Task UserRoles()
     {
         await Context.Interaction.DeferAsync(ephemeral: true);
 
         ComponentBuilder builder = new();
 
-        foreach (var userRole in BotSettings.UserAssignableRoles.Roles)
+        foreach (var userRole in RoleAssignmentPolicy.AssignableRoles)
         {
             builder.WithButton(userRole, $"user_role_add:{userRole}");
         }
@@ -220,6 +230,7 @@ public class UserSlashModule : InteractionModuleBase
     }
 
     [ComponentInteraction("user_role_add:*")]
+    [RequireInteractionComponentEnabled(ComponentIds.RoleAssignment)]
     public async Task UserRoleAdd(string role)
     {
         await Context.Interaction.DeferAsync(ephemeral: true);
@@ -236,7 +247,7 @@ public class UserSlashModule : InteractionModuleBase
             return;
         }
         // We make sure the role is in our UserAssignableRoles just in case
-        if (BotSettings.UserAssignableRoles.Roles.Contains(roleObj.Name))
+        if (RoleAssignmentPolicy.IsAssignable(roleObj.Name))
         {
             if (user.RoleIds.Contains(roleObj.Id))
             {
@@ -340,8 +351,8 @@ public class UserSlashModule : InteractionModuleBase
 
                 try
                 {
-                    var challenger = await Context.Guild.GetUserAsync(challengerId);
-                    var challengedUser = await Context.Guild.GetUserAsync(opponentId);
+                    var challenger = Context.Guild.GetUser(challengerId);
+                    var challengedUser = Context.Guild.GetUser(opponentId);
 
                     string timeoutMessage = challengedUser != null
                         ? $"⏰ Duel challenge to {challengedUser.Mention} expired."
@@ -396,8 +407,8 @@ public class UserSlashModule : InteractionModuleBase
         await Context.Interaction.DeferAsync();
 
         // Get users
-        var challenger = await Context.Guild.GetUserAsync(challengerId);
-        var opponent = await Context.Guild.GetUserAsync(opponentId);
+        var challenger = Context.Guild.GetUser(challengerId);
+        var opponent = Context.Guild.GetUser(opponentId);
 
         if (challenger == null || opponent == null)
         {

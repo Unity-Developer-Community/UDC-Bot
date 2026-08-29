@@ -1,17 +1,18 @@
 using Discord.Commands;
+using DiscordBot.Attributes;
+using DiscordBot.Modules.Base;
 using DiscordBot.Services;
-using DiscordBot.Settings;
 using DiscordBot.Utils;
 using HtmlAgilityPack;
 
 namespace DiscordBot.Modules;
 
-public class GeneralHelpModule : ModuleBase
+[RequireComponentEnabled("unity-help")]
+public class GeneralHelpModule : BotCommandModuleBase
 {
     #region Dependency Injection
     
     public UserService UserService { get; set; }
-    public BotSettings BotSettings { get; set; }
 
     #endregion // Dependency Injection
     

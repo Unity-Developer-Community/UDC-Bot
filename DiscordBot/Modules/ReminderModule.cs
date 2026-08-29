@@ -1,19 +1,23 @@
 using Discord.Commands;
 using Discord.WebSocket;
 using DiscordBot.Services;
-using DiscordBot.Settings;
+using DiscordBot.Policies;
 using DiscordBot.Attributes;
+using DiscordBot.Modules.Base;
+using DiscordBot.Components;
 using System.Text.RegularExpressions;
 
 namespace DiscordBot.Modules;
 
 [Group("UserModule"), Alias("")]
-public class ReminderModule : ModuleBase
+[RequireComponentEnabled("reminders")]
+public class ReminderModule : BotCommandModuleBase
 {
     #region Dependency Injection
 
     public ReminderService ReminderService { get; set; }
-    public BotSettings Settings { get; set; }
+    public ICommandChannelPolicy CommandChannelPolicy { get; set; }
+    public IComponentRegistry ComponentRegistry { get; set; } = null!;
 
     #endregion
 
@@ -153,7 +157,7 @@ public class ReminderModule : ModuleBase
                 $"#{index++} | {Utils.Utils.FormatTime((uint)(reminder.When - DateTime.Now).TotalSeconds)}",
                 $"[Link]({msgLink}) \"{reminder.Message}\"");
         }
-        if (await Context.Guild.GetChannelAsync(Settings.BotCommandsChannel.Id)is IMessageChannel botCommands)
+        if (await CommandChannelPolicy.GetCommandChannelAsync(Context.Guild) is IMessageChannel botCommands)
             await botCommands
                 .SendMessageAsync(Context.User.Mention, false, embed.Build())
                 .DeleteAfterSeconds(seconds: 30);
@@ -183,17 +187,12 @@ public class ReminderModule : ModuleBase
     [Summary("Used to restart the reminder service if it has crashed.")]
     public async Task RebootReminderService()
     {
-        if (ReminderService.IsRunning)
-        {
-            await ReplyAsync("Reminder service is still running.").DeleteAfterSeconds(seconds: 5);
-            return;
-        }
-
-        var result = ReminderService.RestartService();
-        if (result)
-            await ReplyAsync("Reminder service restarted.").DeleteAfterSeconds(seconds: 5);
-        else
-            await ReplyAsync("Reminder service failed to restart.").DeleteAfterSeconds(seconds: 5);
+        var result = await ComponentRegistry.RestartAsync(
+            ComponentIds.Reminders,
+            $"{Context.User.Id}:{Context.User.Username}",
+            "legacy reminder reboot command",
+            CancellationToken.None);
+        await ReplyAsync(result.Message).DeleteAfterSeconds(seconds: 5);
     }
 
     #endregion

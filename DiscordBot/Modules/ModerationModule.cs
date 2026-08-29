@@ -2,7 +2,9 @@ using System.IO;
 using System.Text;
 using Discord.Commands;
 using Discord.WebSocket;
+using DiscordBot.Policies;
 using DiscordBot.Services;
+using DiscordBot.Modules.Base;
 using DiscordBot.Settings;
 using Pathoschild.NaturalTimeParser.Parser;
 using DiscordBot.Attributes;
@@ -10,15 +12,18 @@ using DiscordBot.Utils;
 
 namespace DiscordBot.Modules;
 
-public class ModerationModule : ModuleBase
+[RequireComponentEnabled("moderation")]
+public class ModerationModule : BotCommandModuleBase
 {
     #region Dependency Injection
 
     public CommandHandlingService CommandHandlingService { get; set; }
     public DatabaseService DatabaseService { get; set; }
     public ILoggingService LoggingService { get; set; }
-    public Rules Rules { get; set; }
-    public BotSettings Settings { get; set; }
+    public IRulesCatalog RuleCatalog { get; set; }
+    public IModerationPolicy ModerationPolicy { get; set; }
+    public ICommandChannelPolicy CommandChannelPolicy { get; set; }
+    public IRoleAssignmentPolicy RoleAssignmentPolicy { get; set; }
     public UserService UserService { get; set; }
     public ModerationService ModerationService { get; set; }
 
@@ -26,8 +31,8 @@ public class ModerationModule : ModuleBase
 
     private async Task<bool> IsModerationEnabled()
     {
-        if (Settings.ModeratorCommandsEnabled) return true;
-        if (await Context.Guild.GetChannelAsync(Settings.BotAnnouncementChannel.Id) is IMessageChannel botAnnouncementChannel)
+        if (ModerationPolicy.CommandsEnabled) return true;
+        if (await ModerationPolicy.GetAnnouncementChannelAsync(Context.Guild) is IMessageChannel botAnnouncementChannel)
         {
             var sentMessage = await botAnnouncementChannel.SendMessageAsync($"{Context.User.Mention} some moderation commands are disabled, try using Wick.");
             await Context.Message.DeleteAsync();
@@ -47,9 +52,9 @@ public class ModerationModule : ModuleBase
         await Context.Message.DeleteAsync();
 
         var u = user as IGuildUser;
-        if (u != null && u.RoleIds.Contains(Settings.MutedRoleId)) return;
+        if (u != null && ModerationPolicy.IsMuted(u)) return;
 
-        await u.AddRoleAsync(Context.Guild.GetRole(Settings.MutedRoleId));
+        await u.AddRoleAsync(ModerationPolicy.GetMutedRole(Context.Guild));
 
         var reply = await ReplyAsync($"User {user} has been muted for {Utils.Utils.FormatTime(arg)} ({arg} seconds).");
         await LoggingService.LogChannelAndFile(
@@ -99,9 +104,9 @@ public class ModerationModule : ModuleBase
         await Context.Message.DeleteAsync();
 
         var u = user as IGuildUser;
-        if (u != null && u.RoleIds.Contains(Settings.MutedRoleId)) return;
+        if (u != null && ModerationPolicy.IsMuted(u)) return;
 
-        await u.AddRoleAsync(Context.Guild.GetRole(Settings.MutedRoleId));
+        await u.AddRoleAsync(ModerationPolicy.GetMutedRole(Context.Guild));
 
         var reply =
             await ReplyAsync($"User {user} has been muted for {Utils.Utils.FormatTime(seconds)} ({seconds} seconds). Reason : {message}");
@@ -113,7 +118,7 @@ public class ModerationModule : ModuleBase
                 $"You have been muted from UDC for **{Utils.Utils.FormatTime(seconds)}** for the following reason : **{message}**. " +
                 "This is not appealable and any tentative to avoid it will result in your permanent ban."))
         {
-            if (await Context.Guild.GetChannelAsync(Settings.BotCommandsChannel.Id) is ISocketMessageChannel botCommandChannel)
+            if (await CommandChannelPolicy.GetCommandChannelAsync(Context.Guild) is ISocketMessageChannel botCommandChannel)
                 await botCommandChannel.SendMessageAsync(
                     $"I could not DM you {user.Mention}!\nYou have been muted from UDC for **{Utils.Utils.FormatTime(seconds)}** for the following reason : **{message}**. " +
                     "This is not appealable and any tentative to avoid it will result in your permanent ban.");
@@ -145,7 +150,7 @@ public class ModerationModule : ModuleBase
             await Context.Message.DeleteAsync();
 
         UserService.MutedUsers.Remove(user.Id);
-        await u.RemoveRoleAsync(Context.Guild.GetRole(Settings.MutedRoleId));
+        await u.RemoveRoleAsync(ModerationPolicy.GetMutedRole(Context.Guild));
         var reply = await ReplyAsync("User " + user + " has been unmuted.");
         reply?.DeleteAfterSeconds(10d);
     }
@@ -159,7 +164,7 @@ public class ModerationModule : ModuleBase
         var contextUser = Context.User as SocketGuildUser;
         await Context.Message.DeleteAsync();
 
-        if (Settings.UserAssignableRoles.Roles.Contains(role.Name))
+        if (RoleAssignmentPolicy.IsAssignable(role.Name))
         {
             var u = user as IGuildUser;
             await u.AddRoleAsync(role);
@@ -180,7 +185,7 @@ public class ModerationModule : ModuleBase
         var contextUser = Context.User as SocketGuildUser;
         await Context.Message.DeleteAsync();
 
-        if (Settings.UserAssignableRoles.Roles.Contains(role.Name))
+        if (RoleAssignmentPolicy.IsAssignable(role.Name))
         {
             var u = user as IGuildUser;
 
@@ -264,7 +269,7 @@ public class ModerationModule : ModuleBase
     public async Task RulesCommand(IMessageChannel channel, int seconds = 60)
     {
         //Display rules of this channel for x seconds
-        var rule = Rules.Channel.First(x => x.Id == 0);
+        var rule = RuleCatalog.Channels.First(x => x.Id == 0);
         var m = await ReplyAsync(
             $"{rule.Header}{(rule.Content.Length > 0 ? rule.Content : "There is no special rule for this channel.\nPlease follow global rules (you can get them by typing `!globalrules`)")}");
 
@@ -282,7 +287,7 @@ public class ModerationModule : ModuleBase
     public async Task GlobalRules(int seconds = 60)
     {
         //Display rules of this channel for x seconds
-        var globalRules = Rules.Channel.First(x => x.Id == 0).Content;
+        var globalRules = RuleCatalog.Channels.First(x => x.Id == 0).Content;
         var m = await ReplyAsync(globalRules);
         await Context.Message.DeleteAsync();
 
@@ -297,7 +302,7 @@ public class ModerationModule : ModuleBase
     public async Task ChannelsDescription(int seconds = 60)
     {
         //Display rules of this channel for x seconds
-        var channelData = Rules.Channel;
+        var channelData = RuleCatalog.Channels;
         var sb = new StringBuilder();
 
         foreach (var c in channelData)
