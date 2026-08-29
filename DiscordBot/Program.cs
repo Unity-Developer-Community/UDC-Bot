@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -110,6 +111,17 @@ public class Program
             .AddSingleton<ILoggingService, LoggingService>()
             .AddSingleton<DatabaseService>()
             .AddSingleton(new ImageRenderOptions(_settings.AssetsRootPath))
+            .AddSingleton<IAvatarDownloader>(services =>
+            {
+                var handler = new SocketsHttpHandler
+                {
+                    ConnectTimeout = TimeSpan.FromSeconds(5),
+                    MaxConnectionsPerServer = 8,
+                    PooledConnectionLifetime = TimeSpan.FromMinutes(10)
+                };
+                var client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+                return new AvatarDownloader(client, services.GetRequiredService<ImageRenderOptions>());
+            })
             .AddSingleton<IProfileCardRenderer, ProfileCardRenderer>()
             .AddSingleton<UserService>()
             .AddSingleton<IntroductionWatcherService>()

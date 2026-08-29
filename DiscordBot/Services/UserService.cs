@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.IO;
-using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 using Discord.WebSocket;
@@ -22,6 +20,7 @@ public class UserService
     private readonly string CodeReminderFormattingExample;
     private readonly DatabaseService _databaseService;
     private readonly ILoggingService _loggingService;
+    private readonly IAvatarDownloader _avatarDownloader;
     private readonly IProfileCardRenderer _profileCardRenderer;
 
     private readonly Regex _x3CodeBlock =
@@ -67,13 +66,14 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _welcomeNoticeUsers.Any() ? _welcomeNoticeUsers.Min(x => x.time) : DateTime.MaxValue;
 
     public UserService(DiscordSocketClient client, DatabaseService databaseService, ILoggingService loggingService,
-        UpdateService updateService, IProfileCardRenderer profileCardRenderer,
+        UpdateService updateService, IAvatarDownloader avatarDownloader, IProfileCardRenderer profileCardRenderer,
         BotSettings settings, UserSettings userSettings)
     {
         _client = client;
         _rand = new Random();
         _databaseService = databaseService;
         _loggingService = loggingService;
+        _avatarDownloader = avatarDownloader;
         _profileCardRenderer = profileCardRenderer;
         _updateService = updateService;
         _settings = settings;
@@ -147,12 +147,6 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _codeBlockWarnPatterns.Add(new Regex("^(\\w*.\\w*)\\(\\w*?\\);($|.?($|.*?\\/{2}))", RegexOptions.Multiline));
         // Check for some collection of characters being set to some other collection of characters and check if end of line or comment.
         _codeBlockWarnPatterns.Add(new Regex("^.+? =.+?($|.*?\\/\\/)", RegexOptions.Multiline));
-
-        /* Make sure folders we require exist */
-        if (!Directory.Exists($"{_settings.ServerRootPath}/images/profiles/"))
-        {
-            Directory.CreateDirectory($"{_settings.ServerRootPath}/images/profiles/");
-        }
 
         /*
          Event subscriptions
@@ -305,19 +299,17 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
     private double GetXpHigh(int level) => 70d - 139.5d * (level + 2d) + 69.5 * Math.Pow(level + 2d, 2d);
 
     /// <summary>
-    ///     Generate the profile card for a given user and returns the generated image path
+    ///     Generate an in-memory profile card for a given user.
     /// </summary>
     /// <param name="user"></param>
     /// <returns></returns>
-    public async Task<string> GenerateProfileCard(IUser user)
+    public async Task<byte[]?> GenerateProfileCard(IUser user, CancellationToken cancellationToken = default)
     {
-        string profileCardPath = string.Empty;
-
         try
         {
             var dbRepo = _databaseService.Query;
             if (dbRepo == null)
-                return profileCardPath;
+                return null;
 
             var userData = await dbRepo.GetUser(user.Id.ToString());
 
@@ -332,19 +324,22 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             var xpShown = (int)(xpTotal - xpLow);
             var maxXpShown = (int)(xpHigh - xpLow);
 
-            var percentage = (float)xpShown / maxXpShown;
+            var percentage = maxXpShown > 0
+                ? Math.Clamp((float)xpShown / maxXpShown, 0f, 1f)
+                : 0f;
 
-            var u = (IGuildUser)user;
-            IRole mainRole = null;
-            foreach (var id in u.RoleIds)
+            if (user is not IGuildUser guildUser)
+                return null;
+
+            IRole? mainRole = null;
+            foreach (var id in guildUser.RoleIds)
             {
-                var role = u.Guild.GetRole(id);
-                if (mainRole == null)
-                    mainRole = u.Guild.GetRole(id);
-                else if (role.Position > mainRole.Position) mainRole = role;
+                var role = guildUser.Guild.GetRole(id);
+                if (role is not null && (mainRole is null || role.Position > mainRole.Position))
+                    mainRole = role;
             }
 
-            mainRole ??= u.Guild.EveryoneRole;
+            mainRole ??= guildUser.Guild.EveryoneRole;
 
             byte[]? avatarBytes = null;
             var avatarUrl = user.GetAvatarUrl(ImageFormat.Auto, 256);
@@ -352,8 +347,11 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
             {
                 try
                 {
-                    using var http = new HttpClient();
-                    avatarBytes = await http.GetByteArrayAsync(new Uri(avatarUrl));
+                    avatarBytes = await _avatarDownloader.DownloadAsync(new Uri(avatarUrl), cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
                 }
                 catch (Exception e)
                 {
@@ -371,7 +369,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 Level = level,
                 MainRoleColor = mainRole.Color,
                 MaxXpShown = maxXpShown,
-                Nickname = ((IGuildUser)user).Nickname,
+                Nickname = guildUser.Nickname,
                 UserId = ulong.Parse(userData.UserID),
                 Username = user.GetPreferredAndUsername(),
                 XpHigh = xpHigh,
@@ -382,16 +380,18 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 XpTotal = xpTotal
             };
 
-            profileCardPath = $"{_settings.ServerRootPath}/images/profiles/{user.Username}-profile.png";
-            var profileCard = _profileCardRenderer.Render(renderRequest);
-            await File.WriteAllBytesAsync(profileCardPath, profileCard);
+            return _profileCardRenderer.Render(renderRequest);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception e)
         {
             await _loggingService.LogChannelAndFile($"Failed to generate profile card for {user.Username}.\nEx:{e.Message}", ExtendedLogSeverity.LowWarning);
         }
 
-        return profileCardPath;
+        return null;
     }
 
     public Embed WelcomeMessage(SocketGuildUser user)

@@ -31,12 +31,15 @@ public class XpBarSkinModule : ISkinModule
 
     public IDrawables<byte> GetDrawables(ProfileCardRenderRequest data)
     {
+        var xpPercentage = float.IsFinite(data.XpPercentage)
+            ? Math.Clamp(data.XpPercentage, 0f, 1f)
+            : 0f;
         var xpBarOutsideRectangle = new RectangleD(StartX, StartY,
             StartX + Width, StartY + Height);
 
         var xpBarInsideRectangle =
             new RectangleD(xpBarOutsideRectangle.UpperLeftX + 2, xpBarOutsideRectangle.UpperLeftY + 2,
-                StartX + Width * data.XpPercentage - 2, xpBarOutsideRectangle.LowerRightY - 2);
+                StartX + Width * xpPercentage - 2, xpBarOutsideRectangle.LowerRightY - 2);
 
         return new Drawables()
             //XP Bar Outside

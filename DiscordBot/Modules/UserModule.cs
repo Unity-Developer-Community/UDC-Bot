@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -526,13 +527,14 @@ public class UserModule : ModuleBase
             await Context.Message.DeleteAsync();
 
             var profileCard = await UserService.GenerateProfileCard(user);
-            if (string.IsNullOrEmpty(profileCard))
+            if (profileCard is not { Length: > 0 })
             {
                 await ReplyAsync("Failed to generate profile card.").DeleteAfterSeconds(seconds: 10);
                 return;
             }
 
-            var profile = await Context.Channel.SendFileAsync(profileCard);
+            await using var profileStream = new MemoryStream(profileCard, writable: false);
+            var profile = await Context.Channel.SendFileAsync(profileStream, "profile.png");
             await profile.DeleteAfterTime(minutes: 3);
         }
         catch (Exception e)

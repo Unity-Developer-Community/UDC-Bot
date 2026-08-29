@@ -20,6 +20,9 @@ public sealed class ProfileCardRendererTests
 
         Assert.AreEqual(500u, actual.Width);
         Assert.AreEqual(200u, actual.Height);
+        Assert.AreEqual(MagickFormat.Png, actual.Format);
+        Assert.AreEqual(8u, actual.Depth);
+        Assert.AreEqual(0, actual.ProfileNames.Count());
         Assert.IsTrue(actual.HasAlpha, "The profile PNG should retain an alpha channel.");
         Assert.IsGreaterThan(25_000, bytes.Length);
         Assert.IsLessThan(500_000, bytes.Length);
@@ -86,6 +89,19 @@ public sealed class ProfileCardRendererTests
     }
 
     [TestMethod]
+    public void Render_XpPercentageOutsideRange_IsClamped()
+    {
+        var renderer = CreateRenderer();
+        var empty = renderer.Render(CreateRequest() with { XpPercentage = 0 });
+        var belowEmpty = renderer.Render(CreateRequest() with { XpPercentage = -10 });
+        var full = renderer.Render(CreateRequest() with { XpPercentage = 1 });
+        var aboveFull = renderer.Render(CreateRequest() with { XpPercentage = 10 });
+
+        CollectionAssert.AreEqual(empty, belowEmpty);
+        CollectionAssert.AreEqual(full, aboveFull);
+    }
+
+    [TestMethod]
     public void Render_RoleColor_ChangesAvatarBorder()
     {
         var renderer = CreateRenderer();
@@ -107,6 +123,82 @@ public sealed class ProfileCardRendererTests
 
         var bytes = CreateRenderer().Render(CreateRequest());
         Assert.IsGreaterThan(0, bytes.Length);
+    }
+
+    [TestMethod]
+    public void Render_AvatarOverByteLimit_IsRejectedBeforeDecode()
+    {
+        var renderer = new ProfileCardRenderer(new ImageRenderOptions(AssetsRootPath)
+        {
+            MaximumAvatarBytes = 64
+        });
+
+        Assert.Throws<InvalidDataException>(() =>
+            renderer.Render(CreateRequest() with { AvatarBytes = new byte[65] }));
+    }
+
+    [TestMethod]
+    public void Render_AvatarOverDimensionLimit_IsRejectedBeforeDecode()
+    {
+        using var source = new MagickImage(MagickColors.Red, 17, 1);
+        var renderer = new ProfileCardRenderer(new ImageRenderOptions(AssetsRootPath)
+        {
+            MaximumAvatarWidth = 16
+        });
+
+        Assert.Throws<InvalidDataException>(() =>
+            renderer.Render(CreateRequest() with { AvatarBytes = source.ToByteArray(MagickFormat.Png) }));
+    }
+
+    [TestMethod]
+    public void Render_UnsupportedAvatarFormat_IsRejected()
+    {
+        using var source = new MagickImage(MagickColors.Red, 8, 8);
+        var bytes = source.ToByteArray(MagickFormat.Bmp);
+
+        Assert.Throws<InvalidDataException>(() =>
+            CreateRenderer().Render(CreateRequest() with { AvatarBytes = bytes }));
+    }
+
+    [TestMethod]
+    public void Render_OutputOverByteLimit_IsRejected()
+    {
+        var renderer = new ProfileCardRenderer(new ImageRenderOptions(AssetsRootPath)
+        {
+            MaximumOutputBytes = 1_000
+        });
+
+        Assert.Throws<InvalidOperationException>(() => renderer.Render(CreateRequest()));
+    }
+
+    [TestMethod]
+    public void Render_RepeatedRequests_AreDeterministic()
+    {
+        var renderer = CreateRenderer();
+        var expected = renderer.Render(CreateRequest());
+
+        for (var index = 0; index < 20; index++)
+            CollectionAssert.AreEqual(expected, renderer.Render(CreateRequest()));
+    }
+
+    [TestMethod]
+    public async Task Render_ParallelRequestsWithSameUsername_KeepIndependentOutputs()
+    {
+        var renderer = CreateRenderer();
+        var renders = await Task.WhenAll(Enumerable.Range(0, 12).Select(index => Task.Run(() =>
+            renderer.Render(CreateRequest() with
+            {
+                Username = "colliding-name",
+                MainRoleColor = index % 2 == 0 ? new Color(255, 0, 0) : new Color(0, 0, 255)
+            }))));
+
+        for (var index = 2; index < renders.Length; index += 2)
+        {
+            CollectionAssert.AreEqual(renders[0], renders[index]);
+            CollectionAssert.AreEqual(renders[1], renders[index + 1]);
+        }
+
+        CollectionAssert.AreNotEqual(renders[0], renders[1]);
     }
 
     private static ProfileCardRenderer CreateRenderer() =>
