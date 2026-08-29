@@ -1,5 +1,5 @@
 ﻿using System.Text.RegularExpressions;
-using DiscordBot.Domain;
+using DiscordBot.Services.Rendering;
 using ImageMagick;
 
 namespace DiscordBot.Skin;
@@ -15,23 +15,23 @@ public class CustomTextSkinModule : BaseTextSkinModule
         FontPointSize = 15;
     }
 
-    public override Drawables GetDrawables(ProfileData data)
+    public override Drawables GetDrawables(ProfileCardRenderRequest data)
     {
         var textPosition = new PointD(StartX, StartY);
 
         // Reflection to convert stuff like {Level} to data.Level
         var reg = new Regex(@"(?<=\{)(.*?)(?=\})");
-        var mc = reg.Matches(Text);
+        var text = Text;
+        var mc = reg.Matches(text);
         foreach (var match in mc)
         {
-            var prop = typeof(ProfileData).GetProperty(match.ToString());
+            var prop = typeof(ProfileCardRenderRequest).GetProperty(match.ToString());
             if (prop == null) continue;
             var value = (dynamic)prop.GetValue(data, null);
-            Text = Text.Replace("{" + match + "}", value.ToString());
+            text = text.Replace("{" + match + "}", value.ToString());
         }
-        /* ALL properties of ProfileData.cs can be used!
-         * Like {Level} for ProfileData.Level
-         * Or {Nickname} for ProfileData.Nickname
+        /* All properties of ProfileCardRenderRequest can be used.
+         * For example, {Level} or {Nickname}.
          */
 
         return new Drawables()
@@ -44,6 +44,6 @@ public class CustomTextSkinModule : BaseTextSkinModule
             .TextAlignment(TextAlignment)
             .TextAntialias(TextAntiAlias)
             .TextKerning(TextKerning)
-            .Text(textPosition.X, textPosition.Y, $"{Text ?? Text}");
+            .Text(textPosition.X, textPosition.Y, text);
     }
 }

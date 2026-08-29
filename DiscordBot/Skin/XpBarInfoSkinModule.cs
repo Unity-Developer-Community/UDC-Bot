@@ -1,4 +1,4 @@
-using DiscordBot.Domain;
+using DiscordBot.Services.Rendering;
 using ImageMagick;
 
 namespace DiscordBot.Skin;
@@ -13,7 +13,7 @@ public class XpBarInfoSkinModule : BaseTextSkinModule
         FontPointSize = 17;
     }
 
-    public override Drawables GetDrawables(ProfileData data)
+    public override Drawables GetDrawables(ProfileCardRenderRequest data)
     {
         Text = $"{data.XpShown:#,##0} / {data.MaxXpShown:N0} ({Math.Floor(data.XpPercentage * 100):0}%)";
         return base.GetDrawables(data);

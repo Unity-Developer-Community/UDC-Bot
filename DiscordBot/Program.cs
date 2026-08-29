@@ -1,9 +1,11 @@
 using System.Diagnostics;
+using System.IO;
 using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Service;
 using DiscordBot.Services;
+using DiscordBot.Services.Rendering;
 using DiscordBot.Services.Tips;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
@@ -29,8 +31,17 @@ public class Program
     private UnityHelpService _unityHelpService;
     private RecruitService _recruitService;
 
-    public static void Main(string[] args) =>
+    public static int Main(string[] args)
+    {
+        if (args.Length > 0 && args[0].Equals("--render-smoke", StringComparison.OrdinalIgnoreCase))
+        {
+            var outputPath = args.Length > 1 ? args[1] : null;
+            return ProfileCardRenderSmoke.Run(Path.Combine(AppContext.BaseDirectory, "Assets"), outputPath);
+        }
+
         new Program().MainAsync().GetAwaiter().GetResult();
+        return 0;
+    }
 
     private async Task MainAsync()
     {
@@ -95,6 +106,8 @@ public class Program
             .AddSingleton<CommandHandlingService>()
             .AddSingleton<ILoggingService, LoggingService>()
             .AddSingleton<DatabaseService>()
+            .AddSingleton(new ImageRenderOptions(_settings.AssetsRootPath))
+            .AddSingleton<IProfileCardRenderer, ProfileCardRenderer>()
             .AddSingleton<UserService>()
             .AddSingleton<IntroductionWatcherService>()
             .AddSingleton<ModerationService>()

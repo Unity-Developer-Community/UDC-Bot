@@ -1,4 +1,4 @@
-using DiscordBot.Domain;
+using DiscordBot.Services.Rendering;
 using ImageMagick;
 
 namespace DiscordBot.Skin;
@@ -7,5 +7,5 @@ public interface ISkinModule
 {
     string Type { get; set; }
 
-    Drawables GetDrawables(ProfileData data);
+    Drawables GetDrawables(ProfileCardRenderRequest data);
 }

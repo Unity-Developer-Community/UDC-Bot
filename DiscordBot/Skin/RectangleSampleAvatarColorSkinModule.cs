@@ -1,4 +1,4 @@
-using DiscordBot.Domain;
+using DiscordBot.Services.Rendering;
 using ImageMagick;
 
 namespace DiscordBot.Skin;
@@ -17,25 +17,15 @@ public class RectangleSampleAvatarColorSkinModule : ISkinModule
 
     public string Type { get; set; }
 
-    public Drawables GetDrawables(ProfileData data)
+    public Drawables GetDrawables(ProfileCardRenderRequest data)
     {
-        var color = DetermineColor(data.Picture);
+        var color = new MagickColor(data.AvatarSampleColor.R, data.AvatarSampleColor.G, data.AvatarSampleColor.B);
+
+        if (WhiteFix && data.AvatarSampleColor.R + data.AvatarSampleColor.G + data.AvatarSampleColor.B > 650)
+            color = new MagickColor(DefaultColor);
 
         return new Drawables()
             .FillColor(color)
             .Rectangle(StartX, StartY, StartX + Width, StartY + Height);
-    }
-
-    private MagickColor DetermineColor(MagickImage dataPicture)
-    {
-        //basically we let magick to choose what the main color by resizing to 1x1
-        var copy = new MagickImage(dataPicture);
-        copy.Resize(1, 1);
-        var color = copy.GetPixels()[0, 0].ToColor();
-
-        if (WhiteFix && color.R + color.G + color.B > 650)
-            color = new MagickColor(DefaultColor);
-
-        return color;
     }
 }

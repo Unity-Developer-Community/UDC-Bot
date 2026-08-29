@@ -6,10 +6,8 @@ using System.Text.RegularExpressions;
 using Discord.WebSocket;
 using DiscordBot.Domain;
 using DiscordBot.Settings;
-using DiscordBot.Skin;
 using DiscordBot.Data;
-using ImageMagick;
-using Newtonsoft.Json;
+using DiscordBot.Services.Rendering;
 
 namespace DiscordBot.Services;
 
@@ -24,6 +22,7 @@ public class UserService
     private readonly string CodeReminderFormattingExample;
     private readonly DatabaseService _databaseService;
     private readonly ILoggingService _loggingService;
+    private readonly IProfileCardRenderer _profileCardRenderer;
 
     private readonly Regex _x3CodeBlock =
 new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multiline | RegexOptions.Singleline);
@@ -68,13 +67,14 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _welcomeNoticeUsers.Any() ? _welcomeNoticeUsers.Min(x => x.time) : DateTime.MaxValue;
 
     public UserService(DiscordSocketClient client, DatabaseService databaseService, ILoggingService loggingService,
-        UpdateService updateService,
+        UpdateService updateService, IProfileCardRenderer profileCardRenderer,
         BotSettings settings, UserSettings userSettings)
     {
         _client = client;
         _rand = new Random();
         _databaseService = databaseService;
         _loggingService = loggingService;
+        _profileCardRenderer = profileCardRenderer;
         _updateService = updateService;
         _settings = settings;
         MutedUsers = new Dictionary<ulong, DateTime>();
@@ -304,10 +304,6 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
     private double GetXpHigh(int level) => 70d - 139.5d * (level + 2d) + 69.5 * Math.Pow(level + 2d, 2d);
 
-    private SkinData GetSkinData() =>
-        JsonConvert.DeserializeObject<SkinData>(File.ReadAllText($"{_settings.AssetsRootPath}/skins/skin.json"),
-            new SkinModuleJsonConverter());
-
     /// <summary>
     ///     Generate the profile card for a given user and returns the generated image path
     /// </summary>
@@ -350,10 +346,26 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
 
             mainRole ??= u.Guild.EveryoneRole;
 
-            using var profileCard = new MagickImageCollection();
-            var skin = GetSkinData();
-            var profile = new ProfileData
+            byte[]? avatarBytes = null;
+            var avatarUrl = user.GetAvatarUrl(ImageFormat.Auto, 256);
+            if (!string.IsNullOrEmpty(avatarUrl))
             {
+                try
+                {
+                    using var http = new HttpClient();
+                    avatarBytes = await http.GetByteArrayAsync(new Uri(avatarUrl));
+                }
+                catch (Exception e)
+                {
+                    LoggingService.LogToConsole(
+                        $"Failed to download user profile image for ProfileCard.\nEx:{e.Message}",
+                        LogSeverity.Warning);
+                }
+            }
+
+            var renderRequest = new ProfileCardRenderRequest
+            {
+                AvatarBytes = avatarBytes,
                 Karma = karma,
                 KarmaRank = karmaRank,
                 Level = level,
@@ -370,63 +382,14 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
                 XpTotal = xpTotal
             };
 
-            var background = new MagickImage($"{_settings.AssetsRootPath}/skins/{skin.Background}");
-
-            var avatarUrl = user.GetAvatarUrl(ImageFormat.Auto, 256);
-            if (string.IsNullOrEmpty(avatarUrl))
-                profile.Picture = new MagickImage($"{_settings.AssetsRootPath}/images/default.png");
-            else
-                try
-                {
-                    Stream stream;
-
-                    using (var http = new HttpClient())
-                    {
-                        stream = await http.GetStreamAsync(new Uri(avatarUrl));
-                    }
-
-                    profile.Picture = new MagickImage(stream);
-                }
-                catch (Exception e)
-                {
-                    LoggingService.LogToConsole(
-                        $"Failed to download user profile image for ProfileCard.\nEx:{e.Message}",
-                        LogSeverity.Warning);
-                    profile.Picture = new MagickImage($"{_settings.AssetsRootPath}/images/default.png");
-                }
-
-            profile.Picture.Resize(skin.AvatarSize, skin.AvatarSize);
-            profileCard.Add(background);
-
-            foreach (var layer in skin.Layers)
-            {
-                if (layer.Image != null)
-                {
-                    var image = layer.Image.ToLower() == "avatar"
-                        ? profile.Picture
-                        : new MagickImage($"{_settings.AssetsRootPath}/skins/{layer.Image}");
-
-                    background.Composite(image, (int)layer.StartX, (int)layer.StartY, CompositeOperator.Over);
-                }
-
-                var l = new MagickImage(MagickColors.Transparent, (int)layer.Width, (int)layer.Height);
-                foreach (var module in layer.Modules) module.GetDrawables(profile).Draw(l);
-
-                background.Composite(l, (int)layer.StartX, (int)layer.StartY, CompositeOperator.Over);
-            }
-
             profileCardPath = $"{_settings.ServerRootPath}/images/profiles/{user.Username}-profile.png";
-
-            using var result = profileCard.Mosaic();
-            result.Write(profileCardPath);
+            var profileCard = _profileCardRenderer.Render(renderRequest);
+            await File.WriteAllBytesAsync(profileCardPath, profileCard);
         }
         catch (Exception e)
         {
             await _loggingService.LogChannelAndFile($"Failed to generate profile card for {user.Username}.\nEx:{e.Message}", ExtendedLogSeverity.LowWarning);
         }
-
-        if (!string.IsNullOrEmpty(profileCardPath))
-            await Task.Delay(100);
 
         return profileCardPath;
     }

@@ -1,4 +1,4 @@
-using DiscordBot.Domain;
+using DiscordBot.Services.Rendering;
 using ImageMagick;
 
 namespace DiscordBot.Skin;
@@ -16,7 +16,7 @@ public class AvatarBorderSkinModule : ISkinModule
 
     public string Type { get; set; }
 
-    public Drawables GetDrawables(ProfileData data)
+    public Drawables GetDrawables(ProfileCardRenderRequest data)
     {
         var avatarContourStartX = StartX;
         var avatarContourStartY = StartY;

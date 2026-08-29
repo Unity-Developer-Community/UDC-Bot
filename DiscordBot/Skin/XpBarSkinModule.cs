@@ -1,4 +1,4 @@
-using DiscordBot.Domain;
+using DiscordBot.Services.Rendering;
 using ImageMagick;
 
 namespace DiscordBot.Skin;
@@ -28,7 +28,7 @@ public class XpBarSkinModule : ISkinModule
 
     public string Type { get; set; }
 
-    public Drawables GetDrawables(ProfileData data)
+    public Drawables GetDrawables(ProfileCardRenderRequest data)
     {
         var xpBarOutsideRectangle = new RectangleD(StartX, StartY,
             StartX + Width, StartY + Height);

@@ -1,4 +1,4 @@
-using DiscordBot.Domain;
+using DiscordBot.Services.Rendering;
 using ImageMagick;
 
 namespace DiscordBot.Skin;
@@ -12,7 +12,7 @@ public class XpRankSkinModule : BaseTextSkinModule
         FontPointSize = 17;
     }
 
-    public override Drawables GetDrawables(ProfileData data)
+    public override Drawables GetDrawables(ProfileCardRenderRequest data)
     {
         Text = $"#{data.XpRank}";
         return base.GetDrawables(data);

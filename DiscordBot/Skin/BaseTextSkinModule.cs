@@ -1,4 +1,4 @@
-using DiscordBot.Domain;
+using DiscordBot.Services.Rendering;
 using ImageMagick;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
@@ -33,7 +33,7 @@ public abstract class BaseTextSkinModule : ISkinModule
 
     public virtual string Type { get; set; }
 
-    public virtual Drawables GetDrawables(ProfileData data)
+    public virtual Drawables GetDrawables(ProfileCardRenderRequest data)
     {
         var position = new PointD(StartX, StartY);
 

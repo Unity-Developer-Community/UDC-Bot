@@ -1,4 +1,4 @@
-using DiscordBot.Domain;
+using DiscordBot.Services.Rendering;
 using ImageMagick;
 
 namespace DiscordBot.Skin;
@@ -13,7 +13,7 @@ public class UsernameSkinModule : BaseTextSkinModule
         FillColor = MagickColors.DeepSkyBlue.ToString();
     }
 
-    public override Drawables GetDrawables(ProfileData data)
+    public override Drawables GetDrawables(ProfileCardRenderRequest data)
     {
         Text = $"{data.Nickname ?? data.Username}";
         return base.GetDrawables(data);

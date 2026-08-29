@@ -20,6 +20,9 @@ COPY ./DiscordBot/Assets/fonts/ ./Assets/fonts/
 COPY ./DiscordBot/Assets/images/ ./Assets/images/
 COPY ./DiscordBot/Assets/skins/ ./Assets/skins/
 
+# Prove the native Magick runtime and bundled fonts work in the final image.
+RUN ./DiscordBot --render-smoke
+
 # Add contrib repo for MS fonts, matching the base image's Debian codename
 RUN . /etc/os-release && \
     echo "deb https://deb.debian.org/debian ${VERSION_CODENAME} contrib" > /etc/apt/sources.list.d/contrib.list && \

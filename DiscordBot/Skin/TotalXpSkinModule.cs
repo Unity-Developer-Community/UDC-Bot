@@ -1,5 +1,5 @@
 using System.Globalization;
-using DiscordBot.Domain;
+using DiscordBot.Services.Rendering;
 using ImageMagick;
 
 namespace DiscordBot.Skin;
@@ -13,7 +13,7 @@ public class TotalXpSkinModule : BaseTextSkinModule
         FontPointSize = 17;
     }
 
-    public override Drawables GetDrawables(ProfileData data)
+    public override Drawables GetDrawables(ProfileCardRenderRequest data)
     {
         Text = data.XpTotal.ToString("N0", new CultureInfo("en-US"));
         return base.GetDrawables(data);

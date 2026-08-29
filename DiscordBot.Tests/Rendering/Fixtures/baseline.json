@@ -1,0 +1,14 @@
+{
+  "renderer": "profile-card",
+  "sourcePackage": "Magick.NET-Q8-x64 7.5.0.1",
+  "width": 500,
+  "height": 200,
+  "format": "PNG32",
+  "bytes": 139859,
+  "sha256": "a392be9f1397d8671c77b80de4124357b6d2f0e0ec4d67b3c1035518d9dacd99",
+  "alphaChannel": true,
+  "linuxContainerBytes": 139478,
+  "hostToLinuxContainerNormalizedRootMeanSquaredError": 0.063707,
+  "maximumNormalizedRootMeanSquaredError": 0.08,
+  "approval": "Before/after PNG requires maintainer review"
+}
