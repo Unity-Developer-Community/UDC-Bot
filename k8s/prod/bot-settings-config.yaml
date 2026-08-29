@@ -1,5 +1,5 @@
-# ConfigMaps for bot Settings files (Rules, FAQs, UserSettings).
-# These are rendered into an emptyDir volume by the render-config init container.
+# Content ConfigMaps projected read-only into /app/Settings.
+# The legacy UserSettings document remains temporarily for rollback but is not mounted by the modular deployment.
 ---
 apiVersion: v1
 kind: ConfigMap

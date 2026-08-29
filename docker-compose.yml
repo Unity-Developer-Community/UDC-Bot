@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: udcbot
       POSTGRES_USER: udcbot
-      POSTGRES_PASSWORD: 123456789
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456789}
 
   adminer:
     image: adminer:4
@@ -24,6 +24,13 @@ services:
 
   bot:
     build: .
+    environment:
+      UDCBOT_DiscordConnection__Token: ${UDCBOT_DiscordConnection__Token:-}
+      UDCBOT_Database__ConnectionString: Host=db;Port=5432;Database=udcbot;Username=udcbot;Password=${POSTGRES_PASSWORD:-123456789}
+      UDCBOT_Weather__ApiKey: ${UDCBOT_Weather__ApiKey:-}
+      UDCBOT_Airport__FlightApiKey: ${UDCBOT_Airport__FlightApiKey:-}
+      UDCBOT_Airport__FlightApiSecret: ${UDCBOT_Airport__FlightApiSecret:-}
+      UDCBOT_Airport__AirLabsApiKey: ${UDCBOT_Airport__AirLabsApiKey:-}
     volumes:
       - ./DiscordBot/Settings:/app/Settings
       - ./DiscordBot/SERVER:/app/SERVER

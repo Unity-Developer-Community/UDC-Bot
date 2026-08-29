@@ -39,78 +39,6 @@ spec:
         environment: prod
     spec:
       initContainers:
-        - name: render-config
-          image: alpine:3.20
-          command:
-            - sh
-            - -c
-            - |
-              set -e
-              apk add --no-cache gettext >/dev/null 2>&1
-              envsubst '${BOT_TOKEN} ${DB_PASSWORD} ${WEATHER_KEY} ${IPGEO_KEY} ${FLIGHT_KEY} ${FLIGHT_SECRET} ${AIRLAB_KEY}' < /config-template/Settings.json > /app-settings/Settings.json
-              cp /rules-template/Rules.json /app-settings/Rules.json
-              cp /faqs-template/FAQs.json /app-settings/FAQs.json
-              cp /usersettings-template/UserSettings.json /app-settings/UserSettings.json
-              cp /slap-template/udc-slap.txt /app-settings/udc-slap.txt
-          env:
-            - name: BOT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: discord-bot-token
-                  key: identifiant
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgresql-credentials
-                  key: password
-            - name: WEATHER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: bot-api-keys
-                  key: weather-api-key
-            - name: IPGEO_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: bot-api-keys
-                  key: ipgeo-api-key
-            - name: FLIGHT_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: bot-api-keys
-                  key: flight-api-key
-            - name: FLIGHT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: bot-api-keys
-                  key: flight-api-secret
-            - name: AIRLAB_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: bot-api-keys
-                  key: airlab-api-key
-          volumeMounts:
-            - name: config-template
-              mountPath: /config-template
-              readOnly: true
-            - name: rules-template
-              mountPath: /rules-template
-              readOnly: true
-            - name: faqs-template
-              mountPath: /faqs-template
-              readOnly: true
-            - name: usersettings-template
-              mountPath: /usersettings-template
-              readOnly: true
-            - name: slap-template
-              mountPath: /slap-template
-              readOnly: true
-            - name: app-settings
-              mountPath: /app-settings
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
         - name: wait-for-postgresql
           image: busybox:1.37
           command:
@@ -129,6 +57,39 @@ spec:
       containers:
         - name: bot
           image: ghcr.io/unity-developer-community/udc-bot:69e5338
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-credentials
+                  key: password
+            - name: UDCBOT_DiscordConnection__Token
+              valueFrom:
+                secretKeyRef:
+                  name: discord-bot-token
+                  key: identifiant
+            - name: UDCBOT_Database__ConnectionString
+              value: "Host=postgresql;Port=5432;Database=udcbot;Username=udcbot;Password=$(DB_PASSWORD)"
+            - name: UDCBOT_Weather__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: bot-api-keys
+                  key: weather-api-key
+            - name: UDCBOT_Airport__FlightApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: bot-api-keys
+                  key: flight-api-key
+            - name: UDCBOT_Airport__FlightApiSecret
+              valueFrom:
+                secretKeyRef:
+                  name: bot-api-keys
+                  key: flight-api-secret
+            - name: UDCBOT_Airport__AirLabsApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: bot-api-keys
+                  key: airlab-api-key
           volumeMounts:
             - name: app-settings
               mountPath: /app/Settings
@@ -149,23 +110,17 @@ spec:
               add:
                 - DAC_OVERRIDE
       volumes:
-        - name: config-template
-          configMap:
-            name: bot-config
-        - name: rules-template
-          configMap:
-            name: bot-rules
-        - name: faqs-template
-          configMap:
-            name: bot-faqs
-        - name: usersettings-template
-          configMap:
-            name: bot-user-settings
-        - name: slap-template
-          configMap:
-            name: bot-slap
         - name: app-settings
-          emptyDir: {}
+          projected:
+            sources:
+              - configMap:
+                  name: bot-config
+              - configMap:
+                  name: bot-rules
+              - configMap:
+                  name: bot-faqs
+              - configMap:
+                  name: bot-slap
         - name: server-data
           persistentVolumeClaim:
             claimName: bot-server-data

@@ -1,130 +1,71 @@
-# Settings.json template for UDC-Bot dev environment.
-# Secrets are substituted at pod startup by the render-config init container via envsubst.
+# Non-secret domain configuration for UDC-Bot dev.
+# Credentials are injected directly into the bot container as UDCBOT_ environment variables.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-    name: bot-config
-    namespace: udc-bot-dev
-    labels:
-        app.kubernetes.io/name: udc-bot
-        app.kubernetes.io/part-of: udc-bot
-        environment: dev
+  name: bot-config
+  namespace: udc-bot-dev
+  labels:
+    app.kubernetes.io/name: udc-bot
+    app.kubernetes.io/part-of: udc-bot
+    environment: dev
 data:
-    Settings.json: |
-        {
-            "token": "${BOT_TOKEN}",
-            "DbConnectionString": "Host=postgresql;Port=5432;Database=udcbot;Username=udcbot;Password=${DB_PASSWORD}",
-            "invite": "InviteLink", // Currently Unused
-            /*Server Info*/
-            "serverRootPath": "./SERVER",
-            "assetsRootPath": "./Assets",
-            /* Base info */
-            "prefix": "!",
-            "Administrator": "838030241103478805",
-            "ModeratorRoleId": "769010537119088690",
-            "guildId": "566084539664039938", // Replace with your servers guild ID
-            /* All assignable roles as of 29/04/21 */
-            "UserAssignableRoles": {
-                "desc": "All normal user assignable roles available",
-                "roles": [
-                "Audio-Engineers",
-                "Technical-Artists",
-                "Animators",
-                "3D-Artists",
-                "2D-Artists",
-                "XR-Developers",
-                "Programmers",
-                "Writers",
-                "Game-Designers",
-                "Generalists",
-                "Hobbyists",
-                "Students"
-                ]
-            },
-            /* Channel IDs for certain channels. */
-            "generalChannel": { // Off-topic
-                "desc": "General-Chat Channel",
-                "id": "566084539664039944"
-            },
-            "botAnnouncementChannel": { // Most bot logs will go here
-                "desc": "Bot-Announcement Channel",
-                "id": "567628191221547008"
-            },
-            "announcementsChannel": { // Not used by bot
-                "desc": "General Announcement Channel",
-                "id": "838030934728376320" // Currently Unused 29/04/21
-            },
-            "botCommandsChannel": {
-                "desc": "Bot-Commands Channel",
-                "id": "599583999379243008"
-            },
-            "unityNewsChannel": {
-                "desc": "Unity News Channel",
-                "id": "1022102744552710154"
-            },
-            "UnityReleasesChannel": {
-                "desc": "Unity Releases Channel",
-                "id": "1022102744552710154"
-            },
-            "RulesChannel": {
-                "desc": "The Rules",
-                "id": "825932695698669618"
-            },
-            "ReportedMessageChannel": {
-                "desc": "Reported Message Channel",
-                "id": "567628191221547008"
-            },
-            /* Role Ids */
-            "mutedRoleID": "682432235445682194",
-            "SubsReleasesRoleId": "769870886743703584",
-            "TipsUserRoleId": "603187742096228374",
-            "TipsAuthorRoleId": "603187742096228374",
-            /*Complaints Channels Stuff*/
-            "complaintCategoryId": "874631331810799626",
-            "complaintChannelPrefix": "Complaint",
-            /*Commands Configuration*/
-            "wikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
-            "IPGeolocationAPIKey": "${IPGEO_KEY}",
-            "WeatherAPIKey": "${WEATHER_KEY}",
-            "FlightAPIKey": "${FLIGHT_KEY}",
-            "FlightAPISecret": "${FLIGHT_SECRET}",
-            "AirLabAPIKey": "${AIRLAB_KEY}",
-            /* Job Recruitment Service */
-            "RecruitmentChannel": {
-                "desc": "Channel for job postings",
-                "id": "1134672948356202678"
-            },
-            "RecruitmentServiceEnabled": true,
-            "TagLookingToHire": "1134673961779724480",
-            "TagLookingForWork": "1134673990993051658",
-            "TagUnpaidCollab": "1134674009292804117",
-            "TagPositionFilled": "1134674041450545283",
-            /* Unity Help Service */
-            "UnityHelpBabySitterEnabled": true,
-            "genericHelpChannel": { // Unity-help
-                "desc": "Unity-Help Channel",
-                "id": "1028254982748778516"
-            },
-            "TagUnitHelpResolvedTag": "1028255134356086784",
-            "IntroductionChannel": {
-                "desc": "Introduction Channel",
-                "id": "1198575542467838044"
-            },
-            "IntroductionWatcherServiceEnabled": true,
-            "UserModuleSlapObjectsTable": "Settings/udc-slap.txt",
-            "UserModuleSlapChoices": [
-                "developer manual",
-                "devonlepment server"
-            ],
-            "UserModuleSlapFails": [
-                "developing a rash",
-                "developing a skin condition"
-            ],
-            "TipImageDirectory": "tips",
-            "BirthdayAnnouncementEnabled": true,
-            "BirthdayCheckIntervalMinutes": 1,
-            "BirthdayAnnouncementChannel": {
-                "desc": "Channel for birthday announcements",
-                "id": "566084539664039944"
-            }
-        }
+  CoreSettings.json: |
+    {
+      "DiscordGuild": { "GuildId": 566084539664039938, "Invite": "InviteLink" },
+      "Storage": { "ServerRootPath": "./SERVER", "AssetsRootPath": "./Assets" },
+      "Commands": { "Prefix": "!", "BotCommandsChannelId": 599583999379243008 },
+      "Logging": { "LogCommandExecutions": true, "AnnouncementChannelId": 567628191221547008 },
+      "Authorization": { "ModeratorRoleId": 769010537119088690 }
+    }
+  FeatureSettings.json: |
+    {
+      "UserActivity": {
+        "WelcomeMessageDelaySeconds": 300,
+        "EveryoneScoldPeriodSeconds": 21600,
+        "Thanks": [ "thanks", "ty", "thx", "thnx", "thanx", "thankyou", "thank you", "tysm", "cheers", "merci", "gracias", "danke", "grazie", "arigatou", "有り難う", "有難う", "ありがとう", "どうも", "고맙습니다", "谢谢" ],
+        "ThanksCooldown": 60,
+        "ThanksMinJoinTime": 600,
+        "XpMinPerMessage": 10,
+        "XpMaxPerMessage": 30,
+        "XpMinCooldown": 60,
+        "XpMaxCooldown": 180,
+        "CodeReminderCooldown": 86400
+      },
+      "UserFun": {
+        "SlapObjectsTable": "Settings/udc-slap.txt",
+        "SlapChoices": [ "developer manual", "devonlepment server" ],
+        "SlapFailures": [ "developing a rash", "developing a skin condition" ]
+      },
+      "RoleAssignment": {
+        "AssignableRoles": [ "Audio-Engineers", "Technical-Artists", "Animators", "3D-Artists", "2D-Artists", "XR-Developers", "Programmers", "Writers", "Game-Designers", "Generalists", "Hobbyists", "Students" ]
+      },
+      "Moderation": {
+        "CommandsEnabled": false,
+        "BlockInviteLinks": false,
+        "IntroductionWatcherEnabled": true,
+        "MutedRoleId": 682432235445682194,
+        "IntroductionChannelId": 1198575542467838044,
+        "GeneralChannelId": 566084539664039944,
+        "ReportedMessageChannelId": 567628191221547008,
+        "MemeChannelId": 0,
+        "RulesChannelId": 825932695698669618
+      },
+      "Tickets": { "OpenCategoryId": 874631331810799626, "OpenChannelPrefix": "Complaint", "ClosedCategoryId": 0, "ClosedChannelPrefix": "Closed-" },
+      "Feeds": { "NewsChannelId": 1022102744552710154, "ReleasesChannelId": 1022102744552710154, "NewsSubscriberRoleId": 0, "ReleasesSubscriberRoleId": 769870886743703584 },
+      "Recruitment": {
+        "Enabled": true,
+        "ForumChannelId": 1134672948356202678,
+        "LookingToHireTagId": 1134673961779724480,
+        "LookingForWorkTagId": 1134673990993051658,
+        "UnpaidCollaborationTagId": 1134674009292804117,
+        "PositionFilledTagId": 1134674041450545283,
+        "EditPermissionMinutes": 3
+      },
+      "UnityHelp": { "Enabled": true, "ForumChannelId": 1028254982748778516, "ResolvedTagId": 1028255134356086784 },
+      "BirthdayAnnouncements": { "Enabled": true, "CheckIntervalMinutes": 1, "AnnouncementChannelId": 566084539664039944 },
+      "Reminders": { "FallbackChannelId": 599583999379243008 },
+      "Tips": { "ImageDirectory": "tips", "MaxImageBytes": 10485760, "MaxDirectoryBytes": 1073741824, "HelperRoleId": 603187742096228374 },
+      "Casino": { "Enabled": true, "StartingTokens": 1000, "AllowedChannelIds": [], "GameTimeoutMinutes": 5, "DailyRewardTokens": 100, "DailyRewardIntervalSeconds": 86400 },
+      "KnowledgeSearch": { "WikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts%7Cinfo&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=" }
+    }
