@@ -69,10 +69,11 @@ This bot follows a **Service-Module** architecture pattern designed for maintain
 
 ### Dependency Injection
 
-The bot uses .NET's built-in dependency injection system:
+The bot uses the .NET Generic Host, options validation, and built-in dependency injection:
 
 - Services are registered in `Program.cs` using `ConfigureServices()`
-- Modules receive services via public property injection
+- Configuration is bound to narrow domain options; modules use service/policy interfaces and never receive secret options
+- Text and interaction modules derive from parallel shared bases and can receive services through Discord.Net injection
 - This allows for loose coupling and easier testing
 
 ### Command System
@@ -93,7 +94,9 @@ The bot supports both **text commands** and **slash commands**:
 **Shared:**
 
 - Custom attributes provide authorization: `[RequireModerator]`, `[RequireAdmin]`
+- `[RequireComponentEnabled]` and its interaction equivalent gate commands whose component is unavailable
 - Command routing is handled by `CommandHandlingService`
+- Administrators can inspect safe component state with `/bot components`, `/bot status`, or the `!bot` text fallbacks
 
 ## Contributing
 
@@ -192,9 +195,9 @@ public class RequireMyRoleAttribute : PreconditionAttribute
         ICommandContext context, CommandInfo command, IServiceProvider services)
     {
         var user = (SocketGuildUser)context.Message.Author;
-        var settings = services.GetRequiredService<BotSettings>();
+        var authorization = services.GetRequiredService<IBotAuthorizationPolicy>();
 
-        if (user.Roles.Any(x => x.Id == settings.MyRoleId))
+        if (authorization.IsModerator(user))
             return Task.FromResult(PreconditionResult.FromSuccess());
 
         return Task.FromResult(PreconditionResult.FromError("Access denied!"));
@@ -225,10 +228,18 @@ See the [local development and debugging guide](docs/development.md) for platfor
 
 ### Quick Setup
 
-1. Copy `DiscordBot/Settings/Settings.example.json` to `DiscordBot/Settings/Settings.json`.
-2. Configure a development bot token, guild ID, database connection string, and the channel/role IDs needed by the features you will exercise.
-3. Start PostgreSQL: `docker compose up --detach db`.
-4. Run from the repository root:
+1. Copy `CoreSettings.example.json` and `FeatureSettings.example.json` to their non-example names.
+2. Configure the guild, channel, and role IDs for the features you will exercise.
+3. Supply the required secrets through `UDCBOT_` environment variables.
+4. Start PostgreSQL: `docker compose up --detach db`.
+5. Run from the repository root:
+
+```bash
+cp DiscordBot/Settings/CoreSettings.example.json DiscordBot/Settings/CoreSettings.json
+cp DiscordBot/Settings/FeatureSettings.example.json DiscordBot/Settings/FeatureSettings.json
+export UDCBOT_DiscordConnection__Token='development-token'
+export UDCBOT_Database__ConnectionString='Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=123456789'
+```
 
 ```bash
 dotnet run --project DiscordBot/DiscordBot.csproj
@@ -236,7 +247,7 @@ dotnet run --project DiscordBot/DiscordBot.csproj
 
 VS Code users can instead select `C#: Debug DiscordBot` under **Run and Debug** and press F5. The launch configuration is project-based, so it does not contain a target-framework-specific DLL path.
 
-`DiscordBot/Settings/Settings.json` contains secrets and is ignored by Git. Do not copy it into `.vscode`, build output, documentation, or a tracked environment file.
+The modular JSON files are non-secret. Token, database, weather, and airport credentials belong in environment/secret providers and must not be copied into `.vscode`, build output, documentation, or tracked environment files. The old flat `Settings.json` remains a read-only compatibility source for one migration window and logs a deprecation warning.
 
 _For production deployment, see the [Deployment Guide](docs/deployment.md)._
 
@@ -254,9 +265,12 @@ Use this host-side connection string with the checked-in local database values:
 Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=123456789
 ```
 
-To build and run the complete local stack:
+To build and run the complete local stack, export the Discord token first. Compose constructs the
+container-only database connection from `POSTGRES_PASSWORD` (defaulting to the checked-in local
+development password) and forwards the optional weather/airport variables when present.
 
 ```bash
+export UDCBOT_DiscordConnection__Token='development-token'
 docker compose up --build --remove-orphans
 ```
 
@@ -264,7 +278,7 @@ When the bot runs inside Compose, use `Host=db` instead of `Host=localhost`. The
 
 ### Runtime Dependencies
 
-If you do not use Docker, install PostgreSQL 16, create a database and user, then set `DbConnectionString` in `DiscordBot/Settings/Settings.json`:
+If you do not use Docker, install PostgreSQL 16, create a database and user, then set `UDCBOT_Database__ConnectionString`:
 
 ```text
 Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=YOUR_PASSWORD
@@ -342,7 +356,7 @@ This bot is built on [Discord.Net](https://discordnet.dev/), a powerful .NET lib
 **Q: The bot won't start - what should I check?**
 A: Verify these in order:
 
-1. Bot token is correctly set in `DiscordBot/Settings/Settings.json`
+1. `UDCBOT_DiscordConnection__Token` is set in the bot process environment
 2. Database connection string is correct and database is accessible
 3. The bot was started through the project command, VS Code task, or F5 profile so the runtime working directory is correct
 4. Check console output for red/yellow log messages indicating specific errors

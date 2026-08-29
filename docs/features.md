@@ -19,7 +19,7 @@ post_date: "2026-04-03"
 | **Moderation** | Mute, kick, ban, slowmode, message clear, single/bulk deletion and bounded thread/forum-post audit logging, invite enforcement | `ModerationModule` | `ModerationService` | Core |
 | **Command Handling** | Text command + slash command routing, history tracking, prefix config | — | `CommandHandlingService` | Core |
 | **Logging** | Multi-destination logging (console, file, Discord channel) with severity levels | — | `LoggingService` | Core |
-| **Database** | MySQL connection pooling, user/casino repositories | — | `DatabaseService` | Core |
+| **Database** | PostgreSQL connection pooling, user/casino repositories | — | `DatabaseService` | Core |
 | **Casino** | Token economy, Blackjack, Poker, Rock Paper Scissors, daily rewards, leaderboards | `CasinoSlashModule` | `CasinoService`, `GameService` | Feature |
 | **Weather** | Temperature, conditions, air quality, local time via OpenWeatherMap | `WeatherModule` | `WeatherService` | Feature |
 | **Reminders** | Persistent scheduled reminders with natural time parsing | `ReminderModule` | `ReminderService` | Feature |

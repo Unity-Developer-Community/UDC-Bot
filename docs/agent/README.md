@@ -41,8 +41,10 @@ Production and dev server use **Kubernetes** (`k8s/prod/` and `k8s/dev/`).
 | `DiscordBot/Program.cs` | Entry point, DI registration |
 | `DiscordBot/Services/` | All business logic services |
 | `DiscordBot/Modules/` | Discord command handlers |
-| `DiscordBot/Settings/Settings.json` | Main config (gitignored, use `Settings.example.json` as template) |
-| `DiscordBot/Settings/Deserialized/` | C# models for settings |
+| `DiscordBot/Settings/CoreSettings.json` | Non-secret core config (gitignored; copy the example) |
+| `DiscordBot/Settings/FeatureSettings.json` | Non-secret feature config (gitignored; copy the example) |
+| `DiscordBot/Settings/Options/` | Domain-owned configuration types |
+| `DiscordBot/Components/` | Component metadata, health, lifecycle, and override registry |
 | `DiscordBot/Assets/` | Static assets (fonts, images, skins) — baked into Docker image |
 | `DiscordBot/SERVER/` | Runtime-generated data (gitignored) |
 | `DiscordBot/Domain/Casino/` | Casino game abstractions and implementations |
@@ -51,7 +53,9 @@ Production and dev server use **Kubernetes** (`k8s/prod/` and `k8s/dev/`).
 ## Key Invariants
 
 - All services are registered as **singletons** in `Program.cs`.
-- `Settings.json` is **never committed** — use `Settings.example.json` as template.
+- `CoreSettings.json` and `FeatureSettings.json` are **never committed** — copy their example files.
+- Secrets use documented `UDCBOT_` environment variables; do not add them to JSON or ConfigMaps.
+- Legacy `Settings.json`/`UserSettings.json` are read-only compatibility inputs and must not gain new fields.
 - `SERVER/` is runtime data and **gitignored**.
 - `Assets/` is read-only static content loaded via `AssetsRootPath` (default `./Assets`).
 - Profile card skins load from `${AssetsRootPath}/skins/skin.json`.
@@ -63,13 +67,16 @@ Production and dev server use **Kubernetes** (`k8s/prod/` and `k8s/dev/`).
 
 | File | Format | Purpose |
 |------|--------|---------|
-| `Settings.json` | JSON | Bot token, DB connection, channel/role IDs, feature toggles |
-| `Settings.example.json` | JSON | Template for `Settings.json` (committed to repo) |
+| `CoreSettings.json` | JSON | Non-secret guild, storage, command, logging, and authorization settings |
+| `FeatureSettings.json` | JSON | Non-secret domain feature settings and defaults |
+| `CoreSettings.example.json` | JSON | Template for core settings |
+| `FeatureSettings.example.json` | JSON | Template for feature settings |
+| `Settings.json` | JSON | Temporary read-only legacy compatibility input |
 | `Rules.json` | JSON | Per-channel rule definitions |
-| `UserSettings.json` | JSON | XP/karma/thanks tuning parameters |
+| `UserSettings.json` | JSON | Temporary legacy user-activity compatibility input |
 | `FAQs.json` | JSON | FAQ entries for canned responses |
 
 ## Database
 
-MySQL — connection string in `Settings.json`. Tables are auto-created on first run.
-Docker Compose service name: `db` (port 3306).
+PostgreSQL 16 — connection string in `UDCBOT_Database__ConnectionString`. Tables are auto-created
+on first run. Docker Compose service name: `db` (port 5432).

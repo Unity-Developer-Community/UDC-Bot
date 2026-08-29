@@ -46,6 +46,11 @@ DiscordBot/
 │   ├── IgnoreBotsAttribute.cs
 │   └── RoleAttributes.cs    # RequireModerator, RequireAdmin, etc.
 │
+├── Components/              # Safe component catalog, lifecycle state, controls, and override persistence
+│   ├── ComponentContracts.cs
+│   ├── ComponentRegistry.cs
+│   └── ComponentOverrideStore.cs
+│
 ├── Data/                    # Data access and external API clients
 │   ├── FuzzTable.cs
 │   └── UnityAPI.cs
@@ -89,12 +94,16 @@ DiscordBot/
 │   └── UnityHelp/           # Help thread management
 │
 ├── Settings/                # Configuration files
-│   ├── Settings.json        # Main config (gitignored)
-│   ├── Settings.example.json # Template config
+│   ├── CoreSettings.json    # Local non-secret core config (gitignored)
+│   ├── FeatureSettings.json # Local non-secret feature config (gitignored)
+│   ├── CoreSettings.example.json
+│   ├── FeatureSettings.example.json
+│   ├── Settings.json        # Legacy read-only compatibility config (gitignored)
 │   ├── Rules.json           # Per-channel rules
-│   ├── UserSettings.json    # XP/karma/thanks tuning
 │   ├── FAQs.json            # FAQ entries
-│   └── Deserialized/        # C# classes for deserialized settings
+│   ├── Options/             # Narrow domain-owned option types
+│   ├── Validation/          # Core-fatal and optional-feature validation
+│   └── Legacy/              # Temporary flat-settings projection
 │
 ├── Properties/
 │   └── launchSettings.json  # Shared project launch profile
@@ -118,6 +127,7 @@ DiscordBot/
 - **Modules**: `*Module.cs` — Discord command handlers
 - **Slash Modules**: `*SlashModule.cs` or `*InteractiveModule.cs` — Interaction-based modules
 - **Services**: `*Service.cs` — Business logic, registered as singletons
+- **Managed services**: implement `IManagedBotService`; runtime mutation stays disabled until cancellation and restart tests pass
 - **Extensions**: `*Extensions.cs` or `*Repository.cs` — Extension methods and DB query helpers
 - **Attributes**: `*Attribute.cs` — Custom precondition attributes
 

@@ -61,30 +61,45 @@ The existing `NU1701` warning for `Pathoschild.NaturalTimeParser` is known: that
 
 ### 2. Create local settings
 
-The real settings file contains credentials and is intentionally ignored by Git.
+Copy the two non-secret domain configuration examples.
 
 On Linux, macOS, Git Bash, or WSL:
 
 ```text
-cp DiscordBot/Settings/Settings.example.json DiscordBot/Settings/Settings.json
+cp DiscordBot/Settings/CoreSettings.example.json DiscordBot/Settings/CoreSettings.json
+cp DiscordBot/Settings/FeatureSettings.example.json DiscordBot/Settings/FeatureSettings.json
 ```
 
 On Windows PowerShell:
 
 ```powershell
-Copy-Item DiscordBot/Settings/Settings.example.json DiscordBot/Settings/Settings.json
+Copy-Item DiscordBot/Settings/CoreSettings.example.json DiscordBot/Settings/CoreSettings.json
+Copy-Item DiscordBot/Settings/FeatureSettings.example.json DiscordBot/Settings/FeatureSettings.json
 ```
 
-At minimum, review these values in `DiscordBot/Settings/Settings.json`:
+At minimum, review these values:
 
-- `token` for a development Discord bot;
-- `guildId` for a development guild;
-- `DbConnectionString`;
+- `DiscordGuild:GuildId` in `CoreSettings.json`;
+- core channel and role IDs in `CoreSettings.json`;
 - channel and role IDs used by the features you intend to exercise.
 
-Never put tokens, API keys, or real connection strings in `.vscode`, `launchSettings.json`, a tracked `.env`, documentation, or test fixtures.
+Supply secrets in the process environment. Bash example:
 
-The current settings system is scheduled for replacement. Keep using the existing flat file until the domain-settings migration is implemented; do not introduce another local configuration format in the meantime.
+```text
+export UDCBOT_DiscordConnection__Token='development-token'
+export UDCBOT_Database__ConnectionString='Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=123456789'
+```
+
+PowerShell example:
+
+```powershell
+$env:UDCBOT_DiscordConnection__Token = 'development-token'
+$env:UDCBOT_Database__ConnectionString = 'Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=123456789'
+```
+
+Weather and airport commands additionally use `UDCBOT_Weather__ApiKey`, `UDCBOT_Airport__FlightApiKey`, `UDCBOT_Airport__FlightApiSecret`, and `UDCBOT_Airport__AirLabsApiKey`. Never put tokens, API keys, or real connection strings in `.vscode`, `launchSettings.json`, a tracked `.env`, documentation, or test fixtures.
+
+The old flat `Settings.json` remains a read-only compatibility source for one migration window. It logs a deprecation warning and is never generated or repaired automatically.
 
 ### 3. Start PostgreSQL
 
@@ -214,8 +229,10 @@ docker compose up --build --remove-orphans
 
 Before doing this:
 
-- ensure `DiscordBot/Settings/Settings.json` exists;
-- use `Host=db` in the container's database connection string;
+- ensure `DiscordBot/Settings/CoreSettings.json` and `FeatureSettings.json` exist (or retain the legacy `Settings.json` during its compatibility window);
+- export `UDCBOT_DiscordConnection__Token`; Compose forwards it to the bot container;
+- optionally export the documented weather/airport variables and `POSTGRES_PASSWORD`;
+- Compose constructs the bot's `Host=db` connection string from its PostgreSQL values;
 - remember that the bot service will connect to Discord immediately;
 - use `docker compose logs --follow bot` for output.
 
@@ -245,7 +262,8 @@ Compose is for local development only. See the [deployment guide](deployment.md)
 
 - Run through the checked-in task, F5 profile, or `dotnet run --project DiscordBot/DiscordBot.csproj`.
 - For a directly executed DLL, make `DiscordBot/` the current directory first.
-- Confirm `DiscordBot/Settings/Settings.json` exists and has not been moved into `SERVER/` or `bin/`.
+- Confirm `DiscordBot/Settings/CoreSettings.json` and `FeatureSettings.json` exist and have not been moved into `SERVER/` or `bin/`.
+- Confirm the required `UDCBOT_` variables are present in the bot process environment.
 
 ### PostgreSQL connection fails
 
