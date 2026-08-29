@@ -1,0 +1,141 @@
+using System.Text.Json;
+using DiscordBot.Settings;
+using DiscordBot.Settings.Options;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+namespace DiscordBot.Tests.Settings;
+
+[TestClass]
+public sealed class ConfigurationSchemaParityTests
+{
+    private static readonly IReadOnlyDictionary<string, Type> CoreSections = CreateSchema(
+        typeof(DiscordGuildOptions),
+        typeof(StorageOptions),
+        typeof(CommandOptions),
+        typeof(LoggingOptions),
+        typeof(AuthorizationOptions));
+
+    private static readonly IReadOnlyDictionary<string, Type> FeatureSections = CreateSchema(
+        typeof(UserActivityOptions),
+        typeof(UserFunOptions),
+        typeof(RoleAssignmentOptions),
+        typeof(ModerationOptions),
+        typeof(TicketOptions),
+        typeof(FeedOptions),
+        typeof(RecruitmentOptions),
+        typeof(UnityHelpOptions),
+        typeof(BirthdayOptions),
+        typeof(ReminderOptions),
+        typeof(TipsOptions),
+        typeof(CasinoOptions),
+        typeof(KnowledgeSearchOptions));
+
+    [TestMethod]
+    public void Examples_UseOnlyDocumentedNonSecretSections()
+    {
+        AssertSections(
+            File.ReadAllText(RepositoryPath("DiscordBot/Settings/CoreSettings.example.json")),
+            CoreSections);
+        AssertSections(
+            File.ReadAllText(RepositoryPath("DiscordBot/Settings/FeatureSettings.example.json")),
+            FeatureSections);
+    }
+
+    [DataTestMethod]
+    [DataRow("dev")]
+    [DataRow("prod")]
+    public void KubernetesConfiguration_IsModularNonSecretAndSchemaAligned(string environment)
+    {
+        var config = File.ReadAllText(RepositoryPath($"k8s/{environment}/bot-config.yaml"));
+        var deployment = File.ReadAllText(RepositoryPath($"k8s/{environment}/bot.yaml"));
+
+        AssertSections(ExtractYamlLiteral(config, "CoreSettings.json"), CoreSections);
+        AssertSections(ExtractYamlLiteral(config, "FeatureSettings.json"), FeatureSections);
+        Assert.IsFalse(config.Contains("\"Token\"", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(config.Contains("\"ApiKey\"", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(config.Contains("\"FlightApiKey\"", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(config.Contains("\"FlightApiSecret\"", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(config.Contains("\"AirLabsApiKey\"", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(config.Contains("\"ConnectionString\"", StringComparison.OrdinalIgnoreCase));
+
+        StringAssert.Contains(deployment, BotEnvironmentVariables.DiscordToken);
+        StringAssert.Contains(deployment, BotEnvironmentVariables.DatabaseConnectionString);
+        StringAssert.Contains(deployment, BotEnvironmentVariables.WeatherApiKey);
+        StringAssert.Contains(deployment, BotEnvironmentVariables.FlightApiKey);
+        StringAssert.Contains(deployment, BotEnvironmentVariables.FlightApiSecret);
+        StringAssert.Contains(deployment, BotEnvironmentVariables.AirLabsApiKey);
+        Assert.IsFalse(deployment.Contains("envsubst", StringComparison.Ordinal));
+        Assert.IsFalse(deployment.Contains("render-config", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void DockerCompose_UsesTheDocumentedEnvironmentContract()
+    {
+        var compose = File.ReadAllText(RepositoryPath("docker-compose.yml"));
+
+        StringAssert.Contains(compose, BotEnvironmentVariables.DiscordToken);
+        StringAssert.Contains(compose, BotEnvironmentVariables.DatabaseConnectionString);
+        StringAssert.Contains(compose, BotEnvironmentVariables.WeatherApiKey);
+        StringAssert.Contains(compose, BotEnvironmentVariables.FlightApiKey);
+        StringAssert.Contains(compose, BotEnvironmentVariables.FlightApiSecret);
+        StringAssert.Contains(compose, BotEnvironmentVariables.AirLabsApiKey);
+    }
+
+    private static void AssertSections(
+        string json,
+        IReadOnlyDictionary<string, Type> allowedSections)
+    {
+        using var document = JsonDocument.Parse(json);
+        var actual = document.RootElement.EnumerateObject()
+            .ToDictionary(property => property.Name, StringComparer.OrdinalIgnoreCase);
+        var unknown = actual.Keys.Where(section => !allowedSections.ContainsKey(section)).ToArray();
+        Assert.AreEqual(0, unknown.Length, $"Unknown configuration sections: {string.Join(", ", unknown)}");
+        foreach (var required in allowedSections)
+        {
+            Assert.IsTrue(actual.ContainsKey(required.Key), $"Missing configuration section '{required.Key}'.");
+            var actualProperties = actual[required.Key].Value.EnumerateObject()
+                .Select(property => property.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var expectedProperties = required.Value.GetProperties()
+                .Select(property => property.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var unknownProperties = actualProperties.Where(property => !expectedProperties.Contains(property)).ToArray();
+            var missingProperties = expectedProperties.Where(property => !actualProperties.Contains(property)).ToArray();
+            Assert.AreEqual(
+                0,
+                unknownProperties.Length,
+                $"Unknown properties in '{required.Key}': {string.Join(", ", unknownProperties)}");
+            Assert.AreEqual(
+                0,
+                missingProperties.Length,
+                $"Missing properties in '{required.Key}': {string.Join(", ", missingProperties)}");
+        }
+    }
+
+    private static IReadOnlyDictionary<string, Type> CreateSchema(params Type[] optionTypes) =>
+        optionTypes.ToDictionary(
+            type => (string)(type.GetField("SectionName")?.GetRawConstantValue()
+                ?? throw new InvalidOperationException($"{type.Name} does not declare SectionName.")),
+            StringComparer.OrdinalIgnoreCase);
+
+    private static string ExtractYamlLiteral(string yaml, string key)
+    {
+        var lines = yaml.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var marker = $"  {key}: |";
+        var start = Array.FindIndex(lines, line => line == marker);
+        Assert.IsTrue(start >= 0, $"YAML key '{key}' was not found.");
+
+        var content = new List<string>();
+        for (var index = start + 1; index < lines.Length; index++)
+        {
+            var line = lines[index];
+            if (line.Length > 0 && !line.StartsWith("    ", StringComparison.Ordinal))
+                break;
+            content.Add(line.Length >= 4 ? line[4..] : string.Empty);
+        }
+        return string.Join('\n', content);
+    }
+
+    private static string RepositoryPath(string relativePath) =>
+        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../", relativePath));
+}
