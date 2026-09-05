@@ -78,6 +78,14 @@
     "DailyRewardTokens": 100,
     "DailyRewardIntervalSeconds": 86400
   },
+  "Weather": {
+    "ApiKey": ""
+  },
+  "Airport": {
+    "FlightApiKey": "",
+    "FlightApiSecret": "",
+    "AirLabsApiKey": ""
+  },
   "KnowledgeSearch": {
     "WikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts%7Cinfo&generator=prefixsearch&formatversion=2&exchars=750&exintro=1&explaintext=1&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch="
   }

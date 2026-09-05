@@ -131,7 +131,6 @@ public sealed class WeatherOptions
 {
     public const string SectionName = "Weather";
 
-    [Secret]
     public string ApiKey { get; set; } = string.Empty;
 }
 
@@ -139,13 +138,10 @@ public sealed class AirportOptions
 {
     public const string SectionName = "Airport";
 
-    [Secret]
     public string FlightApiKey { get; set; } = string.Empty;
 
-    [Secret]
     public string FlightApiSecret { get; set; } = string.Empty;
 
-    [Secret]
     public string AirLabsApiKey { get; set; } = string.Empty;
 }
 

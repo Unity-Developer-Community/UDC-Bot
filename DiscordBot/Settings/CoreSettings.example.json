@@ -1,4 +1,7 @@
 {
+  "DiscordConnection": {
+    "Token": "replace-with-your-discord-bot-token"
+  },
   "DiscordGuild": {
     "GuildId": 1,
     "Invite": "https://discord.gg/replace-me"
@@ -6,6 +9,9 @@
   "Storage": {
     "ServerRootPath": "./SERVER",
     "AssetsRootPath": "./Assets"
+  },
+  "Database": {
+    "ConnectionString": "Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=123456789"
   },
   "Commands": {
     "Prefix": "!",

@@ -4,7 +4,6 @@ using DiscordBot.Settings.Legacy;
 using DiscordBot.Settings;
 using DiscordBot.Settings.Options;
 using DiscordBot.Settings.Validation;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -16,41 +15,39 @@ namespace DiscordBot.Tests.Settings;
 public sealed class ConfigurationTests
 {
     [TestMethod]
-    [DoNotParallelize]
-    public void EnvironmentVariables_OverrideModularJsonWithoutExposingSecretsToFeatureCatalog()
+    public void ModularJson_BindsRequiredConnectionValues()
     {
         using var root = TestConfigurationRoot.Create();
-        const string environmentToken = "environment-secret-token";
-        const string connectionString = "Host=environment;Database=test";
-        Environment.SetEnvironmentVariable(BotEnvironmentVariables.DiscordToken, environmentToken);
-        Environment.SetEnvironmentVariable(BotEnvironmentVariables.DatabaseConnectionString, connectionString);
-        try
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
-            var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
-            {
-                ContentRootPath = root.Path
-            });
-            builder.AddBotConfiguration(root.Path);
-            using var provider = builder.Services.BuildServiceProvider();
+            ContentRootPath = root.Path
+        });
+        builder.AddBotConfiguration(root.Path);
+        using var provider = builder.Services.BuildServiceProvider();
 
-            Assert.AreEqual(
-                environmentToken,
-                provider.GetRequiredService<IOptions<DiscordConnectionOptions>>().Value.Token);
-            Assert.AreEqual(
-                connectionString,
-                provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.ConnectionString);
-            var diagnostics = string.Join(
-                ' ',
-                provider.GetRequiredService<FeatureConfigurationCatalog>().Statuses
-                    .SelectMany(status => status.Errors));
-            Assert.IsFalse(diagnostics.Contains(environmentToken, StringComparison.Ordinal));
-            Assert.IsFalse(diagnostics.Contains(connectionString, StringComparison.Ordinal));
-        }
-        finally
+        Assert.AreEqual(
+            "file-token",
+            provider.GetRequiredService<IOptions<DiscordConnectionOptions>>().Value.Token);
+        Assert.AreEqual(
+            "Host=localhost;Database=test",
+            provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.ConnectionString);
+    }
+
+    [TestMethod]
+    public void ModularConfiguration_ReportsMissingCompanionFile()
+    {
+        using var root = TestConfigurationRoot.Create();
+        File.Delete(Path.Combine(root.Path, "Settings", "FeatureSettings.json"));
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
-            Environment.SetEnvironmentVariable(BotEnvironmentVariables.DiscordToken, null);
-            Environment.SetEnvironmentVariable(BotEnvironmentVariables.DatabaseConnectionString, null);
-        }
+            ContentRootPath = root.Path
+        });
+
+        var report = builder.AddBotConfiguration(root.Path);
+
+        CollectionAssert.AreEqual(
+            new[] { "FeatureSettings.json" },
+            report.MissingModularFiles.ToArray());
     }
 
     [TestMethod]
@@ -230,13 +227,17 @@ public sealed class ConfigurationTests
     public async Task Host_InvalidCoreConfiguration_FailsBeforeGatewayLogin()
     {
         using var root = TestConfigurationRoot.Create();
+        var corePath = Path.Combine(root.Path, "Settings", "CoreSettings.json");
+        File.WriteAllText(
+            corePath,
+            File.ReadAllText(corePath).Replace("\"Token\": \"file-token\"", "\"Token\": \"\"", StringComparison.Ordinal));
         var gateway = new FakeGateway();
         var runtime = new FakeRuntimeCoordinator();
-        using var host = BuildTestHost(root.Path, gateway, runtime, includeSecrets: false);
+        using var host = BuildTestHost(root.Path, gateway, runtime);
 
-        var exception = await Assert.ThrowsAsync<AggregateException>(() => host.StartAsync());
+        var exception = await Assert.ThrowsAsync<OptionsValidationException>(() => host.StartAsync());
 
-        StringAssert.Contains(exception.ToString(), "DiscordConnection:Token");
+        StringAssert.Contains(exception.Message, "DiscordConnection:Token");
         Assert.AreEqual(0, gateway.LoginCount);
         Assert.AreEqual(0, runtime.StartCount);
     }
@@ -247,7 +248,7 @@ public sealed class ConfigurationTests
         using var root = TestConfigurationRoot.Create();
         var gateway = new FakeGateway();
         var runtime = new FakeRuntimeCoordinator();
-        using var host = BuildTestHost(root.Path, gateway, runtime, includeSecrets: true);
+        using var host = BuildTestHost(root.Path, gateway, runtime);
 
         await host.StartAsync();
         await host.StopAsync();
@@ -262,8 +263,7 @@ public sealed class ConfigurationTests
     private static IHost BuildTestHost(
         string root,
         FakeGateway gateway,
-        FakeRuntimeCoordinator runtime,
-        bool includeSecrets)
+        FakeRuntimeCoordinator runtime)
     {
         return Program.BuildHost(
             [],
@@ -272,17 +272,6 @@ public sealed class ConfigurationTests
             {
                 services.AddSingleton<IDiscordGateway>(gateway);
                 services.AddSingleton<IBotRuntimeCoordinator>(runtime);
-            },
-            configuration =>
-            {
-                if (!includeSecrets)
-                    return;
-
-                configuration.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["DiscordConnection:Token"] = "test-token",
-                    ["Database:ConnectionString"] = "Host=localhost;Database=test"
-                });
             });
     }
 
@@ -354,8 +343,10 @@ internal sealed class TestConfigurationRoot : IDisposable
         {
             File.WriteAllText(System.IO.Path.Combine(settings, "CoreSettings.json"), """
             {
+              "DiscordConnection": { "Token": "file-token" },
               "DiscordGuild": { "GuildId": 1, "Invite": "https://example.test/invite" },
               "Storage": { "ServerRootPath": "./SERVER", "AssetsRootPath": "./Assets" },
+              "Database": { "ConnectionString": "Host=localhost;Database=test" },
               "Commands": { "Prefix": "!", "BotCommandsChannelId": 2 },
               "Logging": { "LogCommandExecutions": true, "AnnouncementChannelId": 3 },
               "Authorization": { "ModeratorRoleId": 4 }

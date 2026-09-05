@@ -229,16 +229,14 @@ See the [local development and debugging guide](docs/development.md) for platfor
 ### Quick Setup
 
 1. Copy `CoreSettings.example.json` and `FeatureSettings.example.json` to their non-example names.
-2. Configure the guild, channel, and role IDs for the features you will exercise.
-3. Supply the required secrets through `UDCBOT_` environment variables.
+2. Set the Discord token, database connection string, guild, channel, and role IDs in `CoreSettings.json`.
+3. Configure any optional features and API keys in `FeatureSettings.json`.
 4. Start PostgreSQL: `docker compose up --detach db`.
 5. Run from the repository root:
 
 ```bash
 cp DiscordBot/Settings/CoreSettings.example.json DiscordBot/Settings/CoreSettings.json
 cp DiscordBot/Settings/FeatureSettings.example.json DiscordBot/Settings/FeatureSettings.json
-export UDCBOT_DiscordConnection__Token='development-token'
-export UDCBOT_Database__ConnectionString='Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=123456789'
 ```
 
 ```bash
@@ -247,7 +245,7 @@ dotnet run --project DiscordBot/DiscordBot.csproj
 
 VS Code users can instead select `C#: Debug DiscordBot` under **Run and Debug** and press F5. The launch configuration is project-based, so it does not contain a target-framework-specific DLL path.
 
-The modular JSON files are non-secret. Token, database, weather, and airport credentials belong in environment/secret providers and must not be copied into `.vscode`, build output, documentation, or tracked environment files. The old flat `Settings.json` remains a read-only compatibility source for one migration window and logs a deprecation warning.
+The modular JSON files are gitignored and are the normal local configuration source. Their checked-in `.example.json` templates contain placeholders only. `UDCBOT_` environment variables remain supported as deployment overrides, but local users do not need them. The old flat `Settings.json` remains a read-only compatibility source and logs a startup warning; it is never migrated or rewritten automatically.
 
 _For production deployment, see the [Deployment Guide](docs/deployment.md)._
 
@@ -278,7 +276,7 @@ When the bot runs inside Compose, use `Host=db` instead of `Host=localhost`. The
 
 ### Runtime Dependencies
 
-If you do not use Docker, install PostgreSQL 16, create a database and user, then set `UDCBOT_Database__ConnectionString`:
+If you do not use Docker, install PostgreSQL 16, create a database and user, then set `Database:ConnectionString` in `CoreSettings.json`:
 
 ```text
 Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=YOUR_PASSWORD
@@ -356,8 +354,8 @@ This bot is built on [Discord.Net](https://discordnet.dev/), a powerful .NET lib
 **Q: The bot won't start - what should I check?**
 A: Verify these in order:
 
-1. `UDCBOT_DiscordConnection__Token` is set in the bot process environment
-2. Database connection string is correct and database is accessible
+1. `DiscordConnection:Token` is set in `CoreSettings.json`
+2. `Database:ConnectionString` is correct and the database is accessible
 3. The bot was started through the project command, VS Code task, or F5 profile so the runtime working directory is correct
 4. Check console output for red/yellow log messages indicating specific errors
 

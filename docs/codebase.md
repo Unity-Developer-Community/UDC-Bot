@@ -94,8 +94,8 @@ DiscordBot/
 │   └── UnityHelp/           # Help thread management
 │
 ├── Settings/                # Configuration files
-│   ├── CoreSettings.json    # Local non-secret core config (gitignored)
-│   ├── FeatureSettings.json # Local non-secret feature config (gitignored)
+│   ├── CoreSettings.json    # Local core config and credentials (gitignored)
+│   ├── FeatureSettings.json # Local feature config and optional API keys (gitignored)
 │   ├── CoreSettings.example.json
 │   ├── FeatureSettings.example.json
 │   ├── Settings.json        # Legacy read-only compatibility config (gitignored)

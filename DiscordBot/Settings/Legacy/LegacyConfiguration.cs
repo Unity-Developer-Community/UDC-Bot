@@ -8,7 +8,8 @@ namespace DiscordBot.Settings.Legacy;
 public sealed record LegacyConfigurationReport(
     string SourcePath,
     IReadOnlyList<string> UnknownKeys,
-    bool IsLegacySource);
+    bool IsLegacySource,
+    IReadOnlyList<string> MissingModularFiles);
 
 public sealed class BotConfigurationException : Exception
 {
@@ -37,7 +38,7 @@ public static class LegacyConfigurationLoader
             throw new BotConfigurationException(
                 $"Required bot configuration was not found at '{settingsPath}'. " +
                 "Copy Settings/Settings.example.json to Settings/Settings.json, fill in the required local values, " +
-                "or provide Settings/CoreSettings.json and Settings/FeatureSettings.json with UDCBOT_ secret environment variables.");
+                "or copy and fill in Settings/CoreSettings.example.json and Settings/FeatureSettings.example.json.");
         }
 
         var json = ReadStaticFile(settingsPath, "bot configuration");
@@ -70,7 +71,7 @@ public static class LegacyConfigurationLoader
         return new LegacyConfiguration(
             settings,
             userSettings,
-            new LegacyConfigurationReport(settingsPath, unknownKeys, true));
+            new LegacyConfigurationReport(settingsPath, unknownKeys, true, []));
     }
 
     private static T DeserializeStaticFile<T>(string path, string description)

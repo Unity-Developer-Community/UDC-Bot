@@ -165,8 +165,8 @@ The bot deployment includes:
 - a `wait-for-postgresql` init container that blocks until PostgreSQL is reachable.
 
 Configuration precedence is legacy projection (when present), Core JSON, Feature JSON, then `UDCBOT_`
-environment variables. General configuration changes require a pod restart. The legacy flat file is a
-one-release rollback bridge and emits a deprecation warning.
+environment variable overrides. General configuration changes require a pod restart. The legacy flat file is a
+read-only fallback that emits a startup warning and is never migrated automatically.
 
 | Environment variable | Kubernetes source |
 |---|---|
@@ -341,9 +341,9 @@ cp DiscordBot/Settings/FeatureSettings.example.json DiscordBot/Settings/FeatureS
 
 Edit the modular settings:
 
-- Configure guild, channel, role, and feature values in the two JSON files.
-- Pass `UDCBOT_DiscordConnection__Token` and `UDCBOT_Database__ConnectionString` to the bot container.
-- Pass the optional weather/airport `UDCBOT_` variables when those features are needed.
+- Configure the token, connection string, guild, channel, and role values in `CoreSettings.json`.
+- Configure feature values and optional weather/airport keys in `FeatureSettings.json`.
+- The checked-in Compose service still accepts `UDCBOT_` overrides so it can supply the container-only database host and avoid rewriting the local JSON files.
 
 ### Step 2: Start Everything
 

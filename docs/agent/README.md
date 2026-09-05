@@ -41,8 +41,8 @@ Production and dev server use **Kubernetes** (`k8s/prod/` and `k8s/dev/`).
 | `DiscordBot/Program.cs` | Entry point, DI registration |
 | `DiscordBot/Services/` | All business logic services |
 | `DiscordBot/Modules/` | Discord command handlers |
-| `DiscordBot/Settings/CoreSettings.json` | Non-secret core config (gitignored; copy the example) |
-| `DiscordBot/Settings/FeatureSettings.json` | Non-secret feature config (gitignored; copy the example) |
+| `DiscordBot/Settings/CoreSettings.json` | Core config and credentials (gitignored; copy the example) |
+| `DiscordBot/Settings/FeatureSettings.json` | Feature config and optional API keys (gitignored; copy the example) |
 | `DiscordBot/Settings/Options/` | Domain-owned configuration types |
 | `DiscordBot/Components/` | Component metadata, health, lifecycle, and override registry |
 | `DiscordBot/Assets/` | Static assets (fonts, images, skins) — baked into Docker image |
@@ -54,7 +54,8 @@ Production and dev server use **Kubernetes** (`k8s/prod/` and `k8s/dev/`).
 
 - All services are registered as **singletons** in `Program.cs`.
 - `CoreSettings.json` and `FeatureSettings.json` are **never committed** — copy their example files.
-- Secrets use documented `UDCBOT_` environment variables; do not add them to JSON or ConfigMaps.
+- Local credentials belong in the gitignored JSON files. Kubernetes and Compose may override them with `UDCBOT_` environment variables.
+- Keep real credentials out of examples, ConfigMaps, editor metadata, documentation, and tests.
 - Legacy `Settings.json`/`UserSettings.json` are read-only compatibility inputs and must not gain new fields.
 - `SERVER/` is runtime data and **gitignored**.
 - `Assets/` is read-only static content loaded via `AssetsRootPath` (default `./Assets`).
@@ -67,8 +68,8 @@ Production and dev server use **Kubernetes** (`k8s/prod/` and `k8s/dev/`).
 
 | File | Format | Purpose |
 |------|--------|---------|
-| `CoreSettings.json` | JSON | Non-secret guild, storage, command, logging, and authorization settings |
-| `FeatureSettings.json` | JSON | Non-secret domain feature settings and defaults |
+| `CoreSettings.json` | JSON | Discord, database, guild, storage, command, logging, and authorization settings |
+| `FeatureSettings.json` | JSON | Domain feature settings, defaults, and optional API keys |
 | `CoreSettings.example.json` | JSON | Template for core settings |
 | `FeatureSettings.example.json` | JSON | Template for feature settings |
 | `Settings.json` | JSON | Temporary read-only legacy compatibility input |
@@ -78,5 +79,5 @@ Production and dev server use **Kubernetes** (`k8s/prod/` and `k8s/dev/`).
 
 ## Database
 
-PostgreSQL 16 — connection string in `UDCBOT_Database__ConnectionString`. Tables are auto-created
+PostgreSQL 16 — connection string under `Database:ConnectionString` in `CoreSettings.json` (with an optional `UDCBOT_` deployment override). Tables are auto-created
 on first run. Docker Compose service name: `db` (port 5432).

@@ -1,13 +1,9 @@
 namespace DiscordBot.Settings.Options;
 
-[AttributeUsage(AttributeTargets.Property)]
-public sealed class SecretAttribute : Attribute;
-
 public sealed class DiscordConnectionOptions
 {
     public const string SectionName = "DiscordConnection";
 
-    [Secret]
     public string Token { get; set; } = string.Empty;
 }
 
@@ -31,7 +27,6 @@ public sealed class DatabaseOptions
 {
     public const string SectionName = "Database";
 
-    [Secret]
     public string ConnectionString { get; set; } = string.Empty;
 }
 

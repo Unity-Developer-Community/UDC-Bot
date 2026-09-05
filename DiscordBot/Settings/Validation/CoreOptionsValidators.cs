@@ -9,10 +9,11 @@ public sealed class DiscordConnectionOptionsValidator : IValidateOptions<Discord
     public ValidateOptionsResult Validate(string? name, DiscordConnectionOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.Token) ||
-            options.Token.Contains("Y O U R", StringComparison.OrdinalIgnoreCase))
+            options.Token.Contains("Y O U R", StringComparison.OrdinalIgnoreCase) ||
+            options.Token.StartsWith("replace-", StringComparison.OrdinalIgnoreCase))
         {
             return ValidateOptionsResult.Fail(
-                "DiscordConnection:Token is required. Set UDCBOT_DiscordConnection__Token or configure the legacy Settings.json value.");
+                "DiscordConnection:Token is required in CoreSettings.json (or the legacy Settings.json file).");
         }
 
         return ValidateOptionsResult.Success;
@@ -61,7 +62,7 @@ public sealed class DatabaseOptionsValidator : IValidateOptions<DatabaseOptions>
     public ValidateOptionsResult Validate(string? name, DatabaseOptions options) =>
         string.IsNullOrWhiteSpace(options.ConnectionString)
             ? ValidateOptionsResult.Fail(
-                "Database:ConnectionString is required. Set UDCBOT_Database__ConnectionString or configure the legacy Settings.json value.")
+                "Database:ConnectionString is required in CoreSettings.json (or the legacy Settings.json file).")
             : ValidateOptionsResult.Success;
 }
 

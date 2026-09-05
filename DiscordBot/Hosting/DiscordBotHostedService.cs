@@ -24,14 +24,21 @@ public sealed class DiscordBotHostedService(
         if (configurationReport.IsLegacySource)
         {
             LoggingService.LogToConsole(
-                $"Legacy configuration source '{configurationReport.SourcePath}' is active and will be removed after the compatibility window.",
+                $"Legacy configuration source '{configurationReport.SourcePath}' is active; no settings files will be changed automatically.",
                 ExtendedLogSeverity.LowWarning);
+        }
+
+        foreach (var missingFile in configurationReport.MissingModularFiles)
+        {
+            LoggingService.LogToConsole(
+                $"Configuration file '{missingFile}' is missing; legacy values or feature defaults are being used.",
+                ExtendedLogSeverity.Warning);
         }
 
         foreach (var unknownKey in configurationReport.UnknownKeys)
         {
             LoggingService.LogToConsole(
-                $"Unknown legacy configuration key '{unknownKey}' is ignored.",
+                $"Unknown configuration key '{unknownKey}' is ignored.",
                 ExtendedLogSeverity.Warning);
         }
 

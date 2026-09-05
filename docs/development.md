@@ -61,7 +61,7 @@ The existing `NU1701` warning for `Pathoschild.NaturalTimeParser` is known: that
 
 ### 2. Create local settings
 
-Copy the two non-secret domain configuration examples.
+Copy the two configuration examples. Their non-example filenames are gitignored.
 
 On Linux, macOS, Git Bash, or WSL:
 
@@ -79,27 +79,14 @@ Copy-Item DiscordBot/Settings/FeatureSettings.example.json DiscordBot/Settings/F
 
 At minimum, review these values:
 
+- `DiscordConnection:Token` and `Database:ConnectionString` in `CoreSettings.json`;
 - `DiscordGuild:GuildId` in `CoreSettings.json`;
 - core channel and role IDs in `CoreSettings.json`;
 - channel and role IDs used by the features you intend to exercise.
 
-Supply secrets in the process environment. Bash example:
+Weather and airport credentials sit beside their feature settings under `Weather` and `Airport` in `FeatureSettings.json`. Never put tokens, API keys, or real connection strings in `.vscode`, `launchSettings.json`, documentation, test fixtures, or the tracked `.example.json` templates.
 
-```text
-export UDCBOT_DiscordConnection__Token='development-token'
-export UDCBOT_Database__ConnectionString='Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=123456789'
-```
-
-PowerShell example:
-
-```powershell
-$env:UDCBOT_DiscordConnection__Token = 'development-token'
-$env:UDCBOT_Database__ConnectionString = 'Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=123456789'
-```
-
-Weather and airport commands additionally use `UDCBOT_Weather__ApiKey`, `UDCBOT_Airport__FlightApiKey`, `UDCBOT_Airport__FlightApiSecret`, and `UDCBOT_Airport__AirLabsApiKey`. Never put tokens, API keys, or real connection strings in `.vscode`, `launchSettings.json`, a tracked `.env`, documentation, or test fixtures.
-
-The old flat `Settings.json` remains a read-only compatibility source for one migration window. It logs a deprecation warning and is never generated or repaired automatically.
+The old flat `Settings.json` remains a read-only compatibility source. Startup reports that the legacy file is active and which modular files or values are missing; no settings file is generated, migrated, or repaired automatically.
 
 ### 3. Start PostgreSQL
 
@@ -263,7 +250,7 @@ Compose is for local development only. See the [deployment guide](deployment.md)
 - Run through the checked-in task, F5 profile, or `dotnet run --project DiscordBot/DiscordBot.csproj`.
 - For a directly executed DLL, make `DiscordBot/` the current directory first.
 - Confirm `DiscordBot/Settings/CoreSettings.json` and `FeatureSettings.json` exist and have not been moved into `SERVER/` or `bin/`.
-- Confirm the required `UDCBOT_` variables are present in the bot process environment.
+- Confirm `DiscordConnection:Token` and `Database:ConnectionString` are filled in within `CoreSettings.json`.
 
 ### PostgreSQL connection fails
 

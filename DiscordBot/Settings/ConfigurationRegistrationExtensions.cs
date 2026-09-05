@@ -11,6 +11,8 @@ namespace DiscordBot.Settings;
 
 public static class ConfigurationRegistrationExtensions
 {
+    private const string EnvironmentVariablePrefix = "UDCBOT_";
+
     public const string LegacySettingsRelativePath = "Settings/Settings.json";
     public const string CoreSettingsRelativePath = "Settings/CoreSettings.json";
     public const string FeatureSettingsRelativePath = "Settings/FeatureSettings.json";
@@ -27,14 +29,16 @@ public static class ConfigurationRegistrationExtensions
         var userSettingsPath = Path.Combine(root, UserSettingsRelativePath);
 
         var hasLegacy = File.Exists(legacyPath);
-        var hasModularConfiguration = File.Exists(corePath) || File.Exists(featurePath);
+        var hasCoreSettings = File.Exists(corePath);
+        var hasFeatureSettings = File.Exists(featurePath);
+        var hasModularConfiguration = hasCoreSettings || hasFeatureSettings;
         if (!hasLegacy && !hasModularConfiguration)
         {
             throw new BotConfigurationException(
                 $"Required bot configuration was not found under '{Path.Combine(root, "Settings")}'. " +
                 "Copy Settings/CoreSettings.example.json and Settings/FeatureSettings.example.json to their non-example names, " +
-                "then provide required secrets through UDCBOT_ environment variables. " +
-                "Settings/Settings.json remains available only as a temporary legacy source.");
+                "then fill in the required values. " +
+                "Settings/Settings.json remains available as a read-only legacy source.");
         }
 
         LegacyConfigurationReport report;
@@ -48,8 +52,14 @@ public static class ConfigurationRegistrationExtensions
         else
         {
             legacyValues = new Dictionary<string, string?>();
-            report = new LegacyConfigurationReport(Path.Combine(root, "Settings"), [], false);
+            report = new LegacyConfigurationReport(Path.Combine(root, "Settings"), [], false, []);
         }
+
+        var missingModularFiles = new List<string>(2);
+        if (!hasCoreSettings)
+            missingModularFiles.Add(Path.GetFileName(corePath));
+        if (!hasFeatureSettings)
+            missingModularFiles.Add(Path.GetFileName(featurePath));
 
         report = report with
         {
@@ -57,7 +67,8 @@ public static class ConfigurationRegistrationExtensions
                 .Concat(ModularConfigurationInspector.InspectCore(corePath))
                 .Concat(ModularConfigurationInspector.InspectFeatures(featurePath))
                 .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
-                .ToArray()
+                .ToArray(),
+            MissingModularFiles = missingModularFiles
         };
 
         builder.Configuration.Sources.Clear();
@@ -65,7 +76,7 @@ public static class ConfigurationRegistrationExtensions
         builder.Configuration.AddInMemoryCollection(legacyValues);
         builder.Configuration.AddJsonFile(CoreSettingsRelativePath, optional: true, reloadOnChange: false);
         builder.Configuration.AddJsonFile(FeatureSettingsRelativePath, optional: true, reloadOnChange: false);
-        builder.Configuration.AddEnvironmentVariables(BotEnvironmentVariables.Prefix);
+        builder.Configuration.AddEnvironmentVariables(EnvironmentVariablePrefix);
         CoreConfigurationShapeValidator.Validate(builder.Configuration);
 
         builder.Services.AddSingleton(report);

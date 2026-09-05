@@ -8,6 +8,15 @@ namespace DiscordBot.Tests.Settings;
 [TestClass]
 public sealed class ConfigurationSchemaParityTests
 {
+    private static readonly IReadOnlyDictionary<string, Type> ExampleCoreSections = CreateSchema(
+        typeof(DiscordConnectionOptions),
+        typeof(DiscordGuildOptions),
+        typeof(StorageOptions),
+        typeof(DatabaseOptions),
+        typeof(CommandOptions),
+        typeof(LoggingOptions),
+        typeof(AuthorizationOptions));
+
     private static readonly IReadOnlyDictionary<string, Type> CoreSections = CreateSchema(
         typeof(DiscordGuildOptions),
         typeof(StorageOptions),
@@ -30,15 +39,32 @@ public sealed class ConfigurationSchemaParityTests
         typeof(CasinoOptions),
         typeof(KnowledgeSearchOptions));
 
+    private static readonly IReadOnlyDictionary<string, Type> ExampleFeatureSections = CreateSchema(
+        typeof(UserActivityOptions),
+        typeof(UserFunOptions),
+        typeof(RoleAssignmentOptions),
+        typeof(ModerationOptions),
+        typeof(TicketOptions),
+        typeof(FeedOptions),
+        typeof(RecruitmentOptions),
+        typeof(UnityHelpOptions),
+        typeof(BirthdayOptions),
+        typeof(ReminderOptions),
+        typeof(TipsOptions),
+        typeof(CasinoOptions),
+        typeof(WeatherOptions),
+        typeof(AirportOptions),
+        typeof(KnowledgeSearchOptions));
+
     [TestMethod]
-    public void Examples_UseOnlyDocumentedNonSecretSections()
+    public void Examples_ContainEverySupportedSetting()
     {
         AssertSections(
             File.ReadAllText(RepositoryPath("DiscordBot/Settings/CoreSettings.example.json")),
-            CoreSections);
+            ExampleCoreSections);
         AssertSections(
             File.ReadAllText(RepositoryPath("DiscordBot/Settings/FeatureSettings.example.json")),
-            FeatureSections);
+            ExampleFeatureSections);
     }
 
     [DataTestMethod]
@@ -58,12 +84,12 @@ public sealed class ConfigurationSchemaParityTests
         Assert.IsFalse(config.Contains("\"AirLabsApiKey\"", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(config.Contains("\"ConnectionString\"", StringComparison.OrdinalIgnoreCase));
 
-        StringAssert.Contains(deployment, BotEnvironmentVariables.DiscordToken);
-        StringAssert.Contains(deployment, BotEnvironmentVariables.DatabaseConnectionString);
-        StringAssert.Contains(deployment, BotEnvironmentVariables.WeatherApiKey);
-        StringAssert.Contains(deployment, BotEnvironmentVariables.FlightApiKey);
-        StringAssert.Contains(deployment, BotEnvironmentVariables.FlightApiSecret);
-        StringAssert.Contains(deployment, BotEnvironmentVariables.AirLabsApiKey);
+        StringAssert.Contains(deployment, "UDCBOT_DiscordConnection__Token");
+        StringAssert.Contains(deployment, "UDCBOT_Database__ConnectionString");
+        StringAssert.Contains(deployment, "UDCBOT_Weather__ApiKey");
+        StringAssert.Contains(deployment, "UDCBOT_Airport__FlightApiKey");
+        StringAssert.Contains(deployment, "UDCBOT_Airport__FlightApiSecret");
+        StringAssert.Contains(deployment, "UDCBOT_Airport__AirLabsApiKey");
         Assert.IsFalse(deployment.Contains("envsubst", StringComparison.Ordinal));
         Assert.IsFalse(deployment.Contains("render-config", StringComparison.Ordinal));
     }
@@ -73,12 +99,12 @@ public sealed class ConfigurationSchemaParityTests
     {
         var compose = File.ReadAllText(RepositoryPath("docker-compose.yml"));
 
-        StringAssert.Contains(compose, BotEnvironmentVariables.DiscordToken);
-        StringAssert.Contains(compose, BotEnvironmentVariables.DatabaseConnectionString);
-        StringAssert.Contains(compose, BotEnvironmentVariables.WeatherApiKey);
-        StringAssert.Contains(compose, BotEnvironmentVariables.FlightApiKey);
-        StringAssert.Contains(compose, BotEnvironmentVariables.FlightApiSecret);
-        StringAssert.Contains(compose, BotEnvironmentVariables.AirLabsApiKey);
+        StringAssert.Contains(compose, "UDCBOT_DiscordConnection__Token");
+        StringAssert.Contains(compose, "UDCBOT_Database__ConnectionString");
+        StringAssert.Contains(compose, "UDCBOT_Weather__ApiKey");
+        StringAssert.Contains(compose, "UDCBOT_Airport__FlightApiKey");
+        StringAssert.Contains(compose, "UDCBOT_Airport__FlightApiSecret");
+        StringAssert.Contains(compose, "UDCBOT_Airport__AirLabsApiKey");
     }
 
     private static void AssertSections(

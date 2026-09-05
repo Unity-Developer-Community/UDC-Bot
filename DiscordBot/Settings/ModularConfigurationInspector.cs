@@ -10,8 +10,10 @@ namespace DiscordBot.Settings;
 internal static class ModularConfigurationInspector
 {
     private static readonly IReadOnlyDictionary<string, Type> CoreSections = CreateSections(
+        typeof(DiscordConnectionOptions),
         typeof(DiscordGuildOptions),
         typeof(StorageOptions),
+        typeof(DatabaseOptions),
         typeof(CommandOptions),
         typeof(LoggingOptions),
         typeof(AuthorizationOptions));
@@ -29,6 +31,8 @@ internal static class ModularConfigurationInspector
         typeof(ReminderOptions),
         typeof(TipsOptions),
         typeof(CasinoOptions),
+        typeof(WeatherOptions),
+        typeof(AirportOptions),
         typeof(KnowledgeSearchOptions));
 
     public static IReadOnlyList<string> InspectCore(string path) => Inspect(path, CoreSections);
