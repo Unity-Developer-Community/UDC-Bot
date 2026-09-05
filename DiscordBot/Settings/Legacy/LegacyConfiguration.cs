@@ -159,12 +159,8 @@ public static class LegacyBotSettingsAdapter
         Add(values, "Feeds:ReleasesSubscriberRoleId", settings.SubsReleasesRoleId);
 
         Add(values, "Recruitment:Enabled", settings.RecruitmentServiceEnabled);
-        Add(values, "Recruitment:ForumChannelId", settings.RecruitmentChannel?.Id);
-        Add(values, "Recruitment:LookingToHireTagId", ParseId(settings.TagLookingToHire));
-        Add(values, "Recruitment:LookingForWorkTagId", ParseId(settings.TagLookingForWork));
-        Add(values, "Recruitment:UnpaidCollaborationTagId", ParseId(settings.TagUnpaidCollab));
-        Add(values, "Recruitment:PositionFilledTagId", ParseId(settings.TagPositionFilled));
-        Add(values, "Recruitment:EditPermissionMinutes", settings.EditPermissionAccessTimeMin);
+        // The old single forum cannot identify the four new forums. Keeping Enabled
+        // lets feature validation report migration rather than silently misrouting posts.
 
         Add(values, "UnityHelp:Enabled", settings.UnityHelpBabySitterEnabled);
         Add(values, "UnityHelp:ForumChannelId", settings.GenericHelpChannel?.Id);

@@ -54,13 +54,32 @@ data:
       "Tickets": { "OpenCategoryId": 874631331810799626, "OpenChannelPrefix": "Complaint", "ClosedCategoryId": 0, "ClosedChannelPrefix": "Closed-" },
       "Feeds": { "NewsChannelId": 1022102744552710154, "ReleasesChannelId": 1022102744552710154, "NewsSubscriberRoleId": 0, "ReleasesSubscriberRoleId": 769870886743703584 },
       "Recruitment": {
-        "Enabled": true,
-        "ForumChannelId": 1134672948356202678,
-        "LookingToHireTagId": 1134673961779724480,
-        "LookingForWorkTagId": 1134673990993051658,
-        "UnpaidCollaborationTagId": 1134674009292804117,
-        "PositionFilledTagId": 1134674041450545283,
-        "EditPermissionMinutes": 3
+        "Enabled": false,
+        "Mode": "Observe",
+        "Forums": {
+          "PaidRecruiting": {
+            "ChannelId": 0
+          },
+          "PaidForHire": {
+            "ChannelId": 0
+          },
+          "HobbyRecruiting": {
+            "ChannelId": 0
+          },
+          "HobbyForHire": {
+            "ChannelId": 0
+          }
+        },
+        "FeedChannelId": 0,
+        "GuidelinesDirectory": "recruitment/guidelines",
+        "AcknowledgementMinutes": 30,
+        "CooldownDays": 30,
+        "UnansweredDays": 30,
+        "EnforceGuidelineTimeouts": false,
+        "EnforceLifecycleClosures": false,
+        "EnforceListingLimits": false,
+        "PostRetentionMonths": 12,
+        "AuthorRetentionMonths": 24
       },
       "UnityHelp": { "Enabled": true, "ForumChannelId": 1028254982748778516, "ResolvedTagId": 1028255134356086784 },
       "BirthdayAnnouncements": { "Enabled": true, "CheckIntervalMinutes": 1, "AnnouncementChannelId": 566084539664039944 },

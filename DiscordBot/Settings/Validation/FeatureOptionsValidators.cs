@@ -33,28 +33,6 @@ public sealed class FeatureConfigurationCatalog
             : new FeatureConfigurationStatus(componentId, true, []);
 }
 
-public sealed class RecruitmentOptionsValidator(IOptions<RecruitmentOptions> options)
-    : IFeatureConfigurationValidator
-{
-    public FeatureConfigurationStatus Validate()
-    {
-        if (!FeatureValidation.TryGet(options, "recruitment", RecruitmentOptions.SectionName, out var value, out var failure))
-            return failure;
-        if (!value.Enabled)
-            return FeatureValidation.Valid("recruitment");
-
-        var errors = FeatureValidation.MissingIds(
-            ("Recruitment:ForumChannelId", value.ForumChannelId),
-            ("Recruitment:LookingToHireTagId", value.LookingToHireTagId),
-            ("Recruitment:LookingForWorkTagId", value.LookingForWorkTagId),
-            ("Recruitment:UnpaidCollaborationTagId", value.UnpaidCollaborationTagId),
-            ("Recruitment:PositionFilledTagId", value.PositionFilledTagId));
-        if (value.EditPermissionMinutes <= 0)
-            errors.Add("Recruitment:EditPermissionMinutes must be greater than zero when enabled.");
-        return FeatureValidation.Result("recruitment", errors);
-    }
-}
-
 public sealed class UserActivityOptionsValidator(IOptions<UserActivityOptions> options)
     : IFeatureConfigurationValidator
 {

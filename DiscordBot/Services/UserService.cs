@@ -7,6 +7,7 @@ using DiscordBot.Domain;
 using DiscordBot.Settings.Options;
 using DiscordBot.Data;
 using DiscordBot.Services.Rendering;
+using DiscordBot.Services.Recruitment;
 using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services;
@@ -24,6 +25,7 @@ public class UserService : IManagedBotService, IComponentHealthContributor
     private readonly ILoggingService _loggingService;
     private readonly IAvatarDownloader _avatarDownloader;
     private readonly IProfileCardRenderer _profileCardRenderer;
+    private readonly RecruitmentForumClassifier _recruitmentForums;
 
     private readonly Regex _x3CodeBlock =
 new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multiline | RegexOptions.Singleline);
@@ -80,7 +82,8 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         IOptions<UserActivityOptions> activityOptions,
         IOptions<ModerationOptions> moderationOptions,
         IOptions<DiscordGuildOptions> guildOptions,
-        IOptions<CommandOptions> commandOptions)
+        IOptions<CommandOptions> commandOptions,
+        RecruitmentForumClassifier recruitmentForums)
     {
         _client = client;
         _rand = new Random();
@@ -88,6 +91,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         _loggingService = loggingService;
         _avatarDownloader = avatarDownloader;
         _profileCardRenderer = profileCardRenderer;
+        _recruitmentForums = recruitmentForums;
         _updateService = updateService;
         _activityOptions = activityOptions.Value;
         _moderationOptions = moderationOptions.Value;
@@ -307,7 +311,9 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         if (messageParam.Author.IsBot)
             return;
 
-        if (_noXpChannels.Contains(messageParam.Channel.Id))
+        if (_noXpChannels.Contains(messageParam.Channel.Id) ||
+            _recruitmentForums.Classify(messageParam.Channel.Id,
+                (messageParam.Channel as SocketThreadChannel)?.ParentChannel.Id) is not null)
             return;
 
         var userId = messageParam.Author.Id;

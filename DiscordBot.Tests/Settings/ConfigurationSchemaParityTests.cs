@@ -119,23 +119,32 @@ public sealed class ConfigurationSchemaParityTests
         foreach (var required in allowedSections)
         {
             Assert.IsTrue(actual.ContainsKey(required.Key), $"Missing configuration section '{required.Key}'.");
-            var actualProperties = actual[required.Key].Value.EnumerateObject()
-                .Select(property => property.Name)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var expectedProperties = required.Value.GetProperties()
-                .Select(property => property.Name)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var unknownProperties = actualProperties.Where(property => !expectedProperties.Contains(property)).ToArray();
-            var missingProperties = expectedProperties.Where(property => !actualProperties.Contains(property)).ToArray();
-            Assert.AreEqual(
-                0,
-                unknownProperties.Length,
-                $"Unknown properties in '{required.Key}': {string.Join(", ", unknownProperties)}");
-            Assert.AreEqual(
-                0,
-                missingProperties.Length,
-                $"Missing properties in '{required.Key}': {string.Join(", ", missingProperties)}");
+            AssertObject(actual[required.Key].Value, required.Value, required.Key);
         }
+    }
+
+    private static void AssertObject(JsonElement value, Type type, string path)
+    {
+        Assert.AreEqual(JsonValueKind.Object, value.ValueKind, $"'{path}' must be an object.");
+        var actualProperties = value.EnumerateObject()
+            .Select(property => property.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var expectedProperties = type.GetProperties()
+            .Select(property => property.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unknownProperties = actualProperties.Where(property => !expectedProperties.Contains(property)).ToArray();
+        var missingProperties = expectedProperties.Where(property => !actualProperties.Contains(property)).ToArray();
+        Assert.AreEqual(
+            0,
+            unknownProperties.Length,
+            $"Unknown properties in '{path}': {string.Join(", ", unknownProperties)}");
+        Assert.AreEqual(
+            0,
+            missingProperties.Length,
+            $"Missing properties in '{path}': {string.Join(", ", missingProperties)}");
+        foreach (var property in type.GetProperties().Where(p =>
+                     p.PropertyType == typeof(RecruitmentForumsOptions) || p.PropertyType == typeof(RecruitmentForumOptions)))
+            AssertObject(value.GetProperty(property.Name), property.PropertyType, $"{path}:{property.Name}");
     }
 
     private static IReadOnlyDictionary<string, Type> CreateSchema(params Type[] optionTypes) =>

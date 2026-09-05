@@ -9,6 +9,7 @@ using DiscordBot.Policies;
 using DiscordBot.Service;
 using DiscordBot.Services;
 using DiscordBot.Services.Rendering;
+using DiscordBot.Services.Recruitment;
 using DiscordBot.Services.Tips;
 using DiscordBot.Settings;
 using DiscordBot.Settings.Legacy;
@@ -171,6 +172,9 @@ public static class Program
             return new AvatarDownloader(client, serviceProvider.GetRequiredService<ImageRenderOptions>());
         });
         services.AddSingleton<IProfileCardRenderer, ProfileCardRenderer>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<RecruitmentForumClassifier>();
+        services.AddSingleton<RecruitmentStateStore>();
         services.AddSingleton<UserService>();
         services.AddSingleton<IntroductionWatcherService>();
         services.AddSingleton<ModerationService>();

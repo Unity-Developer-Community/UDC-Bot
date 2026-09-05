@@ -67,19 +67,6 @@ public sealed class FeedOptions
     public ulong ReleasesSubscriberRoleId { get; set; }
 }
 
-public sealed class RecruitmentOptions
-{
-    public const string SectionName = "Recruitment";
-
-    public bool Enabled { get; set; }
-    public ulong ForumChannelId { get; set; }
-    public ulong LookingToHireTagId { get; set; }
-    public ulong LookingForWorkTagId { get; set; }
-    public ulong UnpaidCollaborationTagId { get; set; }
-    public ulong PositionFilledTagId { get; set; }
-    public int EditPermissionMinutes { get; set; } = 3;
-}
-
 public sealed class UnityHelpOptions
 {
     public const string SectionName = "UnityHelp";

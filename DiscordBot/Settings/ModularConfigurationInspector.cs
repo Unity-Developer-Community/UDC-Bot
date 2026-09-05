@@ -71,12 +71,7 @@ internal static class ModularConfigurationInspector
                 if (section.Value.ValueKind != JsonValueKind.Object)
                     continue;
 
-                var knownProperties = optionsType.GetProperties()
-                    .Select(property => property.Name)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                unknown.AddRange(section.Value.EnumerateObject()
-                    .Where(property => !knownProperties.Contains(property.Name))
-                    .Select(property => $"{source}:{section.Name}:{property.Name}"));
+                FindUnknownProperties(section.Value, optionsType, $"{source}:{section.Name}", unknown);
             }
 
             return unknown.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray();
@@ -90,6 +85,20 @@ internal static class ModularConfigurationInspector
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             throw new BotConfigurationException($"Unable to read bot configuration at '{path}'.", exception);
+        }
+    }
+
+    private static void FindUnknownProperties(JsonElement value, Type type, string path, List<string> unknown)
+    {
+        var properties = type.GetProperties().ToDictionary(p => p.Name, StringComparer.OrdinalIgnoreCase);
+        foreach (var child in value.EnumerateObject())
+        {
+            if (!properties.TryGetValue(child.Name, out var property))
+                unknown.Add($"{path}:{child.Name}");
+            else if (child.Value.ValueKind == JsonValueKind.Object &&
+                     (property.PropertyType == typeof(RecruitmentForumsOptions) ||
+                      property.PropertyType == typeof(RecruitmentForumOptions)))
+                FindUnknownProperties(child.Value, property.PropertyType, $"{path}:{child.Name}", unknown);
         }
     }
 

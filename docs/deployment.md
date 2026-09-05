@@ -140,6 +140,14 @@ kubectl apply -f k8s/prod/bot-settings-config.yaml
 `CoreSettings.json` and `FeatureSettings.json`. The ConfigMap must remain non-secret. The deployment
 maps Kubernetes Secrets directly to the documented `UDCBOT_` environment variables.
 
+Recruitment is currently at the configuration/policy foundation stage. Keep
+`Recruitment:Enabled` false: its legacy handler has been retired and the replacement event
+coordinator is not available yet. Production lists the four new forum IDs; development
+uses zero placeholders until its own four forums are supplied. Set `Recruitment:FeedChannelId`
+before future activation, and retain the default disabled enforcement gates. See the
+[recruitment foundation notes](features.md#recruitment-foundation) for migration and state
+recovery behavior. Configuration remains read-only and requires a process restart.
+
 ### Step 6: Deploy PostgreSQL
 
 ```bash

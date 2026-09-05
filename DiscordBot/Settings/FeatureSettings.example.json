@@ -1,92 +1,115 @@
 {
-  "UserActivity": {
-    "WelcomeMessageDelaySeconds": 300,
-    "EveryoneScoldPeriodSeconds": 21600,
-    "Thanks": [ "thanks", "ty", "cheers" ],
-    "ThanksCooldown": 60,
-    "ThanksMinJoinTime": 600,
-    "XpMinPerMessage": 10,
-    "XpMaxPerMessage": 30,
-    "XpMinCooldown": 60,
-    "XpMaxCooldown": 180,
-    "CodeReminderCooldown": 86400
-  },
-  "UserFun": {
-    "SlapObjectsTable": "Settings/udc-slap.txt",
-    "SlapChoices": [],
-    "SlapFailures": []
-  },
-  "RoleAssignment": {
-    "AssignableRoles": []
-  },
-  "Moderation": {
-    "CommandsEnabled": false,
-    "BlockInviteLinks": false,
-    "IntroductionWatcherEnabled": false,
-    "MutedRoleId": 0,
-    "IntroductionChannelId": 0,
-    "GeneralChannelId": 0,
-    "ReportedMessageChannelId": 0,
-    "MemeChannelId": 0,
-    "RulesChannelId": 0
-  },
-  "Tickets": {
-    "OpenCategoryId": 0,
-    "OpenChannelPrefix": "Complaint",
-    "ClosedCategoryId": 0,
-    "ClosedChannelPrefix": "Closed-"
-  },
-  "Feeds": {
-    "NewsChannelId": 0,
-    "ReleasesChannelId": 0,
-    "NewsSubscriberRoleId": 0,
-    "ReleasesSubscriberRoleId": 0
-  },
-  "Recruitment": {
-    "Enabled": false,
-    "ForumChannelId": 0,
-    "LookingToHireTagId": 0,
-    "LookingForWorkTagId": 0,
-    "UnpaidCollaborationTagId": 0,
-    "PositionFilledTagId": 0,
-    "EditPermissionMinutes": 3
-  },
-  "UnityHelp": {
-    "Enabled": false,
-    "ForumChannelId": 0,
-    "ResolvedTagId": 0
-  },
-  "BirthdayAnnouncements": {
-    "Enabled": false,
-    "CheckIntervalMinutes": 240,
-    "AnnouncementChannelId": 1
-  },
-  "Reminders": {
-    "FallbackChannelId": 1
-  },
-  "Tips": {
-    "ImageDirectory": "tips",
-    "MaxImageBytes": 10485760,
-    "MaxDirectoryBytes": 1073741824,
-    "HelperRoleId": 0
-  },
-  "Casino": {
-    "Enabled": false,
-    "StartingTokens": 1000,
-    "AllowedChannelIds": [],
-    "GameTimeoutMinutes": 5,
-    "DailyRewardTokens": 100,
-    "DailyRewardIntervalSeconds": 86400
-  },
-  "Weather": {
-    "ApiKey": ""
-  },
-  "Airport": {
-    "FlightApiKey": "",
-    "FlightApiSecret": "",
-    "AirLabsApiKey": ""
-  },
-  "KnowledgeSearch": {
-    "WikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts%7Cinfo&generator=prefixsearch&formatversion=2&exchars=750&exintro=1&explaintext=1&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch="
-  }
+    "UserActivity": {
+        "WelcomeMessageDelaySeconds": 300,
+        "EveryoneScoldPeriodSeconds": 21600,
+        "Thanks": [
+            "thanks",
+            "ty",
+            "cheers"
+        ],
+        "ThanksCooldown": 60,
+        "ThanksMinJoinTime": 600,
+        "XpMinPerMessage": 10,
+        "XpMaxPerMessage": 30,
+        "XpMinCooldown": 60,
+        "XpMaxCooldown": 180,
+        "CodeReminderCooldown": 86400
+    },
+    "UserFun": {
+        "SlapObjectsTable": "Settings/udc-slap.txt",
+        "SlapChoices": [],
+        "SlapFailures": []
+    },
+    "RoleAssignment": {
+        "AssignableRoles": []
+    },
+    "Moderation": {
+        "CommandsEnabled": false,
+        "BlockInviteLinks": false,
+        "IntroductionWatcherEnabled": false,
+        "MutedRoleId": 0,
+        "IntroductionChannelId": 0,
+        "GeneralChannelId": 0,
+        "ReportedMessageChannelId": 0,
+        "MemeChannelId": 0,
+        "RulesChannelId": 0
+    },
+    "Tickets": {
+        "OpenCategoryId": 0,
+        "OpenChannelPrefix": "Complaint",
+        "ClosedCategoryId": 0,
+        "ClosedChannelPrefix": "Closed-"
+    },
+    "Feeds": {
+        "NewsChannelId": 0,
+        "ReleasesChannelId": 0,
+        "NewsSubscriberRoleId": 0,
+        "ReleasesSubscriberRoleId": 0
+    },
+    "Recruitment": {
+        "Enabled": false,
+        "Mode": "Observe",
+        "Forums": {
+            "PaidRecruiting": {
+                "ChannelId": 0
+            },
+            "PaidForHire": {
+                "ChannelId": 0
+            },
+            "HobbyRecruiting": {
+                "ChannelId": 0
+            },
+            "HobbyForHire": {
+                "ChannelId": 0
+            }
+        },
+        "FeedChannelId": 0,
+        "GuidelinesDirectory": "recruitment/guidelines",
+        "AcknowledgementMinutes": 30,
+        "CooldownDays": 30,
+        "UnansweredDays": 30,
+        "EnforceGuidelineTimeouts": false,
+        "EnforceLifecycleClosures": false,
+        "EnforceListingLimits": false,
+        "PostRetentionMonths": 12,
+        "AuthorRetentionMonths": 24
+    },
+    "UnityHelp": {
+        "Enabled": false,
+        "ForumChannelId": 0,
+        "ResolvedTagId": 0
+    },
+    "BirthdayAnnouncements": {
+        "Enabled": false,
+        "CheckIntervalMinutes": 240,
+        "AnnouncementChannelId": 1
+    },
+    "Reminders": {
+        "FallbackChannelId": 1
+    },
+    "Tips": {
+        "ImageDirectory": "tips",
+        "MaxImageBytes": 10485760,
+        "MaxDirectoryBytes": 1073741824,
+        "HelperRoleId": 0
+    },
+    "Casino": {
+        "Enabled": false,
+        "StartingTokens": 1000,
+        "AllowedChannelIds": [],
+        "GameTimeoutMinutes": 5,
+        "DailyRewardTokens": 100,
+        "DailyRewardIntervalSeconds": 86400
+    },
+    "Weather": {
+        "ApiKey": ""
+    },
+    "Airport": {
+        "FlightApiKey": "",
+        "FlightApiSecret": "",
+        "AirLabsApiKey": ""
+    },
+    "KnowledgeSearch": {
+        "WikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts%7Cinfo&generator=prefixsearch&formatversion=2&exchars=750&exintro=1&explaintext=1&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch="
+    }
 }
