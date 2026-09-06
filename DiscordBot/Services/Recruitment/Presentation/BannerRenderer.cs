@@ -1,22 +1,24 @@
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Services.Rendering;
 using DiscordBot.Settings.Options;
 using ImageMagick;
 using ImageMagick.Drawing;
 using Microsoft.Extensions.Options;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Presentation;
 
-public interface IRecruitmentBannerRenderer
+public interface IBannerRenderer
 {
-    Task<byte[]> RenderAsync(RecruitmentPostRecord post, RecruitmentPolicyEvaluator policy, CancellationToken token);
+    Task<byte[]> RenderAsync(PostRecord post, PolicyEvaluator policy, CancellationToken token);
 }
 
-public sealed class RecruitmentBannerRenderer(ImageRenderOptions options) : IRecruitmentBannerRenderer
+public sealed class BannerRenderer(ImageRenderOptions options) : IBannerRenderer
 {
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     public const int MaximumBytes = 512 * 1024;
 
-    public async Task<byte[]> RenderAsync(RecruitmentPostRecord post, RecruitmentPolicyEvaluator policy, CancellationToken token)
+    public async Task<byte[]> RenderAsync(PostRecord post, PolicyEvaluator policy, CancellationToken token)
     {
         await _renderGate.WaitAsync(token);
         try
@@ -29,7 +31,7 @@ public sealed class RecruitmentBannerRenderer(ImageRenderOptions options) : IRec
             DrawLine(image, font, FitTitle(font, post.Title), 30, 91, 32, "#FFFFFF");
             DrawLine(image, font, $"Account age: {policy.AccountAge(SnowflakeUtils.FromSnowflake(post.AuthorId))}", 30, 143, 28, "#E0E8ED");
             DrawLine(image, font, $"Server tenure: {policy.ServerTenure(post.Observation.JoinedAtUtc)}", 455, 143, 28, "#E0E8ED");
-            DrawLine(image, font, $"Activity: {RecruitmentAdvisoryMessage.ActivityText(post.Activity)}", 30, 185, 30, "#E0E8ED");
+            DrawLine(image, font, $"Activity: {AdvisoryMessage.ActivityText(post.Activity)}", 30, 185, 30, "#E0E8ED");
             string payment = PaymentSnapshot(post.Payment);
             DrawLine(image, font, payment, 30, 227, 30, "#E0E8ED");
             DrawLine(image, font, "Keep initial terms and verification public.", 30, 289, 24, "#FFFFFF");
@@ -48,12 +50,12 @@ public sealed class RecruitmentBannerRenderer(ImageRenderOptions options) : IRec
     private static void DrawLine(MagickImage image, string font, string text, int x, int y, int size, string color) =>
         new Drawables().Font(font).FontPointSize(size).FillColor(new MagickColor(color)).Text(x, y, text).Draw(image);
 
-    private static string PaymentSnapshot(RecruitmentPaymentSignal payment) => payment switch
+    private static string PaymentSnapshot(PaymentSignal payment) => payment switch
     {
-        RecruitmentPaymentSignal.Concrete => "Payment: amount detected; verify terms",
-        RecruitmentPaymentSignal.Missing => "Payment: add a currency and rate or budget",
-        RecruitmentPaymentSignal.Ambiguous => "Payment: clarify guaranteed pay and scope",
-        RecruitmentPaymentSignal.NotApplicable => "Unpaid collaboration: agree on expectations",
+        PaymentSignal.Concrete => "Payment: amount detected; verify terms",
+        PaymentSignal.Missing => "Payment: add a currency and rate or budget",
+        PaymentSignal.Ambiguous => "Payment: clarify guaranteed pay and scope",
+        PaymentSignal.NotApplicable => "Unpaid collaboration: agree on expectations",
         _ => "Payment details: unknown"
     };
 

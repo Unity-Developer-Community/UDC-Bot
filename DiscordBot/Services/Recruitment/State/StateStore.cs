@@ -2,16 +2,17 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DiscordBot.Services.Recruitment.Policy;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.State;
 
 /// <summary>
 /// Single-writer, versioned snapshots. Missing state requires explicit enrollment;
 /// damaged state requires explicit recovery. Callbacks must perform no external I/O.
 /// </summary>
-public sealed class RecruitmentStateStore : IAsyncDisposable
+public sealed class StateStore : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -23,7 +24,7 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
     private readonly SemaphoreSlim _mutex = new(1, 1);
     private readonly ulong _guildId;
     private FileStream? _writerLease;
-    private RecruitmentStateDocument? _state;
+    private StateDocument? _state;
     private bool _loaded;
     private bool _faulted;
     private bool _disposed;
@@ -31,14 +32,14 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
     public string BackupPath => StatePath + ".bak";
     public bool IsHealthy => _loaded && !_faulted && !_disposed && _state is not null;
 
-    public RecruitmentStateStore(IOptions<StorageOptions> storage, IOptions<DiscordGuildOptions> guild)
+    public StateStore(IOptions<StorageOptions> storage, IOptions<DiscordGuildOptions> guild)
     {
         _guildId = guild.Value.GuildId;
         if (_guildId == 0) throw new ArgumentException("A guild ID is required.", nameof(guild));
         StatePath = Path.GetFullPath(Path.Combine(storage.Value.ServerRootPath, "recruitment", "recruitment-state.json"));
     }
 
-    public async Task<RecruitmentStateDocument?> LoadAsync(CancellationToken cancellationToken = default)
+    public async Task<StateDocument?> LoadAsync(CancellationToken cancellationToken = default)
     {
         await _mutex.WaitAsync(cancellationToken);
         try
@@ -67,7 +68,7 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
     }
 
     /// <summary>Staff lookup without acquiring a writer or enrolling state while the component is stopped.</summary>
-    public async Task<RecruitmentStateDocument?> InspectAsync(CancellationToken cancellationToken = default)
+    public async Task<StateDocument?> InspectAsync(CancellationToken cancellationToken = default)
     {
         try { return await ReadAsync(StatePath, cancellationToken); }
         catch (FileNotFoundException) { return null; }
@@ -82,7 +83,7 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
             AcquireWriter();
             if (!_loaded || _faulted || _state is not null || File.Exists(StatePath) || File.Exists(BackupPath))
                 throw new InvalidOperationException("Load missing state before enrollment; existing state or a backup requires recovery.");
-            var document = new RecruitmentStateDocument { GuildId = _guildId, EnrolledAtUtc = enrolledAtUtc };
+            var document = new StateDocument { GuildId = _guildId, EnrolledAtUtc = enrolledAtUtc };
             Validate(document);
             await WriteAsync(document, preservePrevious: false, overwrite: false, cancellationToken);
             _state = Clone(document);
@@ -96,7 +97,7 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
         finally { _mutex.Release(); }
     }
 
-    public async Task<T> UpdateAsync<T>(Func<RecruitmentStateDocument, T> update,
+    public async Task<T> UpdateAsync<T>(Func<StateDocument, T> update,
         CancellationToken cancellationToken = default)
     {
         await _mutex.WaitAsync(cancellationToken);
@@ -158,16 +159,16 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
         // Keep the lock file; unlinking it allows two writers to lock different inodes.
     }
 
-    private async Task<RecruitmentStateDocument> ReadAsync(string path, CancellationToken cancellationToken)
+    private async Task<StateDocument> ReadAsync(string path, CancellationToken cancellationToken)
     {
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        var document = await JsonSerializer.DeserializeAsync<RecruitmentStateDocument>(stream, JsonOptions, cancellationToken)
+        var document = await JsonSerializer.DeserializeAsync<StateDocument>(stream, JsonOptions, cancellationToken)
             ?? throw new InvalidDataException("Recruitment state must be an object.");
         Validate(document);
         return document;
     }
 
-    private async Task WriteAsync(RecruitmentStateDocument document, bool preservePrevious, bool overwrite,
+    private async Task WriteAsync(StateDocument document, bool preservePrevious, bool overwrite,
         CancellationToken cancellationToken)
     {
         var temporaryPath = StatePath + $".{Guid.NewGuid():N}.tmp";
@@ -210,18 +211,18 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
         catch (UnauthorizedAccessException) { }
     }
 
-    private static RecruitmentStateDocument Clone(RecruitmentStateDocument document) =>
-        JsonSerializer.Deserialize<RecruitmentStateDocument>(JsonSerializer.SerializeToUtf8Bytes(document, JsonOptions), JsonOptions)!;
+    private static StateDocument Clone(StateDocument document) =>
+        JsonSerializer.Deserialize<StateDocument>(JsonSerializer.SerializeToUtf8Bytes(document, JsonOptions), JsonOptions)!;
 
-    private void Validate(RecruitmentStateDocument document)
+    private void Validate(StateDocument document)
     {
-        if (document.SchemaVersion != RecruitmentStateDocument.CurrentSchemaVersion)
+        if (document.SchemaVersion != StateDocument.CurrentSchemaVersion)
             throw new InvalidDataException("Unsupported recruitment state schema.");
         if (document.GuildId != _guildId || document.Revision < 0 || document.DroppedObservationEvents < 0 ||
             document.Posts is null || document.Authors is null || document.Forums is null)
             throw new InvalidDataException("Recruitment state has an invalid guild, revision or collection.");
         RequireUtc(document.EnrolledAtUtc, document.LastGatewayGapAtUtc);
-        RecruitmentPublicationValidation.Validate(document);
+        PublicationValidation.Validate(document);
         foreach (var (id, forum) in document.Forums)
         {
             if (id == 0 || forum is null || forum.Error?.Length > 200)
@@ -253,8 +254,8 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
             if (post.FirstSeenAtUtc < post.CreatedAtUtc || post.AcceptedAtUtc < post.CreatedAtUtc ||
                 post.PromptedAtUtc < post.CreatedAtUtc || post.ClosedAtUtc < post.CreatedAtUtc ||
                 post.DeletedObservedAtUtc < post.CreatedAtUtc || post.FirstQualifyingResponseAtUtc <= post.CreatedAtUtc ||
-                post.AcceptedAtUtc is not null && post.Acknowledgement != RecruitmentAcknowledgement.Passed ||
-                post.Acknowledgement == RecruitmentAcknowledgement.Pending &&
+                post.AcceptedAtUtc is not null && post.Acknowledgement != AcknowledgementStatus.Passed ||
+                post.Acknowledgement == AcknowledgementStatus.Pending &&
                 (post.PromptedAtUtc is null || post.ChallengeDeadlineUtc is null ||
                  post.ChallengeDeadlineUtc <= post.PromptedAtUtc || post.AcceptedCodes.Length == 0))
                 throw new InvalidDataException("Recruitment post transition or deadline is invalid.");
@@ -271,7 +272,7 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
                 RequireUtc(history.LastAcceptedCreatedAtUtc, history.LastAcceptedDeletedAtUtc);
             }
         }
-        RecruitmentLifecycleValidation.Validate(document);
+        LifecycleValidation.Validate(document);
     }
 
     private static void RequireUtc(params DateTimeOffset?[] dates)

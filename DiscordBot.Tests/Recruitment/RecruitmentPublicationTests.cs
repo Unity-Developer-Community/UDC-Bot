@@ -1,4 +1,5 @@
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.Publishing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DiscordBot.Tests.Recruitment;
@@ -11,13 +12,13 @@ public sealed class RecruitmentPublicationTests
     {
         await using var f = new RecruitmentAdvisoryFixture();
         f.Templates.ValidateAll();
-        var topics = Enum.GetValues<RecruitmentForumKind>().Select(kind => f.Templates.Render(f.Templates.Load(kind), "ABCDE")).ToArray();
+        var topics = Enum.GetValues<ForumKind>().Select(kind => f.Templates.Render(f.Templates.Load(kind), "ABCDE")).ToArray();
         Assert.AreEqual(4, topics.Distinct().Count());
         Assert.IsTrue(topics.All(topic => topic.Length <= 4096 && topic.Contains("UDC acknowledgement code: ABCDE")));
-        foreach (int _ in Enumerable.Range(0, 100)) Assert.IsTrue(RecruitmentGuidelines.IsCode(RecruitmentGuidelines.NewCode()));
+        foreach (int _ in Enumerable.Range(0, 100)) Assert.IsTrue(GuidelineTemplates.IsCode(GuidelineTemplates.NewCode()));
         var monday = new DateTimeOffset(2026, 9, 7, 0, 0, 0, TimeSpan.Zero);
-        Assert.AreEqual(monday.AddDays(-7), RecruitmentGuidelines.WeekStart(monday.AddTicks(-1)));
-        Assert.AreEqual(monday, RecruitmentGuidelines.WeekStart(monday.ToOffset(TimeSpan.FromHours(10))));
+        Assert.AreEqual(monday.AddDays(-7), GuidelineTemplates.WeekStart(monday.AddTicks(-1)));
+        Assert.AreEqual(monday, GuidelineTemplates.WeekStart(monday.ToOffset(TimeSpan.FromHours(10))));
     }
 
     [TestMethod]
@@ -37,7 +38,7 @@ public sealed class RecruitmentPublicationTests
     public async Task BlankForum_AppendsClosedWithoutLosingMetadata_AndPublicationIsIdempotent()
     {
         await using var f = new RecruitmentAdvisoryFixture(); await f.InitializeAsync();
-        var original = new RecruitmentForumTag(900, "Graphics", true, 1234, null);
+        var original = new ForumTag(900, "Graphics", true, 1234, null);
         f.Discord.Forums[101] = f.Discord.Forums[101] with { Tags = [original] };
         await f.Guidelines.EnsureAsync(f.Forum, default);
         await f.Guidelines.EnsureAsync(f.Forum, default);
@@ -76,12 +77,12 @@ public sealed class RecruitmentPublicationTests
         await using var f = new RecruitmentAdvisoryFixture(); await f.InitializeAsync();
         await f.Guidelines.EnsureAsync(f.Forum, default);
         var closed = f.Discord.Forums[101].Tags.Single();
-        RecruitmentForumTag[] tags = conflict switch
+        ForumTag[] tags = conflict switch
         {
             "renamed" => [closed with { Name = "Retired" }],
             "duplicate" => [closed, closed with { Id = 999 }],
             "moderated" => [closed with { Moderated = true }],
-            _ => Enumerable.Range(1, 20).Select(i => new RecruitmentForumTag((ulong)i, "Tag " + i, false, null, null)).ToArray()
+            _ => Enumerable.Range(1, 20).Select(i => new ForumTag((ulong)i, "Tag " + i, false, null, null)).ToArray()
         };
         f.Discord.Forums[101] = f.Discord.Forums[101] with { Tags = tags };
         await Assert.ThrowsAsync<InvalidOperationException>(() => f.Guidelines.EnsureAsync(f.Forum, default));
@@ -121,7 +122,7 @@ public sealed class RecruitmentPublicationTests
             return true;
         }));
         Assert.IsTrue(f.Store.IsHealthy);
-        Assert.IsTrue(RecruitmentGuidelines.IsCode(await f.Code()));
+        Assert.IsTrue(GuidelineTemplates.IsCode(await f.Code()));
     }
 
     [TestMethod]

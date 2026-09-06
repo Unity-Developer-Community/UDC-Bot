@@ -140,39 +140,23 @@ kubectl apply -f k8s/prod/bot-settings-config.yaml
 `CoreSettings.json` and `FeatureSettings.json`. The ConfigMap must remain non-secret. The deployment
 maps Kubernetes Secrets directly to the documented `UDCBOT_` environment variables.
 
-Recruitment supports Observe, Advisory practice and gated Enforce. Checked-in deployment settings remain
-disabled. Production lists the four new forum IDs; development uses zero placeholders
-until its own four forums are supplied. To activate observation, supply a staff-only text
-channel as `Recruitment:FeedChannelId`, verify all five channels belong to the configured
-guild, and set `Enabled: true` and `Mode: Observe`. Retain disabled enforcement gates.
-The bot needs View Channel and Read Message History in all four forums, and View Channel,
-Read Message History and Send Messages in the staff feed. No tags or Guidelines assets are required for Observe.
-Configuration requires a process restart; runtime component toggle/restart is supported.
+Recruitment is disabled in checked-in settings. Production has the four forum IDs;
+development needs its own forums. Supply `Recruitment:FeedChannelId` as a staff-only text
+channel, verify all five channels belong to the configured guild, and begin with
+`Enabled: true`, `Mode: Observe` and all enforcement gates disabled.
 
-For an Advisory staging rollout, use `Mode: Advisory` with the same configured forums/feed.
-The bot additionally needs Manage Channels for forum topics/tags, Send Messages in Threads
-and Embed Links for public messages, Attach Files for optional banners, and Manage Threads
-for explicitly confirmed owner close/remove actions. Keep every enforcement gate disabled.
-The image packages `Assets/recruitment/guidelines/*.md`; a native forum topic is used for
-Guidelines, so no guidelines-post or tag IDs need configuring. Empty topics are initialized;
-existing or manually changed topics require staff preview/adoption. See the
-[Recruitment setup and staging checklist](recruitment.md) before activation.
+| Mode | Required permissions |
+| --- | --- |
+| Observe | View Channel and Read Message History in forums; also Send Messages in the staff feed. |
+| Advisory / Enforce | Additionally Manage Channels (topics/tags), Send Messages in Threads, Embed Links and Manage Threads (close/remove/reopen). Attach Files enables optional banners. |
 
-For Enforce staging, follow the independent-gate checks in the recruitment guide before
-production activation. Earlier practice/imported attempts are not retroactively enforced.
+Configuration changes require a process restart; runtime component toggle/restart is
+supported. Keep one replica and preserve the state volume. The image includes the four
+Guidelines templates; no guidelines-post or tag IDs need configuring.
 
-The first enabled start creates a missing, backup-free recruitment state file and
-imports existing posts as unverified. Keep a single replica and preserve the state volume.
-A missing primary with an existing backup, corrupt state, or changed forum mapping requires
-operator recovery; the bot will not reset history. Stop the bot before restoring a known
-good snapshot, preserve the damaged primary separately, and restart to validate the restored
-guild/schema before any observations resume. The store also provides explicit validated
-backup recovery as an operator API; file-level recovery requires the bot to be stopped.
-Recruitment starts at SchemaVersion 1 with no earlier-schema upgrades or legacy settings
-projection. Preserve known-good backups separately; normal writes rotate `.bak`.
-See the [Observe notes](features.md#recruitment-observe) for recovery, coverage limits and
-staff-feed retention. Live guild permissions and restart/delivery behavior still need a
-staging check before production activation.
+The [recruitment guide](recruitment.md) covers topic adoption, moderator controls, state
+backup/recovery and the live validation checklist. Stage Advisory before enabling Enforce
+gates individually; earlier practice/imported attempts are not retroactively enforced.
 
 ### Step 6: Deploy PostgreSQL
 

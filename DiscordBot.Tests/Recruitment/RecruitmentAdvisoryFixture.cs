@@ -1,4 +1,9 @@
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Actions;
+using DiscordBot.Services.Recruitment.Observation;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.Presentation;
+using DiscordBot.Services.Recruitment.Publishing;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
 using static DiscordBot.Tests.Recruitment.RecruitmentTestData;
@@ -12,19 +17,19 @@ internal sealed class RecruitmentAdvisoryFixture : IAsyncDisposable
     public AdvisoryClock Time { get; } = new();
     public FakePublisher Discord { get; } = new();
     public FakeBanner Banner { get; } = new();
-    public RecruitmentStateStore Store { get; }
-    public RecruitmentGuidelines Templates { get; }
-    public RecruitmentGuidelinePublisher Guidelines { get; }
-    public RecruitmentOwnerActions Owners { get; }
-    public RecruitmentLifecycleExecutor Lifecycle { get; }
-    public RecruitmentObservationCoordinator Observations { get; }
+    public StateStore Store { get; }
+    public GuidelineTemplates Templates { get; }
+    public GuidelinePublisher Guidelines { get; }
+    public OwnerActions Owners { get; }
+    public LifecycleExecutor Lifecycle { get; }
+    public ObservationCoordinator Observations { get; }
     public FakeRecruitmentObservation Observer { get; }
-    public RecruitmentEnforcementCoordinator Enforcement { get; }
-    public RecruitmentStaffActions Staff { get; }
-    public RecruitmentRetention Retention { get; }
-    public RecruitmentPublicCoordinator Coordinator { get; }
-    public RecruitmentOwnerContext Owner { get; } = new(1, 10, 123);
-    public RecruitmentForum Forum { get; } = new(RecruitmentForumKind.PaidRecruiting, 101);
+    public EnforcementCoordinator Enforcement { get; }
+    public StaffActions Staff { get; }
+    public HistoryRetention Retention { get; }
+    public PublicCoordinator Coordinator { get; }
+    public OwnerContext Owner { get; } = new(1, 10, 123);
+    public Forum Forum { get; } = new(ForumKind.PaidRecruiting, 101);
 
     public RecruitmentAdvisoryFixture()
     {
@@ -54,7 +59,7 @@ internal sealed class RecruitmentAdvisoryFixture : IAsyncDisposable
         {
             foreach (ulong id in new ulong[] { 101, 102, 103, 104 }) state.Forums[id] = new();
             var post = RecruitmentTestData.Post();
-            post.Acknowledgement = RecruitmentAcknowledgement.NotPrompted;
+            post.Acknowledgement = AcknowledgementStatus.NotPrompted;
             post.EnforcementEnrolled = false;
             post.Title = "Gameplay programmer · $40/hour";
             state.Posts[10] = post;
@@ -64,8 +69,8 @@ internal sealed class RecruitmentAdvisoryFixture : IAsyncDisposable
     }
 
     public async Task StartAsync() { await InitializeAsync(); await Coordinator.TickAsync(default); }
-    public async Task<RecruitmentStateDocument> State() => (await Store.LoadAsync())!;
-    public async Task<RecruitmentPostRecord> Post() => (await State()).Posts[10];
+    public async Task<StateDocument> State() => (await Store.LoadAsync())!;
+    public async Task<PostRecord> Post() => (await State()).Posts[10];
     public async Task<string> Generation() => (await Post()).Advisory.Generation;
     public async Task<string> Code() => (await State()).Forums[101].Publication.Confirmed!.Code;
     public async ValueTask DisposeAsync()
@@ -82,25 +87,25 @@ internal sealed class AdvisoryClock : TimeProvider
     public void Advance(TimeSpan duration) => Now += duration;
 }
 
-internal sealed class FakeBanner : IRecruitmentBannerRenderer
+internal sealed class FakeBanner : IBannerRenderer
 {
     public bool Fail;
-    public Task<byte[]> RenderAsync(RecruitmentPostRecord post, RecruitmentPolicyEvaluator policy, CancellationToken token) =>
+    public Task<byte[]> RenderAsync(PostRecord post, PolicyEvaluator policy, CancellationToken token) =>
         Fail ? Task.FromException<byte[]>(new IOException("native render failed")) : Task.FromResult(new byte[] { 1, 2, 3 });
 }
 
-internal sealed class FakePublisher : IRecruitmentPublisher
+internal sealed class FakePublisher : IForumPublisher
 {
-    public Dictionary<ulong, RecruitmentForumSetup> Forums { get; } = new ulong[] { 101, 102, 103, 104 }
-        .ToDictionary(id => id, id => new RecruitmentForumSetup(id, "", []));
-    public Dictionary<ulong, RecruitmentPublicPost> Posts { get; } = new() { [10] = new(10, 101, 123, false, false, false, true, []) };
-    public RecruitmentPublicPost? Post
+    public Dictionary<ulong, ForumSetup> Forums { get; } = new ulong[] { 101, 102, 103, 104 }
+        .ToDictionary(id => id, id => new ForumSetup(id, "", []));
+    public Dictionary<ulong, PublicPost> Posts { get; } = new() { [10] = new(10, 101, 123, false, false, false, true, []) };
+    public PublicPost? Post
     {
         get => Posts.GetValueOrDefault(10ul);
         set { if (value is null) Posts.Remove(10); else Posts[10] = value; }
     }
-    public Dictionary<ulong, RecruitmentAdvisoryView> Messages { get; } = [];
-    public Queue<RecruitmentAdvisorySearch> SearchPages { get; } = [];
+    public Dictionary<ulong, AdvisoryView> Messages { get; } = [];
+    public Queue<AdvisorySearch> SearchPages { get; } = [];
     public bool FailEdits, FailSendAfterWrite, FailSendBeforeWrite, FailPublishAfterWrite, FailActionAfterWrite, FailReads;
     public ulong? FailingForum;
     public int Sends, Publishes, TagAppends, Actions;
@@ -110,7 +115,7 @@ internal sealed class FakePublisher : IRecruitmentPublisher
     public bool LastSendHadImage;
     public Action? OnSend, OnEdit;
 
-    public Task<RecruitmentForumSetup> GetForumAsync(ulong forumId, CancellationToken token)
+    public Task<ForumSetup> GetForumAsync(ulong forumId, CancellationToken token)
     {
         if (FailingForum == forumId) throw new IOException("forum unavailable");
         return Task.FromResult(Forums[forumId]);
@@ -118,29 +123,29 @@ internal sealed class FakePublisher : IRecruitmentPublisher
     public Task AppendClosedTagAsync(ulong forumId, string expectedTagHash, CancellationToken token)
     {
         var forum = Forums[forumId];
-        if (RecruitmentGuidelines.TagHash(forum.Tags) != expectedTagHash) throw new InvalidOperationException("tag drift");
-        Forums[forumId] = forum with { Tags = forum.Tags.Append(new RecruitmentForumTag(forumId + 1000, "Closed", false, null, null)).ToArray() };
+        if (GuidelineTemplates.TagHash(forum.Tags) != expectedTagHash) throw new InvalidOperationException("tag drift");
+        Forums[forumId] = forum with { Tags = forum.Tags.Append(new ForumTag(forumId + 1000, "Closed", false, null, null)).ToArray() };
         TagAppends++;
         return Task.CompletedTask;
     }
     public Task PublishTopicAsync(ulong forumId, string expectedTopicHash, string topic, CancellationToken token)
     {
         var forum = Forums[forumId];
-        if (RecruitmentGuidelines.Hash(forum.Topic) != expectedTopicHash) throw new InvalidOperationException("topic drift");
+        if (GuidelineTemplates.Hash(forum.Topic) != expectedTopicHash) throw new InvalidOperationException("topic drift");
         Forums[forumId] = forum with { Topic = topic };
         Publishes++;
         if (FailPublishAfterWrite) throw new IOException("publication response lost");
         return Task.CompletedTask;
     }
-    public Task<RecruitmentPublicPost?> GetPostAsync(ulong threadId, CancellationToken token) =>
-        FailReads ? Task.FromException<RecruitmentPublicPost?>(new IOException("read failed")) : Task.FromResult(Posts.GetValueOrDefault(threadId));
-    public Task<RecruitmentAdvisorySearch> FindAdvisoryAsync(ulong threadId, string marker, ulong? beforeId, CancellationToken token)
+    public Task<PublicPost?> GetPostAsync(ulong threadId, CancellationToken token) =>
+        FailReads ? Task.FromException<PublicPost?>(new IOException("read failed")) : Task.FromResult(Posts.GetValueOrDefault(threadId));
+    public Task<AdvisorySearch> FindAdvisoryAsync(ulong threadId, string marker, ulong? beforeId, CancellationToken token)
     {
         if (SearchPages.TryDequeue(out var page)) return Task.FromResult(page);
         var found = Messages.FirstOrDefault(pair => pair.Value.Marker == marker);
-        return Task.FromResult(new RecruitmentAdvisorySearch(found.Key == 0 ? null : new(found.Key, Now), null, true));
+        return Task.FromResult(new AdvisorySearch(found.Key == 0 ? null : new(found.Key, Now), null, true));
     }
-    public Task<RecruitmentPublicMessage> SendAdvisoryAsync(ulong threadId, RecruitmentAdvisoryView view, byte[]? image, CancellationToken token)
+    public Task<PublicMessage> SendAdvisoryAsync(ulong threadId, AdvisoryView view, byte[]? image, CancellationToken token)
     {
         OnSend?.Invoke();
         if (FailSendBeforeWrite) throw new IOException("send failed");
@@ -149,9 +154,9 @@ internal sealed class FakePublisher : IRecruitmentPublisher
         ulong id = (ulong)(500 + Sends);
         Messages[id] = view;
         if (FailSendAfterWrite) throw new IOException("send response lost");
-        return Task.FromResult(new RecruitmentPublicMessage(id, Now));
+        return Task.FromResult(new PublicMessage(id, Now));
     }
-    public Task<bool> EditAdvisoryAsync(ulong threadId, ulong messageId, RecruitmentAdvisoryView view, CancellationToken token)
+    public Task<bool> EditAdvisoryAsync(ulong threadId, ulong messageId, AdvisoryView view, CancellationToken token)
     {
         OnEdit?.Invoke();
         if (FailEdits) throw new IOException("edit failed");
@@ -159,7 +164,7 @@ internal sealed class FakePublisher : IRecruitmentPublisher
         Messages[messageId] = view;
         return Task.FromResult(true);
     }
-    public async Task ApplyLifecycleActionAsync(RecruitmentPublicPost post, RecruitmentActionKind action, ulong? closedTagId, string actionId, CancellationToken token)
+    public async Task ApplyLifecycleActionAsync(PublicPost post, ActionKind action, ulong? closedTagId, string actionId, CancellationToken token)
     {
         InFlightActions++;
         try
@@ -168,8 +173,8 @@ internal sealed class FakePublisher : IRecruitmentPublisher
             if (BlockActions) await Task.Delay(Timeout.Infinite, token);
             token.ThrowIfCancellationRequested();
             Actions++;
-        if (action == RecruitmentActionKind.Delete) Posts.Remove(post.Id);
-        else if (action == RecruitmentActionKind.Reopen) Posts[post.Id] = post with { Archived = false, Locked = false, Tags = post.Tags.Where(id => id != closedTagId).ToArray() };
+        if (action == ActionKind.Delete) Posts.Remove(post.Id);
+        else if (action == ActionKind.Reopen) Posts[post.Id] = post with { Archived = false, Locked = false, Tags = post.Tags.Where(id => id != closedTagId).ToArray() };
         else Posts[post.Id] = post with { Archived = true, Locked = true };
         if (FailActionAfterWrite) throw new IOException("action response lost");
         }

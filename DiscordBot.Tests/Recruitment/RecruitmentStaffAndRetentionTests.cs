@@ -1,4 +1,7 @@
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Actions;
+using DiscordBot.Services.Recruitment.Observation;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using static DiscordBot.Tests.Recruitment.RecruitmentEnforcementTests;
@@ -13,22 +16,22 @@ public sealed class RecruitmentStaffAndRetentionTests
     {
         await using var f = new RecruitmentAdvisoryFixture(); await StartEnforce(f);
         var previous = RecruitmentTestData.Post(20, created: f.Time.Now.AddDays(-1), accepted: true);
-        previous.Lifecycle = RecruitmentLifecycle.Closed; previous.ClosedAtUtc = f.Time.Now;
+        previous.Lifecycle = ListingLifecycle.Closed; previous.ClosedAtUtc = f.Time.Now;
         await f.Store.UpdateAsync(state => { state.Posts[20] = previous; return true; });
-        var policy = new RecruitmentPolicyEvaluator(f.Options, f.Time);
-        Assert.AreEqual(RecruitmentEligibilityKind.Cooldown, policy.EvaluateEligibility(await f.State(), 10).Kind);
+        var policy = new PolicyEvaluator(f.Options, f.Time);
+        Assert.AreEqual(EligibilityKind.Cooldown, policy.EvaluateEligibility(await f.State(), 10).Kind);
         await f.Staff.WaiveCooldownAsync(10, 999, "Approved current wait waiver", default);
         Assert.IsTrue(policy.EvaluateEligibility(await f.State(), 10).IsEligible);
-        await f.Store.UpdateAsync(state => { state.Posts[20].Lifecycle = RecruitmentLifecycle.Open; return true; });
-        Assert.AreEqual(RecruitmentEligibilityKind.ActiveListing, policy.EvaluateEligibility(await f.State(), 10).Kind);
+        await f.Store.UpdateAsync(state => { state.Posts[20].Lifecycle = ListingLifecycle.Open; return true; });
+        Assert.AreEqual(EligibilityKind.ActiveListing, policy.EvaluateEligibility(await f.State(), 10).Kind);
         f.Time.Advance(TimeSpan.FromDays(1));
         await f.Store.UpdateAsync(state =>
         {
-            state.Posts[20].Lifecycle = RecruitmentLifecycle.Deleted;
+            state.Posts[20].Lifecycle = ListingLifecycle.Deleted;
             state.Posts[20].DeletedObservedAtUtc = f.Time.Now;
             return true;
         });
-        Assert.AreEqual(RecruitmentEligibilityKind.Cooldown, policy.EvaluateEligibility(await f.State(), 10).Kind);
+        Assert.AreEqual(EligibilityKind.Cooldown, policy.EvaluateEligibility(await f.State(), 10).Kind);
     }
 
     [TestMethod]
@@ -38,18 +41,18 @@ public sealed class RecruitmentStaffAndRetentionTests
         await f.Store.UpdateAsync(state =>
         {
             var post = state.Posts[10];
-            post.AcceptedAtUtc = f.Time.Now; post.Acknowledgement = RecruitmentAcknowledgement.Passed;
-            post.Lifecycle = RecruitmentLifecycle.Closed; post.ClosedAtUtc = f.Time.Now; post.ClosedRequested = true;
+            post.AcceptedAtUtc = f.Time.Now; post.Acknowledgement = AcknowledgementStatus.Passed;
+            post.Lifecycle = ListingLifecycle.Closed; post.ClosedAtUtc = f.Time.Now; post.ClosedRequested = true;
             state.Posts[20] = RecruitmentTestData.Post(20, accepted: true);
             return true;
         });
         f.Discord.Post = f.Discord.Post! with { Archived = true, Locked = true, Tags = [1101, 5000] };
-        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Staff.ChangeLifecycleAsync(10, RecruitmentActionKind.Reopen, 999, "Owner requested reopening", default));
-        await f.Store.UpdateAsync(state => { state.Posts[20].Lifecycle = RecruitmentLifecycle.Closed; return true; });
-        await f.Staff.ChangeLifecycleAsync(10, RecruitmentActionKind.Reopen, 999, "Owner requested reopening", default);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Staff.ChangeLifecycleAsync(10, ActionKind.Reopen, 999, "Owner requested reopening", default));
+        await f.Store.UpdateAsync(state => { state.Posts[20].Lifecycle = ListingLifecycle.Closed; return true; });
+        await f.Staff.ChangeLifecycleAsync(10, ActionKind.Reopen, 999, "Owner requested reopening", default);
         var reopened = await f.Post();
         Assert.IsTrue(reopened.IsExempt); Assert.IsFalse(reopened.ClosedRequested);
-        Assert.AreEqual(RecruitmentLifecycle.Open, reopened.Lifecycle);
+        Assert.AreEqual(ListingLifecycle.Open, reopened.Lifecycle);
         CollectionAssert.AreEqual(new ulong[] { 5000 }, f.Discord.Post!.Tags);
         f.Time.Advance(TimeSpan.FromDays(40)); await f.Enforcement.TickAsync(default);
         Assert.AreEqual(1, f.Discord.Actions);
@@ -76,11 +79,11 @@ public sealed class RecruitmentStaffAndRetentionTests
     {
         await using var f = new RecruitmentAdvisoryFixture(); await StartEnforce(f);
         await f.Store.UpdateAsync(state => { state.Posts[10].RequiresReview = true; state.Posts[10].Observation.HistoryUncertain = true; return true; });
-        await f.Staff.ReviewAsync(10, RecruitmentResponseReview.NoQualifyingResponses, false, 999, "Inspected the earlier thread history", default);
+        await f.Staff.ReviewAsync(10, ResponseReview.NoQualifyingResponses, false, 999, "Inspected the earlier thread history", default);
         Assert.IsFalse((await f.Post()).RequiresReview); Assert.IsFalse((await f.Post()).Observation.HistoryUncertain);
         f.Time.Advance(TimeSpan.FromSeconds(1));
-        await f.Staff.ReviewAsync(10, RecruitmentResponseReview.QualifyingResponsePresent, false, 999, "Ordinary applicant reply verified", default);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Staff.ReviewAsync(10, RecruitmentResponseReview.NoQualifyingResponses, false, 999, "Recheck", default));
+        await f.Staff.ReviewAsync(10, ResponseReview.QualifyingResponsePresent, false, 999, "Ordinary applicant reply verified", default);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Staff.ReviewAsync(10, ResponseReview.NoQualifyingResponses, false, 999, "Recheck", default));
         await f.Observations.RecordGapAsync(default);
         Assert.IsTrue((await f.Post()).Observation.HistoryUncertain);
         Assert.IsNotNull((await f.Post()).FirstQualifyingResponseAtUtc);
@@ -113,8 +116,8 @@ public sealed class RecruitmentStaffAndRetentionTests
         Assert.AreEqual(f.Time.Now.AddMinutes(30), (await f.Post()).ChallengeDeadlineUtc);
         await f.Store.UpdateAsync(state =>
         {
-            var post = state.Posts[10]; post.Lifecycle = RecruitmentLifecycle.Missing;
-            post.Acknowledgement = RecruitmentAcknowledgement.Passed; post.AcceptedAtUtc = post.CreatedAtUtc;
+            var post = state.Posts[10]; post.Lifecycle = ListingLifecycle.Missing;
+            post.Acknowledgement = AcknowledgementStatus.Passed; post.AcceptedAtUtc = post.CreatedAtUtc;
             post.RequiresReview = true; post.DeletionTimeUncertain = true;
             return true;
         });
@@ -123,7 +126,7 @@ public sealed class RecruitmentStaffAndRetentionTests
         await f.Staff.ResolveMissingAsync(10, verified, 999, "Deletion time verified from audit evidence", default);
         Assert.AreEqual(verified, (await f.Post()).DeletedObservedAtUtc);
         Assert.IsFalse((await f.Post()).DeletionTimeUncertain);
-        Assert.AreEqual(verified, (await f.State()).Authors[123].Groups[RecruitmentListingGroup.Recruiting].LastAcceptedDeletedAtUtc);
+        Assert.AreEqual(verified, (await f.State()).Authors[123].Groups[ListingGroup.Recruiting].LastAcceptedDeletedAtUtc);
     }
 
     [TestMethod]
@@ -133,8 +136,8 @@ public sealed class RecruitmentStaffAndRetentionTests
         DateTimeOffset closed = f.Time.Now;
         await f.Store.UpdateAsync(state =>
         {
-            var post = state.Posts[10]; post.AcceptedAtUtc = closed; post.Acknowledgement = RecruitmentAcknowledgement.Passed;
-            post.Lifecycle = RecruitmentLifecycle.Closed; post.ClosedAtUtc = closed;
+            var post = state.Posts[10]; post.AcceptedAtUtc = closed; post.Acknowledgement = AcknowledgementStatus.Passed;
+            post.Lifecycle = ListingLifecycle.Closed; post.ClosedAtUtc = closed;
             return true;
         });
         f.Time.Now = closed.AddMonths(12).AddTicks(-1); await f.Retention.TickAsync(default);
@@ -146,10 +149,10 @@ public sealed class RecruitmentStaffAndRetentionTests
         Assert.AreEqual(0, compacted.Posts.Count);
         Assert.IsTrue(compacted.RetiredThreadIds.Contains(10));
         f.Discord.Post = f.Discord.Post! with { Archived = true, Locked = true };
-        await f.Observations.HandleAsync(new(RecruitmentEventKind.Changed, 10, 101), default);
+        await f.Observations.HandleAsync(new(EventKind.Changed, 10, 101), default);
         await f.Observations.TickAsync(default);
         Assert.AreEqual(0, (await f.State()).Posts.Count);
-        Assert.AreEqual(closed, compacted.Authors[123].Groups[RecruitmentListingGroup.Recruiting].LastAcceptedCreatedAtUtc);
+        Assert.AreEqual(closed, compacted.Authors[123].Groups[ListingGroup.Recruiting].LastAcceptedCreatedAtUtc);
         f.Time.Now = closed.AddMonths(24); await f.Retention.TickAsync(default);
         Assert.AreEqual(0, (await f.State()).Authors.Count);
         Assert.AreEqual(0, f.Discord.Actions);
@@ -166,15 +169,15 @@ public sealed class RecruitmentStaffAndRetentionTests
         await using var f = new RecruitmentAdvisoryFixture(); await f.InitializeAsync();
         await f.Store.UpdateAsync(state =>
         {
-            var post = state.Posts[10]; post.Lifecycle = RecruitmentLifecycle.Closed; post.ClosedAtUtc = f.Time.Now;
-            if (dependency == "open") post.Lifecycle = RecruitmentLifecycle.Open;
+            var post = state.Posts[10]; post.Lifecycle = ListingLifecycle.Closed; post.ClosedAtUtc = f.Time.Now;
+            if (dependency == "open") post.Lifecycle = ListingLifecycle.Open;
             if (dependency == "review") post.RequiresReview = true;
             if (dependency == "uncertain") post.DeletionTimeUncertain = true;
             if (dependency == "feed") post.Observation.FeedError = "Retry pending";
             return true;
         });
-        if (dependency == "intent") await f.Lifecycle.RequestAsync(10, RecruitmentActionKind.Delete, RecruitmentActionOrigin.Owner,
-            RecruitmentCloseReason.OwnerRemoved, 123, "Confirmed owner removal", default);
+        if (dependency == "intent") await f.Lifecycle.RequestAsync(10, ActionKind.Delete, ActionOrigin.Owner,
+            CloseReason.OwnerRemoved, 123, "Confirmed owner removal", default);
         f.Time.Advance(TimeSpan.FromDays(800)); await f.Retention.TickAsync(default);
         Assert.AreEqual(1, (await f.State()).Posts.Count);
     }

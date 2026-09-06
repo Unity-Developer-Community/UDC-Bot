@@ -1,10 +1,10 @@
 using System.IO;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.State;
 
-internal static class RecruitmentLifecycleValidation
+internal static class LifecycleValidation
 {
-    public static void Validate(RecruitmentStateDocument state)
+    public static void Validate(StateDocument state)
     {
         Dates(state.EnforcementStartedAtUtc, state.LastRetentionAtUtc);
         if (state.RetiredThreadIds is null || state.RetiredThreadIds.Contains(0) ||
@@ -34,9 +34,9 @@ internal static class RecruitmentLifecycleValidation
             if (post.PendingAction is not { } action) continue;
             Token(action.Id);
             Dates(action.RequestedAtUtc, action.AttemptedAtUtc, action.CompletedAtUtc, action.CancelledAtUtc, action.AcceptedAtUtc);
-            if (action.Kind is not (RecruitmentActionKind.Delete or RecruitmentActionKind.LockArchive or RecruitmentActionKind.Reopen) ||
+            if (action.Kind is not (ActionKind.Delete or ActionKind.LockArchive or ActionKind.Reopen) ||
                 !Enum.IsDefined(action.Origin) || !Enum.IsDefined(action.Reason) || action.ExpectedVersion < 0 ||
-                action.Origin != RecruitmentActionOrigin.Automatic && action.ActorId == 0 || !Note(action.Note) ||
+                action.Origin != ActionOrigin.Automatic && action.ActorId == 0 || !Note(action.Note) ||
                 action.CompletedAtUtc is not null && action.CancelledAtUtc is not null || action.TimeoutCountAfter is < 1 ||
                 action.AttemptedAtUtc < action.RequestedAtUtc || action.CompletedAtUtc < action.RequestedAtUtc ||
                 action.CancelledAtUtc < action.RequestedAtUtc) Invalid();

@@ -1,16 +1,22 @@
+using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Observation;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.Presentation;
+using DiscordBot.Services.Recruitment.Publishing;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Actions;
 
-/// <summary>Called only through RecruitService's work gate. Discord mutations and file commits are recovered separately.</summary>
-public sealed class RecruitmentLifecycleExecutor(RecruitmentStateStore store, IRecruitmentPublisher discord,
-    RecruitmentObservationCoordinator observations, IOptions<RecruitmentOptions> options, TimeProvider time)
+/// <summary>Called only through RecruitmentService's work gate. Discord mutations and file commits are recovered separately.</summary>
+public sealed class LifecycleExecutor(StateStore store, IForumPublisher discord,
+    ObservationCoordinator observations, IOptions<RecruitmentOptions> options, TimeProvider time)
 {
     private DateTimeOffset Now => time.GetUtcNow();
 
-    public Task RequestAsync(ulong threadId, RecruitmentActionKind kind, RecruitmentActionOrigin origin,
-        RecruitmentCloseReason reason, ulong actorId, string note, CancellationToken token, string? actionId = null) =>
+    public Task RequestAsync(ulong threadId, ActionKind kind, ActionOrigin origin,
+        CloseReason reason, ulong actorId, string note, CancellationToken token, string? actionId = null) =>
         store.UpdateAsync(state =>
         {
             var post = state.Posts[threadId];
@@ -19,7 +25,7 @@ public sealed class RecruitmentLifecycleExecutor(RecruitmentStateStore store, IR
             post.Advisory.Confirmation = null;
             post.PendingAction = new()
             {
-                Id = actionId ?? RecruitmentGuidelines.NewToken(), Kind = kind, Origin = origin, Reason = reason,
+                Id = actionId ?? GuidelineTemplates.NewToken(), Kind = kind, Origin = origin, Reason = reason,
                 ActorId = actorId, Note = note, RequestedAtUtc = Now, ExpectedVersion = post.Advisory.Version,
                 AcceptedAtUtc = post.AcceptedAtUtc, ReviewRequiredAtRequest = post.RequiresReview
             };
@@ -36,7 +42,7 @@ public sealed class RecruitmentLifecycleExecutor(RecruitmentStateStore store, IR
         var post = state.Posts[threadId];
         if (post.PendingAction is not { IsPending: true } action) return;
 
-        RecruitmentPublicPost? live = await discord.GetPostAsync(threadId, token);
+        PublicPost? live = await discord.GetPostAsync(threadId, token);
         if (await OutcomeConfirmedAsync(live, action.Kind, token))
         {
             // An outcome can arrive after cancellation or a lost response. Record it before considering another request.
@@ -49,17 +55,17 @@ public sealed class RecruitmentLifecycleExecutor(RecruitmentStateStore store, IR
             return;
         }
         ValidateIdentity(post, live, action.Origin);
-        if (action.Origin != RecruitmentActionOrigin.Moderator && (post.IsExempt || post.IsPinned || live!.Pinned))
+        if (action.Origin != ActionOrigin.Moderator && (post.IsExempt || post.IsPinned || live!.Pinned))
         {
             await CancelAsync(threadId, "Listing is protected; the action was cancelled.", token);
             return;
         }
 
         // Automatic deletion requires a freshly confirmed audit entry containing this exact intent.
-        if (action.Origin == RecruitmentActionOrigin.Automatic && !await observations.FlushFeedAsync(threadId, token))
+        if (action.Origin == ActionOrigin.Automatic && !await observations.FlushFeedAsync(threadId, token))
             throw new InvalidOperationException("Staff audit delivery is unavailable; automatic action is paused.");
         // Refresh absence evidence after audit I/O, immediately before the final identity check and dispatch.
-        if (action.Origin == RecruitmentActionOrigin.Automatic && !await RevalidateAutomaticAsync(threadId, token)) return;
+        if (action.Origin == ActionOrigin.Automatic && !await RevalidateAutomaticAsync(threadId, token)) return;
 
         state = (await store.LoadAsync(token))!;
         post = state.Posts[threadId];
@@ -68,7 +74,7 @@ public sealed class RecruitmentLifecycleExecutor(RecruitmentStateStore store, IR
         ValidateIdentity(post, live, action.Origin);
         token.ThrowIfCancellationRequested();
         RequirePublicMode();
-        if (action.Origin == RecruitmentActionOrigin.Automatic && !GateEnabled(action))
+        if (action.Origin == ActionOrigin.Automatic && !GateEnabled(action))
         {
             await CancelAsync(threadId, "The enforcement gate is disabled.", token);
             return;
@@ -88,7 +94,7 @@ public sealed class RecruitmentLifecycleExecutor(RecruitmentStateStore store, IR
         var state = (await store.LoadAsync(token))!;
         var post = state.Posts[threadId];
         var action = post.PendingAction!;
-        var expected = new RecruitmentPolicyEvaluator(options.Value, time).EvaluateAction(state, threadId, decisionAt);
+        var expected = new PolicyEvaluator(options.Value, time).EvaluateAction(state, threadId, decisionAt);
         if (!GateEnabled(action) || expected.Kind != action.Kind || expected.Reason != action.Reason ||
             post.Advisory.NeedsFreshWindow || post.Observation.Error is not null || post.Advisory.Error is not null)
         {
@@ -96,13 +102,13 @@ public sealed class RecruitmentLifecycleExecutor(RecruitmentStateStore store, IR
             return false;
         }
 
-        if (action.Reason != RecruitmentCloseReason.GuidelineTimeout) return true;
+        if (action.Reason != CloseReason.GuidelineTimeout) return true;
         var publication = state.Forums[post.ParentChannelId].Publication;
         var forum = await discord.GetForumAsync(post.ParentChannelId, token);
         bool topicVisible = publication.Confirmed is not null && publication.Error is null &&
-            RecruitmentGuidelines.Hash(forum.Topic) == publication.Confirmed.TopicHash;
+            GuidelineTemplates.Hash(forum.Topic) == publication.Confirmed.TopicHash;
         bool promptVisible = post.AdvisoryMessageId is { } messageId && await discord.EditAdvisoryAsync(threadId, messageId,
-            RecruitmentAdvisoryMessage.Build(state, post, options.Value, time), token);
+            AdvisoryMessage.Build(state, post, options.Value, time), token);
         if (!topicVisible || !promptVisible)
         {
             await store.UpdateAsync(current =>
@@ -130,7 +136,7 @@ public sealed class RecruitmentLifecycleExecutor(RecruitmentStateStore store, IR
         return true;
     }, token);
 
-    private Task CompleteAsync(ulong threadId, RecruitmentPublicPost? live, CancellationToken token) => store.UpdateAsync(state =>
+    private Task CompleteAsync(ulong threadId, PublicPost? live, CancellationToken token) => store.UpdateAsync(state =>
     {
         var post = state.Posts[threadId];
         if (post.PendingAction is not { IsPending: true } action) return false;
@@ -144,9 +150,9 @@ public sealed class RecruitmentLifecycleExecutor(RecruitmentStateStore store, IR
         post.Audit.Add(new(action.Id, Now, action.ActorId, operation, action.Note));
         if (state.Authors.TryGetValue(post.AuthorId, out var existingAuthor)) existingAuthor.LastActivityAtUtc = Now;
 
-        if (action.Kind == RecruitmentActionKind.Reopen)
+        if (action.Kind == ActionKind.Reopen)
         {
-            post.Lifecycle = RecruitmentLifecycle.Open;
+            post.Lifecycle = ListingLifecycle.Open;
             post.ClosedRequested = false;
             post.ClosedAtUtc = null;
             post.CloseReason = null;
@@ -158,24 +164,24 @@ public sealed class RecruitmentLifecycleExecutor(RecruitmentStateStore store, IR
             return true;
         }
 
-        if (post.Lifecycle == RecruitmentLifecycle.Missing && action.AttemptedAtUtc is not null)
+        if (post.Lifecycle == ListingLifecycle.Missing && action.AttemptedAtUtc is not null)
             post.RequiresReview = action.ReviewRequiredAtRequest;
-        post.Lifecycle = action.Kind == RecruitmentActionKind.Delete ? RecruitmentLifecycle.Deleted : RecruitmentLifecycle.Closed;
+        post.Lifecycle = action.Kind == ActionKind.Delete ? ListingLifecycle.Deleted : ListingLifecycle.Closed;
         post.ClosedRequested = true;
         post.ClosedAtUtc ??= Now;
-        post.CloseReason = action.Origin == RecruitmentActionOrigin.Automatic && action.AttemptedAtUtc is null &&
-            action.Kind == RecruitmentActionKind.Delete ? null : action.Reason;
-        if (post.AcceptedAtUtc is null) post.Acknowledgement = RecruitmentAcknowledgement.Cancelled;
-        if (action.Kind == RecruitmentActionKind.Delete) RecruitmentHistory.RecordDeletion(state, post, Now);
+        post.CloseReason = action.Origin == ActionOrigin.Automatic && action.AttemptedAtUtc is null &&
+            action.Kind == ActionKind.Delete ? null : action.Reason;
+        if (post.AcceptedAtUtc is null) post.Acknowledgement = AcknowledgementStatus.Cancelled;
+        if (action.Kind == ActionKind.Delete) ListingHistory.RecordDeletion(state, post, Now);
         else if (!live!.Tags.Contains(state.Forums[post.ParentChannelId].Publication.ClosedTagId ?? 0))
             post.Advisory.Error = "Listing closed; Closed tag was unavailable or could not fit. Existing tags were retained.";
 
         // A merely queued intent does not prove the bot removed the post. Count only a dispatched, confirmed timeout.
-        if (action.Origin == RecruitmentActionOrigin.Automatic && action.Reason == RecruitmentCloseReason.GuidelineTimeout &&
+        if (action.Origin == ActionOrigin.Automatic && action.Reason == CloseReason.GuidelineTimeout &&
             action.AttemptedAtUtc is not null)
         {
-            post.Acknowledgement = RecruitmentAcknowledgement.TimedOut;
-            var author = RecruitmentHistory.Author(state, post);
+            post.Acknowledgement = AcknowledgementStatus.TimedOut;
+            var author = ListingHistory.Author(state, post);
             author.LastActivityAtUtc = Now;
             author.ConsecutiveTimeouts = checked(author.ConsecutiveTimeouts + 1);
             action.TimeoutCountAfter = author.ConsecutiveTimeouts;
@@ -184,15 +190,15 @@ public sealed class RecruitmentLifecycleExecutor(RecruitmentStateStore store, IR
         return true;
     }, token);
 
-    private bool GateEnabled(RecruitmentLifecycleAction action)
+    private bool GateEnabled(LifecycleAction action)
     {
         var settings = options.Value;
         if (!settings.Enabled || settings.Mode != RecruitmentMode.Enforce) return false;
         return action.Reason switch
         {
-            RecruitmentCloseReason.GuidelineTimeout => settings.EnforceGuidelineTimeouts,
-            RecruitmentCloseReason.Ineligible => settings.EnforceListingLimits,
-            RecruitmentCloseReason.OwnerClosed or RecruitmentCloseReason.Unanswered => settings.EnforceLifecycleClosures,
+            CloseReason.GuidelineTimeout => settings.EnforceGuidelineTimeouts,
+            CloseReason.Ineligible => settings.EnforceListingLimits,
+            CloseReason.OwnerClosed or CloseReason.Unanswered => settings.EnforceLifecycleClosures,
             _ => false
         };
     }
@@ -203,18 +209,18 @@ public sealed class RecruitmentLifecycleExecutor(RecruitmentStateStore store, IR
             throw new InvalidOperationException("Public recruitment actions are unavailable in the current mode.");
     }
 
-    private static void ValidateIdentity(RecruitmentPostRecord post, RecruitmentPublicPost? live, RecruitmentActionOrigin origin)
+    private static void ValidateIdentity(PostRecord post, PublicPost? live, ActionOrigin origin)
     {
         if (live is null || live.ParentId != post.ParentChannelId || live.AuthorId != post.AuthorId || live.Pinned ||
-            origin != RecruitmentActionOrigin.Moderator && live.OrdinaryAuthor != true)
+            origin != ActionOrigin.Moderator && live.OrdinaryAuthor != true)
             throw new InvalidOperationException("The post is unavailable, pinned, protected, or its owner could not be verified.");
     }
 
-    private async Task<bool> OutcomeConfirmedAsync(RecruitmentPublicPost? live, RecruitmentActionKind kind, CancellationToken token)
+    private async Task<bool> OutcomeConfirmedAsync(PublicPost? live, ActionKind kind, CancellationToken token)
     {
-        if (kind == RecruitmentActionKind.Delete) return live is null;
-        if (kind == RecruitmentActionKind.LockArchive) return live is { Archived: true, Locked: true };
-        if (kind != RecruitmentActionKind.Reopen || live is not { Archived: false, Locked: false }) return false;
+        if (kind == ActionKind.Delete) return live is null;
+        if (kind == ActionKind.LockArchive) return live is { Archived: true, Locked: true };
+        if (kind != ActionKind.Reopen || live is not { Archived: false, Locked: false }) return false;
         var forum = await discord.GetForumAsync(live.ParentId, token);
         return !forum.Tags.Any(tag => string.Equals(tag.Name.Trim(), "Closed", StringComparison.OrdinalIgnoreCase) && live.Tags.Contains(tag.Id));
     }

@@ -2,13 +2,16 @@ using System.IO;
 using Discord.Net;
 using Discord.Rest;
 using Discord.WebSocket;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.Presentation;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Publishing;
 
-public sealed class DiscordRecruitmentPublisher(DiscordSocketClient client, RecruitmentForumClassifier classifier,
-    IOptions<DiscordGuildOptions> guild, IOptions<AuthorizationOptions> authorization) : IRecruitmentPublisher
+public sealed class DiscordPublisher(DiscordSocketClient client, ForumClassifier classifier,
+    IOptions<DiscordGuildOptions> guild, IOptions<AuthorizationOptions> authorization) : IForumPublisher
 {
     private static RequestOptions Request(CancellationToken token) => new() { CancelToken = token, Timeout = 15000 };
 
@@ -22,21 +25,21 @@ public sealed class DiscordRecruitmentPublisher(DiscordSocketClient client, Recr
         return forum;
     }
 
-    public async Task<RecruitmentForumSetup> GetForumAsync(ulong forumId, CancellationToken token) =>
+    public async Task<ForumSetup> GetForumAsync(ulong forumId, CancellationToken token) =>
         Snapshot(await ForumAsync(forumId, token));
 
     public async Task AppendClosedTagAsync(ulong forumId, string expectedTagHash, CancellationToken token)
     {
         IForumChannel forum = await ForumAsync(forumId, token);
-        RecruitmentForumSetup before = Snapshot(forum);
-        if (RecruitmentGuidelines.TagHash(before.Tags) != expectedTagHash || before.Tags.Count >= 20)
+        ForumSetup before = Snapshot(forum);
+        if (GuidelineTemplates.TagHash(before.Tags) != expectedTagHash || before.Tags.Count >= 20)
         {
             throw new InvalidOperationException("Tag inventory changed before append; setup will retry from a fresh inventory.");
         }
         // Preserve complete tag objects: omitting IDs would replace existing metadata.
         IForumTag[] tags = forum.Tags.Cast<IForumTag>().Append(new ForumTagBuilder("Closed", null, false, (IEmote?)null).Build()).ToArray();
         await forum.ModifyAsync(properties => properties.Tags = tags, Request(token));
-        RecruitmentForumSetup after = await GetForumAsync(forumId, token);
+        ForumSetup after = await GetForumAsync(forumId, token);
         if (!before.Tags.All(tag => after.Tags.Contains(tag)))
         {
             throw new InvalidOperationException("Existing tags changed during setup; staff review is required.");
@@ -46,7 +49,7 @@ public sealed class DiscordRecruitmentPublisher(DiscordSocketClient client, Recr
     public async Task PublishTopicAsync(ulong forumId, string expectedTopicHash, string topic, CancellationToken token)
     {
         IForumChannel forum = await ForumAsync(forumId, token);
-        if (RecruitmentGuidelines.Hash(forum.Topic ?? "") != expectedTopicHash)
+        if (GuidelineTemplates.Hash(forum.Topic ?? "") != expectedTopicHash)
         {
             throw new InvalidOperationException("Guidelines changed before publication; preview/adoption is required.");
         }
@@ -69,7 +72,7 @@ public sealed class DiscordRecruitmentPublisher(DiscordSocketClient client, Recr
         catch (HttpException error) when (error.DiscordCode == DiscordErrorCode.UnknownChannel) { return null; }
     }
 
-    public async Task<RecruitmentPublicPost?> GetPostAsync(ulong threadId, CancellationToken token)
+    public async Task<PublicPost?> GetPostAsync(ulong threadId, CancellationToken token)
     {
         RestThreadChannel? thread = await ThreadAsync(threadId, token);
         if (thread is null) return null;
@@ -81,7 +84,7 @@ public sealed class DiscordRecruitmentPublisher(DiscordSocketClient client, Recr
             thread.IsArchived, thread.IsLocked, ordinary, thread.AppliedTags.ToArray());
     }
 
-    public async Task<RecruitmentAdvisorySearch> FindAdvisoryAsync(ulong threadId, string marker, ulong? beforeId, CancellationToken token)
+    public async Task<AdvisorySearch> FindAdvisoryAsync(ulong threadId, string marker, ulong? beforeId, CancellationToken token)
     {
         IMessageChannel channel = await ThreadAsync(threadId, token) ?? throw new InvalidOperationException("Post unavailable during advisory recovery.");
         IMessage[] messages = (await (beforeId is { } before
@@ -92,7 +95,7 @@ public sealed class DiscordRecruitmentPublisher(DiscordSocketClient client, Recr
             messages.Length == 0 ? null : messages.Min(message => message.Id), messages.Length < 100);
     }
 
-    public async Task<RecruitmentPublicMessage> SendAdvisoryAsync(ulong threadId, RecruitmentAdvisoryView view, byte[]? image, CancellationToken token)
+    public async Task<PublicMessage> SendAdvisoryAsync(ulong threadId, AdvisoryView view, byte[]? image, CancellationToken token)
     {
         var thread = await ThreadAsync(threadId, token) ?? throw new InvalidOperationException("Post unavailable before advisory send.");
         // Sending to an archived thread implicitly unarchives it. Advisory must not do that automatically.
@@ -114,7 +117,7 @@ public sealed class DiscordRecruitmentPublisher(DiscordSocketClient client, Recr
         return new(sent.Id, sent.Timestamp.ToUniversalTime());
     }
 
-    public async Task<bool> EditAdvisoryAsync(ulong threadId, ulong messageId, RecruitmentAdvisoryView view, CancellationToken token)
+    public async Task<bool> EditAdvisoryAsync(ulong threadId, ulong messageId, AdvisoryView view, CancellationToken token)
     {
         IMessageChannel channel = await ThreadAsync(threadId, token) ?? throw new InvalidOperationException("Post unavailable before advisory refresh.");
         IMessage? message;
@@ -139,23 +142,23 @@ public sealed class DiscordRecruitmentPublisher(DiscordSocketClient client, Recr
         return true;
     }
 
-    public async Task ApplyLifecycleActionAsync(RecruitmentPublicPost expected, RecruitmentActionKind action, ulong? closedTagId,
+    public async Task ApplyLifecycleActionAsync(PublicPost expected, ActionKind action, ulong? closedTagId,
         string actionId, CancellationToken token)
     {
         RestThreadChannel? thread = await ThreadAsync(expected.Id, token);
-        if (thread is null && action == RecruitmentActionKind.Delete) return;
+        if (thread is null && action == ActionKind.Delete) return;
         if (thread is null || thread.OwnerId != expected.AuthorId || thread.Flags.HasFlag(ChannelFlags.Pinned))
         {
             throw new InvalidOperationException("Post changed before the owner action; staff review is required.");
         }
         RequestOptions request = Request(token);
         request.AuditLogReason = $"Recruitment owner action {actionId}";
-        if (action == RecruitmentActionKind.Delete)
+        if (action == ActionKind.Delete)
         {
             await thread.DeleteAsync(request);
             return;
         }
-        if (action == RecruitmentActionKind.Reopen)
+        if (action == ActionKind.Reopen)
         {
             var forum = await GetForumAsync(thread.ParentChannelId, token);
             ulong[] closedIds = forum.Tags.Where(tag => string.Equals(tag.Name.Trim(), "Closed", StringComparison.OrdinalIgnoreCase))
@@ -168,7 +171,7 @@ public sealed class DiscordRecruitmentPublisher(DiscordSocketClient client, Recr
             }, request);
             return;
         }
-        if (action != RecruitmentActionKind.LockArchive) throw new InvalidOperationException("Unsupported owner action.");
+        if (action != ActionKind.LockArchive) throw new InvalidOperationException("Unsupported owner action.");
         // Closure must succeed even when optional decoration cannot fit or the saved tag was removed.
         await thread.ModifyAsync(properties => { properties.Locked = true; properties.Archived = true; }, request);
         try { await DecorateClosedAsync(thread, closedTagId, request, token); }
@@ -194,6 +197,6 @@ public sealed class DiscordRecruitmentPublisher(DiscordSocketClient client, Recr
     private bool Owned(IMessage message, string marker) => message.Author.Id == client.CurrentUser.Id &&
         message.Embeds.Any(embed => embed.Footer?.Text == marker);
 
-    private static RecruitmentForumSetup Snapshot(IForumChannel forum) => new(forum.Id, forum.Topic ?? "",
-        forum.Tags.Select(tag => new RecruitmentForumTag(tag.Id, tag.Name, tag.IsModerated, (tag.Emoji as Emote)?.Id, (tag.Emoji as Emoji)?.Name)).ToArray());
+    private static ForumSetup Snapshot(IForumChannel forum) => new(forum.Id, forum.Topic ?? "",
+        forum.Tags.Select(tag => new ForumTag(tag.Id, tag.Name, tag.IsModerated, (tag.Emoji as Emote)?.Id, (tag.Emoji as Emoji)?.Name)).ToArray());
 }

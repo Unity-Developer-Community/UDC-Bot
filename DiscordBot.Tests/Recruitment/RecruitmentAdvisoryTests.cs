@@ -1,4 +1,4 @@
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.State;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DiscordBot.Tests.Recruitment;
@@ -13,7 +13,7 @@ public sealed class RecruitmentAdvisoryTests
         await f.Owners.SubmitCodeAsync(f.Owner, await f.Generation(), await f.Code(), default);
         f.Discord.FailEdits = true;
         Assert.IsFalse(await f.Coordinator.TryRefreshPostAsync(10, default));
-        Assert.AreEqual(RecruitmentAcknowledgement.Passed, (await f.Post()).Acknowledgement);
+        Assert.AreEqual(AcknowledgementStatus.Passed, (await f.Post()).Acknowledgement);
         Assert.IsNotNull((await f.Post()).Advisory.Error);
         f.Discord.FailEdits = false; f.Time.Advance(TimeSpan.FromMinutes(3));
         await f.Coordinator.TickAsync(default);
@@ -33,7 +33,7 @@ public sealed class RecruitmentAdvisoryTests
         f.Discord.Post = f.Discord.Post! with { Tags = [1101] };
         await f.Coordinator.RefreshPostAsync(10, default);
         Assert.IsTrue((await f.Post()).ClosedRequested);
-        Assert.AreEqual(RecruitmentAcknowledgement.Cancelled, (await f.Post()).Acknowledgement);
+        Assert.AreEqual(AcknowledgementStatus.Cancelled, (await f.Post()).Acknowledgement);
         Assert.AreEqual(0, f.Discord.Actions);
     }
 
@@ -52,7 +52,7 @@ public sealed class RecruitmentAdvisoryTests
         Assert.IsTrue(answer.Contains("completed"));
         f.Time.Advance(TimeSpan.FromDays(40)); await f.Coordinator.TickAsync(default);
         post = await f.Post();
-        Assert.AreEqual(RecruitmentAcknowledgement.Passed, post.Acknowledgement);
+        Assert.AreEqual(AcknowledgementStatus.Passed, post.Acknowledgement);
         Assert.IsNull(post.AcceptedAtUtc); Assert.IsFalse(post.EnforcementEnrolled); Assert.IsFalse(post.ChallengeEnforceable);
         Assert.AreEqual(0, (await f.State()).Authors.Count); Assert.AreEqual(0, f.Discord.Actions);
     }
@@ -109,7 +109,7 @@ public sealed class RecruitmentAdvisoryTests
         Assert.IsTrue(view.Embed.Fields.Any(field => field.Name == "Known context"));
         string publicText = view.Embed.Description + string.Join(" ", view.Embed.Fields.Select(field => field.Value)) + view.ImageDescription;
         Assert.IsFalse(publicText.Contains(await f.Code()));
-        Assert.AreEqual(RecruitmentAcknowledgement.Pending, (await f.Post()).Acknowledgement);
+        Assert.AreEqual(AcknowledgementStatus.Pending, (await f.Post()).Acknowledgement);
     }
 
     [TestMethod]
@@ -133,7 +133,7 @@ public sealed class RecruitmentAdvisoryTests
         for (int i = 0; i < 5; i++) await f.Owners.SubmitCodeAsync(f.Owner, await f.Generation(), "wrong", default);
         Assert.IsTrue((await f.Owners.SubmitCodeAsync(f.Owner, await f.Generation(), await f.Code(), default)).Contains("wait"));
         f.Time.Advance(TimeSpan.FromMinutes(31)); await f.Coordinator.TickAsync(default);
-        Assert.AreEqual(RecruitmentAcknowledgement.Pending, (await f.Post()).Acknowledgement);
+        Assert.AreEqual(AcknowledgementStatus.Pending, (await f.Post()).Acknowledgement);
         Assert.AreEqual(0, f.Discord.Actions);
         await f.Owners.RenewAsync(f.Owner, await f.Generation(), default);
         await f.Coordinator.RefreshPostAsync(10, default);

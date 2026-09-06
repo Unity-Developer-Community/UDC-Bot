@@ -1,4 +1,5 @@
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.State;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DiscordBot.Tests.Recruitment;
@@ -16,8 +17,8 @@ public sealed class RecruitmentContentTests
     [DataRow("Day rate: 300 EUR")]
     [DataRow("Rate: $30.50/hr")]
     public void RecognizesConcreteRates(string content) =>
-        Assert.AreEqual(RecruitmentPaymentSignal.Concrete,
-            RecruitmentContentAnalyzer.Analyze(content, RecruitmentForumKind.PaidRecruiting));
+        Assert.AreEqual(PaymentSignal.Concrete,
+            ContentAnalyzer.Analyze(content, ForumKind.PaidRecruiting));
 
     [TestMethod]
     [DataRow("DM for rates")]
@@ -25,25 +26,25 @@ public sealed class RecruitmentContentTests
     [DataRow("Revenue share of $500 if we sell enough")]
     [DataRow("20% rev-share")]
     public void VagueAndContingentPay_RemainsAmbiguous(string content) =>
-        Assert.AreEqual(RecruitmentPaymentSignal.Ambiguous,
-            RecruitmentContentAnalyzer.Analyze(content, RecruitmentForumKind.PaidForHire));
+        Assert.AreEqual(PaymentSignal.Ambiguous,
+            ContentAnalyzer.Analyze(content, ForumKind.PaidForHire));
 
     [TestMethod]
     [DataRow("Launching in 2026. Contact +61 123 456 789")]
     [DataRow("Portfolio: https://example.test/USD500")]
     [DataRow("We need 3 artists for 2 months")]
     public void UnrelatedNumbersAndUrls_AreNotRates(string content) =>
-        Assert.AreEqual(RecruitmentPaymentSignal.Missing,
-            RecruitmentContentAnalyzer.Analyze(content, RecruitmentForumKind.PaidRecruiting));
+        Assert.AreEqual(PaymentSignal.Missing,
+            ContentAnalyzer.Analyze(content, ForumKind.PaidRecruiting));
 
     [TestMethod]
     public void MissingOrOversizedInput_IsUnknown_AndHobbyNeedsNoPay()
     {
-        Assert.AreEqual(RecruitmentPaymentSignal.Unknown,
-            RecruitmentContentAnalyzer.Analyze(null, RecruitmentForumKind.PaidRecruiting));
-        Assert.AreEqual(RecruitmentPaymentSignal.Unknown,
-            RecruitmentContentAnalyzer.Analyze(new string('x', 8001), RecruitmentForumKind.PaidRecruiting));
-        Assert.AreEqual(RecruitmentPaymentSignal.NotApplicable,
-            RecruitmentContentAnalyzer.Analyze("No payment", RecruitmentForumKind.HobbyForHire));
+        Assert.AreEqual(PaymentSignal.Unknown,
+            ContentAnalyzer.Analyze(null, ForumKind.PaidRecruiting));
+        Assert.AreEqual(PaymentSignal.Unknown,
+            ContentAnalyzer.Analyze(new string('x', 8001), ForumKind.PaidRecruiting));
+        Assert.AreEqual(PaymentSignal.NotApplicable,
+            ContentAnalyzer.Analyze("No payment", ForumKind.HobbyForHire));
     }
 }

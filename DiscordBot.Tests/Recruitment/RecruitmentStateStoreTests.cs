@@ -1,5 +1,6 @@
 using System.Text.Json;
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -41,7 +42,7 @@ public sealed class RecruitmentStateStoreTests
         await store.LoadAsync(); await store.InitializeAsync(Now);
         await store.UpdateAsync(s =>
         {
-            foreach (var post in new[] { Post(1), Post(2, RecruitmentForumKind.HobbyRecruiting), Post(3, RecruitmentForumKind.PaidForHire) })
+            foreach (var post in new[] { Post(1), Post(2, ForumKind.HobbyRecruiting), Post(3, ForumKind.PaidForHire) })
                 s.Posts.Add(post.ThreadId, post);
             return true;
         });
@@ -186,7 +187,7 @@ public sealed class RecruitmentStateStoreTests
         var original = File.ReadAllText(store.StatePath);
         await Assert.ThrowsAsync<InvalidDataException>(() => store.UpdateAsync(s =>
         {
-            var post = Post(); post.Acknowledgement = RecruitmentAcknowledgement.Pending;
+            var post = Post(); post.Acknowledgement = AcknowledgementStatus.Pending;
             s.Posts[10] = post; return true;
         }));
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
@@ -198,7 +199,7 @@ public sealed class RecruitmentStateStoreTests
     private sealed class StoreRoot : IDisposable
     {
         private readonly string _path = Path.Combine(Path.GetTempPath(), "udc-recruitment-" + Guid.NewGuid().ToString("N"));
-        public RecruitmentStateStore Store() => new(
+        public StateStore Store() => new(
             Microsoft.Extensions.Options.Options.Create(new StorageOptions { ServerRootPath = _path }),
             Microsoft.Extensions.Options.Options.Create(new DiscordGuildOptions { GuildId = 1 }));
         public void Dispose() { if (Directory.Exists(_path)) Directory.Delete(_path, recursive: true); }

@@ -26,7 +26,7 @@ post_date: "2026-04-03"
 | **Tips** | Searchable tip database with image support, keyword lookups | `TipModule` | `TipService` | Feature |
 | **Tickets** | Private complaint/support ticket channels | `TicketModule` | — | Feature |
 | **Unity Help** | Help forum thread management, auto-archive, canned responses, FAQ, resources | `UnityHelpModule`, `CannedResponseModule`, `GeneralHelpModule`, `UnityHelpInteractiveModule`, `CannedInteractiveModule` | `UnityHelpService`, `CannedResponseService` | Core |
-| **Recruitment** | Four-forum observation, practice and gated enforcement with owner/moderator controls | `/recruitment` | `RecruitService` | Feature |
+| **Recruitment** | Four-forum observation, practice and gated enforcement with owner/moderator controls | `/recruitment` | `RecruitmentService` | Feature |
 | **Birthday Announcements** | Scheduled birthday notifications (configurable interval) | — | `BirthdayAnnouncementService` | Feature |
 | **Currency Conversion** | Real-time currency conversion | — | `CurrencyService` | Feature |
 | **Flight Data** | Airport and flight lookups | `AirportModule` | `AirportService` | Feature |
@@ -36,97 +36,20 @@ post_date: "2026-04-03"
 | **User Extended Data** | Extended user data (default city for weather, etc.) | — | `UserExtendedService` | Feature |
 | **Update Checker** | Background bot update checking | — | `UpdateService` | Maintenance |
 
-## Recruitment Observe
+## Recruitment
 
-Recruitment now has four named forum settings in `FeatureSettings.json`:
-`Recruitment:Forums:PaidRecruiting:ChannelId`, `PaidForHire:ChannelId`,
-`HobbyRecruiting:ChannelId`, and `HobbyForHire:ChannelId`. All four slots are required when
-enabled. Recruitment has no legacy settings projection; tag IDs are resolved into state.
+Four configured forums support paid/hobby Recruiting and ForHire. Observe reports to staff;
+Advisory adds Guidelines and practice owner controls; Enforce adds acceptance and independently
+gated lifecycle actions. Each author can maintain one listing per group with a separate
+30-day repost wait. Cross-group posting and missing payment details produce advice.
 
-The managed coordinator supports **enabled `Mode: Observe`** with valid forum and staff-feed
-settings. It captures thread creation/changes/deletion, starter edits, replies and forum
-changes; inventories active and archived posts; and maintains one staff-feed entry per
-observed attempt. Entries show known facts, eligibility findings, placement reminders,
-previous-post links and evidence gaps. Observe does not publish public messages, create tags,
-change Guidelines, accept listings, or delete/lock/archive posts. Advisory now adds the public
-practice workflow; Enforce adds independent automatic-action gates and moderator recovery,
-described in [Recruitment](recruitment.md). Checked-in deployments remain disabled.
+Messages in configured recruitment forums/threads earn no XP, even while the feature is
+disabled; existing totals are retained. Recruitment supports component toggle/restart.
+Checked-in deployments remain disabled.
 
-The tested policy foundation permits one recruiting listing across paid/hobby recruiting
-and one for-hire listing across paid/hobby for-hire. Each group has its own 30-day creation/deletion
-cooldown. Recent posts in a different forum produce a placement reminder; activity in the
-other group does not consume the current group's slot. Missing rates are advisory.
-Unanswered accepted listings close after 30 days; unacknowledged attempts are scheduled
-for deletion after a successfully delivered 30-minute challenge, with outage/review gates.
-Locked/archived listings remain publicly accessible and are not a way to hide rejected posts.
-
-Messages in the four configured forums and their child threads no longer earn XP,
-even while recruitment moderation is disabled. Existing XP and karma are retained.
-Incomplete or malformed forum mappings are ignored by the XP classifier and reported by
-recruitment validation when enabled; they do not stop UserService.
-
-The state store uses `{ServerRootPath}/recruitment/recruitment-state.json`, schema v1,
-UTC timestamps and decimal-string IDs. It acquires an exclusive writer lock when loaded.
-The first enabled start enrolls a missing, backup-free state file. Existing posts
-are imported as unverified; their past acknowledgement/acceptance is never invented.
-Corrupt, incompatible or wrong-guild state is preserved and prevents writes. Successful
-updates retain the preceding valid snapshot at
-`.json.bak`; explicit backup recovery preserves the replaced primary as `.json.replaced-*`.
-This is the initial deployment schema; unsupported versions are rejected without an upgrade
-path. Moderator controls and dependency-aware retention are documented in the recruitment
-guide. Stop the bot for file-level recovery; do not delete state to recover.
-
-One worker drains a bounded 256-event queue and checks due work every 30 seconds. Active
-inventory refreshes every five minutes; archive scans use saved 100-thread pages, resume
-after restart, catch up the archive head after gaps, and repeat every six hours. Each tick
-checks at most eight posts (100 replies each) and eight feed entries. Confirmed replies
-remain evidence after deletion. Missing threads, offline gaps, and historical messages
-whose original staff roles cannot be established remain uncertain; natural archive alone
-does not close a listing. Health exposes incomplete inventories, evidence gaps, pending
-feed delivery and queue overflow counts.
-
-Feed sends first persist an intent. An interrupted send is recovered by paginated lookup
-of a bot-owned stable marker before retrying; saved entries are refreshed in place. Discord
-delivery and local persistence are separate operations, so delivery is reconciled rather
-than claimed to be transactional. Do not edit/remove the marker at the end of feed entries.
-The configured feed has its own Discord retention: local metadata cleanup will not
-remove staff-feed messages. Post bodies are not stored in recruitment state.
-
-Settings apply on process restart. `GuidelinesDirectory` is a relative subdirectory of
-`AssetsRootPath`; public modes validate four Markdown templates and publish native forum topics.
-Both dev and prod examples keep all enforcement gates disabled. Development forum IDs and
-the staff-feed channel must be filled in before Observe activation. Stop unsubscribes and
-drains owned work before releasing the writer. Recruitment supports component toggle/restart controls. Public interactions share the
-worker cancellation token, and stop drains them before releasing state ownership.
-
-### Maintaining the Observe coordinator
-
-Start with `RecruitmentObservationCoordinator.TickAsync`: it inventories forums, checks a
-bounded batch of posts, updates due staff-feed entries, then summarizes health. `HandleAsync`
-records gateway observations between ticks. `RecruitService` owns the single worker, so
-these operations run sequentially. State-store callbacks change metadata only; keep Discord
-and database calls outside them to avoid holding the writer lock during network requests.
-
-Three distinctions matter when changing this code:
-
-- **Observed response versus proven absence.** A qualifying reply remains evidence even if
-  later deleted. Catch-up cannot recover replies deleted during an outage, so completing a
-  history scan must not clear an existing uncertainty flag.
-- **Imported post versus newly observed post.** Enrollment determines which posts predate
-  the feature; the current process start determines which posts may have missed events.
-  Neither establishes prior acknowledgement or acceptance. Discord's archive/lock flags
-  also do not establish a bot policy transition.
-- **Pending send versus failed send.** Discord may accept a feed message before the bot loses
-  its response or fails to save the ID. `PublishFeedAsync` refreshes a known entry, calls
-  `RecoverPendingFeedAsync` for an uncertain send, and only then records a new send intent.
-  An incomplete marker search must finish before another message can be sent.
-
-`RecruitmentObservationMessage.Build` lists the feed's sections in display order. Its
-`Describe…` helpers handle wording and conditional details; they do not change policy or
-state. The final recovery marker must survive truncation because delivery recovery uses it
-to identify the entry. Recovery and lifetime regressions are covered in
-`DiscordBot.Tests/Recruitment/RecruitmentObservationTests.cs`; adapter tests use the pinned
-Discord.Net transport without connecting to Discord.
+See the [recruitment guide](recruitment.md) for setup, owner/moderator controls, recovery,
+retention, validation and the source navigation map. Deployment permissions are in the
+[deployment guide](deployment.md).
 
 ## Slash Commands vs Text Commands
 

@@ -1,4 +1,4 @@
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Presentation;
 using DiscordBot.Services.Rendering;
 using DiscordBot.Tests.Rendering;
 using ImageMagick;
@@ -14,7 +14,7 @@ public sealed class RecruitmentRenderingTests
     {
         var options = new ImageRenderOptions(Path.Combine(AppContext.BaseDirectory, "Assets"));
         var profiles = new ProfileCardRenderer(options);
-        var banners = new RecruitmentBannerRenderer(options);
+        var banners = new BannerRenderer(options);
         var originalLimits = (ResourceLimits.Memory, ResourceLimits.Thread, ResourceLimits.Time);
         await Parallel.ForEachAsync(Enumerable.Range(0, 48), new ParallelOptions { MaxDegreeOfParallelism = 4 }, async (index, token) =>
         {
@@ -31,7 +31,7 @@ public sealed class RecruitmentRenderingTests
             Assert.AreEqual(index % 2 == 0 ? 360u : 200u, image.Height);
             Assert.AreEqual(MagickFormat.Png, image.Format);
             Assert.AreEqual(0, image.ProfileNames.Count());
-            Assert.IsTrue(bytes.Length <= RecruitmentBannerRenderer.MaximumBytes);
+            Assert.IsTrue(bytes.Length <= BannerRenderer.MaximumBytes);
         });
         Assert.AreEqual(originalLimits, (ResourceLimits.Memory, ResourceLimits.Thread, ResourceLimits.Time));
     }
@@ -39,9 +39,9 @@ public sealed class RecruitmentRenderingTests
     [TestMethod]
     public async Task MissingFontAndCancellation_DoNotPoisonLaterBanners()
     {
-        var missing = new RecruitmentBannerRenderer(new ImageRenderOptions(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))));
+        var missing = new BannerRenderer(new ImageRenderOptions(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))));
         await Assert.ThrowsAsync<IOException>(() => missing.RenderAsync(RecruitmentTestData.Post(), RecruitmentTestData.Policy(), default));
-        var renderer = new RecruitmentBannerRenderer(new ImageRenderOptions(Path.Combine(AppContext.BaseDirectory, "Assets")));
+        var renderer = new BannerRenderer(new ImageRenderOptions(Path.Combine(AppContext.BaseDirectory, "Assets")));
         using var cancellation = new CancellationTokenSource(); cancellation.Cancel();
         await Assert.ThrowsAsync<OperationCanceledException>(() => renderer.RenderAsync(RecruitmentTestData.Post(), RecruitmentTestData.Policy(), cancellation.Token));
         Assert.IsTrue((await renderer.RenderAsync(RecruitmentTestData.Post(), RecruitmentTestData.Policy(), default)).Length > 0);

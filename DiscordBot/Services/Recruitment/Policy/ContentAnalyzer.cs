@@ -1,8 +1,9 @@
 using System.Text.RegularExpressions;
+using DiscordBot.Services.Recruitment.State;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Policy;
 
-public static class RecruitmentContentAnalyzer
+public static class ContentAnalyzer
 {
     public const int MaximumInputLength = 8000;
     private const string Amount = @"\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?";
@@ -17,11 +18,11 @@ public static class RecruitmentContentAnalyzer
     private static readonly Regex BudgetRange = Create(@"\bbudget\b.{0,20}\b\d+(?:\.\d+)?k\s*[-–]\s*\d+(?:\.\d+)?k\b");
     private static readonly Regex RevenueShare = Create(@"\b(?:rev|revenue)[ -]?share\b");
 
-    public static RecruitmentPaymentSignal Analyze(string? content, RecruitmentForumKind forum)
+    public static PaymentSignal Analyze(string? content, ForumKind forum)
     {
-        if (!RecruitmentForumClassifier.IsPaid(forum)) return RecruitmentPaymentSignal.NotApplicable;
-        if (content is null) return RecruitmentPaymentSignal.Unknown;
-        if (content.Length > MaximumInputLength) return RecruitmentPaymentSignal.Unknown;
+        if (!ForumClassifier.IsPaid(forum)) return PaymentSignal.NotApplicable;
+        if (content is null) return PaymentSignal.Unknown;
+        if (content.Length > MaximumInputLength) return PaymentSignal.Unknown;
         try
         {
             var text = Url.Replace(content, " ");
@@ -29,13 +30,13 @@ public static class RecruitmentContentAnalyzer
             // ambiguous unless a separate guaranteed payment statement is detected.
             var statements = Regex.Split(text, @"[\r\n;.!](?!\d)", RegexOptions.None, Timeout);
             if (statements.Any(s => !RevenueShare.IsMatch(s) && (Concrete.IsMatch(s) || BudgetRange.IsMatch(s))))
-                return RecruitmentPaymentSignal.Concrete;
+                return PaymentSignal.Concrete;
             return Payment.IsMatch(text) ?
-                RecruitmentPaymentSignal.Ambiguous : RecruitmentPaymentSignal.Missing;
+                PaymentSignal.Ambiguous : PaymentSignal.Missing;
         }
         catch (RegexMatchTimeoutException)
         {
-            return RecruitmentPaymentSignal.Unknown;
+            return PaymentSignal.Unknown;
         }
     }
 

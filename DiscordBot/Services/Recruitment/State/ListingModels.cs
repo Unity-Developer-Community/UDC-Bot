@@ -1,26 +1,27 @@
 using System.Text.Json.Serialization;
+using DiscordBot.Services.Recruitment.Policy;
 using DiscordBot.Settings.Options;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.State;
 
-public enum RecruitmentAcknowledgement { NotPrompted, Pending, Passed, TimedOut, Cancelled }
-public enum RecruitmentLifecycle { Open, Closed, Deleted, Missing }
-public enum RecruitmentCloseReason { OwnerClosed, Unanswered, GuidelineTimeout, Ineligible, OwnerRemoved, Moderator }
-public enum RecruitmentEligibilityKind { Eligible, ActiveListing, PendingListing, Cooldown, ReviewRequired, Terminal }
-public enum RecruitmentActionKind { None, Delete, LockArchive, Reopen }
-public enum RecruitmentActivity { Unknown, NoneRecorded, Recorded }
-public enum RecruitmentPaymentSignal { Unknown, NotApplicable, Missing, Ambiguous, Concrete }
+public enum AcknowledgementStatus { NotPrompted, Pending, Passed, TimedOut, Cancelled }
+public enum ListingLifecycle { Open, Closed, Deleted, Missing }
+public enum CloseReason { OwnerClosed, Unanswered, GuidelineTimeout, Ineligible, OwnerRemoved, Moderator }
+public enum EligibilityKind { Eligible, ActiveListing, PendingListing, Cooldown, ReviewRequired, Terminal }
+public enum ActionKind { None, Delete, LockArchive, Reopen }
+public enum ActivityStatus { Unknown, NoneRecorded, Recorded }
+public enum PaymentSignal { Unknown, NotApplicable, Missing, Ambiguous, Concrete }
 
-public sealed class RecruitmentStateDocument
+public sealed class StateDocument
 {
     public const int CurrentSchemaVersion = 1;
     [JsonRequired] public int SchemaVersion { get; set; } = CurrentSchemaVersion;
     [JsonRequired] public ulong GuildId { get; set; }
     [JsonRequired] public long Revision { get; set; }
     [JsonRequired] public DateTimeOffset EnrolledAtUtc { get; set; }
-    [JsonRequired] public Dictionary<ulong, RecruitmentPostRecord> Posts { get; set; } = [];
-    [JsonRequired] public Dictionary<ulong, RecruitmentAuthorRecord> Authors { get; set; } = [];
-    public Dictionary<ulong, RecruitmentForumObservation> Forums { get; set; } = [];
+    [JsonRequired] public Dictionary<ulong, PostRecord> Posts { get; set; } = [];
+    [JsonRequired] public Dictionary<ulong, AuthorRecord> Authors { get; set; } = [];
+    public Dictionary<ulong, ForumObservation> Forums { get; set; } = [];
     public DateTimeOffset? LastGatewayGapAtUtc { get; set; }
     public long DroppedObservationEvents { get; set; }
     public RecruitmentMode? LastMode { get; set; }
@@ -30,7 +31,7 @@ public sealed class RecruitmentStateDocument
     public HashSet<ulong> RetiredThreadIds { get; set; } = [];
 }
 
-public sealed class RecruitmentAuthorRecord
+public sealed class AuthorRecord
 {
     [JsonRequired] public ulong UserId { get; set; }
     public DateTimeOffset? FirstAttemptAtUtc { get; set; }
@@ -38,37 +39,37 @@ public sealed class RecruitmentAuthorRecord
     public int ConsecutiveTimeouts { get; set; }
     public DateTimeOffset? LastActivityAtUtc { get; set; }
     public string? TimeoutAlertActionId { get; set; }
-    public Dictionary<RecruitmentListingGroup, RecruitmentGroupHistory> Groups { get; set; } = [];
+    public Dictionary<ListingGroup, GroupHistory> Groups { get; set; } = [];
 }
 
-public sealed class RecruitmentGroupHistory
+public sealed class GroupHistory
 {
-    public RecruitmentCooldownWaiver? Waiver { get; set; }
+    public CooldownWaiver? Waiver { get; set; }
     public DateTimeOffset? LastAcceptedCreatedAtUtc { get; set; }
     public DateTimeOffset? LastAcceptedDeletedAtUtc { get; set; }
     public bool RequiresReview { get; set; }
 }
 
-public sealed class RecruitmentPostRecord
+public sealed class PostRecord
 {
     [JsonRequired] public ulong ThreadId { get; set; }
     [JsonRequired] public ulong ParentChannelId { get; set; }
     [JsonRequired] public ulong AuthorId { get; set; }
-    [JsonRequired] public RecruitmentForumKind Forum { get; set; }
+    [JsonRequired] public ForumKind Forum { get; set; }
     [JsonRequired] public DateTimeOffset CreatedAtUtc { get; set; }
     [JsonRequired] public DateTimeOffset FirstSeenAtUtc { get; set; }
     public string Title { get; set; } = string.Empty;
     public ulong[] AppliedTagIds { get; set; } = [];
     public DateTimeOffset? AcceptedAtUtc { get; set; }
-    public RecruitmentAcknowledgement Acknowledgement { get; set; }
+    public AcknowledgementStatus Acknowledgement { get; set; }
     public DateTimeOffset? PromptedAtUtc { get; set; }
     public DateTimeOffset? ChallengeDeadlineUtc { get; set; }
     public string[] AcceptedCodes { get; set; } = [];
-    // Set by the future coordinator only after a usable prompt and healthy reconciliation.
+    // Set by public reconciliation only after a usable prompt and healthy reconciliation.
     public bool ChallengeEnforceable { get; set; }
     public bool EnforcementEnrolled { get; set; }
-    public RecruitmentLifecycle Lifecycle { get; set; }
-    public RecruitmentCloseReason? CloseReason { get; set; }
+    public ListingLifecycle Lifecycle { get; set; }
+    public CloseReason? CloseReason { get; set; }
     public DateTimeOffset? ClosedAtUtc { get; set; }
     public DateTimeOffset? DeletedObservedAtUtc { get; set; }
     public bool DeletionTimeUncertain { get; set; }
@@ -78,22 +79,22 @@ public sealed class RecruitmentPostRecord
     public bool IsPinned { get; set; }
     public bool IsExempt { get; set; }
     public bool ClosedRequested { get; set; }
-    public RecruitmentActivity Activity { get; set; }
-    public RecruitmentPaymentSignal Payment { get; set; }
+    public ActivityStatus Activity { get; set; }
+    public PaymentSignal Payment { get; set; }
     public ulong? AdvisoryMessageId { get; set; }
     public ulong? FeedMessageId { get; set; }
-    public RecruitmentPostObservation Observation { get; set; } = new();
-    public RecruitmentPostAdvisory Advisory { get; set; } = new();
-    public RecruitmentLifecycleAction? PendingAction { get; set; }
+    public PostObservation Observation { get; set; } = new();
+    public PostAdvisory Advisory { get; set; } = new();
+    public LifecycleAction? PendingAction { get; set; }
     public DateTimeOffset? EnforcementNextCheckAtUtc { get; set; }
     public DateTimeOffset? HistoryReviewedThroughUtc { get; set; }
     public bool FindingDismissed { get; set; }
-    public List<RecruitmentAuditRecord> Audit { get; set; } = [];
+    public List<AuditRecord> Audit { get; set; } = [];
 }
 
-public sealed class RecruitmentForumObservation
+public sealed class ForumObservation
 {
-    public RecruitmentForumPublication Publication { get; set; } = new();
+    public ForumPublication Publication { get; set; } = new();
     public DateTimeOffset? ActiveCheckedAtUtc { get; set; }
     public DateTimeOffset? ArchiveBeforeUtc { get; set; }
     public DateTimeOffset? ArchiveCompletedAtUtc { get; set; }
@@ -102,7 +103,7 @@ public sealed class RecruitmentForumObservation
 }
 
 /// <summary>Evidence and resumable read/feed work; never acknowledgement or penalty state.</summary>
-public sealed class RecruitmentPostObservation
+public sealed class PostObservation
 {
     public bool Imported { get; set; }
     public bool Archived { get; set; }
@@ -123,22 +124,22 @@ public sealed class RecruitmentPostObservation
     public string? FeedError { get; set; }
 }
 
-public sealed record RecruitmentEligibility(
-    RecruitmentEligibilityKind Kind,
+public sealed record Eligibility(
+    EligibilityKind Kind,
     DateTimeOffset? NextAllowedAtUtc,
     ulong? BlockingThreadId,
     IReadOnlyList<ulong> RecentOtherForumThreadIds)
 {
-    public bool IsEligible => Kind == RecruitmentEligibilityKind.Eligible;
+    public bool IsEligible => Kind == EligibilityKind.Eligible;
     public string? PlacementReminder => RecentOtherForumThreadIds.Count == 0 ? null :
         "You've recently posted in another recruitment forum. Please double-check that each listing is in the right place: recruiting seeks people; for-hire offers your services.";
 }
 
-public sealed record RecruitmentAction(RecruitmentActionKind Kind, RecruitmentCloseReason? Reason)
+public sealed record PolicyAction(ActionKind Kind, CloseReason? Reason)
 {
-    public static RecruitmentAction None { get; } = new(RecruitmentActionKind.None, null);
+    public static PolicyAction None { get; } = new(ActionKind.None, null);
 }
 
-public sealed record RecruitmentResponse(
+public sealed record ReplyEvidence(
     ulong AuthorId, DateTimeOffset CreatedAtUtc, bool IsBot, bool IsWebhook,
     bool? IsModerator, bool? IsAdministrator, bool IsUserMessage = true);

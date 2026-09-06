@@ -1,4 +1,5 @@
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -34,7 +35,7 @@ public sealed class RecruitmentEnforcementTests
         await f.Lifecycle.RecoverAsync(10, default);
         await f.Lifecycle.RecoverAsync(10, default);
         Assert.AreEqual(3, (await f.State()).Authors[123].ConsecutiveTimeouts);
-        Assert.AreEqual(RecruitmentAcknowledgement.TimedOut, (await f.Post()).Acknowledgement);
+        Assert.AreEqual(AcknowledgementStatus.TimedOut, (await f.Post()).Acknowledgement);
         Assert.IsTrue(await f.Observations.FlushFeedAsync(10, default));
         Assert.IsTrue(await f.Observations.FlushFeedAsync(10, default));
         Assert.AreEqual(1, f.Observer.FeedSends);
@@ -101,17 +102,17 @@ public sealed class RecruitmentEnforcementTests
         f.Options.EnforceLifecycleClosures = false; f.Options.EnforceListingLimits = false;
         f.Time.Advance(TimeSpan.FromMinutes(31)); await f.Enforcement.TickAsync(default);
         Assert.AreEqual(1, f.Discord.Actions);
-        Assert.AreEqual(RecruitmentLifecycle.Deleted, (await f.Post()).Lifecycle);
+        Assert.AreEqual(ListingLifecycle.Deleted, (await f.Post()).Lifecycle);
     }
 
     [TestMethod]
     public async Task SameGroupAcceptsOne_OtherGroupHasIndependentCapacity()
     {
         await using var f = new RecruitmentAdvisoryFixture(); await StartEnforce(f);
-        foreach (var pair in new[] { (11ul, RecruitmentForumKind.HobbyRecruiting), (12ul, RecruitmentForumKind.PaidForHire) })
+        foreach (var pair in new[] { (11ul, ForumKind.HobbyRecruiting), (12ul, ForumKind.PaidForHire) })
         {
             var post = RecruitmentTestData.Post(pair.Item1, pair.Item2);
-            post.Acknowledgement = RecruitmentAcknowledgement.NotPrompted;
+            post.Acknowledgement = AcknowledgementStatus.NotPrompted;
             await f.Store.UpdateAsync(state => { state.Posts[post.ThreadId] = post; return true; });
             f.Discord.Posts[post.ThreadId] = new(post.ThreadId, post.ParentChannelId, post.AuthorId, false, false, false, true, []);
         }
@@ -125,8 +126,8 @@ public sealed class RecruitmentEnforcementTests
         var state = await f.State();
         Assert.IsNotNull(state.Posts[10].AcceptedAtUtc); Assert.IsNotNull(state.Posts[12].AcceptedAtUtc);
         Assert.IsNull(state.Posts[11].AcceptedAtUtc);
-        Assert.AreEqual(RecruitmentLifecycle.Closed, state.Posts[11].Lifecycle);
-        Assert.AreEqual(RecruitmentCloseReason.Ineligible, state.Posts[11].CloseReason);
+        Assert.AreEqual(ListingLifecycle.Closed, state.Posts[11].Lifecycle);
+        Assert.AreEqual(CloseReason.Ineligible, state.Posts[11].CloseReason);
     }
 
     [TestMethod]
@@ -141,7 +142,7 @@ public sealed class RecruitmentEnforcementTests
         await using var f = new RecruitmentAdvisoryFixture(); await StartEnforce(f);
         await f.Store.UpdateAsync(state =>
         {
-            state.Posts[10].Acknowledgement = RecruitmentAcknowledgement.Passed;
+            state.Posts[10].Acknowledgement = AcknowledgementStatus.Passed;
             state.Posts[10].AcceptedAtUtc = f.Time.Now;
             if (evidence == "unknown") state.Posts[10].Observation.HistoryUncertain = true;
             return true;
@@ -151,7 +152,7 @@ public sealed class RecruitmentEnforcementTests
         if (evidence == "archived") f.Discord.Post = f.Discord.Post! with { Archived = true };
         if (evidence == "gate") f.Options.EnforceLifecycleClosures = false;
         f.Time.Advance(TimeSpan.FromDays(30)); await f.Enforcement.TickAsync(default);
-        Assert.AreEqual(close ? RecruitmentLifecycle.Closed : RecruitmentLifecycle.Open, (await f.Post()).Lifecycle);
+        Assert.AreEqual(close ? ListingLifecycle.Closed : ListingLifecycle.Open, (await f.Post()).Lifecycle);
         Assert.AreEqual(close ? 1 : 0, f.Discord.Actions);
     }
 
@@ -162,8 +163,8 @@ public sealed class RecruitmentEnforcementTests
         f.Discord.Post = f.Discord.Post! with { Tags = [1101] };
         await f.Coordinator.RefreshPostAsync(10, default);
         f.Time.Advance(TimeSpan.FromMinutes(31)); await f.Enforcement.TickAsync(default);
-        Assert.AreEqual(RecruitmentLifecycle.Closed, (await f.Post()).Lifecycle);
-        Assert.AreEqual(RecruitmentAcknowledgement.Cancelled, (await f.Post()).Acknowledgement);
+        Assert.AreEqual(ListingLifecycle.Closed, (await f.Post()).Lifecycle);
+        Assert.AreEqual(AcknowledgementStatus.Cancelled, (await f.Post()).Acknowledgement);
         Assert.IsNull((await f.Post()).AcceptedAtUtc);
         Assert.IsTrue((await f.State()).Authors.Values.All(author => author.ConsecutiveTimeouts == 0));
     }
@@ -172,8 +173,8 @@ public sealed class RecruitmentEnforcementTests
     public async Task ExternalRemovalBeforeDispatch_DoesNotCountAsAnAutomaticTimeout()
     {
         await using var f = new RecruitmentAdvisoryFixture(); await StartEnforce(f);
-        await f.Lifecycle.RequestAsync(10, RecruitmentActionKind.Delete, RecruitmentActionOrigin.Automatic,
-            RecruitmentCloseReason.GuidelineTimeout, 0, "Timeout intent", default);
+        await f.Lifecycle.RequestAsync(10, ActionKind.Delete, ActionOrigin.Automatic,
+            CloseReason.GuidelineTimeout, 0, "Timeout intent", default);
         f.Discord.Post = null;
         await f.Lifecycle.RecoverAsync(10, default);
         Assert.AreEqual(0, f.Discord.Actions);

@@ -1,17 +1,21 @@
 using System.Security.Cryptography;
 using System.Text;
+using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.Presentation;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Observation;
 
 /// <summary>
-/// Reconciles Discord observations and staff-feed delivery under RecruitService's single worker.
+/// Reconciles Discord observations and staff-feed delivery under RecruitmentService's single worker.
 /// State callbacks only change local metadata; Discord/database calls run outside the store lock.
 /// See docs/features.md, "Maintaining the Observe coordinator", for recovery invariants.
 /// </summary>
-public sealed class RecruitmentObservationCoordinator(
-    RecruitmentStateStore store, IRecruitmentObserver discord, IOptions<RecruitmentOptions> options, TimeProvider time)
+public sealed class ObservationCoordinator(
+    StateStore store, IForumObserver discord, IOptions<RecruitmentOptions> options, TimeProvider time)
 {
     // Separate budgets prevent a busy forum or feed backlog from monopolizing a scheduler tick.
     private const int PostsPerTick = 8;
@@ -33,7 +37,7 @@ public sealed class RecruitmentObservationCoordinator(
         {
             await store.InitializeAsync(Now, token);
         }
-        var forums = RecruitmentForumClassifier.GetForums(Options.Forums);
+        var forums = ForumClassifier.GetForums(Options.Forums);
         await store.UpdateAsync(state =>
         {
             if (state.Forums.Keys.Any(id => forums.All(forum => forum.ChannelId != id)) ||
@@ -83,9 +87,9 @@ public sealed class RecruitmentObservationCoordinator(
         }, token);
     }
 
-    public async Task HandleAsync(RecruitmentObservationEvent item, CancellationToken token)
+    public async Task HandleAsync(ObservationEvent item, CancellationToken token)
     {
-        if (item.Kind == RecruitmentEventKind.Gap)
+        if (item.Kind == EventKind.Gap)
         {
             await RecordGapAsync(token);
             return;
@@ -94,11 +98,11 @@ public sealed class RecruitmentObservationCoordinator(
         if (state.RetiredThreadIds.Contains(item.ThreadId)) return;
         if (!state.Posts.ContainsKey(item.ThreadId))
         {
-            if (RecruitmentForumClassifier.GetForums(Options.Forums).All(forum => forum.ChannelId != item.ParentId))
+            if (ForumClassifier.GetForums(Options.Forums).All(forum => forum.ChannelId != item.ParentId))
             {
                 return;
             }
-            if (item.Kind == RecruitmentEventKind.Deleted)
+            if (item.Kind == EventKind.Deleted)
             {
                 await RecordGapAsync(token);
                 return;
@@ -121,15 +125,15 @@ public sealed class RecruitmentObservationCoordinator(
             {
                 return false;
             }
-            if (item.Kind == RecruitmentEventKind.Deleted)
+            if (item.Kind == EventKind.Deleted)
             {
-                if (post.Lifecycle == RecruitmentLifecycle.Deleted)
+                if (post.Lifecycle == ListingLifecycle.Deleted)
                 {
                     return false;
                 }
                 RecordConfirmedDeletion(state, post);
             }
-            else if (post.Lifecycle != RecruitmentLifecycle.Deleted)
+            else if (post.Lifecycle != ListingLifecycle.Deleted)
             {
                 post.Observation.NextCheckAtUtc = null;
                 if (item.Message is { } message && message.Id != post.ThreadId)
@@ -141,9 +145,9 @@ public sealed class RecruitmentObservationCoordinator(
         }, token);
     }
 
-    private void RecordConfirmedDeletion(RecruitmentStateDocument state, RecruitmentPostRecord post)
+    private void RecordConfirmedDeletion(StateDocument state, PostRecord post)
     {
-        post.Lifecycle = RecruitmentLifecycle.Deleted;
+        post.Lifecycle = ListingLifecycle.Deleted;
         post.DeletedObservedAtUtc = Now;
         post.DeletionTimeUncertain = false;
         if (post.AcceptedAtUtc is not null)
@@ -152,7 +156,7 @@ public sealed class RecruitmentObservationCoordinator(
             {
                 state.Authors[post.AuthorId] = author = new() { UserId = post.AuthorId };
             }
-            var group = RecruitmentForumClassifier.GroupOf(post.Forum);
+            var group = ForumClassifier.GroupOf(post.Forum);
             if (!author.Groups.TryGetValue(group, out var history))
             {
                 author.Groups[group] = history = new();
@@ -164,7 +168,7 @@ public sealed class RecruitmentObservationCoordinator(
     public async Task TickAsync(CancellationToken token)
     {
         // Inventory first: eligibility and feed findings should include newly discovered attempts.
-        foreach (RecruitmentForum forum in RecruitmentForumClassifier.GetForums(Options.Forums))
+        foreach (Forum forum in ForumClassifier.GetForums(Options.Forums))
         {
             await ReconcileForumAsync(forum, token);
         }
@@ -173,7 +177,7 @@ public sealed class RecruitmentObservationCoordinator(
         await RefreshHealthAsync(token);
     }
 
-    private async Task ReconcileForumAsync(RecruitmentForum forum, CancellationToken token)
+    private async Task ReconcileForumAsync(Forum forum, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         try
@@ -235,14 +239,14 @@ public sealed class RecruitmentObservationCoordinator(
     private async Task CheckDuePostsAsync(CancellationToken token)
     {
         var state = (await store.LoadAsync(token))!;
-        IEnumerable<RecruitmentPostRecord> duePosts = state.Posts.Values
-            .Where(post => post.Lifecycle != RecruitmentLifecycle.Deleted &&
+        IEnumerable<PostRecord> duePosts = state.Posts.Values
+            .Where(post => post.Lifecycle != ListingLifecycle.Deleted &&
                 (post.Observation.NextCheckAtUtc is null || post.Observation.NextCheckAtUtc <= Now))
             .OrderBy(post => post.Observation.NextCheckAtUtc)
             .ThenBy(post => post.ThreadId)
             .Take(PostsPerTick);
 
-        foreach (RecruitmentPostRecord post in duePosts)
+        foreach (PostRecord post in duePosts)
         {
             await CheckPostAsync(post.ThreadId, token);
         }
@@ -251,13 +255,13 @@ public sealed class RecruitmentObservationCoordinator(
     private async Task PublishDueFeedEntriesAsync(CancellationToken token)
     {
         var state = (await store.LoadAsync(token))!;
-        IEnumerable<RecruitmentPostRecord> dueEntries = state.Posts.Values
+        IEnumerable<PostRecord> dueEntries = state.Posts.Values
             .Where(post => post.Observation.FeedRetryAtUtc is null || post.Observation.FeedRetryAtUtc <= Now)
             .OrderBy(post => post.Observation.FeedRetryAtUtc)
             .ThenBy(post => post.ThreadId)
             .Take(FeedEntriesPerTick);
 
-        foreach (RecruitmentPostRecord post in dueEntries)
+        foreach (PostRecord post in dueEntries)
         {
             await PublishFeedAsync(post.ThreadId, token);
         }
@@ -278,25 +282,25 @@ public sealed class RecruitmentObservationCoordinator(
             $"{state.DroppedObservationEvents} queue overflows recorded.";
     }
 
-    private static bool HasIncompleteInventory(RecruitmentForumObservation inventory) =>
+    private static bool HasIncompleteInventory(ForumObservation inventory) =>
         inventory.ActiveCheckedAtUtc is null || inventory.ArchiveCompletedAtUtc is null || inventory.Error is not null;
 
-    private static bool HasEvidenceGap(RecruitmentPostRecord post)
+    private static bool HasEvidenceGap(PostRecord post)
     {
-        bool responseCheckPending = post.Lifecycle == RecruitmentLifecycle.Open &&
+        bool responseCheckPending = post.Lifecycle == ListingLifecycle.Open &&
             post.FirstQualifyingResponseAtUtc is null && post.ResponsesCheckedThroughUtc is null;
         return post.RequiresReview || post.Observation.HistoryUncertain ||
             post.Observation.Error is not null || responseCheckPending;
     }
 
-    private static bool HasPendingFeedDelivery(RecruitmentPostRecord post) =>
+    private static bool HasPendingFeedDelivery(PostRecord post) =>
         post.FeedMessageId is null || post.Observation.FeedError is not null ||
         post.Observation.FeedSendRequestedAtUtc is not null;
 
-    private void ObserveThread(RecruitmentStateDocument state, RecruitmentThreadSnapshot thread)
+    private void ObserveThread(StateDocument state, ThreadSnapshot thread)
     {
         if (state.RetiredThreadIds.Contains(thread.Id)) return;
-        var forum = RecruitmentForumClassifier.GetForums(Options.Forums).SingleOrDefault(forum => forum.ChannelId == thread.ParentId);
+        var forum = ForumClassifier.GetForums(Options.Forums).SingleOrDefault(forum => forum.ChannelId == thread.ParentId);
         if (forum is null)
         {
             return;
@@ -326,7 +330,7 @@ public sealed class RecruitmentObservationCoordinator(
             author.FirstAttemptAtUtc = author.FirstAttemptAtUtc is { } first && first < post.CreatedAtUtc ? first : post.CreatedAtUtc;
             author.LastAttemptAtUtc = author.LastAttemptAtUtc is { } last && last > post.CreatedAtUtc ? last : post.CreatedAtUtc;
         }
-        if (post.Lifecycle == RecruitmentLifecycle.Deleted)
+        if (post.Lifecycle == ListingLifecycle.Deleted)
         {
             return; // Late create/update cannot resurrect a confirmed deletion.
         }
@@ -334,9 +338,9 @@ public sealed class RecruitmentObservationCoordinator(
         {
             throw new InvalidOperationException("Thread identity changed; review is required.");
         }
-        if (post.Lifecycle == RecruitmentLifecycle.Missing)
+        if (post.Lifecycle == ListingLifecycle.Missing)
         {
-            post.Lifecycle = RecruitmentLifecycle.Open;
+            post.Lifecycle = ListingLifecycle.Open;
         }
         post.Title = thread.Title.Length <= 100 ? thread.Title : thread.Title[..100];
         post.AppliedTagIds = thread.TagIds;
@@ -348,9 +352,9 @@ public sealed class RecruitmentObservationCoordinator(
         // Natural archive/lock and a Closed tag are observations, not bot-applied policy transitions.
     }
 
-    private static void ObserveResponse(RecruitmentPostRecord post, RecruitmentResponse response)
+    private static void ObserveResponse(PostRecord post, ReplyEvidence response)
     {
-        var qualifies = RecruitmentPolicyEvaluator.IsQualifyingResponse(post, response);
+        var qualifies = PolicyEvaluator.IsQualifyingResponse(post, response);
         if (qualifies is null && (post.HistoryReviewedThroughUtc is null || response.CreatedAtUtc > post.HistoryReviewedThroughUtc))
         {
             post.Observation.HistoryUncertain = true;
@@ -366,7 +370,7 @@ public sealed class RecruitmentObservationCoordinator(
         if (!(await store.LoadAsync(token))!.Posts.ContainsKey(threadId))
         {
             var live = await discord.GetThreadAsync(threadId, token);
-            if (live is not null) await HandleAsync(new(RecruitmentEventKind.Changed, threadId, live.ParentId), token);
+            if (live is not null) await HandleAsync(new(EventKind.Changed, threadId, live.ParentId), token);
         }
         if (!(await store.LoadAsync(token))!.Posts.ContainsKey(threadId))
             throw new InvalidOperationException("The post is not available in a configured recruitment forum.");
@@ -379,7 +383,7 @@ public sealed class RecruitmentObservationCoordinator(
         var state = (await store.LoadAsync(token))!;
         var post = state.Posts[threadId];
         string marker = $"recruit-observe:{state.GuildId}:{threadId}";
-        string expected = RecruitmentObservationMessage.Build(state, post, new(Options, time), Options, marker, Now);
+        string expected = ObservationMessage.Build(state, post, new(Options, time), Options, marker, Now);
         return post.FeedMessageId is not null && post.Observation.FeedError is null &&
             post.Observation.FeedSendRequestedAtUtc is null && post.Observation.FeedHash == Hash(expected);
     }
@@ -395,7 +399,7 @@ public sealed class RecruitmentObservationCoordinator(
                 await store.UpdateAsync(state =>
                 {
                     var post = state.Posts[id];
-                    post.Lifecycle = RecruitmentLifecycle.Missing;
+                    post.Lifecycle = ListingLifecycle.Missing;
                     post.DeletionTimeUncertain = true;
                     post.RequiresReview = true;
                     post.Observation.HistoryUncertain = true;
@@ -418,7 +422,7 @@ public sealed class RecruitmentObservationCoordinator(
             await store.UpdateAsync(state =>
             {
                 var post = state.Posts[id];
-                post.Payment = RecruitmentContentAnalyzer.Analyze(starter?.Content, post.Forum);
+                post.Payment = ContentAnalyzer.Analyze(starter?.Content, post.Forum);
                 post.Observation.StarterHash = starter?.Content is { } content ? Hash(content) : null;
                 post.Observation.Error = starter?.Content is null ? "Starter content unavailable." : null;
                 post.Activity = facts.Activity;
@@ -440,7 +444,7 @@ public sealed class RecruitmentObservationCoordinator(
         }
     }
 
-    private void RecordResponsePage(RecruitmentPostRecord post, RecruitmentMessagePage messages,
+    private void RecordResponsePage(PostRecord post, MessagePage messages,
         DateTimeOffset historyReadStartedAt)
     {
         foreach (var message in messages.Messages)
@@ -466,7 +470,7 @@ public sealed class RecruitmentObservationCoordinator(
             var state = (await store.LoadAsync(token))!;
             var post = state.Posts[id];
             var marker = $"recruit-observe:{state.GuildId}:{id}";
-            var content = RecruitmentObservationMessage.Build(state, post, new(Options, time), Options, marker, Now);
+            var content = ObservationMessage.Build(state, post, new(Options, time), Options, marker, Now);
             var hash = Hash(content);
             if (post.Observation.FeedChannelId != 0 && post.Observation.FeedChannelId != Options.FeedChannelId)
             {
@@ -520,7 +524,7 @@ public sealed class RecruitmentObservationCoordinator(
     private enum FeedRecoveryResult { NotFound, Recovered, SearchIncomplete }
 
     // A pending intent is an uncertain send, not permission to send again. Search for its marker first.
-    private async Task<FeedRecoveryResult> RecoverPendingFeedAsync(RecruitmentPostRecord post, string marker, string content,
+    private async Task<FeedRecoveryResult> RecoverPendingFeedAsync(PostRecord post, string marker, string content,
         string hash, CancellationToken token)
     {
         if (post.Observation.FeedSendRequestedAtUtc is { } requested)

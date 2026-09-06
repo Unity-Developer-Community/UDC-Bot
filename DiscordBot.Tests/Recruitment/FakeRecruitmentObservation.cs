@@ -1,36 +1,37 @@
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Observation;
+using DiscordBot.Services.Recruitment.State;
 
 namespace DiscordBot.Tests.Recruitment;
 
-internal sealed class FakeRecruitmentObservation(RecruitmentStateStore store, FakePublisher publisher) : IRecruitmentObserver
+internal sealed class FakeRecruitmentObservation(StateStore store, FakePublisher publisher) : IForumObserver
 {
     public bool FailFeed;
     public int FeedSends;
     public Dictionary<ulong, string> Feed { get; } = [];
     public Dictionary<ulong, DateTimeOffset> CreatedTimes { get; } = [];
-    public RecruitmentMessagePage Replies { get; set; } = new([], true);
-    public Action<RecruitmentObservationEvent>? Receive;
-    public IDisposable Subscribe(Action<RecruitmentObservationEvent> receive)
+    public MessagePage Replies { get; set; } = new([], true);
+    public Action<ObservationEvent>? Receive;
+    public IDisposable Subscribe(Action<ObservationEvent> receive)
     {
         Receive = receive;
         return new Subscription(() => Receive = null);
     }
     public Task ValidateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-    public async Task<IReadOnlyList<RecruitmentThreadSnapshot>> GetActiveAsync(ulong forumId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ThreadSnapshot>> GetActiveAsync(ulong forumId, CancellationToken cancellationToken)
     {
-        List<RecruitmentThreadSnapshot> result = [];
+        List<ThreadSnapshot> result = [];
         foreach (var post in publisher.Posts.Values.Where(post => post.ParentId == forumId && !post.Archived))
             result.Add((await GetThreadAsync(post.Id, cancellationToken))!);
         return result;
     }
-    public async Task<RecruitmentArchivePage> GetArchivedAsync(ulong forumId, DateTimeOffset? before, CancellationToken cancellationToken)
+    public async Task<ArchivePage> GetArchivedAsync(ulong forumId, DateTimeOffset? before, CancellationToken cancellationToken)
     {
-        List<RecruitmentThreadSnapshot> result = [];
+        List<ThreadSnapshot> result = [];
         foreach (var post in publisher.Posts.Values.Where(post => post.ParentId == forumId && post.Archived))
             result.Add((await GetThreadAsync(post.Id, cancellationToken))!);
         return new(result, null, true);
     }
-    public async Task<RecruitmentThreadSnapshot?> GetThreadAsync(ulong threadId, CancellationToken cancellationToken)
+    public async Task<ThreadSnapshot?> GetThreadAsync(ulong threadId, CancellationToken cancellationToken)
     {
         var live = await publisher.GetPostAsync(threadId, cancellationToken);
         if (live is null) return null;
@@ -41,15 +42,15 @@ internal sealed class FakeRecruitmentObservation(RecruitmentStateStore store, Fa
         return new(threadId, live.ParentId, live.AuthorId, created, post?.Title ?? "Listing", live.Tags,
             live.Archived, live.Locked, live.Pinned, closed, created);
     }
-    public Task<RecruitmentMessageSnapshot?> GetStarterAsync(ulong threadId, CancellationToken cancellationToken) =>
-        Task.FromResult<RecruitmentMessageSnapshot?>(new(threadId, new(123, RecruitmentTestData.Now, false, false, false, false), "Budget $40/hour"));
-    public Task<RecruitmentMessagePage> GetRepliesAsync(ulong threadId, ulong afterId, CancellationToken cancellationToken) => Task.FromResult(Replies);
-    public Task<RecruitmentAuthorFacts> GetAuthorAsync(ulong authorId, CancellationToken cancellationToken) => Task.FromResult(new RecruitmentAuthorFacts(RecruitmentActivity.Unknown, null));
-    public Task<RecruitmentFeedPage> FindFeedAsync(string marker, DateTimeOffset since, ulong? beforeId, CancellationToken cancellationToken)
+    public Task<MessageSnapshot?> GetStarterAsync(ulong threadId, CancellationToken cancellationToken) =>
+        Task.FromResult<MessageSnapshot?>(new(threadId, new(123, RecruitmentTestData.Now, false, false, false, false), "Budget $40/hour"));
+    public Task<MessagePage> GetRepliesAsync(ulong threadId, ulong afterId, CancellationToken cancellationToken) => Task.FromResult(Replies);
+    public Task<AuthorFacts> GetAuthorAsync(ulong authorId, CancellationToken cancellationToken) => Task.FromResult(new AuthorFacts(ActivityStatus.Unknown, null));
+    public Task<FeedPage> FindFeedAsync(string marker, DateTimeOffset since, ulong? beforeId, CancellationToken cancellationToken)
     {
         if (FailFeed) throw new IOException("feed unavailable");
         ulong found = Feed.FirstOrDefault(entry => entry.Value.Contains(marker, StringComparison.Ordinal)).Key;
-        return Task.FromResult(new RecruitmentFeedPage(found == 0 ? null : found, null, true));
+        return Task.FromResult(new FeedPage(found == 0 ? null : found, null, true));
     }
     public Task<ulong> SendFeedAsync(string content, CancellationToken cancellationToken)
     {

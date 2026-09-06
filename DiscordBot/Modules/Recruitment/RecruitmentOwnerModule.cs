@@ -1,6 +1,9 @@
 using Discord.Interactions;
 using DiscordBot.Modules.Base;
 using DiscordBot.Services;
+using DiscordBot.Services.Recruitment.Actions;
+using DiscordBot.Services.Recruitment.Publishing;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Services.Recruitment;
 
 namespace DiscordBot.Modules.Recruitment;
@@ -13,8 +16,8 @@ public sealed class RecruitmentCodeModal : IModal
     public string Code { get; set; } = "";
 }
 
-public sealed class RecruitmentOwnerModule(RecruitService service, RecruitmentOwnerActions owners,
-    RecruitmentPublicCoordinator advisory) : BotInteractionModuleBase
+public sealed class RecruitmentOwnerModule(RecruitmentService service, OwnerActions owners,
+    PublicCoordinator advisory) : BotInteractionModuleBase
 {
     [ComponentInteraction("udc-recruit:ack:*:*")]
     public async Task OpenCode(ulong threadId, string generation)
@@ -55,19 +58,19 @@ public sealed class RecruitmentOwnerModule(RecruitService service, RecruitmentOw
     });
 
     [ComponentInteraction("udc-recruit:close:*:*")]
-    public Task Close(ulong threadId, string generation) => PrepareAsync(threadId, generation, RecruitmentActionKind.LockArchive);
+    public Task Close(ulong threadId, string generation) => PrepareAsync(threadId, generation, ActionKind.LockArchive);
 
     [ComponentInteraction("udc-recruit:remove:*:*")]
-    public Task Remove(ulong threadId, string generation) => PrepareAsync(threadId, generation, RecruitmentActionKind.Delete);
+    public Task Remove(ulong threadId, string generation) => PrepareAsync(threadId, generation, ActionKind.Delete);
 
-    private Task PrepareAsync(ulong threadId, string generation, RecruitmentActionKind action) => RunAsync(async token =>
+    private Task PrepareAsync(ulong threadId, string generation, ActionKind action) => RunAsync(async token =>
     {
         var confirmation = await owners.PrepareAsync(OwnerContext(threadId), generation, action, token);
-        string explanation = action == RecruitmentActionKind.Delete
+        string explanation = action == ActionKind.Delete
             ? "Permanently delete this post and all its replies? This cannot be undone. Existing accepted-listing history is retained."
             : "Lock and archive this listing? Members can still find it in older posts and search. This does not remove it.";
         var controls = new ComponentBuilder().WithButton("Confirm", $"udc-recruit:confirm:{threadId}:{confirmation.Token}",
-            action == RecruitmentActionKind.Delete ? ButtonStyle.Danger : ButtonStyle.Primary).Build();
+            action == ActionKind.Delete ? ButtonStyle.Danger : ButtonStyle.Primary).Build();
         return (explanation + " Confirmation expires in two minutes.", (MessageComponent?)controls);
     });
 
@@ -79,7 +82,7 @@ public sealed class RecruitmentOwnerModule(RecruitService service, RecruitmentOw
         return ("Your owner action is complete.", (MessageComponent?)null);
     });
 
-    private RecruitmentOwnerContext OwnerContext(ulong threadId)
+    private OwnerContext OwnerContext(ulong threadId)
     {
         if (Context.Guild is null || Context.Channel.Id != threadId)
             throw new InvalidOperationException("Use these controls in the original recruitment thread.");

@@ -1,23 +1,26 @@
 using System.Threading.Channels;
 using DiscordBot.Components;
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Actions;
+using DiscordBot.Services.Recruitment.Observation;
+using DiscordBot.Services.Recruitment.Publishing;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 using DiscordBot.Settings.Validation;
 using Microsoft.Extensions.Options;
 
-namespace DiscordBot.Services;
+namespace DiscordBot.Services.Recruitment;
 
-public sealed class RecruitService(
-    RecruitmentStateStore store, RecruitmentObservationCoordinator coordinator, IRecruitmentObserver discord,
-    IOptions<RecruitmentOptions> options, TimeProvider time, RecruitmentPublicCoordinator? publicCoordinator = null,
-    RecruitmentEnforcementCoordinator? enforcement = null, RecruitmentRetention? retention = null) : IManagedBotService, IComponentHealthContributor
+public sealed class RecruitmentService(
+    StateStore store, ObservationCoordinator coordinator, IForumObserver discord,
+    IOptions<RecruitmentOptions> options, TimeProvider time, PublicCoordinator? publicCoordinator = null,
+    EnforcementCoordinator? enforcement = null, HistoryRetention? retention = null) : IManagedBotService, IComponentHealthContributor
 {
     private readonly SemaphoreSlim _lifetime = new(1, 1);
     private readonly SemaphoreSlim _work = new(1, 1);
     private CancellationTokenSource? _cancellation;
     private Task? _worker;
     private IDisposable? _subscription;
-    private Channel<RecruitmentObservationEvent>? _queue;
+    private Channel<ObservationEvent>? _queue;
     private long _dropped;
     private string? _fault;
     public string ComponentId => ComponentIds.Recruitment;
@@ -42,7 +45,7 @@ public sealed class RecruitService(
             _cancellation?.Dispose();
             // Startup's token is not the lifetime token. Stop owns cancellation after successful start.
             _cancellation = new();
-            _queue = Channel.CreateBounded<RecruitmentObservationEvent>(new BoundedChannelOptions(256)
+            _queue = Channel.CreateBounded<ObservationEvent>(new BoundedChannelOptions(256)
             { SingleReader = true, SingleWriter = false, FullMode = BoundedChannelFullMode.Wait });
             _subscription?.Dispose();
             var queue = _queue;
@@ -120,7 +123,7 @@ public sealed class RecruitService(
             try
             {
                 await coordinator.HandleAsync(item, token);
-                if (item.Kind == RecruitmentEventKind.Gap && options.Value.Mode != RecruitmentMode.Observe)
+                if (item.Kind == EventKind.Gap && options.Value.Mode != RecruitmentMode.Observe)
                     await publicCoordinator!.RecordGapAsync(token);
             }
             catch (Exception) when (store.IsHealthy && !token.IsCancellationRequested)

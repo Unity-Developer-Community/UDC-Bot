@@ -1,18 +1,20 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using DiscordBot.Services.Recruitment.Observation;
+using DiscordBot.Services.Recruitment.Policy;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Publishing;
 
 /// <summary>Complete, file-owned forum topics. Rendering never reads or writes Discord.</summary>
-public sealed class RecruitmentGuidelines(IOptions<RecruitmentOptions> options, IOptions<StorageOptions> storage)
+public sealed class GuidelineTemplates(IOptions<RecruitmentOptions> options, IOptions<StorageOptions> storage)
 {
     private const string Alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static readonly Regex Tokens = new(@"\{\{([^{}]+)\}\}", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
 
-    public string Load(RecruitmentForumKind forum)
+    public string Load(ForumKind forum)
     {
         string root = Path.GetFullPath(storage.Value.AssetsRootPath);
         string path = Path.GetFullPath(Path.Combine(root, options.Value.GuidelinesDirectory, FileName(forum)));
@@ -53,7 +55,7 @@ public sealed class RecruitmentGuidelines(IOptions<RecruitmentOptions> options, 
 
     public void ValidateAll()
     {
-        foreach (RecruitmentForumKind forum in Enum.GetValues<RecruitmentForumKind>())
+        foreach (ForumKind forum in Enum.GetValues<ForumKind>())
         {
             Render(Load(forum), "ABCDE");
         }
@@ -64,14 +66,14 @@ public sealed class RecruitmentGuidelines(IOptions<RecruitmentOptions> options, 
     public static string NewToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(8));
     public static DateTimeOffset WeekStart(DateTimeOffset now) =>
         new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero).AddDays(-((int)now.UtcDateTime.DayOfWeek + 6) % 7);
-    public static string FileName(RecruitmentForumKind forum) => forum switch
+    public static string FileName(ForumKind forum) => forum switch
     {
-        RecruitmentForumKind.PaidRecruiting => "paid-recruiting.md",
-        RecruitmentForumKind.PaidForHire => "paid-for-hire.md",
-        RecruitmentForumKind.HobbyRecruiting => "hobby-recruiting.md",
-        RecruitmentForumKind.HobbyForHire => "hobby-for-hire.md",
+        ForumKind.PaidRecruiting => "paid-recruiting.md",
+        ForumKind.PaidForHire => "paid-for-hire.md",
+        ForumKind.HobbyRecruiting => "hobby-recruiting.md",
+        ForumKind.HobbyForHire => "hobby-for-hire.md",
         _ => throw new ArgumentOutOfRangeException(nameof(forum))
     };
-    public static string Hash(string value) => RecruitmentObservationCoordinator.Hash(value);
-    public static string TagHash(IReadOnlyList<RecruitmentForumTag> tags) => Hash(System.Text.Json.JsonSerializer.Serialize(tags));
+    public static string Hash(string value) => ObservationCoordinator.Hash(value);
+    public static string TagHash(IReadOnlyList<ForumTag> tags) => Hash(System.Text.Json.JsonSerializer.Serialize(tags));
 }

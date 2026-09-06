@@ -1,17 +1,19 @@
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Presentation;
 
-public sealed record RecruitmentAdvisoryView(string Marker, Embed Embed, MessageComponent Components, string ImageDescription);
+public sealed record AdvisoryView(string Marker, Embed Embed, MessageComponent Components, string ImageDescription);
 
 /// <summary>All actionable information remains in text; the PNG is an initial snapshot only.</summary>
-public static class RecruitmentAdvisoryMessage
+public static class AdvisoryMessage
 {
-    public static RecruitmentAdvisoryView Build(RecruitmentStateDocument state, RecruitmentPostRecord post,
+    public static AdvisoryView Build(StateDocument state, PostRecord post,
         RecruitmentOptions options, TimeProvider time)
     {
-        var policy = new RecruitmentPolicyEvaluator(options, time);
-        RecruitmentEligibility eligibility = policy.EvaluateEligibility(state, post.ThreadId);
+        var policy = new PolicyEvaluator(options, time);
+        Eligibility eligibility = policy.EvaluateEligibility(state, post.ThreadId);
         bool enforced = options.Mode == RecruitmentMode.Enforce && post.EnforcementEnrolled;
         bool timeoutEnabled = enforced && options.EnforceGuidelineTimeouts;
         string marker = Marker(state.GuildId, post.ThreadId);
@@ -27,8 +29,8 @@ public static class RecruitmentAdvisoryMessage
             .AddField("Active policy", ModeText(options, enforced))
             .WithFooter(marker);
 
-        bool open = post.Lifecycle == RecruitmentLifecycle.Open && !post.IsPinned && !post.IsExempt && !post.ClosedRequested;
-        bool passed = post.Acknowledgement == RecruitmentAcknowledgement.Passed;
+        bool open = post.Lifecycle == ListingLifecycle.Open && !post.IsPinned && !post.IsExempt && !post.ClosedRequested;
+        bool passed = post.Acknowledgement == AcknowledgementStatus.Passed;
         bool expired = post.ChallengeDeadlineUtc <= time.GetUtcNow();
         string generation = post.Advisory.Generation;
         var controls = new ComponentBuilder()
@@ -47,13 +49,13 @@ public static class RecruitmentAdvisoryMessage
 
     public static string Marker(ulong guildId, ulong threadId) => $"udc-recruit-advisory:{guildId}:{threadId}";
 
-    private static string AcknowledgementText(RecruitmentPostRecord post, DateTimeOffset now, bool enforced, bool timeoutEnabled)
+    private static string AcknowledgementText(PostRecord post, DateTimeOffset now, bool enforced, bool timeoutEnabled)
     {
-        if (post.Lifecycle != RecruitmentLifecycle.Open || post.ClosedRequested)
+        if (post.Lifecycle != ListingLifecycle.Open || post.ClosedRequested)
         {
             return "This listing is closed or unavailable.";
         }
-        if (post.Acknowledgement == RecruitmentAcknowledgement.Passed)
+        if (post.Acknowledgement == AcknowledgementStatus.Passed)
         {
             if (post.AcceptedAtUtc is not null) return "Acknowledgement completed; listing accepted.";
             return enforced ? "Acknowledgement completed. Eligibility is checked at the grace deadline; listing acceptance is separate." :
@@ -84,15 +86,15 @@ public static class RecruitmentAdvisoryMessage
             "Enabled actions: " + string.Join("; ", active) + ". Recovery and evidence checks apply.";
     }
 
-    private static string EligibilityText(RecruitmentEligibility eligibility)
+    private static string EligibilityText(Eligibility eligibility)
     {
         string finding = eligibility.Kind switch
         {
-            RecruitmentEligibilityKind.Eligible => "Placement check: eligible under the planned listing policy.",
-            RecruitmentEligibilityKind.ActiveListing => "An accepted listing already occupies this recruiting/for-hire group.",
-            RecruitmentEligibilityKind.PendingListing => "An earlier pending post occupies this group's reservation.",
-            RecruitmentEligibilityKind.Cooldown => "This group's previous accepted listing is within its repost wait.",
-            RecruitmentEligibilityKind.ReviewRequired => "Earlier or incomplete history needs staff review.",
+            EligibilityKind.Eligible => "Placement check: eligible under the planned listing policy.",
+            EligibilityKind.ActiveListing => "An accepted listing already occupies this recruiting/for-hire group.",
+            EligibilityKind.PendingListing => "An earlier pending post occupies this group's reservation.",
+            EligibilityKind.Cooldown => "This group's previous accepted listing is within its repost wait.",
+            EligibilityKind.ReviewRequired => "Earlier or incomplete history needs staff review.",
             _ => "This listing is no longer active."
         };
         if (eligibility.NextAllowedAtUtc is { } next)
@@ -110,24 +112,24 @@ public static class RecruitmentAdvisoryMessage
         return finding;
     }
 
-    public static string Facts(RecruitmentPostRecord post, RecruitmentPolicyEvaluator policy) =>
+    public static string Facts(PostRecord post, PolicyEvaluator policy) =>
         $"Account age: {policy.AccountAge(SnowflakeUtils.FromSnowflake(post.AuthorId))}. " +
         $"Server tenure: {policy.ServerTenure(post.Observation.JoinedAtUtc)}. Activity: {ActivityText(post.Activity)}. " +
         $"Post created <t:{post.CreatedAtUtc.ToUnixTimeSeconds()}:F>.";
 
-    public static string ActivityText(RecruitmentActivity activity) => activity switch
+    public static string ActivityText(ActivityStatus activity) => activity switch
     {
-        RecruitmentActivity.Recorded => "some recorded activity",
-        RecruitmentActivity.NoneRecorded => "no activity recorded",
+        ActivityStatus.Recorded => "some recorded activity",
+        ActivityStatus.NoneRecorded => "no activity recorded",
         _ => "unknown"
     };
 
-    public static string PaymentText(RecruitmentPaymentSignal payment) => payment switch
+    public static string PaymentText(PaymentSignal payment) => payment switch
     {
-        RecruitmentPaymentSignal.Concrete => "A payment amount was detected. Confirm currency, scope, terms and schedule publicly.",
-        RecruitmentPaymentSignal.Missing => "Please add a currency and rate/range or budget, with scope and payment terms.",
-        RecruitmentPaymentSignal.Ambiguous => "Clarify guaranteed pay, currency and scope. Revenue share alone is not guaranteed pay.",
-        RecruitmentPaymentSignal.NotApplicable => "Unpaid collaboration: make ownership, credit and expectations clear.",
+        PaymentSignal.Concrete => "A payment amount was detected. Confirm currency, scope, terms and schedule publicly.",
+        PaymentSignal.Missing => "Please add a currency and rate/range or budget, with scope and payment terms.",
+        PaymentSignal.Ambiguous => "Clarify guaranteed pay, currency and scope. Revenue share alone is not guaranteed pay.",
+        PaymentSignal.NotApplicable => "Unpaid collaboration: make ownership, credit and expectations clear.",
         _ => "Payment details are unknown; review the original offer."
     };
 }

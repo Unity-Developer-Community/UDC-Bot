@@ -1,15 +1,17 @@
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Presentation;
 
-internal static class RecruitmentObservationMessage
+internal static class ObservationMessage
 {
     private const int DiscordMessageLimit = 2000;
 
-    public static string Build(RecruitmentStateDocument state, RecruitmentPostRecord post,
-        RecruitmentPolicyEvaluator policy, RecruitmentOptions options, string marker, DateTimeOffset now)
+    public static string Build(StateDocument state, PostRecord post,
+        PolicyEvaluator policy, RecruitmentOptions options, string marker, DateTimeOffset now)
     {
-        RecruitmentEligibility eligibility = policy.EvaluateEligibility(state, post.ThreadId);
+        Eligibility eligibility = policy.EvaluateEligibility(state, post.ThreadId);
         List<string> lines =
         [
             $"**Recruitment · {options.Mode}**",
@@ -53,7 +55,7 @@ internal static class RecruitmentObservationMessage
         return AppendRecoveryMarker(string.Join('\n', lines), marker);
     }
 
-    private static string DescribeModeProposal(RecruitmentPostRecord post, RecruitmentOptions options, DateTimeOffset now)
+    private static string DescribeModeProposal(PostRecord post, RecruitmentOptions options, DateTimeOffset now)
     {
         if (options.Mode == RecruitmentMode.Observe) return DescribeProposal(post, options, now);
         if (options.Mode == RecruitmentMode.Advisory || !post.EnforcementEnrolled)
@@ -62,20 +64,20 @@ internal static class RecruitmentObservationMessage
             $"listing limits={options.EnforceListingLimits}. Current evidence and audit delivery are rechecked before action.";
     }
 
-    private static string DescribeOrigin(RecruitmentPostRecord post)
+    private static string DescribeOrigin(PostRecord post)
     {
         string origin = post.Observation.Imported ? "imported, unverified" : "observed after enrollment";
         return $"Origin: {origin} · archived: {post.Observation.Archived} · locked: {post.Observation.Locked}";
     }
 
-    private static string DescribeAuthorFacts(RecruitmentPostRecord post, RecruitmentPolicyEvaluator policy)
+    private static string DescribeAuthorFacts(PostRecord post, PolicyEvaluator policy)
     {
         string accountAge = policy.AccountAge(SnowflakeUtils.FromSnowflake(post.AuthorId));
         string serverTenure = policy.ServerTenure(post.Observation.JoinedAtUtc);
         return $"Account: {accountAge} · Server: {serverTenure} · Activity: {post.Activity}";
     }
 
-    private static string DescribeResponseEvidence(RecruitmentPostRecord post)
+    private static string DescribeResponseEvidence(PostRecord post)
     {
         if (post.FirstQualifyingResponseAtUtc is not null)
         {
@@ -88,7 +90,7 @@ internal static class RecruitmentObservationMessage
         return "response coverage incomplete/uncertain";
     }
 
-    private static string DescribeEligibility(RecruitmentPostRecord post, RecruitmentEligibility eligibility)
+    private static string DescribeEligibility(PostRecord post, Eligibility eligibility)
     {
         string description = $"Acknowledgement: {post.Acknowledgement} · hypothetical eligibility: {eligibility.Kind}";
         if (eligibility.NextAllowedAtUtc is { } next)
@@ -102,10 +104,10 @@ internal static class RecruitmentObservationMessage
         return description;
     }
 
-    private static string DescribeProposal(RecruitmentPostRecord post, RecruitmentOptions options, DateTimeOffset now)
+    private static string DescribeProposal(PostRecord post, RecruitmentOptions options, DateTimeOffset now)
     {
         string proposal = DescribeAcknowledgementOrClosure(post);
-        if (post.Lifecycle == RecruitmentLifecycle.Open && !post.IsPinned && !post.IsExempt &&
+        if (post.Lifecycle == ListingLifecycle.Open && !post.IsPinned && !post.IsExempt &&
             post.CreatedAtUtc.AddDays(options.UnansweredDays) <= now && post.FirstQualifyingResponseAtUtc is null)
         {
             // Age alone is not enough to propose enforcement when acceptance or response evidence is missing.
@@ -114,9 +116,9 @@ internal static class RecruitmentObservationMessage
         return proposal;
     }
 
-    private static string DescribeAcknowledgementOrClosure(RecruitmentPostRecord post)
+    private static string DescribeAcknowledgementOrClosure(PostRecord post)
     {
-        if (post.Lifecycle is RecruitmentLifecycle.Deleted or RecruitmentLifecycle.Missing)
+        if (post.Lifecycle is ListingLifecycle.Deleted or ListingLifecycle.Missing)
         {
             return "No action proposed for an unavailable post.";
         }
@@ -128,18 +130,18 @@ internal static class RecruitmentObservationMessage
         {
             return "Would consider Closed lock/archive; no action taken.";
         }
-        if (post.Acknowledgement == RecruitmentAcknowledgement.Pending)
+        if (post.Acknowledgement == AcknowledgementStatus.Pending)
         {
             return $"Existing prompt deadline: {post.ChallengeDeadlineUtc:O}; no timeout applied in Observe.";
         }
-        if (post.Acknowledgement == RecruitmentAcknowledgement.Passed)
+        if (post.Acknowledgement == AcknowledgementStatus.Passed)
         {
             return "Acknowledgement already recorded; no automatic action in Observe.";
         }
         return "Would request acknowledgement. No prompt delivered and no timeout clock started.";
     }
 
-    private static string PreviousPostLinks(RecruitmentStateDocument state, RecruitmentPostRecord post)
+    private static string PreviousPostLinks(StateDocument state, PostRecord post)
     {
         IEnumerable<string> links = state.Posts.Values
             .Where(previous => previous.AuthorId == post.AuthorId && previous.ThreadId != post.ThreadId)

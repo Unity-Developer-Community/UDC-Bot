@@ -1,4 +1,5 @@
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 
 namespace DiscordBot.Tests.Recruitment;
@@ -19,22 +20,22 @@ internal static class RecruitmentTestData
         EnforceGuidelineTimeouts = true, EnforceLifecycleClosures = true, EnforceListingLimits = true
     };
 
-    public static RecruitmentPostRecord Post(ulong id = 10, RecruitmentForumKind forum = RecruitmentForumKind.PaidRecruiting,
+    public static PostRecord Post(ulong id = 10, ForumKind forum = ForumKind.PaidRecruiting,
         DateTimeOffset? created = null, bool accepted = false) => new()
     {
         ThreadId = id, AuthorId = 123, ParentChannelId = (ulong)forum + 101, Forum = forum,
         CreatedAtUtc = created ?? Now, FirstSeenAtUtc = created ?? Now,
         AcceptedAtUtc = accepted ? created ?? Now : null,
-        Acknowledgement = RecruitmentAcknowledgement.Passed,
+        Acknowledgement = AcknowledgementStatus.Passed,
         EnforcementEnrolled = true
     };
 
-    public static RecruitmentStateDocument State(params RecruitmentPostRecord[] posts) => new()
+    public static StateDocument State(params PostRecord[] posts) => new()
     {
         GuildId = 1, EnrolledAtUtc = Now.AddDays(-90), Posts = posts.ToDictionary(p => p.ThreadId)
     };
 
-    public static RecruitmentPolicyEvaluator Policy(RecruitmentOptions? options = null) =>
+    public static PolicyEvaluator Policy(RecruitmentOptions? options = null) =>
         new(options ?? Options(), new FixedTimeProvider(Now));
 }
 

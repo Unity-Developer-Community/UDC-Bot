@@ -3,7 +3,7 @@ using System.Text;
 using Discord;
 using Discord.Net.Rest;
 using Discord.WebSocket;
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Observation;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -89,7 +89,7 @@ public sealed class DiscordRecruitmentObserverTests
     {
         public readonly Transport Transport = new();
         private readonly DiscordSocketClient _client;
-        public DiscordRecruitmentObserver Observer { get; }
+        public DiscordObserver Observer { get; }
         public Fixture()
         {
             _client = new(new DiscordSocketConfig { RestClientProvider = _ => Transport });

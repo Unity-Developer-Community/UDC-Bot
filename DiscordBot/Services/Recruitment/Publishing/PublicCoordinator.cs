@@ -1,12 +1,17 @@
+using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Actions;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.Presentation;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Publishing;
 
-/// <summary>Public practice workflow. RecruitService serializes ticks and mutating owner/staff commands.</summary>
-public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IRecruitmentPublisher discord,
-    RecruitmentGuidelines templates, RecruitmentGuidelinePublisher guidelines, IRecruitmentBannerRenderer renderer,
-    RecruitmentOwnerActions ownerActions, IOptions<RecruitmentOptions> options, TimeProvider time)
+/// <summary>Public practice workflow. RecruitmentService serializes ticks and mutating owner/staff commands.</summary>
+public sealed class PublicCoordinator(StateStore store, IForumPublisher discord,
+    GuidelineTemplates templates, GuidelinePublisher guidelines, IBannerRenderer renderer,
+    OwnerActions ownerActions, IOptions<RecruitmentOptions> options, TimeProvider time)
 {
     private DateTimeOffset Now => time.GetUtcNow();
     private RecruitmentOptions Options => options.Value;
@@ -25,7 +30,7 @@ public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IR
         foreach (var forum in state.Forums.Values) forum.Publication.CheckedAtUtc = null;
         foreach (var post in state.Posts.Values)
         {
-            if (post.Acknowledgement == RecruitmentAcknowledgement.Pending) post.Advisory.NeedsFreshWindow = true;
+            if (post.Acknowledgement == AcknowledgementStatus.Pending) post.Advisory.NeedsFreshWindow = true;
             post.Advisory.NextCheckAtUtc = null;
         }
         return true;
@@ -41,7 +46,7 @@ public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IR
 
     private async Task EnsureForumsAsync(CancellationToken token)
     {
-        foreach (RecruitmentForum forum in RecruitmentForumClassifier.GetForums(Options.Forums))
+        foreach (Forum forum in ForumClassifier.GetForums(Options.Forums))
         {
             var saved = (await store.LoadAsync(token))!.Forums[forum.ChannelId].Publication;
             if (saved.CheckedAtUtc > Now.AddMinutes(-2)) continue;
@@ -53,7 +58,7 @@ public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IR
                     state.Forums[forum.ChannelId].Publication.Error = Error(error);
                     state.Forums[forum.ChannelId].Publication.CheckedAtUtc = Now;
                     foreach (var post in state.Posts.Values.Where(post => post.ParentChannelId == forum.ChannelId &&
-                                 post.Acknowledgement == RecruitmentAcknowledgement.Pending))
+                                 post.Acknowledgement == AcknowledgementStatus.Pending))
                     {
                         post.Advisory.NeedsFreshWindow = true;
                     }
@@ -125,9 +130,9 @@ public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IR
         var state = (await store.LoadAsync(token))!;
         var post = state.Posts[threadId];
         await ScheduleAsync(threadId, Now.AddMinutes(2), token);
-        if (post.Lifecycle != RecruitmentLifecycle.Open || post.ClosedRequested)
+        if (post.Lifecycle != ListingLifecycle.Open || post.ClosedRequested)
         {
-            if (post.Lifecycle != RecruitmentLifecycle.Deleted && post.AdvisoryMessageId is not null)
+            if (post.Lifecycle != ListingLifecycle.Deleted && post.AdvisoryMessageId is not null)
                 await UpdateMessageAsync(threadId, token);
             return;
         }
@@ -138,7 +143,7 @@ public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IR
         }
         // Imported history is left for staff adoption; rollout must not create retroactive challenges.
         if (post.Observation.Imported && post.Advisory.Generation.Length == 0) return;
-        RecruitmentPublicPost? live = await discord.GetPostAsync(threadId, token);
+        PublicPost? live = await discord.GetPostAsync(threadId, token);
         if (live is null || live.Pinned || live.OrdinaryAuthor != true || live.Archived || live.Locked) return;
         if (live.AuthorId != post.AuthorId || live.ParentId != post.ParentChannelId)
             throw new InvalidOperationException("Public post identity changed; staff review is required.");
@@ -154,7 +159,7 @@ public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IR
             {
                 var saved = current.Posts[threadId];
                 saved.ClosedRequested = true;
-                saved.Acknowledgement = RecruitmentAcknowledgement.Cancelled;
+                saved.Acknowledgement = AcknowledgementStatus.Cancelled;
                 saved.Advisory.Version++;
                 return true;
             }, token);
@@ -165,7 +170,7 @@ public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IR
         {
             await store.UpdateAsync(current =>
             {
-                current.Posts[threadId].Advisory.Generation = RecruitmentGuidelines.NewToken();
+                current.Posts[threadId].Advisory.Generation = GuidelineTemplates.NewToken();
                 current.Posts[threadId].Advisory.Version++;
                 return true;
             }, token);
@@ -176,18 +181,18 @@ public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IR
 
         state = (await store.LoadAsync(token))!;
         post = state.Posts[threadId];
-        bool freshWindow = post.Acknowledgement == RecruitmentAcknowledgement.NotPrompted ||
-            post.Advisory.NeedsFreshWindow && post.Acknowledgement == RecruitmentAcknowledgement.Pending;
+        bool freshWindow = post.Acknowledgement == AcknowledgementStatus.NotPrompted ||
+            post.Advisory.NeedsFreshWindow && post.Acknowledgement == AcknowledgementStatus.Pending;
         if (freshWindow)
         {
             // New control identities invalidate modals opened before an outage or replacement message.
             await store.UpdateAsync(current =>
             {
                 var saved = current.Posts[threadId];
-                saved.Advisory.Generation = RecruitmentGuidelines.NewToken();
+                saved.Advisory.Generation = GuidelineTemplates.NewToken();
                 saved.Advisory.Version++;
                 saved.Advisory.Confirmation = null;
-                saved.Acknowledgement = RecruitmentAcknowledgement.NotPrompted;
+                saved.Acknowledgement = AcknowledgementStatus.NotPrompted;
                 saved.PromptedAtUtc = null;
                 saved.ChallengeDeadlineUtc = null;
                 saved.AcceptedCodes = [];
@@ -206,7 +211,7 @@ public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IR
                 saved.PromptedAtUtc = Now;
                 saved.ChallengeDeadlineUtc = Now.AddMinutes(Options.AcknowledgementMinutes);
                 saved.AcceptedCodes = [publication.Confirmed.Code];
-                saved.Acknowledgement = RecruitmentAcknowledgement.Pending;
+                saved.Acknowledgement = AcknowledgementStatus.Pending;
                 if (Options.Mode == RecruitmentMode.Advisory) saved.EnforcementEnrolled = false;
                 saved.ChallengeEnforceable = Options.Mode == RecruitmentMode.Enforce && saved.EnforcementEnrolled &&
                     Options.EnforceGuidelineTimeouts;
@@ -222,14 +227,14 @@ public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IR
         {
             var saved = current.Posts[threadId];
             saved.Advisory.Error = null;
-            if (saved.Acknowledgement != RecruitmentAcknowledgement.Pending) saved.Advisory.NeedsFreshWindow = false;
+            if (saved.Acknowledgement != AcknowledgementStatus.Pending) saved.Advisory.NeedsFreshWindow = false;
             return true;
         }, token);
     }
 
-    private async Task<bool> EnsureMessageAsync(RecruitmentStateDocument state, RecruitmentPostRecord post, CancellationToken token)
+    private async Task<bool> EnsureMessageAsync(StateDocument state, PostRecord post, CancellationToken token)
     {
-        string marker = RecruitmentAdvisoryMessage.Marker(state.GuildId, post.ThreadId);
+        string marker = AdvisoryMessage.Marker(state.GuildId, post.ThreadId);
         if (post.Advisory.SendRequestedAtUtc is not null)
         {
             var search = await discord.FindAdvisoryAsync(post.ThreadId, marker, post.Advisory.SearchBeforeId, token);
@@ -269,7 +274,7 @@ public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IR
         }, token);
         try
         {
-            var sent = await discord.SendAdvisoryAsync(post.ThreadId, RecruitmentAdvisoryMessage.Build(state, post, Options, time), banner, token);
+            var sent = await discord.SendAdvisoryAsync(post.ThreadId, AdvisoryMessage.Build(state, post, Options, time), banner, token);
             await SaveMessageAsync(post.ThreadId, sent.Id, token);
             return true;
         }
@@ -286,13 +291,13 @@ public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IR
         var state = (await store.LoadAsync(token))!;
         var post = state.Posts[threadId];
         if (await discord.EditAdvisoryAsync(threadId, post.AdvisoryMessageId!.Value,
-                RecruitmentAdvisoryMessage.Build(state, post, Options, time), token)) return true;
+                AdvisoryMessage.Build(state, post, Options, time), token)) return true;
         await store.UpdateAsync(current =>
         {
             var saved = current.Posts[threadId];
             saved.AdvisoryMessageId = null;
             saved.Advisory.NeedsFreshWindow = true;
-            saved.Advisory.Generation = RecruitmentGuidelines.NewToken();
+            saved.Advisory.Generation = GuidelineTemplates.NewToken();
             saved.Advisory.Version++;
             saved.Advisory.Confirmation = null;
             return true;

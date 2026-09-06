@@ -1,5 +1,8 @@
 using DiscordBot.Components;
 using DiscordBot.Services;
+using DiscordBot.Services.Recruitment.Observation;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Services.Recruitment;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
@@ -21,8 +24,8 @@ public sealed class RecruitmentObservationTests
         Assert.IsTrue(post.Observation.Imported);
         Assert.IsTrue(post.RequiresReview);
         Assert.IsTrue(post.Observation.HistoryUncertain);
-        Assert.AreEqual(RecruitmentLifecycle.Open, post.Lifecycle); // Natural archive does not close a listing.
-        Assert.AreEqual(RecruitmentAcknowledgement.NotPrompted, post.Acknowledgement);
+        Assert.AreEqual(ListingLifecycle.Open, post.Lifecycle); // Natural archive does not close a listing.
+        Assert.AreEqual(AcknowledgementStatus.NotPrompted, post.Acknowledgement);
         Assert.IsNull(post.AcceptedAtUtc); Assert.IsNull(post.ChallengeDeadlineUtc);
         Assert.IsFalse(post.EnforcementEnrolled); Assert.IsFalse(post.ChallengeEnforceable);
         Assert.AreEqual(0, state.Authors[123].ConsecutiveTimeouts);
@@ -39,19 +42,19 @@ public sealed class RecruitmentObservationTests
         await using var f = new Fixture(); await f.Coordinator.InitializeAsync(default);
         f.Discord.Threads[10] = Thread(10);
         f.Discord.Threads[20] = Thread(20, parent: 102);
-        await f.Coordinator.HandleAsync(new(RecruitmentEventKind.Changed, 10, 101), default);
-        await f.Coordinator.HandleAsync(new(RecruitmentEventKind.Changed, 20, 102), default);
+        await f.Coordinator.HandleAsync(new(EventKind.Changed, 10, 101), default);
+        await f.Coordinator.HandleAsync(new(EventKind.Changed, 20, 102), default);
         await f.Coordinator.TickAsync(default);
         var state = await f.State();
-        Assert.AreEqual(RecruitmentEligibilityKind.Eligible, new RecruitmentPolicyEvaluator(f.Options, f.Time).EvaluateEligibility(state, 20).Kind);
+        Assert.AreEqual(EligibilityKind.Eligible, new PolicyEvaluator(f.Options, f.Time).EvaluateEligibility(state, 20).Kind);
         Assert.IsTrue(f.Discord.Feed.Values.All(text => text.Contains("double-check", StringComparison.Ordinal)));
-        Assert.AreEqual(RecruitmentPaymentSignal.Concrete, state.Posts[10].Payment);
+        Assert.AreEqual(PaymentSignal.Concrete, state.Posts[10].Payment);
         var feedId = state.Posts[10].FeedMessageId;
         f.Discord.Starter = "Revenue share only";
         f.Time.Advance(TimeSpan.FromMinutes(3));
-        await f.Coordinator.HandleAsync(new(RecruitmentEventKind.Changed, 10, 101), default);
+        await f.Coordinator.HandleAsync(new(EventKind.Changed, 10, 101), default);
         await f.Coordinator.TickAsync(default);
-        Assert.AreEqual(RecruitmentPaymentSignal.Ambiguous, (await f.State()).Posts[10].Payment);
+        Assert.AreEqual(PaymentSignal.Ambiguous, (await f.State()).Posts[10].Payment);
         Assert.AreEqual(feedId, (await f.State()).Posts[10].FeedMessageId);
         Assert.AreEqual(2, f.Discord.Sends);
     }
@@ -60,14 +63,14 @@ public sealed class RecruitmentObservationTests
     public async Task ConfirmedDeletion_IsIdempotent_AndLateUpdatesCannotResurrectIt()
     {
         await using var f = new Fixture(); f.Discord.Threads[10] = Thread(10); await f.StartAndTick();
-        await f.Coordinator.HandleAsync(new(RecruitmentEventKind.Deleted, 10), default);
+        await f.Coordinator.HandleAsync(new(EventKind.Deleted, 10), default);
         var observed = (await f.State()).Posts[10].DeletedObservedAtUtc;
         f.Time.Advance(TimeSpan.FromMinutes(2));
-        await f.Coordinator.HandleAsync(new(RecruitmentEventKind.Deleted, 10), default);
-        await f.Coordinator.HandleAsync(new(RecruitmentEventKind.Changed, 10, 101), default);
+        await f.Coordinator.HandleAsync(new(EventKind.Deleted, 10), default);
+        await f.Coordinator.HandleAsync(new(EventKind.Changed, 10, 101), default);
         await f.Coordinator.TickAsync(default);
         var post = (await f.State()).Posts[10];
-        Assert.AreEqual(RecruitmentLifecycle.Deleted, post.Lifecycle);
+        Assert.AreEqual(ListingLifecycle.Deleted, post.Lifecycle);
         Assert.AreEqual(observed, post.DeletedObservedAtUtc);
         Assert.IsFalse(post.DeletionTimeUncertain);
     }
@@ -77,13 +80,13 @@ public sealed class RecruitmentObservationTests
     {
         await using var f = new Fixture(); f.Discord.Threads[10] = Thread(10); await f.StartAndTick();
         f.Discord.ThreadReadError = new UnauthorizedAccessException();
-        await f.Coordinator.HandleAsync(new(RecruitmentEventKind.Changed, 10, 101), default);
+        await f.Coordinator.HandleAsync(new(EventKind.Changed, 10, 101), default);
         await f.Coordinator.TickAsync(default);
-        Assert.AreEqual(RecruitmentLifecycle.Open, (await f.State()).Posts[10].Lifecycle);
+        Assert.AreEqual(ListingLifecycle.Open, (await f.State()).Posts[10].Lifecycle);
         f.Discord.ThreadReadError = null; f.Discord.Threads.Clear();
         f.Time.Advance(TimeSpan.FromMinutes(3)); await f.Coordinator.TickAsync(default);
         var post = (await f.State()).Posts[10];
-        Assert.AreEqual(RecruitmentLifecycle.Missing, post.Lifecycle);
+        Assert.AreEqual(ListingLifecycle.Missing, post.Lifecycle);
         Assert.IsNull(post.DeletedObservedAtUtc); Assert.IsTrue(post.DeletionTimeUncertain);
         Assert.IsTrue(post.RequiresReview);
     }
@@ -93,13 +96,13 @@ public sealed class RecruitmentObservationTests
     {
         await using var f = new Fixture(); f.Discord.Threads[10] = Thread(10); await f.StartAndTick();
         var reply = Reply(11, Now.AddMinutes(1));
-        await f.Coordinator.HandleAsync(new(RecruitmentEventKind.Message, 10, 101, reply), default);
+        await f.Coordinator.HandleAsync(new(EventKind.Message, 10, 101, reply), default);
         await f.Store.ReleaseAsync(); f.NewCoordinator();
         await f.StartAndTick(); // The reply is absent from REST history now.
         Assert.AreEqual(reply.Response.CreatedAtUtc, (await f.State()).Posts[10].FirstQualifyingResponseAtUtc);
         f.Discord.Threads[20] = Thread(20, parent: 102);
         f.Discord.Replies[20] = [Reply(21, Now.AddMinutes(1)) with { Response = new(456, Now.AddMinutes(1), false, false, null, null) }];
-        await f.Coordinator.HandleAsync(new(RecruitmentEventKind.Changed, 20, 102), default);
+        await f.Coordinator.HandleAsync(new(EventKind.Changed, 20, 102), default);
         await f.Coordinator.TickAsync(default);
         var unknown = (await f.State()).Posts[20];
         Assert.IsNull(unknown.FirstQualifyingResponseAtUtc); Assert.IsTrue(unknown.Observation.HistoryUncertain);
@@ -218,7 +221,7 @@ public sealed class RecruitmentObservationTests
         f.Discord.OnSubscribe = receive =>
         {
             f.Time.Advance(TimeSpan.FromMinutes(1));
-            for (var i = 0; i < 300; i++) receive(new(RecruitmentEventKind.Changed, (ulong)i));
+            for (var i = 0; i < 300; i++) receive(new(EventKind.Changed, (ulong)i));
         };
         f.Discord.BlockReads = true;
         var service = f.Service(); await service.StartAsync(default);
@@ -252,9 +255,9 @@ public sealed class RecruitmentObservationTests
         Assert.AreEqual("damaged", File.ReadAllText(f.Store.StatePath)); Assert.AreEqual(0, f.Discord.Subscriptions);
     }
 
-    private static RecruitmentThreadSnapshot Thread(ulong id, ulong parent = 101, DateTimeOffset? created = null, bool archived = false) =>
+    private static ThreadSnapshot Thread(ulong id, ulong parent = 101, DateTimeOffset? created = null, bool archived = false) =>
         new(id, parent, 123, created ?? Now, "Listing", [], archived, false, false, false, created ?? Now);
-    private static RecruitmentMessageSnapshot Reply(ulong id, DateTimeOffset created) => new(id, new(456, created, false, false, false, false), null);
+    private static MessageSnapshot Reply(ulong id, DateTimeOffset created) => new(id, new(456, created, false, false, false, false), null);
 
     private sealed class MutableTime : TimeProvider
     {
@@ -269,27 +272,27 @@ public sealed class RecruitmentObservationTests
         public readonly RecruitmentOptions Options = RecruitmentTestData.Options();
         public readonly MutableTime Time = new();
         public readonly FakeObserver Discord = new();
-        public RecruitmentStateStore Store { get; }
-        public RecruitmentObservationCoordinator Coordinator { get; private set; }
+        public StateStore Store { get; }
+        public ObservationCoordinator Coordinator { get; private set; }
         public Fixture() { Options.Mode = RecruitmentMode.Observe; Store = OtherStore(); Coordinator = NewCoordinator(); }
-        public RecruitmentObservationCoordinator NewCoordinator() => Coordinator = new(Store, Discord, Microsoft.Extensions.Options.Options.Create(Options), Time);
-        public RecruitService Service() => new(Store, Coordinator, Discord, Microsoft.Extensions.Options.Options.Create(Options), Time);
-        public RecruitmentStateStore OtherStore() => new(Microsoft.Extensions.Options.Options.Create(new StorageOptions { ServerRootPath = _root }),
+        public ObservationCoordinator NewCoordinator() => Coordinator = new(Store, Discord, Microsoft.Extensions.Options.Options.Create(Options), Time);
+        public RecruitmentService Service() => new(Store, Coordinator, Discord, Microsoft.Extensions.Options.Options.Create(Options), Time);
+        public StateStore OtherStore() => new(Microsoft.Extensions.Options.Options.Create(new StorageOptions { ServerRootPath = _root }),
             Microsoft.Extensions.Options.Options.Create(new DiscordGuildOptions { GuildId = 1 }));
         public async Task StartAndTick() { await Coordinator.InitializeAsync(default); await Coordinator.TickAsync(default); }
-        public async Task<RecruitmentStateDocument> State() => (await Store.LoadAsync())!;
+        public async Task<StateDocument> State() => (await Store.LoadAsync())!;
         public async ValueTask DisposeAsync() { await Store.DisposeAsync(); if (Directory.Exists(_root)) Directory.Delete(_root, true); }
     }
 
-    private sealed class FakeObserver : IRecruitmentObserver
+    private sealed class FakeObserver : IForumObserver
     {
-        public readonly Dictionary<ulong, RecruitmentThreadSnapshot> Threads = [];
-        public readonly Dictionary<ulong, List<RecruitmentMessageSnapshot>> Replies = [];
+        public readonly Dictionary<ulong, ThreadSnapshot> Threads = [];
+        public readonly Dictionary<ulong, List<MessageSnapshot>> Replies = [];
         public readonly Dictionary<ulong, string> Feed = [];
-        public readonly Queue<RecruitmentFeedPage> FindPages = [];
+        public readonly Queue<FeedPage> FindPages = [];
         public readonly List<(ulong Id, DateTimeOffset? Before)> ArchiveRequests = [];
-        public Func<ulong, DateTimeOffset?, RecruitmentArchivePage>? Archives;
-        public Action<Action<RecruitmentObservationEvent>>? OnSubscribe;
+        public Func<ulong, DateTimeOffset?, ArchivePage>? Archives;
+        public Action<Action<ObservationEvent>>? OnSubscribe;
         public Action? AfterSend;
         public Exception? ThreadReadError, ValidationError;
         public string Starter = "Budget $25/hour";
@@ -297,10 +300,10 @@ public sealed class RecruitmentObservationTests
         public ulong LastAfterId;
         public bool ThrowAfterSend, BlockReads;
         public readonly TaskCompletionSource ReadStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public IDisposable Subscribe(Action<RecruitmentObservationEvent> receive)
+        public IDisposable Subscribe(Action<ObservationEvent> receive)
         { Subscriptions++; OnSubscribe?.Invoke(receive); return new Subscription(() => Subscriptions--); }
         public Task ValidateAsync(CancellationToken cancellationToken) => ValidationError is null ? Task.CompletedTask : Task.FromException(ValidationError);
-        public async Task<IReadOnlyList<RecruitmentThreadSnapshot>> GetActiveAsync(ulong forumId, CancellationToken cancellationToken)
+        public async Task<IReadOnlyList<ThreadSnapshot>> GetActiveAsync(ulong forumId, CancellationToken cancellationToken)
         {
             InFlight++;
             try
@@ -311,26 +314,26 @@ public sealed class RecruitmentObservationTests
             }
             finally { InFlight--; }
         }
-        public Task<RecruitmentArchivePage> GetArchivedAsync(ulong forumId, DateTimeOffset? before, CancellationToken cancellationToken)
+        public Task<ArchivePage> GetArchivedAsync(ulong forumId, DateTimeOffset? before, CancellationToken cancellationToken)
         {
             ArchiveRequests.Add((forumId, before));
             var result = Archives?.Invoke(forumId, before) ?? new(Threads.Values.Where(t => t.ParentId == forumId && t.Archived).ToArray(), null, true);
             foreach (var thread in result.Threads) Threads[thread.Id] = thread;
             return Task.FromResult(result);
         }
-        public Task<RecruitmentThreadSnapshot?> GetThreadAsync(ulong threadId, CancellationToken cancellationToken) =>
-            ThreadReadError is null ? Task.FromResult(Threads.GetValueOrDefault(threadId)) : Task.FromException<RecruitmentThreadSnapshot?>(ThreadReadError);
-        public Task<RecruitmentMessageSnapshot?> GetStarterAsync(ulong threadId, CancellationToken cancellationToken) =>
-            Task.FromResult<RecruitmentMessageSnapshot?>(new(threadId, new(123, Now, false, false, false, false), Starter));
-        public Task<RecruitmentMessagePage> GetRepliesAsync(ulong threadId, ulong afterId, CancellationToken cancellationToken)
+        public Task<ThreadSnapshot?> GetThreadAsync(ulong threadId, CancellationToken cancellationToken) =>
+            ThreadReadError is null ? Task.FromResult(Threads.GetValueOrDefault(threadId)) : Task.FromException<ThreadSnapshot?>(ThreadReadError);
+        public Task<MessageSnapshot?> GetStarterAsync(ulong threadId, CancellationToken cancellationToken) =>
+            Task.FromResult<MessageSnapshot?>(new(threadId, new(123, Now, false, false, false, false), Starter));
+        public Task<MessagePage> GetRepliesAsync(ulong threadId, ulong afterId, CancellationToken cancellationToken)
         {
             LastAfterId = afterId;
             var messages = Replies.GetValueOrDefault(threadId, []).Where(m => m.Id > afterId).OrderBy(m => m.Id).Take(100).ToArray();
-            return Task.FromResult(new RecruitmentMessagePage(messages, messages.Length < 100));
+            return Task.FromResult(new MessagePage(messages, messages.Length < 100));
         }
-        public Task<RecruitmentAuthorFacts> GetAuthorAsync(ulong authorId, CancellationToken cancellationToken) => Task.FromResult(new RecruitmentAuthorFacts(RecruitmentActivity.Unknown, null));
-        public Task<RecruitmentFeedPage> FindFeedAsync(string marker, DateTimeOffset since, ulong? beforeId, CancellationToken cancellationToken) =>
-            Task.FromResult(FindPages.Count > 0 ? FindPages.Dequeue() : new RecruitmentFeedPage(
+        public Task<AuthorFacts> GetAuthorAsync(ulong authorId, CancellationToken cancellationToken) => Task.FromResult(new AuthorFacts(ActivityStatus.Unknown, null));
+        public Task<FeedPage> FindFeedAsync(string marker, DateTimeOffset since, ulong? beforeId, CancellationToken cancellationToken) =>
+            Task.FromResult(FindPages.Count > 0 ? FindPages.Dequeue() : new FeedPage(
                 Feed.Where(p => p.Value.EndsWith($"`{marker}`", StringComparison.Ordinal)).Select(p => (ulong?)p.Key).FirstOrDefault(), null, true));
         public Task<ulong> SendFeedAsync(string content, CancellationToken cancellationToken)
         {

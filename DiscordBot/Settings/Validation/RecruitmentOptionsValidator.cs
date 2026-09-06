@@ -1,6 +1,6 @@
 using System.IO;
 using DiscordBot.Components;
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Policy;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -29,7 +29,7 @@ public sealed class RecruitmentOptionsValidator(
 
     internal static IReadOnlyList<string> ValidateValues(RecruitmentOptions value)
     {
-        var forums = RecruitmentForumClassifier.GetForums(value.Forums);
+        var forums = ForumClassifier.GetForums(value.Forums);
         var errors = FeatureValidation.MissingIds(forums.Select(f =>
             ($"Recruitment:Forums:{f.Kind}:ChannelId", f.ChannelId)).Append(
             ("Recruitment:FeedChannelId", value.FeedChannelId)).ToArray());

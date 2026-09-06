@@ -1,11 +1,15 @@
+using DiscordBot.Services.Recruitment.Observation;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.Publishing;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Actions;
 
 /// <summary>Chooses actions; the lifecycle executor independently rechecks evidence immediately before mutation.</summary>
-public sealed class RecruitmentEnforcementCoordinator(RecruitmentStateStore store, IRecruitmentPublisher discord,
-    RecruitmentObservationCoordinator observations, RecruitmentLifecycleExecutor lifecycle,
+public sealed class EnforcementCoordinator(StateStore store, IForumPublisher discord,
+    ObservationCoordinator observations, LifecycleExecutor lifecycle,
     IOptions<RecruitmentOptions> options, TimeProvider time)
 {
     private DateTimeOffset Now => time.GetUtcNow();
@@ -17,7 +21,7 @@ public sealed class RecruitmentEnforcementCoordinator(RecruitmentStateStore stor
         if (!options.Value.Enabled || options.Value.Mode != RecruitmentMode.Enforce) return;
         var state = (await store.LoadAsync(token))!;
         var due = state.Posts.Values.Where(post => post.EnforcementEnrolled &&
-                (post.Lifecycle == RecruitmentLifecycle.Open || post.PendingAction is { IsPending: true }) &&
+                (post.Lifecycle == ListingLifecycle.Open || post.PendingAction is { IsPending: true }) &&
                 (post.EnforcementNextCheckAtUtc is null || post.EnforcementNextCheckAtUtc <= Now))
             .OrderBy(post => post.EnforcementNextCheckAtUtc).ThenBy(post => post.CreatedAtUtc).ThenBy(post => post.ThreadId)
             .Take(8).Select(post => post.ThreadId).ToArray();
@@ -34,7 +38,7 @@ public sealed class RecruitmentEnforcementCoordinator(RecruitmentStateStore stor
                     post.Advisory.Error = error is InvalidOperationException ? error.Message[..Math.Min(200, error.Message.Length)] :
                         $"{error.GetType().Name}: enforcement verification failed; review/retry pending.";
                     post.ChallengeEnforceable = false;
-                    if (post.Acknowledgement == RecruitmentAcknowledgement.Pending) post.Advisory.NeedsFreshWindow = true;
+                    if (post.Acknowledgement == AcknowledgementStatus.Pending) post.Advisory.NeedsFreshWindow = true;
                     post.Observation.FeedRetryAtUtc = null;
                     return true;
                 }, token);
@@ -61,7 +65,7 @@ public sealed class RecruitmentEnforcementCoordinator(RecruitmentStateStore stor
         post = state.Posts[threadId];
         var live = await discord.GetPostAsync(threadId, token);
         if (live is null || live.Pinned || live.OrdinaryAuthor != true || post.Observation.Error is not null ||
-            post.RequiresReview || post.Lifecycle != RecruitmentLifecycle.Open) return;
+            post.RequiresReview || post.Lifecycle != ListingLifecycle.Open) return;
         if (live.ParentId != post.ParentChannelId || live.AuthorId != post.AuthorId)
             throw new InvalidOperationException("Listing identity changed; enforcement is held for staff review.");
 
@@ -71,15 +75,15 @@ public sealed class RecruitmentEnforcementCoordinator(RecruitmentStateStore stor
             {
                 var saved = current.Posts[threadId];
                 saved.ClosedRequested = true;
-                if (saved.AcceptedAtUtc is null) saved.Acknowledgement = RecruitmentAcknowledgement.Cancelled;
+                if (saved.AcceptedAtUtc is null) saved.Acknowledgement = AcknowledgementStatus.Cancelled;
                 return true;
             }, token);
             state = (await store.LoadAsync(token))!;
             post = state.Posts[threadId];
         }
 
-        var policy = new RecruitmentPolicyEvaluator(options.Value, time);
-        if (!post.ClosedRequested && post.Acknowledgement == RecruitmentAcknowledgement.Passed && post.AcceptedAtUtc is null &&
+        var policy = new PolicyEvaluator(options.Value, time);
+        if (!post.ClosedRequested && post.Acknowledgement == AcknowledgementStatus.Passed && post.AcceptedAtUtc is null &&
             post.ChallengeDeadlineUtc <= decisionAt)
         {
             await store.UpdateAsync(current =>
@@ -90,16 +94,16 @@ public sealed class RecruitmentEnforcementCoordinator(RecruitmentStateStore stor
                 saved.Advisory.Confirmation = null;
                 saved.Advisory.NextCheckAtUtc = null;
                 saved.Observation.FeedRetryAtUtc = null;
-                saved.Audit.Add(new(RecruitmentGuidelines.NewToken(), Now, 0, "Accepted", "Acknowledged and eligible at the grace deadline."));
-                RecruitmentHistory.Author(current, saved).LastActivityAtUtc = Now;
+                saved.Audit.Add(new(GuidelineTemplates.NewToken(), Now, 0, "Accepted", "Acknowledged and eligible at the grace deadline."));
+                ListingHistory.Author(current, saved).LastActivityAtUtc = Now;
                 return true;
             }, token);
             state = (await store.LoadAsync(token))!;
         }
 
-        RecruitmentAction action = policy.EvaluateAction(state, threadId, decisionAt);
-        if (action.Kind == RecruitmentActionKind.None) return;
-        await lifecycle.RequestAsync(threadId, action.Kind, RecruitmentActionOrigin.Automatic, action.Reason!.Value,
+        PolicyAction action = policy.EvaluateAction(state, threadId, decisionAt);
+        if (action.Kind == ActionKind.None) return;
+        await lifecycle.RequestAsync(threadId, action.Kind, ActionOrigin.Automatic, action.Reason!.Value,
             0, $"Policy decision: {action.Reason}.", token);
         await lifecycle.RecoverAsync(threadId, token);
     }

@@ -3,6 +3,10 @@ using Discord.WebSocket;
 using DiscordBot.Modules.Base;
 using DiscordBot.Policies;
 using DiscordBot.Services;
+using DiscordBot.Services.Recruitment.Actions;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.Publishing;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Services.Recruitment;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
@@ -11,12 +15,12 @@ namespace DiscordBot.Modules.Recruitment;
 
 // No component-enabled precondition: staff must be able to preview while setup is degraded or stopped.
 [Group("recruitment", "Review and publish recruitment forum guidelines")]
-public sealed class RecruitmentSetupModule(RecruitService service, RecruitmentGuidelinePublisher publisher,
+public sealed class RecruitmentSetupModule(RecruitmentService service, GuidelinePublisher publisher,
     IBotAuthorizationPolicy authorization, IOptions<DiscordGuildOptions> guild,
-    IOptions<RecruitmentOptions> options, RecruitmentStaffActions staff, RecruitmentPublicCoordinator publicCoordinator) : BotInteractionModuleBase
+    IOptions<RecruitmentOptions> options, StaffActions staff, PublicCoordinator publicCoordinator) : BotInteractionModuleBase
 {
     [SlashCommand("preview", "Privately preview guidelines and the current topic/tag fingerprints")]
-    public async Task Preview(RecruitmentForumKind forum)
+    public async Task Preview(ForumKind forum)
     {
         await DeferAsync(ephemeral: true);
         try
@@ -34,7 +38,7 @@ public sealed class RecruitmentSetupModule(RecruitService service, RecruitmentGu
     }
 
     [SlashCommand("publish", "Adopt the previewed topic and publish guidelines; optionally repair a renamed Closed binding")]
-    public async Task Publish(RecruitmentForumKind forum,
+    public async Task Publish(ForumKind forum,
         [Summary("expected-topic-hash", "Current topic fingerprint from the preview")] string expectedTopicHash,
         [Summary("repair-tag-hash", "Optional current tag fingerprint to release a renamed Closed binding")] string? repairTagHash = null)
     {
@@ -108,7 +112,7 @@ public sealed class RecruitmentSetupModule(RecruitService service, RecruitmentGu
     }, publicRequired: false);
 
     [SlashCommand("review", "Record a review; choose a response finding only after inspecting the earlier history")]
-    public Task Review(string thread, RecruitmentResponseReview responses, string reason, bool dismiss = false) => RunStaffAsync(thread, async (id, token) =>
+    public Task Review(string thread, ResponseReview responses, string reason, bool dismiss = false) => RunStaffAsync(thread, async (id, token) =>
     {
         await staff.ReviewAsync(id, responses, dismiss, Context.User.Id, reason, token);
         return "Staff review recorded. Later gaps and messages will still be checked.";
@@ -127,14 +131,14 @@ public sealed class RecruitmentSetupModule(RecruitService service, RecruitmentGu
     [SlashCommand("close", "Lock/archive a listing and retain its history")]
     public Task Close(string thread, string reason) => RunStaffAsync(thread, async (id, token) =>
     {
-        await staff.ChangeLifecycleAsync(id, RecruitmentActionKind.LockArchive, Context.User.Id, reason, token);
+        await staff.ChangeLifecycleAsync(id, ActionKind.LockArchive, Context.User.Id, reason, token);
         return "Listing closed. Archived posts remain publicly discoverable.";
     });
 
     [SlashCommand("reopen", "Reopen a closed listing after a capacity check and grant a recorded exemption")]
     public Task Reopen(string thread, string reason) => RunStaffAsync(thread, async (id, token) =>
     {
-        await staff.ChangeLifecycleAsync(id, RecruitmentActionKind.Reopen, Context.User.Id, reason, token);
+        await staff.ChangeLifecycleAsync(id, ActionKind.Reopen, Context.User.Id, reason, token);
         return "Listing reopened and exempted. Deliberately remove the exemption when its next lifecycle policy is settled.";
     });
 
@@ -188,7 +192,7 @@ public sealed class RecruitmentSetupModule(RecruitService service, RecruitmentGu
     private static ulong ThreadId(string value) => ulong.TryParse(value.Trim().Trim('<', '#', '>'), out ulong id) && id != 0
         ? id : throw new InvalidOperationException("Provide the recruitment thread's ID or channel mention.");
 
-    private RecruitmentForum Forum(RecruitmentForumKind kind) => RecruitmentForumClassifier.GetForums(options.Value.Forums).Single(forum => forum.Kind == kind);
+    private Forum Forum(ForumKind kind) => ForumClassifier.GetForums(options.Value.Forums).Single(forum => forum.Kind == kind);
 
     private void RequireStaff()
     {

@@ -1,7 +1,7 @@
 using DiscordBot;
 using DiscordBot.Components;
 using DiscordBot.Services;
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Policy;
 using DiscordBot.Settings;
 using DiscordBot.Settings.Options;
 using DiscordBot.Settings.Validation;
@@ -55,7 +55,7 @@ public sealed class RecruitmentConfigurationTests
         Assert.IsFalse(status.IsConfigured);
         Assert.IsFalse(string.Join(' ', status.Errors).Contains("not-an-id", StringComparison.Ordinal));
         // Resolving the classifier, used by UserService, must not propagate binding failures.
-        _ = new RecruitmentForumClassifier(provider.GetRequiredService<IOptions<RecruitmentOptions>>());
+        _ = new ForumClassifier(provider.GetRequiredService<IOptions<RecruitmentOptions>>());
     }
 
     [TestMethod]
@@ -67,7 +67,7 @@ public sealed class RecruitmentConfigurationTests
             ["Recruitment:Forums:PaidRecruiting:ChannelId"] = "unfinished"
         });
         Assert.IsTrue(Status(provider).IsConfigured);
-        var classifier = new RecruitmentForumClassifier(provider.GetRequiredService<IOptions<RecruitmentOptions>>());
+        var classifier = new ForumClassifier(provider.GetRequiredService<IOptions<RecruitmentOptions>>());
         Assert.IsNull(classifier.Classify(101));
     }
 
@@ -75,7 +75,7 @@ public sealed class RecruitmentConfigurationTests
     public void ForumClassifier_FiltersParentsAndChildren_WhileModerationIsDisabled()
     {
         var options = RecruitmentTestData.Options(); options.Enabled = false;
-        var classifier = new RecruitmentForumClassifier(Microsoft.Extensions.Options.Options.Create(options));
+        var classifier = new ForumClassifier(Microsoft.Extensions.Options.Options.Create(options));
         for (ulong id = 101; id <= 104; id++)
         {
             Assert.IsNotNull(classifier.Classify(id));
@@ -117,7 +117,7 @@ public sealed class RecruitmentConfigurationTests
             """{ "Recruitment": { "Enabled": true, "Mode": "bad-mode" } }""");
         using var host = Program.BuildHost([], root.Path);
         Assert.IsFalse(Status(host.Services).IsConfigured);
-        Assert.IsNotNull(host.Services.GetRequiredService<RecruitmentForumClassifier>());
+        Assert.IsNotNull(host.Services.GetRequiredService<ForumClassifier>());
         Assert.IsNotNull(host.Services.GetRequiredService<IOptions<DiscordGuildOptions>>().Value);
     }
 

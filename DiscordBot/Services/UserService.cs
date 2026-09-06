@@ -7,7 +7,7 @@ using DiscordBot.Domain;
 using DiscordBot.Settings.Options;
 using DiscordBot.Data;
 using DiscordBot.Services.Rendering;
-using DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Policy;
 using Microsoft.Extensions.Options;
 
 namespace DiscordBot.Services;
@@ -25,7 +25,7 @@ public class UserService : IManagedBotService, IComponentHealthContributor
     private readonly ILoggingService _loggingService;
     private readonly IAvatarDownloader _avatarDownloader;
     private readonly IProfileCardRenderer _profileCardRenderer;
-    private readonly RecruitmentForumClassifier _recruitmentForums;
+    private readonly ForumClassifier _recruitmentForums;
 
     private readonly Regex _x3CodeBlock =
 new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multiline | RegexOptions.Singleline);
@@ -83,7 +83,7 @@ new("^(?<CodeBlock>`{3}((?<CS>\\w*?$)|$).+?({.+?}).+?`{3})", RegexOptions.Multil
         IOptions<ModerationOptions> moderationOptions,
         IOptions<DiscordGuildOptions> guildOptions,
         IOptions<CommandOptions> commandOptions,
-        RecruitmentForumClassifier recruitmentForums)
+        ForumClassifier recruitmentForums)
     {
         _client = client;
         _rand = new Random();

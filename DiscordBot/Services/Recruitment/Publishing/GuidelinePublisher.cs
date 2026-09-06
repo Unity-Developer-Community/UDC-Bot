@@ -1,22 +1,24 @@
-namespace DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.State;
+namespace DiscordBot.Services.Recruitment.Publishing;
 
 /// <summary>Called under the managed work gate. A publication becomes usable only after read-back.</summary>
-public sealed class RecruitmentGuidelinePublisher(RecruitmentStateStore store, IRecruitmentPublisher discord,
-    RecruitmentGuidelines templates, TimeProvider time)
+public sealed class GuidelinePublisher(StateStore store, IForumPublisher discord,
+    GuidelineTemplates templates, TimeProvider time)
 {
-    public async Task<RecruitmentGuidelinePreview> PreviewAsync(RecruitmentForum forum, CancellationToken token)
+    public async Task<GuidelinePreview> PreviewAsync(Forum forum, CancellationToken token)
     {
-        RecruitmentForumSetup live = await discord.GetForumAsync(forum.ChannelId, token);
+        ForumSetup live = await discord.GetForumAsync(forum.ChannelId, token);
         return new(templates.Render(templates.Load(forum.Kind), "ABCDE"),
-            RecruitmentGuidelines.Hash(live.Topic), RecruitmentGuidelines.TagHash(live.Tags));
+            GuidelineTemplates.Hash(live.Topic), GuidelineTemplates.TagHash(live.Tags));
     }
 
-    public async Task EnsureAsync(RecruitmentForum forum, CancellationToken token,
+    public async Task EnsureAsync(Forum forum, CancellationToken token,
         string? adoptTopicHash = null, string? repairTagHash = null)
     {
-        RecruitmentForumSetup live = await discord.GetForumAsync(forum.ChannelId, token);
-        RecruitmentForumPublication publication = (await store.LoadAsync(token))!.Forums[forum.ChannelId].Publication;
-        string actualHash = RecruitmentGuidelines.Hash(live.Topic);
+        ForumSetup live = await discord.GetForumAsync(forum.ChannelId, token);
+        ForumPublication publication = (await store.LoadAsync(token))!.Forums[forum.ChannelId].Publication;
+        string actualHash = GuidelineTemplates.Hash(live.Topic);
 
         if (adoptTopicHash is not null && actualHash != adoptTopicHash)
         {
@@ -24,7 +26,7 @@ public sealed class RecruitmentGuidelinePublisher(RecruitmentStateStore store, I
         }
         if (repairTagHash is not null)
         {
-            if (RecruitmentGuidelines.TagHash(live.Tags) != repairTagHash)
+            if (GuidelineTemplates.TagHash(live.Tags) != repairTagHash)
             {
                 throw new InvalidOperationException("Tags changed since preview. Preview again before repairing.");
             }
@@ -43,8 +45,8 @@ public sealed class RecruitmentGuidelinePublisher(RecruitmentStateStore store, I
         }
 
         string template = templates.Load(forum.Kind);
-        string templateHash = RecruitmentGuidelines.Hash(template);
-        DateTimeOffset week = RecruitmentGuidelines.WeekStart(time.GetUtcNow());
+        string templateHash = GuidelineTemplates.Hash(template);
+        DateTimeOffset week = GuidelineTemplates.WeekStart(time.GetUtcNow());
         bool owned = publication.Confirmed?.TopicHash == actualHash;
         if (adoptTopicHash is null && !owned && (publication.Confirmed is not null || !string.IsNullOrWhiteSpace(live.Topic)))
         {
@@ -59,11 +61,11 @@ public sealed class RecruitmentGuidelinePublisher(RecruitmentStateStore store, I
         candidate = adoptTopicHash is null ? publication.Candidate : null;
         if (candidate is null)
         {
-            string code = publication.Confirmed?.WeekStartUtc == week ? publication.Confirmed.Code : RecruitmentGuidelines.NewCode();
+            string code = publication.Confirmed?.WeekStartUtc == week ? publication.Confirmed.Code : GuidelineTemplates.NewCode();
             candidate = new()
             {
                 Code = code, WeekStartUtc = week, TemplateHash = templateHash,
-                TopicHash = RecruitmentGuidelines.Hash(templates.Render(template, code))
+                TopicHash = GuidelineTemplates.Hash(templates.Render(template, code))
             };
             await store.UpdateAsync(state =>
             {
@@ -75,28 +77,28 @@ public sealed class RecruitmentGuidelinePublisher(RecruitmentStateStore store, I
         }
 
         string rendered = templates.Render(template, candidate.Code);
-        if (RecruitmentGuidelines.Hash(rendered) != candidate.TopicHash)
+        if (GuidelineTemplates.Hash(rendered) != candidate.TopicHash)
         {
             throw new InvalidOperationException("Template changed during publication; preview and explicitly publish again.");
         }
         string expectedHash = (await store.LoadAsync(token))!.Forums[forum.ChannelId].Publication.ExpectedTopicHash!;
         await discord.PublishTopicAsync(forum.ChannelId, expectedHash, rendered, token);
         live = await discord.GetForumAsync(forum.ChannelId, token);
-        if (RecruitmentGuidelines.Hash(live.Topic) != candidate.TopicHash)
+        if (GuidelineTemplates.Hash(live.Topic) != candidate.TopicHash)
         {
             throw new InvalidOperationException("Guidelines read-back differs from the candidate; publication is suspended.");
         }
         await ConfirmAsync(forum.ChannelId, candidate, token);
     }
 
-    private async Task EnsureClosedTagAsync(ulong forumId, RecruitmentForumSetup live, ulong? knownId, CancellationToken token)
+    private async Task EnsureClosedTagAsync(ulong forumId, ForumSetup live, ulong? knownId, CancellationToken token)
     {
-        RecruitmentForumTag? previous = live.Tags.SingleOrDefault(tag => tag.Id == knownId);
+        ForumTag? previous = live.Tags.SingleOrDefault(tag => tag.Id == knownId);
         if (previous is not null && !IsClosed(previous))
         {
             throw new InvalidOperationException("The known Closed tag was renamed; staff preview/tag repair is required.");
         }
-        RecruitmentForumTag[] matches = live.Tags.Where(IsClosed).ToArray();
+        ForumTag[] matches = live.Tags.Where(IsClosed).ToArray();
         if (matches.Length > 1 || matches.Any(tag => tag.Moderated))
         {
             throw new InvalidOperationException("Closed must have one unmoderated match; resolve conflicting tags before setup.");
@@ -107,7 +109,7 @@ public sealed class RecruitmentGuidelinePublisher(RecruitmentStateStore store, I
             {
                 throw new InvalidOperationException("Forum tag inventory is full; no existing tag will be removed.");
             }
-            await discord.AppendClosedTagAsync(forumId, RecruitmentGuidelines.TagHash(live.Tags), token);
+            await discord.AppendClosedTagAsync(forumId, GuidelineTemplates.TagHash(live.Tags), token);
             live = await discord.GetForumAsync(forumId, token);
             matches = live.Tags.Where(IsClosed).ToArray();
             if (matches.Length != 1 || matches[0].Moderated)
@@ -122,7 +124,7 @@ public sealed class RecruitmentGuidelinePublisher(RecruitmentStateStore store, I
         }, token);
     }
 
-    private Task ConfirmAsync(ulong forumId, RecruitmentGuidelineReceipt receipt, CancellationToken token) => store.UpdateAsync(state =>
+    private Task ConfirmAsync(ulong forumId, GuidelineReceipt receipt, CancellationToken token) => store.UpdateAsync(state =>
     {
         receipt.PublishedAtUtc = time.GetUtcNow();
         var publication = state.Forums[forumId].Publication;
@@ -132,7 +134,7 @@ public sealed class RecruitmentGuidelinePublisher(RecruitmentStateStore store, I
         publication.Error = null;
         publication.CheckedAtUtc = time.GetUtcNow();
         foreach (var post in state.Posts.Values.Where(post => post.ParentChannelId == forumId &&
-                     post.Acknowledgement == RecruitmentAcknowledgement.Pending && post.ChallengeDeadlineUtc > time.GetUtcNow()))
+                     post.Acknowledgement == AcknowledgementStatus.Pending && post.ChallengeDeadlineUtc > time.GetUtcNow()))
         {
             post.AcceptedCodes = post.AcceptedCodes.Append(receipt.Code).Distinct(StringComparer.OrdinalIgnoreCase).TakeLast(8).ToArray();
         }
@@ -146,5 +148,5 @@ public sealed class RecruitmentGuidelinePublisher(RecruitmentStateStore store, I
         return true;
     }, token);
 
-    private static bool IsClosed(RecruitmentForumTag tag) => string.Equals(tag.Name.Trim(), "Closed", StringComparison.OrdinalIgnoreCase);
+    private static bool IsClosed(ForumTag tag) => string.Equals(tag.Name.Trim(), "Closed", StringComparison.OrdinalIgnoreCase);
 }

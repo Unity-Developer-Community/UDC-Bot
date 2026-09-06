@@ -4,6 +4,8 @@ using DiscordBot.Modules.Recruitment;
 using DiscordBot.Components;
 using DiscordBot.Policies;
 using DiscordBot.Services;
+using DiscordBot.Services.Recruitment.Observation;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Services.Recruitment;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,7 +22,7 @@ public sealed class RecruitmentAdvisoryServiceTests
     {
         await using var f = new RecruitmentAdvisoryFixture();
         await RecruitmentEnforcementTests.StartEnforce(f);
-        var service = new RecruitService(f.Store, f.Observations, f.Observer, Options.Create(f.Options), f.Time,
+        var service = new RecruitmentService(f.Store, f.Observations, f.Observer, Options.Create(f.Options), f.Time,
             f.Coordinator, f.Enforcement, f.Retention);
         await service.StartAsync(default);
         await service.ExecutePublicAsync(_ => Task.FromResult(true));
@@ -75,8 +77,8 @@ public sealed class RecruitmentAdvisoryServiceTests
         await using var f = new RecruitmentAdvisoryFixture();
         var observer = new EmptyObserver();
         var options = Options.Create(f.Options);
-        var observation = new RecruitmentObservationCoordinator(f.Store, observer, options, TimeProvider.System);
-        var service = new RecruitService(f.Store, observation, observer, options, TimeProvider.System, f.Coordinator);
+        var observation = new ObservationCoordinator(f.Store, observer, options, TimeProvider.System);
+        var service = new RecruitmentService(f.Store, observation, observer, options, TimeProvider.System, f.Coordinator);
         using var services = new ServiceCollection()
             .AddSingleton(service).AddSingleton(f.Owners).AddSingleton(f.Coordinator).AddSingleton(f.Guidelines).AddSingleton(f.Staff)
             .AddSingleton<IComponentStateReader, EnabledComponents>()
@@ -98,8 +100,8 @@ public sealed class RecruitmentAdvisoryServiceTests
         await using var f = new RecruitmentAdvisoryFixture();
         var observer = new EmptyObserver();
         var options = Options.Create(f.Options);
-        var observation = new RecruitmentObservationCoordinator(f.Store, observer, options, TimeProvider.System);
-        var service = new RecruitService(f.Store, observation, observer, options, TimeProvider.System, f.Coordinator);
+        var observation = new ObservationCoordinator(f.Store, observer, options, TimeProvider.System);
+        var service = new RecruitmentService(f.Store, observation, observer, options, TimeProvider.System, f.Coordinator);
         await service.StartAsync(default);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         bool drained = false;
@@ -118,7 +120,7 @@ public sealed class RecruitmentAdvisoryServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.ExecutePublicAsync(_ => { called = true; return Task.FromResult(true); }));
         Assert.IsFalse(called);
         string root = Path.GetDirectoryName(Path.GetDirectoryName(f.Store.StatePath))!;
-        await using var other = new RecruitmentStateStore(Options.Create(new StorageOptions { ServerRootPath = root }), Options.Create(new DiscordGuildOptions { GuildId = 1 }));
+        await using var other = new StateStore(Options.Create(new StorageOptions { ServerRootPath = root }), Options.Create(new DiscordGuildOptions { GuildId = 1 }));
         Assert.IsNotNull(await other.LoadAsync());
     }
 
@@ -129,8 +131,8 @@ public sealed class RecruitmentAdvisoryServiceTests
         f.Options.GuidelinesDirectory = "missing-templates";
         var observer = new EmptyObserver();
         var options = Options.Create(f.Options);
-        var observation = new RecruitmentObservationCoordinator(f.Store, observer, options, TimeProvider.System);
-        var service = new RecruitService(f.Store, observation, observer, options, TimeProvider.System, f.Coordinator);
+        var observation = new ObservationCoordinator(f.Store, observer, options, TimeProvider.System);
+        var service = new RecruitmentService(f.Store, observation, observer, options, TimeProvider.System, f.Coordinator);
         await service.StartAsync(default);
         await observer.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await service.StopAsync(default);
@@ -145,22 +147,22 @@ public sealed class RecruitmentAdvisoryServiceTests
         public bool IsEnabled(string componentId) => true;
     }
 
-    private sealed class EmptyObserver : IRecruitmentObserver
+    private sealed class EmptyObserver : IForumObserver
     {
         public TaskCompletionSource ReadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public IDisposable Subscribe(Action<RecruitmentObservationEvent> receive) => new Subscription();
+        public IDisposable Subscribe(Action<ObservationEvent> receive) => new Subscription();
         public Task ValidateAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task<IReadOnlyList<RecruitmentThreadSnapshot>> GetActiveAsync(ulong forumId, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<ThreadSnapshot>> GetActiveAsync(ulong forumId, CancellationToken cancellationToken)
         {
             ReadStarted.TrySetResult();
-            return Task.FromResult<IReadOnlyList<RecruitmentThreadSnapshot>>([]);
+            return Task.FromResult<IReadOnlyList<ThreadSnapshot>>([]);
         }
-        public Task<RecruitmentArchivePage> GetArchivedAsync(ulong forumId, DateTimeOffset? before, CancellationToken cancellationToken) => Task.FromResult(new RecruitmentArchivePage([], null, true));
-        public Task<RecruitmentThreadSnapshot?> GetThreadAsync(ulong threadId, CancellationToken cancellationToken) => Task.FromResult<RecruitmentThreadSnapshot?>(null);
-        public Task<RecruitmentMessageSnapshot?> GetStarterAsync(ulong threadId, CancellationToken cancellationToken) => Task.FromResult<RecruitmentMessageSnapshot?>(null);
-        public Task<RecruitmentMessagePage> GetRepliesAsync(ulong threadId, ulong afterId, CancellationToken cancellationToken) => Task.FromResult(new RecruitmentMessagePage([], true));
-        public Task<RecruitmentAuthorFacts> GetAuthorAsync(ulong authorId, CancellationToken cancellationToken) => Task.FromResult(new RecruitmentAuthorFacts(RecruitmentActivity.Unknown, null));
-        public Task<RecruitmentFeedPage> FindFeedAsync(string marker, DateTimeOffset since, ulong? beforeId, CancellationToken cancellationToken) => Task.FromResult(new RecruitmentFeedPage(null, null, true));
+        public Task<ArchivePage> GetArchivedAsync(ulong forumId, DateTimeOffset? before, CancellationToken cancellationToken) => Task.FromResult(new ArchivePage([], null, true));
+        public Task<ThreadSnapshot?> GetThreadAsync(ulong threadId, CancellationToken cancellationToken) => Task.FromResult<ThreadSnapshot?>(null);
+        public Task<MessageSnapshot?> GetStarterAsync(ulong threadId, CancellationToken cancellationToken) => Task.FromResult<MessageSnapshot?>(null);
+        public Task<MessagePage> GetRepliesAsync(ulong threadId, ulong afterId, CancellationToken cancellationToken) => Task.FromResult(new MessagePage([], true));
+        public Task<AuthorFacts> GetAuthorAsync(ulong authorId, CancellationToken cancellationToken) => Task.FromResult(new AuthorFacts(ActivityStatus.Unknown, null));
+        public Task<FeedPage> FindFeedAsync(string marker, DateTimeOffset since, ulong? beforeId, CancellationToken cancellationToken) => Task.FromResult(new FeedPage(null, null, true));
         public Task<ulong> SendFeedAsync(string content, CancellationToken cancellationToken) => Task.FromResult(500ul);
         public Task<bool> EditFeedAsync(ulong messageId, string marker, string content, CancellationToken cancellationToken) => Task.FromResult(true);
         private sealed class Subscription : IDisposable { public void Dispose() { } }

@@ -1,10 +1,11 @@
 using System.IO;
+using DiscordBot.Services.Recruitment.Publishing;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.State;
 
-internal static class RecruitmentPublicationValidation
+internal static class PublicationValidation
 {
-    public static void Validate(RecruitmentStateDocument state)
+    public static void Validate(StateDocument state)
     {
         foreach (var forum in state.Forums.Values)
         {
@@ -16,10 +17,10 @@ internal static class RecruitmentPublicationValidation
             CheckDate(publication.CheckedAtUtc);
             if (publication.Confirmed is { PublishedAtUtc: null })
                 throw new InvalidDataException("A confirmed publication requires a read-back receipt time.");
-            foreach (var receipt in new[] { publication.Confirmed, publication.Candidate }.OfType<RecruitmentGuidelineReceipt>())
+            foreach (var receipt in new[] { publication.Confirmed, publication.Candidate }.OfType<GuidelineReceipt>())
             {
-                if (!RecruitmentGuidelines.IsCode(receipt.Code) || !IsHash(receipt.TopicHash) || !IsHash(receipt.TemplateHash) ||
-                    receipt.WeekStartUtc != RecruitmentGuidelines.WeekStart(receipt.WeekStartUtc))
+                if (!GuidelineTemplates.IsCode(receipt.Code) || !IsHash(receipt.TopicHash) || !IsHash(receipt.TemplateHash) ||
+                    receipt.WeekStartUtc != GuidelineTemplates.WeekStart(receipt.WeekStartUtc))
                 {
                     throw new InvalidDataException("Invalid recruitment guideline receipt.");
                 }
@@ -58,9 +59,9 @@ internal static class RecruitmentPublicationValidation
     {
         if (value is not { Length: 16 } || !value.All(Uri.IsHexDigit)) throw new InvalidDataException("Invalid action token.");
     }
-    private static void CheckAction(RecruitmentActionKind kind)
+    private static void CheckAction(ActionKind kind)
     {
-        if (kind is not (RecruitmentActionKind.Delete or RecruitmentActionKind.LockArchive)) throw new InvalidDataException("Invalid owner action.");
+        if (kind is not (ActionKind.Delete or ActionKind.LockArchive)) throw new InvalidDataException("Invalid owner action.");
     }
     private static void CheckDate(params DateTimeOffset?[] values)
     {

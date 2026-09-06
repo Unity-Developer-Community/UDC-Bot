@@ -9,6 +9,12 @@ using DiscordBot.Policies;
 using DiscordBot.Service;
 using DiscordBot.Services;
 using DiscordBot.Services.Rendering;
+using DiscordBot.Services.Recruitment.Actions;
+using DiscordBot.Services.Recruitment.Observation;
+using DiscordBot.Services.Recruitment.Policy;
+using DiscordBot.Services.Recruitment.Presentation;
+using DiscordBot.Services.Recruitment.Publishing;
+using DiscordBot.Services.Recruitment.State;
 using DiscordBot.Services.Recruitment;
 using DiscordBot.Services.Tips;
 using DiscordBot.Settings;
@@ -31,7 +37,7 @@ public static class Program
         {
             var output = args.Length > 1 ? args[1] : null;
             var assets = args.Length > 2 ? args[2] : Path.Combine(AppContext.BaseDirectory, "Assets");
-            return await RecruitmentRenderPreview.RunAsync(assets, output);
+            return await RenderPreview.RunAsync(assets, output);
         }
 
         if (args.Length > 0 && args[0].Equals("--render-smoke", StringComparison.OrdinalIgnoreCase))
@@ -184,26 +190,26 @@ public static class Program
         });
         services.AddSingleton<IProfileCardRenderer, ProfileCardRenderer>();
         services.AddSingleton(TimeProvider.System);
-        services.AddSingleton<RecruitmentForumClassifier>();
-        services.AddSingleton<RecruitmentStateStore>();
-        services.AddSingleton<IRecruitmentObserver, DiscordRecruitmentObserver>();
-        services.AddSingleton<RecruitmentObservationCoordinator>();
-        services.AddSingleton<IRecruitmentPublisher, DiscordRecruitmentPublisher>();
-        services.AddSingleton<RecruitmentGuidelines>();
-        services.AddSingleton<RecruitmentGuidelinePublisher>();
-        services.AddSingleton<IRecruitmentBannerRenderer, RecruitmentBannerRenderer>();
-        services.AddSingleton<RecruitmentLifecycleExecutor>();
-        services.AddSingleton<RecruitmentOwnerActions>();
-        services.AddSingleton<RecruitmentEnforcementCoordinator>();
-        services.AddSingleton<RecruitmentRetention>();
-        services.AddSingleton<RecruitmentStaffActions>();
-        services.AddSingleton<RecruitmentPublicCoordinator>();
+        services.AddSingleton<ForumClassifier>();
+        services.AddSingleton<StateStore>();
+        services.AddSingleton<IForumObserver, DiscordObserver>();
+        services.AddSingleton<ObservationCoordinator>();
+        services.AddSingleton<IForumPublisher, DiscordPublisher>();
+        services.AddSingleton<GuidelineTemplates>();
+        services.AddSingleton<GuidelinePublisher>();
+        services.AddSingleton<IBannerRenderer, BannerRenderer>();
+        services.AddSingleton<LifecycleExecutor>();
+        services.AddSingleton<OwnerActions>();
+        services.AddSingleton<EnforcementCoordinator>();
+        services.AddSingleton<HistoryRetention>();
+        services.AddSingleton<StaffActions>();
+        services.AddSingleton<PublicCoordinator>();
         services.AddSingleton<UserService>();
         services.AddSingleton<IntroductionWatcherService>();
         services.AddSingleton<ModerationService>();
         services.AddSingleton<FeedService>();
         services.AddSingleton<UnityHelpService>();
-        services.AddSingleton<RecruitService>();
+        services.AddSingleton<RecruitmentService>();
         services.AddSingleton<UpdateService>();
         services.AddSingleton<CurrencyService>();
         services.AddSingleton<ReminderService>();
@@ -238,7 +244,7 @@ public static class Program
             serviceProvider => serviceProvider.GetRequiredService<IntroductionWatcherService>()));
         services.AddSingleton(new ManagedComponentRegistration(
             ComponentIds.Recruitment,
-            serviceProvider => serviceProvider.GetRequiredService<RecruitService>()));
+            serviceProvider => serviceProvider.GetRequiredService<RecruitmentService>()));
         services.AddSingleton(new ManagedComponentRegistration(
             ComponentIds.UnityHelp,
             serviceProvider => serviceProvider.GetRequiredService<UnityHelpService>()));
