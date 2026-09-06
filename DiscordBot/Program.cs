@@ -192,8 +192,12 @@ public static class Program
         services.AddSingleton<RecruitmentGuidelines>();
         services.AddSingleton<RecruitmentGuidelinePublisher>();
         services.AddSingleton<IRecruitmentBannerRenderer, RecruitmentBannerRenderer>();
+        services.AddSingleton<RecruitmentLifecycleExecutor>();
         services.AddSingleton<RecruitmentOwnerActions>();
-        services.AddSingleton<RecruitmentAdvisoryCoordinator>();
+        services.AddSingleton<RecruitmentEnforcementCoordinator>();
+        services.AddSingleton<RecruitmentRetention>();
+        services.AddSingleton<RecruitmentStaffActions>();
+        services.AddSingleton<RecruitmentPublicCoordinator>();
         services.AddSingleton<UserService>();
         services.AddSingleton<IntroductionWatcherService>();
         services.AddSingleton<ModerationService>();

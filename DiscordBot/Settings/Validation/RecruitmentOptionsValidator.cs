@@ -34,7 +34,7 @@ public sealed class RecruitmentOptionsValidator(
             ($"Recruitment:Forums:{f.Kind}:ChannelId", f.ChannelId)).Append(
             ("Recruitment:FeedChannelId", value.FeedChannelId)).ToArray());
         if (forums.Any(f => f.ChannelId == 0))
-            errors.Add("Recruitment requires four named Forums; migrate the legacy single-forum settings in FeatureSettings.json.");
+            errors.Add("Recruitment requires four named Forums in FeatureSettings.json.");
         if (forums.Select(f => f.ChannelId).Where(id => id != 0).Distinct().Count() != forums.Count(f => f.ChannelId != 0))
             errors.Add("Recruitment:Forums channel IDs must be distinct.");
         if (value.FeedChannelId != 0 && forums.Any(f => f.ChannelId == value.FeedChannelId))

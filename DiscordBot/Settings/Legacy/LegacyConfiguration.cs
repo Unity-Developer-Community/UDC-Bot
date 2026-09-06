@@ -158,10 +158,6 @@ public static class LegacyBotSettingsAdapter
         Add(values, "Feeds:NewsSubscriberRoleId", settings.SubsNewsRoleId);
         Add(values, "Feeds:ReleasesSubscriberRoleId", settings.SubsReleasesRoleId);
 
-        Add(values, "Recruitment:Enabled", settings.RecruitmentServiceEnabled);
-        // The old single forum cannot identify the four new forums. Keeping Enabled
-        // lets feature validation report migration rather than silently misrouting posts.
-
         Add(values, "UnityHelp:Enabled", settings.UnityHelpBabySitterEnabled);
         Add(values, "UnityHelp:ForumChannelId", settings.GenericHelpChannel?.Id);
         Add(values, "UnityHelp:ResolvedTagId", ParseId(settings.TagUnitHelpResolvedTag));

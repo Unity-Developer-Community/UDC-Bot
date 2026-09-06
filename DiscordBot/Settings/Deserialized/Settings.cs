@@ -40,7 +40,6 @@ public class BotSettings
     #region Service Enabling
     // Used for enabling/disabling services in the bot
 
-    public bool RecruitmentServiceEnabled { get; set; } = false;
     public bool UnityHelpBabySitterEnabled { get; set; } = false;
     public bool IntroductionWatcherServiceEnabled { get; set; } = false;
 
@@ -68,9 +67,6 @@ public class BotSettings
     public ChannelInfo UnityReleasesChannel { get; set; }
     public ChannelInfo RulesChannel { get; set; }
 
-    // Recruitment Channels
-
-    public ChannelInfo RecruitmentChannel { get; set; }
 
     public ChannelInfo ReportedMessageChannel { get; set; }
 
@@ -97,17 +93,6 @@ public class BotSettings
     public ulong TipsUserRoleId { get; set; } // e.g., Helpers
 
     #endregion // User Roles
-
-    #region Recruitment Thread
-
-    public string TagLookingToHire { get; set; }
-    public string TagLookingForWork { get; set; }
-    public string TagUnpaidCollab { get; set; }
-    public string TagPositionFilled { get; set; }
-
-    public int EditPermissionAccessTimeMin { get; set; } = 3;
-
-    #endregion // Recruitment Thread Tags
 
     #region Unity Help Threads
 

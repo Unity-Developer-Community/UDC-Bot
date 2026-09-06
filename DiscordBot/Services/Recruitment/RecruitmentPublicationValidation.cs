@@ -47,14 +47,9 @@ internal static class RecruitmentPublicationValidation
                 CheckToken(confirmation.Token);
                 CheckAction(confirmation.Kind);
                 CheckDate(confirmation.ExpiresAtUtc, confirmation.AcceptedAtUtc);
-                if (confirmation.Version < 0) throw new InvalidDataException("Invalid confirmation version.");
+                if (confirmation.Version < 0 || confirmation.ActorId == 0 || !Enum.IsDefined(confirmation.Origin) || confirmation.Note is null || confirmation.Note.Length > 200) throw new InvalidDataException("Invalid confirmation version.");
             }
-            if (advisory.PendingAction is { } action)
-            {
-                CheckToken(action.Id);
-                CheckAction(action.Kind);
-                CheckDate(action.RequestedAtUtc, action.CompletedAtUtc, action.AcceptedAtUtc);
-            }
+
         }
     }
 

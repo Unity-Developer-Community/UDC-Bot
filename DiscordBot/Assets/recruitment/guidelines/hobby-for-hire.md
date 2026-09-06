@@ -1,19 +1,72 @@
-# Hobby for hire
+# ⚠️ HOBBY — FOR HIRE
 
-Use this forum to offer your skills for unpaid hobby collaboration.
+Use this forum to offer your skills for **unpaid hobby collaboration**.
 
-## Make the offer clear
-Say clearly that your offer is unpaid. Describe your skills, availability, examples of your work, and expectations around ownership and credit.
-Revenue share is not guaranteed pay. Label it explicitly; an offer with no guaranteed payment belongs in a hobby forum. Missing details will receive advice rather than automatic rejection.
+## Your post must include
 
-## Start the conversation here
-Keep the initial scope, terms, rate and portfolio verification in the public post. Ask questions here before moving to DMs. Verify work and identity independently; an acknowledgement code or bot summary is not an endorsement. Do not run unknown files, share credentials, or let urgency pressure you into payment.
+* **Role / skills**
+* **Experience level**
+* **Availability**
+* What kind of project or team you are looking for
+* **Work examples / portfolio**, where available
+* Your expectations around **credit, ownership and usage**
 
-## Maintain your listing
-The planned policy allows one recruiting listing and one for-hire listing across the paid/hobby forums. Each group has its own {{cooldown_days}}-day wait from an accepted listing's creation, and from its deletion when applicable. Close the existing listing before replacing it. Posting in both groups is allowed; double-check that each post belongs in its chosen forum.
-Use the bot's Close control when finished, or add Closed to signal that you are finished. Removing Closed does not reopen a listing. Accepted listings with no qualifying response close after {{unanswered_days}} days when lifecycle enforcement is enabled. Ordinary replies remain public.
+Be clear about compensation. **Revenue share is not guaranteed pay** and must be labelled as rev-share. If guaranteed payment is involved, use Paid instead.
 
-## Acknowledge these guidelines
-Use the acknowledgement button on the bot's message and enter the code in its private form. Do not post the answer in the thread. A challenge gives you {{acknowledgement_minutes}} minutes from successful delivery. In Advisory mode this is practice: no automatic deletion, closure or failure count. When enforcement is enabled, an unresolved usable challenge can result in deletion. The bot message states the active mode and your deadline.
+New or inexperienced? That's fine, **say so clearly**. If you do not have a portfolio yet, describe what you have worked on or are currently learning.
+
+## Keep useful questions public
+
+Ask about **scope, expectations, experience, ownership, credit and project details in the thread** when the answer would benefit everyone.
+
+Do not immediately push conversations into DMs. Bad actors prefer private conversations because there is less visibility, making suspicious behaviour harder for users and moderators to identify.
+
+Move to DMs when information actually needs to be private.
+
+**Never run unknown files, share credentials, or let urgency pressure you into payment or sensitive information.**
+
+## Acknowledgement
+
+Use the button on the bot message and enter this code **privately**:
 
 UDC acknowledgement code: {{code}}
+
+Do **not** post the code in your thread. You have **{{acknowledgement_minutes}} minutes** after receiving the challenge.
+
+**One active listing per group.** Close your existing listing before replacing it. Cooldowns apply.
+
+## Examples
+
+These are examples, not required formatting.
+
+```markdown
+Role: Beginner Gameplay Programmer
+Skills: C#, Unity, basic multiplayer
+Experience: 1 game jam + personal projects
+Availability: Weekends, ~8 hrs/week
+Looking for: Small hobby team or game jam group
+
+Work:
+https://github.com/yourname
+https://yourname.itch.io
+
+Expectations: Looking to learn and contribute to a small project.
+Credit me for work used in released builds.
+Compensation: Unpaid hobby collaboration.
+```
+
+```markdown
+Role: Composer / Sound Designer
+Skills: Electronic music, ambience, SFX
+Experience: Hobbyist, ~2 years
+Availability: 5–10 hrs/week
+Looking for: Small indie or game jam projects
+
+Work:
+https://soundcloud.com/yourname
+https://yourname.bandcamp.com
+https://yourname.itch.io
+
+Expectations: Portfolio use and appropriate project credit.
+Compensation: Rev-share only — no guaranteed payment.
+```

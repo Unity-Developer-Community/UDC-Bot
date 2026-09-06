@@ -51,12 +51,12 @@ public sealed class RecruitmentOwnerActionTests
         var confirmation = await f.Owners.PrepareAsync(f.Owner, await f.Generation(), kind, default);
         f.Discord.FailActionAfterWrite = true;
         await Assert.ThrowsAsync<IOException>(() => f.Owners.ConfirmAsync(f.Owner, confirmation.Token, default));
-        Assert.IsNull((await f.Post()).Advisory.PendingAction!.CompletedAtUtc);
+        Assert.IsNull((await f.Post()).PendingAction!.CompletedAtUtc);
         await f.Store.ReleaseAsync();
         await f.Owners.RecoverAsync(10, default);
         await f.Owners.RecoverAsync(10, default);
         Assert.AreEqual(1, f.Discord.Actions);
-        Assert.IsNotNull((await f.Post()).Advisory.PendingAction!.CompletedAtUtc);
+        Assert.IsNotNull((await f.Post()).PendingAction!.CompletedAtUtc);
         Assert.AreEqual(kind == RecruitmentActionKind.Delete ? RecruitmentLifecycle.Deleted : RecruitmentLifecycle.Closed, (await f.Post()).Lifecycle);
         await Assert.ThrowsAsync<InvalidOperationException>(() => f.Owners.ConfirmAsync(f.Owner, confirmation.Token, default));
         Assert.AreEqual(0, (await f.State()).Authors.Count);

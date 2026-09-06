@@ -14,17 +14,17 @@ public sealed class RecruitmentCodeModal : IModal
 }
 
 public sealed class RecruitmentOwnerModule(RecruitService service, RecruitmentOwnerActions owners,
-    RecruitmentAdvisoryCoordinator advisory) : BotInteractionModuleBase
+    RecruitmentPublicCoordinator advisory) : BotInteractionModuleBase
 {
     [ComponentInteraction("udc-recruit:ack:*:*")]
     public async Task OpenCode(ulong threadId, string generation)
     {
         try
         {
-            if (!service.IsAdvisoryRunning) throw new InvalidOperationException("Advisory is stopped or unavailable.");
+            if (!service.IsPublicRunning) throw new InvalidOperationException("Advisory is stopped or unavailable.");
             // A modal must be the initial response. Do only local identity checks here; submission checks Discord again.
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            await service.ExecuteAdvisoryAsync(async token =>
+            await service.ExecutePublicAsync(async token =>
             {
                 await owners.ValidateControlAsync(OwnerContext(threadId), generation, token);
                 return true;
@@ -91,7 +91,7 @@ public sealed class RecruitmentOwnerModule(RecruitService service, RecruitmentOw
         await DeferAsync(ephemeral: true);
         try
         {
-            var result = await service.ExecuteAdvisoryAsync(action);
+            var result = await service.ExecutePublicAsync(action);
             await FollowupAsync(result.Text, components: result.Controls, ephemeral: true, allowedMentions: AllowedMentions.None);
         }
         catch (Exception error) { await FollowupAsync(Failure(error), ephemeral: true, allowedMentions: AllowedMentions.None); }

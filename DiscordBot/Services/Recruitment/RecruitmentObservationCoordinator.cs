@@ -26,7 +26,7 @@ public sealed class RecruitmentObservationCoordinator(
     public async Task InitializeAsync(CancellationToken token)
     {
         HasGaps = true;
-        Summary = "Observe: initial reconciliation pending. No public actions.";
+        Summary = "Observation: initial reconciliation pending.";
         _startedAt = Now;
         await discord.ValidateAsync(token);
         if (await store.LoadAsync(token) is null)
@@ -41,10 +41,14 @@ public sealed class RecruitmentObservationCoordinator(
             {
                 throw new InvalidOperationException("Recruitment forum mapping changed; review/migrate existing state before starting.");
             }
-            foreach (var forum in forums)
+            foreach (var forum in forums) state.Forums.TryAdd(forum.ChannelId, new());
+            if (Options.Mode == RecruitmentMode.Enforce && state.LastMode != RecruitmentMode.Enforce)
             {
-                state.Forums.TryAdd(forum.ChannelId, new());
+                state.EnforcementStartedAtUtc = Now;
+                foreach (var post in state.Posts.Values.Where(post => post.AcceptedAtUtc is null))
+                    post.EnforcementEnrolled = false;
             }
+            state.LastMode = Options.Mode;
             return true;
         }, token);
         await RecordGapAsync(token);
@@ -53,7 +57,7 @@ public sealed class RecruitmentObservationCoordinator(
     public async Task RecordGapAsync(CancellationToken token, long droppedEvents = 0)
     {
         HasGaps = true;
-        Summary = "Observe: gateway/reconciliation gap; catch-up pending. No public actions.";
+        Summary = "Observation: gateway/reconciliation gap; catch-up pending.";
         await store.UpdateAsync(state =>
         {
             state.LastGatewayGapAtUtc = Now;
@@ -87,6 +91,7 @@ public sealed class RecruitmentObservationCoordinator(
             return;
         }
         var state = (await store.LoadAsync(token))!;
+        if (state.RetiredThreadIds.Contains(item.ThreadId)) return;
         if (!state.Posts.ContainsKey(item.ThreadId))
         {
             if (RecruitmentForumClassifier.GetForums(Options.Forums).All(forum => forum.ChannelId != item.ParentId))
@@ -266,11 +271,11 @@ public sealed class RecruitmentObservationCoordinator(
         int pendingFeedEntries = state.Posts.Values.Count(HasPendingFeedDelivery);
 
         HasGaps = incompleteInventories + postsWithEvidenceGaps + pendingFeedEntries > 0;
-        Summary = $"Observe: {state.Posts.Count} posts; " +
+        Summary = $"Observation: {state.Posts.Count} posts; " +
             $"{incompleteInventories} incomplete forum inventories; " +
             $"{postsWithEvidenceGaps} posts with review/coverage gaps; " +
             $"{pendingFeedEntries} pending/failed feed entries; " +
-            $"{state.DroppedObservationEvents} queue overflows recorded. No public actions.";
+            $"{state.DroppedObservationEvents} queue overflows recorded.";
     }
 
     private static bool HasIncompleteInventory(RecruitmentForumObservation inventory) =>
@@ -290,6 +295,7 @@ public sealed class RecruitmentObservationCoordinator(
 
     private void ObserveThread(RecruitmentStateDocument state, RecruitmentThreadSnapshot thread)
     {
+        if (state.RetiredThreadIds.Contains(thread.Id)) return;
         var forum = RecruitmentForumClassifier.GetForums(Options.Forums).SingleOrDefault(forum => forum.ChannelId == thread.ParentId);
         if (forum is null)
         {
@@ -309,6 +315,8 @@ public sealed class RecruitmentObservationCoordinator(
                 CreatedAtUtc = thread.CreatedAtUtc,
                 FirstSeenAtUtc = Now,
                 RequiresReview = imported,
+                EnforcementEnrolled = !imported && Options.Mode == RecruitmentMode.Enforce &&
+                    state.EnforcementStartedAtUtc is { } boundary && thread.CreatedAtUtc >= boundary,
                 Observation = new() { Imported = imported, HistoryUncertain = thread.CreatedAtUtc < _startedAt }
             };
             if (!state.Authors.TryGetValue(post.AuthorId, out var author))
@@ -343,7 +351,7 @@ public sealed class RecruitmentObservationCoordinator(
     private static void ObserveResponse(RecruitmentPostRecord post, RecruitmentResponse response)
     {
         var qualifies = RecruitmentPolicyEvaluator.IsQualifyingResponse(post, response);
-        if (qualifies is null)
+        if (qualifies is null && (post.HistoryReviewedThroughUtc is null || response.CreatedAtUtc > post.HistoryReviewedThroughUtc))
         {
             post.Observation.HistoryUncertain = true;
         }
@@ -351,6 +359,29 @@ public sealed class RecruitmentObservationCoordinator(
         {
             post.FirstQualifyingResponseAtUtc = response.CreatedAtUtc;
         }
+    }
+
+    public async Task ReconcileAsync(ulong threadId, CancellationToken token)
+    {
+        if (!(await store.LoadAsync(token))!.Posts.ContainsKey(threadId))
+        {
+            var live = await discord.GetThreadAsync(threadId, token);
+            if (live is not null) await HandleAsync(new(RecruitmentEventKind.Changed, threadId, live.ParentId), token);
+        }
+        if (!(await store.LoadAsync(token))!.Posts.ContainsKey(threadId))
+            throw new InvalidOperationException("The post is not available in a configured recruitment forum.");
+        await CheckPostAsync(threadId, token);
+    }
+
+    public async Task<bool> FlushFeedAsync(ulong threadId, CancellationToken token)
+    {
+        await PublishFeedAsync(threadId, token);
+        var state = (await store.LoadAsync(token))!;
+        var post = state.Posts[threadId];
+        string marker = $"recruit-observe:{state.GuildId}:{threadId}";
+        string expected = RecruitmentObservationMessage.Build(state, post, new(Options, time), Options, marker, Now);
+        return post.FeedMessageId is not null && post.Observation.FeedError is null &&
+            post.Observation.FeedSendRequestedAtUtc is null && post.Observation.FeedHash == Hash(expected);
     }
 
     private async Task CheckPostAsync(ulong id, CancellationToken token)

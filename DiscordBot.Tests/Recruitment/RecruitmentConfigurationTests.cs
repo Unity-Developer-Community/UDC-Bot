@@ -110,27 +110,6 @@ public sealed class RecruitmentConfigurationTests
     }
 
     [TestMethod]
-    public void LegacyEnabledFeature_RequiresExplicitFourForumMigration_ModularDisableWins()
-    {
-        using var root = TestConfigurationRoot.Create();
-        File.WriteAllText(Path.Combine(root.Path, "Settings/Settings.json"),
-            """{ "RecruitmentServiceEnabled": true, "RecruitmentChannel": { "Id": 123 } }""");
-        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { ContentRootPath = root.Path });
-        builder.AddBotConfiguration(root.Path);
-        using (var provider = builder.Services.BuildServiceProvider())
-        {
-            Assert.IsFalse(Status(provider).IsConfigured);
-            StringAssert.Contains(string.Join(' ', Status(provider).Errors), "migrate");
-            Assert.IsNull(builder.Configuration["Recruitment:ForumChannelId"]);
-        }
-        File.WriteAllText(Path.Combine(root.Path, "Settings/FeatureSettings.json"), """{ "Recruitment": { "Enabled": false } }""");
-        var disabled = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { ContentRootPath = root.Path });
-        disabled.AddBotConfiguration(root.Path);
-        using var disabledProvider = disabled.Services.BuildServiceProvider();
-        Assert.IsTrue(Status(disabledProvider).IsConfigured);
-    }
-
-    [TestMethod]
     public void HostBuilds_WithMalformedRecruitment_AndXpDependenciesStillResolve()
     {
         using var root = TestConfigurationRoot.Create();

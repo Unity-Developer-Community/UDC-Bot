@@ -53,23 +53,6 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
             {
                 _state = null;
             }
-            if (_state is { SchemaVersion: < RecruitmentStateDocument.CurrentSchemaVersion })
-            {
-                var migrated = Clone(_state);
-                migrated.SchemaVersion = RecruitmentStateDocument.CurrentSchemaVersion;
-                migrated.Revision = checked(migrated.Revision + 1);
-                if (_state.SchemaVersion == 1)
-                {
-                    foreach (var post in migrated.Posts.Values)
-                    {
-                        post.Observation.Imported = true;
-                        post.Observation.HistoryUncertain = true;
-                        post.RequiresReview = true;
-                    }
-                }
-                await WriteAsync(migrated, preservePrevious: true, overwrite: true, cancellationToken);
-                _state = migrated;
-            }
             _loaded = true;
             _faulted = false;
             return _state is null ? null : Clone(_state);
@@ -81,6 +64,14 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
             throw;
         }
         finally { _mutex.Release(); }
+    }
+
+    /// <summary>Staff lookup without acquiring a writer or enrolling state while the component is stopped.</summary>
+    public async Task<RecruitmentStateDocument?> InspectAsync(CancellationToken cancellationToken = default)
+    {
+        try { return await ReadAsync(StatePath, cancellationToken); }
+        catch (FileNotFoundException) { return null; }
+        catch (DirectoryNotFoundException) { return null; }
     }
 
     public async Task InitializeAsync(DateTimeOffset enrolledAtUtc, CancellationToken cancellationToken = default)
@@ -142,14 +133,6 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
         {
             AcquireWriter();
             var backup = await ReadAsync(BackupPath, cancellationToken);
-            if (backup.SchemaVersion == 1)
-                foreach (var post in backup.Posts.Values)
-                {
-                    post.Observation.Imported = true;
-                    post.Observation.HistoryUncertain = true;
-                    post.RequiresReview = true;
-                }
-            backup.SchemaVersion = RecruitmentStateDocument.CurrentSchemaVersion;
             if (File.Exists(StatePath))
                 File.Copy(StatePath, StatePath + $".replaced-{Guid.NewGuid():N}", overwrite: false);
             await WriteAsync(backup, preservePrevious: false, overwrite: true, cancellationToken);
@@ -232,8 +215,8 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
 
     private void Validate(RecruitmentStateDocument document)
     {
-        if (document.SchemaVersion is not (1 or 2 or RecruitmentStateDocument.CurrentSchemaVersion))
-            throw new InvalidDataException("Unsupported recruitment state schema; explicit migration is required.");
+        if (document.SchemaVersion != RecruitmentStateDocument.CurrentSchemaVersion)
+            throw new InvalidDataException("Unsupported recruitment state schema.");
         if (document.GuildId != _guildId || document.Revision < 0 || document.DroppedObservationEvents < 0 ||
             document.Posts is null || document.Authors is null || document.Forums is null)
             throw new InvalidDataException("Recruitment state has an invalid guild, revision or collection.");
@@ -288,6 +271,7 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
                 RequireUtc(history.LastAcceptedCreatedAtUtc, history.LastAcceptedDeletedAtUtc);
             }
         }
+        RecruitmentLifecycleValidation.Validate(document);
     }
 
     private static void RequireUtc(params DateTimeOffset?[] dates)

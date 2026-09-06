@@ -72,17 +72,6 @@
   "FlightAPIKey": "",
   "FlightAPISecret": "",
   "AirLabAPIKey": "",
-  /* Recruitment Service */
-  "RecruitmentServiceEnabled": false,
-  "RecruitmentChannel": { // Recruitment
-    "desc": "Channel for job postings",
-    "id": "0"
-  },
-  "TagLookingToHire": "0",
-  "TagLookingForWork": "0",
-  "TagUnpaidCollab": "0",
-  "TagPositionFilled": "0",
-  "EditPermissionAccessTimeMin": 3,
   /* Unity Help Service */
   "UnityHelpBabySitterEnabled": false,
   "genericHelpChannel": {

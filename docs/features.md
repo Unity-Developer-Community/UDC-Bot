@@ -26,7 +26,7 @@ post_date: "2026-04-03"
 | **Tips** | Searchable tip database with image support, keyword lookups | `TipModule` | `TipService` | Feature |
 | **Tickets** | Private complaint/support ticket channels | `TicketModule` | — | Feature |
 | **Unity Help** | Help forum thread management, auto-archive, canned responses, FAQ, resources | `UnityHelpModule`, `CannedResponseModule`, `GeneralHelpModule`, `UnityHelpInteractiveModule`, `CannedInteractiveModule` | `UnityHelpService`, `CannedResponseService` | Core |
-| **Recruitment** | Four-forum Observe inventory and Advisory practice with managed Guidelines and owner controls | `/recruitment preview`, `/recruitment publish` | `RecruitService` | Feature |
+| **Recruitment** | Four-forum observation, practice and gated enforcement with owner/moderator controls | `/recruitment` | `RecruitService` | Feature |
 | **Birthday Announcements** | Scheduled birthday notifications (configurable interval) | — | `BirthdayAnnouncementService` | Feature |
 | **Currency Conversion** | Real-time currency conversion | — | `CurrencyService` | Feature |
 | **Flight Data** | Airport and flight lookups | `AirportModule` | `AirportService` | Feature |
@@ -40,9 +40,8 @@ post_date: "2026-04-03"
 
 Recruitment now has four named forum settings in `FeatureSettings.json`:
 `Recruitment:Forums:PaidRecruiting:ChannelId`, `PaidForHire:ChannelId`,
-`HobbyRecruiting:ChannelId`, and `HobbyForHire:ChannelId`. Channel names and tag IDs from
-the old single-forum settings are not projected into this new mapping. Legacy-enabled
-recruitment without the four slots reports a migration error; other features remain available.
+`HobbyRecruiting:ChannelId`, and `HobbyForHire:ChannelId`. All four slots are required when
+enabled. Recruitment has no legacy settings projection; tag IDs are resolved into state.
 
 The managed coordinator supports **enabled `Mode: Observe`** with valid forum and staff-feed
 settings. It captures thread creation/changes/deletion, starter edits, replies and forum
@@ -50,11 +49,11 @@ changes; inventories active and archived posts; and maintains one staff-feed ent
 observed attempt. Entries show known facts, eligibility findings, placement reminders,
 previous-post links and evidence gaps. Observe does not publish public messages, create tags,
 change Guidelines, accept listings, or delete/lock/archive posts. Advisory now adds the public
-practice workflow described in [Recruitment Advisory](recruitment.md). Enforce startup is
-still rejected. Checked-in deployments remain disabled.
+practice workflow; Enforce adds independent automatic-action gates and moderator recovery,
+described in [Recruitment](recruitment.md). Checked-in deployments remain disabled.
 
 The tested policy foundation permits one recruiting listing across paid/hobby recruiting
-and one for-hire listing across paid/hobby for-hire. Automatic enforcement remains unavailable. Each group has its own 30-day creation/deletion
+and one for-hire listing across paid/hobby for-hire. Each group has its own 30-day creation/deletion
 cooldown. Recent posts in a different forum produce a placement reminder; activity in the
 other group does not consume the current group's slot. Missing rates are advisory.
 Unanswered accepted listings close after 30 days; unacknowledged attempts are scheduled
@@ -66,17 +65,16 @@ even while recruitment moderation is disabled. Existing XP and karma are retaine
 Incomplete or malformed forum mappings are ignored by the XP classifier and reported by
 recruitment validation when enabled; they do not stop UserService.
 
-The state store uses `{ServerRootPath}/recruitment/recruitment-state.json`, schema v3,
+The state store uses `{ServerRootPath}/recruitment/recruitment-state.json`, schema v1,
 UTC timestamps and decimal-string IDs. It acquires an exclusive writer lock when loaded.
-The first enabled Observe start enrolls a missing, backup-free state file. Existing posts
+The first enabled start enrolls a missing, backup-free state file. Existing posts
 are imported as unverified; their past acknowledgement/acceptance is never invented.
 Corrupt, incompatible or wrong-guild state is preserved and prevents writes. Successful
 updates retain the preceding valid snapshot at
 `.json.bak`; explicit backup recovery preserves the replaced primary as `.json.replaced-*`.
-The v1 foundation schema upgrades with a preserved backup and review/coverage flags.
-The v2 Observe schema upgrades with empty publication/control metadata while preserving
-its evidence and acceptance history.
-Recovery commands and retention cleanup remain future work; do not delete state to recover.
+This is the initial deployment schema; unsupported versions are rejected without an upgrade
+path. Moderator controls and dependency-aware retention are documented in the recruitment
+guide. Stop the bot for file-level recovery; do not delete state to recover.
 
 One worker drains a bounded 256-event queue and checks due work every 30 seconds. Active
 inventory refreshes every five minutes; archive scans use saved 100-thread pages, resume
@@ -91,15 +89,15 @@ Feed sends first persist an intent. An interrupted send is recovered by paginate
 of a bot-owned stable marker before retrying; saved entries are refreshed in place. Discord
 delivery and local persistence are separate operations, so delivery is reconciled rather
 than claimed to be transactional. Do not edit/remove the marker at the end of feed entries.
-The configured feed has its own Discord retention: local future metadata cleanup will not
+The configured feed has its own Discord retention: local metadata cleanup will not
 remove staff-feed messages. Post bodies are not stored in recruitment state.
 
 Settings apply on process restart. `GuidelinesDirectory` is a relative subdirectory of
-`AssetsRootPath`; Advisory validates four Markdown templates and publishes native forum topics.
+`AssetsRootPath`; public modes validate four Markdown templates and publish native forum topics.
 Both dev and prod examples keep all enforcement gates disabled. Development forum IDs and
 the staff-feed channel must be filled in before Observe activation. Stop unsubscribes and
-drains owned work before releasing the writer. Component toggle/restart controls remain
-deferred; stop the process or disable recruitment in settings and restart it.
+drains owned work before releasing the writer. Recruitment supports component toggle/restart controls. Public interactions share the
+worker cancellation token, and stop drains them before releasing state ownership.
 
 ### Maintaining the Observe coordinator
 

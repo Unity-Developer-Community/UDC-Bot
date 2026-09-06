@@ -16,6 +16,58 @@ namespace DiscordBot.Tests.Recruitment;
 public sealed class RecruitmentAdvisoryServiceTests
 {
     [TestMethod]
+    public async Task EnforceStopDrainsAnInFlightMutation_AndRestartCancelsStaleIntent()
+    {
+        await using var f = new RecruitmentAdvisoryFixture();
+        await RecruitmentEnforcementTests.StartEnforce(f);
+        var service = new RecruitService(f.Store, f.Observations, f.Observer, Options.Create(f.Options), f.Time,
+            f.Coordinator, f.Enforcement, f.Retention);
+        await service.StartAsync(default);
+        await service.ExecutePublicAsync(_ => Task.FromResult(true));
+        f.Time.Advance(TimeSpan.FromMinutes(31));
+        f.Discord.BlockActions = true;
+        Task command = service.ExecutePublicAsync(async token => { await f.Enforcement.TickAsync(token); return true; });
+        await f.Discord.ActionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await service.StopAsync(default);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => command);
+        Assert.AreEqual(0, f.Discord.InFlightActions); Assert.AreEqual(0, f.Discord.Actions);
+        Assert.IsFalse(service.IsRunning); Assert.IsNull(f.Observer.Receive);
+        f.Discord.BlockActions = false;
+        await service.StartAsync(default);
+        await service.ExecutePublicAsync(_ => Task.FromResult(true));
+        Assert.AreEqual(0, f.Discord.Actions);
+        Assert.IsNotNull((await f.Post()).PendingAction!.CancelledAtUtc);
+        f.Time.Advance(TimeSpan.FromMinutes(2));
+        await service.ExecutePublicAsync(async token => { await f.Coordinator.TickAsync(token); return true; });
+        Assert.AreEqual(f.Time.Now.AddMinutes(30), (await f.Post()).ChallengeDeadlineUtc);
+        await service.StopAsync(default);
+    }
+
+    [TestMethod]
+    public async Task EnforcementBoundarySurvivesRestart_AndDoesNotEnrollEarlierPracticePosts()
+    {
+        await using var f = new RecruitmentAdvisoryFixture(); await f.InitializeAsync();
+        await f.Observations.InitializeAsync(default);
+        f.Time.Advance(TimeSpan.FromMinutes(1)); f.Options.Mode = RecruitmentMode.Enforce;
+        await f.Observations.InitializeAsync(default);
+        DateTimeOffset? boundary = (await f.State()).EnforcementStartedAtUtc;
+        Assert.IsFalse((await f.Post()).EnforcementEnrolled);
+        f.Time.Advance(TimeSpan.FromSeconds(1));
+        f.Observer.CreatedTimes[11] = f.Time.Now;
+        f.Discord.Posts[11] = new(11, 101, 123, false, false, false, true, []);
+        await f.Observations.ReconcileAsync(11, default);
+        Assert.IsTrue((await f.State()).Posts[11].EnforcementEnrolled);
+        await f.Store.ReleaseAsync(); await f.Observations.InitializeAsync(default);
+        Assert.AreEqual(boundary, (await f.State()).EnforcementStartedAtUtc);
+        Assert.IsTrue((await f.State()).Posts[11].EnforcementEnrolled);
+        f.Options.Mode = RecruitmentMode.Advisory; await f.Observations.InitializeAsync(default);
+        f.Time.Advance(TimeSpan.FromMinutes(1)); f.Options.Mode = RecruitmentMode.Enforce;
+        await f.Observations.InitializeAsync(default);
+        Assert.AreNotEqual(boundary, (await f.State()).EnforcementStartedAtUtc);
+        Assert.IsFalse((await f.State()).Posts[11].EnforcementEnrolled);
+    }
+
+    [TestMethod]
     public async Task PinnedInteractionService_DiscoversOwnerRoutesModalAndStaffCommands()
     {
         using var client = new DiscordSocketClient();
@@ -26,7 +78,7 @@ public sealed class RecruitmentAdvisoryServiceTests
         var observation = new RecruitmentObservationCoordinator(f.Store, observer, options, TimeProvider.System);
         var service = new RecruitService(f.Store, observation, observer, options, TimeProvider.System, f.Coordinator);
         using var services = new ServiceCollection()
-            .AddSingleton(service).AddSingleton(f.Owners).AddSingleton(f.Coordinator).AddSingleton(f.Guidelines)
+            .AddSingleton(service).AddSingleton(f.Owners).AddSingleton(f.Coordinator).AddSingleton(f.Guidelines).AddSingleton(f.Staff)
             .AddSingleton<IComponentStateReader, EnabledComponents>()
             .AddSingleton<IBotAuthorizationPolicy>(new BotAuthorizationPolicy(Options.Create(new AuthorizationOptions { ModeratorRoleId = 1 })))
             .AddSingleton(options).AddSingleton(Options.Create(new DiscordGuildOptions { GuildId = 1 }))
@@ -35,7 +87,7 @@ public sealed class RecruitmentAdvisoryServiceTests
         var setup = await interactions.AddModuleAsync<RecruitmentSetupModule>(services);
         Assert.AreEqual(5, owner.ComponentCommands.Count);
         Assert.AreEqual(1, owner.ModalCommands.Count);
-        CollectionAssert.AreEquivalent(new[] { "preview", "publish" }, setup.SlashCommands.Select(command => command.Name).ToArray());
+        CollectionAssert.IsSubsetOf(new[] { "preview", "publish", "status", "review", "adopt", "reopen", "remove", "resolve-missing" }, setup.SlashCommands.Select(command => command.Name).ToArray());
         CollectionAssert.AreEquivalent(new[] { "forum", "expected-topic-hash", "repair-tag-hash" },
             setup.SlashCommands.Single(command => command.Name == "publish").Parameters.Select(parameter => parameter.Name).ToArray());
     }
@@ -51,7 +103,7 @@ public sealed class RecruitmentAdvisoryServiceTests
         await service.StartAsync(default);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         bool drained = false;
-        Task command = service.ExecuteAdvisoryAsync(async token =>
+        Task command = service.ExecutePublicAsync(async token =>
         {
             entered.SetResult();
             try { await Task.Delay(Timeout.Infinite, token); }
@@ -61,9 +113,9 @@ public sealed class RecruitmentAdvisoryServiceTests
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await service.StopAsync(default);
         await Assert.ThrowsAsync<OperationCanceledException>(() => command);
-        Assert.IsTrue(drained); Assert.IsFalse(service.IsAdvisoryRunning);
+        Assert.IsTrue(drained); Assert.IsFalse(service.IsPublicRunning);
         bool called = false;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ExecuteAdvisoryAsync(_ => { called = true; return Task.FromResult(true); }));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ExecutePublicAsync(_ => { called = true; return Task.FromResult(true); }));
         Assert.IsFalse(called);
         string root = Path.GetDirectoryName(Path.GetDirectoryName(f.Store.StatePath))!;
         await using var other = new RecruitmentStateStore(Options.Create(new StorageOptions { ServerRootPath = root }), Options.Create(new DiscordGuildOptions { GuildId = 1 }));

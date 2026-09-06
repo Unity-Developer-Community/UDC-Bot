@@ -29,7 +29,7 @@ public sealed class DefaultComponentCatalog : IComponentCatalog
             Feature(ComponentIds.IntroductionWatcher, "Introduction watcher", ComponentKind.ManagedEventService, Enabled("Moderation:IntroductionWatcherEnabled"), "Duplicate introduction protection.", ComponentIds.DiscordConnection, ComponentIds.Logging),
             Feature(ComponentIds.Tickets, "Tickets", ComponentKind.FeatureModule, true, "Ticket commands.", ComponentIds.CommandHandling),
             Feature(ComponentIds.Feeds, "Feeds", ComponentKind.Dependency, true, "Unity release and blog feeds.", ComponentIds.DiscordConnection),
-            Feature(ComponentIds.Recruitment, "Recruitment", ComponentKind.ManagedEventService, Enabled("Recruitment:Enabled"), "Recruitment forum moderation.", ComponentIds.DiscordConnection, ComponentIds.Logging),
+            Feature(ComponentIds.Recruitment, "Recruitment", ComponentKind.ManagedEventService, Enabled("Recruitment:Enabled"), "Recruitment forum moderation.", ComponentIds.DiscordConnection, ComponentIds.Logging, mutable: true),
             Feature(ComponentIds.UnityHelp, "Unity Help", ComponentKind.ManagedEventService, Enabled("UnityHelp:Enabled"), "Unity help forum lifecycle.", ComponentIds.DiscordConnection, ComponentIds.Logging),
             Feature(ComponentIds.BirthdayAnnouncements, "Birthday announcements", ComponentKind.ManagedWorker, Enabled("BirthdayAnnouncements:Enabled", defaultValue: true), "Periodic birthday announcements.", ComponentIds.DiscordConnection, ComponentIds.Logging, mutable: true),
             Feature(ComponentIds.Reminders, "Reminders", ComponentKind.ManagedWorker, true, "Persisted user reminders.", ComponentIds.DiscordConnection, ComponentIds.Logging, mutable: true),

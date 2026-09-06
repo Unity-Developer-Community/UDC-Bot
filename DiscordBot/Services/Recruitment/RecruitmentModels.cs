@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DiscordBot.Settings.Options;
 
 namespace DiscordBot.Services.Recruitment;
 
@@ -6,13 +7,13 @@ public enum RecruitmentAcknowledgement { NotPrompted, Pending, Passed, TimedOut,
 public enum RecruitmentLifecycle { Open, Closed, Deleted, Missing }
 public enum RecruitmentCloseReason { OwnerClosed, Unanswered, GuidelineTimeout, Ineligible, OwnerRemoved, Moderator }
 public enum RecruitmentEligibilityKind { Eligible, ActiveListing, PendingListing, Cooldown, ReviewRequired, Terminal }
-public enum RecruitmentActionKind { None, Delete, LockArchive }
+public enum RecruitmentActionKind { None, Delete, LockArchive, Reopen }
 public enum RecruitmentActivity { Unknown, NoneRecorded, Recorded }
 public enum RecruitmentPaymentSignal { Unknown, NotApplicable, Missing, Ambiguous, Concrete }
 
 public sealed class RecruitmentStateDocument
 {
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 1;
     [JsonRequired] public int SchemaVersion { get; set; } = CurrentSchemaVersion;
     [JsonRequired] public ulong GuildId { get; set; }
     [JsonRequired] public long Revision { get; set; }
@@ -22,6 +23,11 @@ public sealed class RecruitmentStateDocument
     public Dictionary<ulong, RecruitmentForumObservation> Forums { get; set; } = [];
     public DateTimeOffset? LastGatewayGapAtUtc { get; set; }
     public long DroppedObservationEvents { get; set; }
+    public RecruitmentMode? LastMode { get; set; }
+    public DateTimeOffset? EnforcementStartedAtUtc { get; set; }
+    public DateTimeOffset? LastRetentionAtUtc { get; set; }
+    // Archive scans must not recreate detailed records after retention has removed them.
+    public HashSet<ulong> RetiredThreadIds { get; set; } = [];
 }
 
 public sealed class RecruitmentAuthorRecord
@@ -30,11 +36,14 @@ public sealed class RecruitmentAuthorRecord
     public DateTimeOffset? FirstAttemptAtUtc { get; set; }
     public DateTimeOffset? LastAttemptAtUtc { get; set; }
     public int ConsecutiveTimeouts { get; set; }
+    public DateTimeOffset? LastActivityAtUtc { get; set; }
+    public string? TimeoutAlertActionId { get; set; }
     public Dictionary<RecruitmentListingGroup, RecruitmentGroupHistory> Groups { get; set; } = [];
 }
 
 public sealed class RecruitmentGroupHistory
 {
+    public RecruitmentCooldownWaiver? Waiver { get; set; }
     public DateTimeOffset? LastAcceptedCreatedAtUtc { get; set; }
     public DateTimeOffset? LastAcceptedDeletedAtUtc { get; set; }
     public bool RequiresReview { get; set; }
@@ -75,6 +84,11 @@ public sealed class RecruitmentPostRecord
     public ulong? FeedMessageId { get; set; }
     public RecruitmentPostObservation Observation { get; set; } = new();
     public RecruitmentPostAdvisory Advisory { get; set; } = new();
+    public RecruitmentLifecycleAction? PendingAction { get; set; }
+    public DateTimeOffset? EnforcementNextCheckAtUtc { get; set; }
+    public DateTimeOffset? HistoryReviewedThroughUtc { get; set; }
+    public bool FindingDismissed { get; set; }
+    public List<RecruitmentAuditRecord> Audit { get; set; } = [];
 }
 
 public sealed class RecruitmentForumObservation

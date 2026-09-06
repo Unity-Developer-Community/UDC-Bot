@@ -16,7 +16,13 @@ internal sealed class RecruitmentAdvisoryFixture : IAsyncDisposable
     public RecruitmentGuidelines Templates { get; }
     public RecruitmentGuidelinePublisher Guidelines { get; }
     public RecruitmentOwnerActions Owners { get; }
-    public RecruitmentAdvisoryCoordinator Coordinator { get; }
+    public RecruitmentLifecycleExecutor Lifecycle { get; }
+    public RecruitmentObservationCoordinator Observations { get; }
+    public FakeRecruitmentObservation Observer { get; }
+    public RecruitmentEnforcementCoordinator Enforcement { get; }
+    public RecruitmentStaffActions Staff { get; }
+    public RecruitmentRetention Retention { get; }
+    public RecruitmentPublicCoordinator Coordinator { get; }
     public RecruitmentOwnerContext Owner { get; } = new(1, 10, 123);
     public RecruitmentForum Forum { get; } = new(RecruitmentForumKind.PaidRecruiting, 101);
 
@@ -30,7 +36,13 @@ internal sealed class RecruitmentAdvisoryFixture : IAsyncDisposable
         Store = new(storage, guild);
         Templates = new(options, storage);
         Guidelines = new(Store, Discord, Templates, Time);
-        Owners = new(Store, Discord, Guidelines, options, guild, Time);
+        Observer = new(Store, Discord);
+        Observations = new(Store, Observer, options, Time);
+        Lifecycle = new(Store, Discord, Observations, options, Time);
+        Owners = new(Store, Discord, Guidelines, Lifecycle, options, guild, Time);
+        Enforcement = new(Store, Discord, Observations, Lifecycle, options, Time);
+        Staff = new(Store, Discord, Observations, Lifecycle, options, Time);
+        Retention = new(Store, options, Time);
         Coordinator = new(Store, Discord, Templates, Guidelines, Banner, Owners, options, Time);
     }
 
@@ -81,12 +93,20 @@ internal sealed class FakePublisher : IRecruitmentPublisher
 {
     public Dictionary<ulong, RecruitmentForumSetup> Forums { get; } = new ulong[] { 101, 102, 103, 104 }
         .ToDictionary(id => id, id => new RecruitmentForumSetup(id, "", []));
-    public RecruitmentPublicPost? Post { get; set; } = new(10, 101, 123, false, false, false, true, []);
+    public Dictionary<ulong, RecruitmentPublicPost> Posts { get; } = new() { [10] = new(10, 101, 123, false, false, false, true, []) };
+    public RecruitmentPublicPost? Post
+    {
+        get => Posts.GetValueOrDefault(10ul);
+        set { if (value is null) Posts.Remove(10); else Posts[10] = value; }
+    }
     public Dictionary<ulong, RecruitmentAdvisoryView> Messages { get; } = [];
     public Queue<RecruitmentAdvisorySearch> SearchPages { get; } = [];
     public bool FailEdits, FailSendAfterWrite, FailSendBeforeWrite, FailPublishAfterWrite, FailActionAfterWrite, FailReads;
     public ulong? FailingForum;
     public int Sends, Publishes, TagAppends, Actions;
+    public bool BlockActions;
+    public int InFlightActions;
+    public TaskCompletionSource ActionStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public bool LastSendHadImage;
     public Action? OnSend, OnEdit;
 
@@ -113,7 +133,7 @@ internal sealed class FakePublisher : IRecruitmentPublisher
         return Task.CompletedTask;
     }
     public Task<RecruitmentPublicPost?> GetPostAsync(ulong threadId, CancellationToken token) =>
-        FailReads ? Task.FromException<RecruitmentPublicPost?>(new IOException("read failed")) : Task.FromResult(Post);
+        FailReads ? Task.FromException<RecruitmentPublicPost?>(new IOException("read failed")) : Task.FromResult(Posts.GetValueOrDefault(threadId));
     public Task<RecruitmentAdvisorySearch> FindAdvisoryAsync(ulong threadId, string marker, ulong? beforeId, CancellationToken token)
     {
         if (SearchPages.TryDequeue(out var page)) return Task.FromResult(page);
@@ -139,11 +159,20 @@ internal sealed class FakePublisher : IRecruitmentPublisher
         Messages[messageId] = view;
         return Task.FromResult(true);
     }
-    public Task ApplyOwnerActionAsync(RecruitmentPublicPost post, RecruitmentActionKind action, ulong? closedTagId, string actionId, CancellationToken token)
+    public async Task ApplyLifecycleActionAsync(RecruitmentPublicPost post, RecruitmentActionKind action, ulong? closedTagId, string actionId, CancellationToken token)
     {
-        Actions++;
-        Post = action == RecruitmentActionKind.Delete ? null : post with { Archived = true, Locked = true };
+        InFlightActions++;
+        try
+        {
+            ActionStarted.TrySetResult();
+            if (BlockActions) await Task.Delay(Timeout.Infinite, token);
+            token.ThrowIfCancellationRequested();
+            Actions++;
+        if (action == RecruitmentActionKind.Delete) Posts.Remove(post.Id);
+        else if (action == RecruitmentActionKind.Reopen) Posts[post.Id] = post with { Archived = false, Locked = false, Tags = post.Tags.Where(id => id != closedTagId).ToArray() };
+        else Posts[post.Id] = post with { Archived = true, Locked = true };
         if (FailActionAfterWrite) throw new IOException("action response lost");
-        return Task.CompletedTask;
+        }
+        finally { InFlightActions--; }
     }
 }

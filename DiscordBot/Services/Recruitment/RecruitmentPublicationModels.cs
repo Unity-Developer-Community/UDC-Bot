@@ -31,26 +31,19 @@ public sealed class RecruitmentPostAdvisory
     public DateTimeOffset? RetryCodeAtUtc { get; set; }
     public string? Error { get; set; }
     public string? RenderError { get; set; }
-    public RecruitmentOwnerConfirmation? Confirmation { get; set; }
-    public RecruitmentOwnerAction? PendingAction { get; set; }
+    public RecruitmentConfirmation? Confirmation { get; set; }
 }
 
-public sealed class RecruitmentOwnerConfirmation
+public sealed class RecruitmentConfirmation
 {
     public string Token { get; set; } = "";
+    public ulong ActorId { get; set; }
+    public RecruitmentActionOrigin Origin { get; set; }
+    public string Note { get; set; } = "";
     public RecruitmentActionKind Kind { get; set; }
     public long Version { get; set; }
     public DateTimeOffset? AcceptedAtUtc { get; set; }
     public DateTimeOffset ExpiresAtUtc { get; set; }
-}
-
-public sealed class RecruitmentOwnerAction
-{
-    public string Id { get; set; } = "";
-    public RecruitmentActionKind Kind { get; set; }
-    public DateTimeOffset RequestedAtUtc { get; set; }
-    public DateTimeOffset? AcceptedAtUtc { get; set; }
-    public DateTimeOffset? CompletedAtUtc { get; set; }
 }
 
 public sealed record RecruitmentForumTag(ulong Id, string Name, bool Moderated, ulong? EmojiId, string? EmojiName);
@@ -72,5 +65,5 @@ public interface IRecruitmentPublisher
     Task<RecruitmentAdvisorySearch> FindAdvisoryAsync(ulong threadId, string marker, ulong? beforeId, CancellationToken token);
     Task<RecruitmentPublicMessage> SendAdvisoryAsync(ulong threadId, RecruitmentAdvisoryView view, byte[]? image, CancellationToken token);
     Task<bool> EditAdvisoryAsync(ulong threadId, ulong messageId, RecruitmentAdvisoryView view, CancellationToken token);
-    Task ApplyOwnerActionAsync(RecruitmentPublicPost post, RecruitmentActionKind action, ulong? closedTagId, string actionId, CancellationToken token);
+    Task ApplyLifecycleActionAsync(RecruitmentPublicPost post, RecruitmentActionKind action, ulong? closedTagId, string actionId, CancellationToken token);
 }

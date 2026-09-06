@@ -9,7 +9,8 @@ namespace DiscordBot.Services;
 
 public sealed class RecruitService(
     RecruitmentStateStore store, RecruitmentObservationCoordinator coordinator, IRecruitmentObserver discord,
-    IOptions<RecruitmentOptions> options, TimeProvider time, RecruitmentAdvisoryCoordinator? advisory = null) : IManagedBotService, IComponentHealthContributor
+    IOptions<RecruitmentOptions> options, TimeProvider time, RecruitmentPublicCoordinator? publicCoordinator = null,
+    RecruitmentEnforcementCoordinator? enforcement = null, RecruitmentRetention? retention = null) : IManagedBotService, IComponentHealthContributor
 {
     private readonly SemaphoreSlim _lifetime = new(1, 1);
     private readonly SemaphoreSlim _work = new(1, 1);
@@ -28,10 +29,12 @@ public sealed class RecruitService(
         try
         {
             if (IsRunning) return;
-            if (!options.Value.Enabled || options.Value.Mode == RecruitmentMode.Enforce)
-                throw new InvalidOperationException("This build supports enabled Observe or Advisory only; Enforce requires a later chunk.");
-            if (options.Value.Mode == RecruitmentMode.Advisory && advisory is null)
+            if (!options.Value.Enabled)
+                throw new InvalidOperationException("Recruitment is disabled in settings.");
+            if (options.Value.Mode != RecruitmentMode.Observe && publicCoordinator is null)
                 throw new InvalidOperationException("Advisory services are unavailable.");
+            if (options.Value.Mode == RecruitmentMode.Enforce && enforcement is null)
+                throw new InvalidOperationException("Enforcement services are unavailable.");
             var errors = RecruitmentOptionsValidator.ValidateValues(options.Value);
             if (errors.Count > 0) throw new InvalidOperationException(string.Join(" ", errors));
             _fault = null;
@@ -50,7 +53,7 @@ public sealed class RecruitService(
             try
             {
                 await coordinator.InitializeAsync(cancellationToken);
-                if (options.Value.Mode == RecruitmentMode.Advisory) await advisory!.InitializeAsync(cancellationToken);
+                if (options.Value.Mode != RecruitmentMode.Observe) await publicCoordinator!.InitializeAsync(cancellationToken);
                 _worker = RunAsync(_cancellation.Token);
             }
             catch
@@ -117,37 +120,49 @@ public sealed class RecruitService(
             try
             {
                 await coordinator.HandleAsync(item, token);
-                if (item.Kind == RecruitmentEventKind.Gap && options.Value.Mode == RecruitmentMode.Advisory)
-                    await advisory!.RecordGapAsync(token);
+                if (item.Kind == RecruitmentEventKind.Gap && options.Value.Mode != RecruitmentMode.Observe)
+                    await publicCoordinator!.RecordGapAsync(token);
             }
             catch (Exception) when (store.IsHealthy && !token.IsCancellationRequested)
             { await RecordGapAsync(token); }
         }
         await coordinator.TickAsync(token);
-        if (options.Value.Mode == RecruitmentMode.Advisory) await advisory!.TickAsync(token);
+        if (options.Value.Mode != RecruitmentMode.Observe) await publicCoordinator!.TickAsync(token);
+        if (options.Value.Mode == RecruitmentMode.Enforce) await enforcement!.TickAsync(token);
+        if (retention is not null) await retention.TickAsync(token);
     }
 
     private async Task RecordGapAsync(CancellationToken token, long dropped = 0)
     {
         await coordinator.RecordGapAsync(token, dropped);
-        if (options.Value.Mode == RecruitmentMode.Advisory) await advisory!.RecordGapAsync(token);
+        if (options.Value.Mode != RecruitmentMode.Observe) await publicCoordinator!.RecordGapAsync(token);
     }
 
-    public bool IsAdvisoryRunning => IsRunning && options.Value.Mode == RecruitmentMode.Advisory &&
+    public bool IsPublicRunning => IsRunning && options.Value.Mode != RecruitmentMode.Observe &&
         _cancellation is { IsCancellationRequested: false };
 
-    public async Task<T> ExecuteAdvisoryAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken = default)
+    public Task<T> ExecutePublicAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken = default)
+    {
+        if (!IsPublicRunning) throw new InvalidOperationException("Public recruitment is stopped or unavailable.");
+        return ExecuteManagedAsync(token =>
+        {
+            if (!IsPublicRunning) throw new InvalidOperationException("Public recruitment is stopped or unavailable.");
+            return action(token);
+        }, cancellationToken);
+    }
+
+    public async Task<T> ExecuteManagedAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken = default)
     {
         // Commands share the worker's gate and cancellation. Stop drains both before releasing state ownership.
         var lifetime = _cancellation;
-        if (!IsAdvisoryRunning || lifetime is null) throw new InvalidOperationException("Advisory is stopped or unavailable.");
+        if (!IsRunning || lifetime is null || lifetime.IsCancellationRequested) throw new InvalidOperationException("Recruitment is stopped or unavailable.");
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, cancellationToken);
         CancellationToken token = linked.Token;
         await _work.WaitAsync(token);
         try
         {
             token.ThrowIfCancellationRequested();
-            if (!IsAdvisoryRunning) throw new InvalidOperationException("Advisory is stopped or unavailable.");
+            if (!IsRunning) throw new InvalidOperationException("Recruitment is stopped or unavailable.");
             return await action(token);
         }
         finally { _work.Release(); }
@@ -166,10 +181,15 @@ public sealed class RecruitService(
         {
             bool gaps = coordinator.HasGaps || Interlocked.Read(ref _dropped) > 0;
             summary = coordinator.Summary;
-            if (options.Value.Mode == RecruitmentMode.Advisory)
+            if (options.Value.Mode != RecruitmentMode.Observe)
             {
-                gaps |= advisory!.HasGaps;
-                summary += " " + advisory.Summary;
+                gaps |= publicCoordinator!.HasGaps;
+                summary += " " + publicCoordinator.Summary;
+            }
+            if (options.Value.Mode == RecruitmentMode.Enforce)
+            {
+                gaps |= enforcement!.HasGaps;
+                summary += " " + enforcement.Summary;
             }
             state = gaps ? ComponentRuntimeState.Degraded : ComponentRuntimeState.Running;
         }

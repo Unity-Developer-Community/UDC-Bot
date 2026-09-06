@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 namespace DiscordBot.Services.Recruitment;
 
 /// <summary>Public practice workflow. RecruitService serializes ticks and mutating owner/staff commands.</summary>
-public sealed class RecruitmentAdvisoryCoordinator(RecruitmentStateStore store, IRecruitmentPublisher discord,
+public sealed class RecruitmentPublicCoordinator(RecruitmentStateStore store, IRecruitmentPublisher discord,
     RecruitmentGuidelines templates, RecruitmentGuidelinePublisher guidelines, IRecruitmentBannerRenderer renderer,
     RecruitmentOwnerActions ownerActions, IOptions<RecruitmentOptions> options, TimeProvider time)
 {
@@ -73,7 +73,7 @@ public sealed class RecruitmentAdvisoryCoordinator(RecruitmentStateStore store, 
         {
             try
             {
-                if (post.Advisory.PendingAction is { CompletedAtUtc: null })
+                if (post.PendingAction is { IsPending: true })
                     await ownerActions.RecoverAsync(post.ThreadId, token);
                 else
                     await RefreshPostAsync(post.ThreadId, token);
@@ -91,9 +91,9 @@ public sealed class RecruitmentAdvisoryCoordinator(RecruitmentStateStore store, 
         var state = (await store.LoadAsync(token))!;
         int forumsPending = state.Forums.Values.Count(forum => forum.Publication.Confirmed is null || forum.Publication.Error is not null);
         int postsWithNotices = state.Posts.Values.Count(post => post.Advisory.Error is not null || post.Advisory.RenderError is not null ||
-            post.Advisory.SendRequestedAtUtc is not null || post.Advisory.PendingAction is { CompletedAtUtc: null });
+            post.Advisory.SendRequestedAtUtc is not null || post.PendingAction is { IsPending: true });
         HasGaps = forumsPending + postsWithNotices > 0;
-        Summary = $"Advisory practice: {forumsPending} forums need setup/recovery; {postsWithNotices} posts have delivery/action notices. Automatic enforcement is unavailable.";
+        Summary = $"Public recruitment ({Options.Mode}): {forumsPending} forums need setup/recovery; {postsWithNotices} posts have delivery/action notices.";
     }
 
     public async Task<bool> TryRefreshPostAsync(ulong threadId, CancellationToken token)
@@ -131,7 +131,11 @@ public sealed class RecruitmentAdvisoryCoordinator(RecruitmentStateStore store, 
                 await UpdateMessageAsync(threadId, token);
             return;
         }
-        if (post.IsPinned || post.IsExempt) return;
+        if (post.IsPinned || post.IsExempt)
+        {
+            if (post.AdvisoryMessageId is not null) await UpdateMessageAsync(threadId, token);
+            return;
+        }
         // Imported history is left for staff adoption; rollout must not create retroactive challenges.
         if (post.Observation.Imported && post.Advisory.Generation.Length == 0) return;
         RecruitmentPublicPost? live = await discord.GetPostAsync(threadId, token);
@@ -183,6 +187,11 @@ public sealed class RecruitmentAdvisoryCoordinator(RecruitmentStateStore store, 
                 saved.Advisory.Generation = RecruitmentGuidelines.NewToken();
                 saved.Advisory.Version++;
                 saved.Advisory.Confirmation = null;
+                saved.Acknowledgement = RecruitmentAcknowledgement.NotPrompted;
+                saved.PromptedAtUtc = null;
+                saved.ChallengeDeadlineUtc = null;
+                saved.AcceptedCodes = [];
+                saved.ChallengeEnforceable = false;
                 return true;
             }, token);
         }
@@ -198,8 +207,9 @@ public sealed class RecruitmentAdvisoryCoordinator(RecruitmentStateStore store, 
                 saved.ChallengeDeadlineUtc = Now.AddMinutes(Options.AcknowledgementMinutes);
                 saved.AcceptedCodes = [publication.Confirmed.Code];
                 saved.Acknowledgement = RecruitmentAcknowledgement.Pending;
-                saved.ChallengeEnforceable = false;
-                saved.EnforcementEnrolled = false;
+                if (Options.Mode == RecruitmentMode.Advisory) saved.EnforcementEnrolled = false;
+                saved.ChallengeEnforceable = Options.Mode == RecruitmentMode.Enforce && saved.EnforcementEnrolled &&
+                    Options.EnforceGuidelineTimeouts;
                 saved.Advisory.NeedsFreshWindow = false;
                 saved.Advisory.IncorrectAttempts = 0;
                 saved.Advisory.RetryCodeAtUtc = null;
@@ -208,7 +218,13 @@ public sealed class RecruitmentAdvisoryCoordinator(RecruitmentStateStore store, 
             }, token);
             await UpdateMessageAsync(threadId, token);
         }
-        await store.UpdateAsync(current => { current.Posts[threadId].Advisory.Error = null; return true; }, token);
+        await store.UpdateAsync(current =>
+        {
+            var saved = current.Posts[threadId];
+            saved.Advisory.Error = null;
+            if (saved.Acknowledgement != RecruitmentAcknowledgement.Pending) saved.Advisory.NeedsFreshWindow = false;
+            return true;
+        }, token);
     }
 
     private async Task<bool> EnsureMessageAsync(RecruitmentStateDocument state, RecruitmentPostRecord post, CancellationToken token)
@@ -276,6 +292,9 @@ public sealed class RecruitmentAdvisoryCoordinator(RecruitmentStateStore store, 
             var saved = current.Posts[threadId];
             saved.AdvisoryMessageId = null;
             saved.Advisory.NeedsFreshWindow = true;
+            saved.Advisory.Generation = RecruitmentGuidelines.NewToken();
+            saved.Advisory.Version++;
+            saved.Advisory.Confirmation = null;
             return true;
         }, token);
         return false;

@@ -29,13 +29,14 @@ public sealed class RecruitmentPolicyEvaluator
             .OrderByDescending(p => p.CreatedAtUtc).ThenBy(p => p.ThreadId).Select(p => p.ThreadId).ToArray();
         var sameGroup = history.Where(p => RecruitmentForumClassifier.GroupOf(p.Forum) == group).ToArray();
         var aggregate = state.Authors.GetValueOrDefault(post.AuthorId)?.Groups.GetValueOrDefault(group);
-        var next = Later(aggregate?.LastAcceptedCreatedAtUtc?.AddDays(_options.CooldownDays),
-            aggregate?.LastAcceptedDeletedAtUtc?.AddDays(_options.CooldownDays));
+        var waiver = aggregate?.Waiver;
+        var next = Later(Cooldown(aggregate?.LastAcceptedCreatedAtUtc, waiver?.ThroughCreatedAtUtc),
+            Cooldown(aggregate?.LastAcceptedDeletedAtUtc, waiver?.ThroughDeletedAtUtc));
         foreach (var accepted in sameGroup.Where(p => p.AcceptedAtUtc is not null))
         {
-            next = Later(next, accepted.CreatedAtUtc.AddDays(_options.CooldownDays));
+            next = Later(next, Cooldown(accepted.CreatedAtUtc, waiver?.ThroughCreatedAtUtc));
             if (!accepted.DeletionTimeUncertain)
-                next = Later(next, accepted.DeletedObservedAtUtc?.AddDays(_options.CooldownDays));
+                next = Later(next, Cooldown(accepted.DeletedObservedAtUtc, waiver?.ThroughDeletedAtUtc));
         }
 
         if (post.Lifecycle != RecruitmentLifecycle.Open || post.ClosedRequested ||
@@ -83,10 +84,10 @@ public sealed class RecruitmentPolicyEvaluator
         return result;
     }
 
-    public RecruitmentAction EvaluateAction(RecruitmentStateDocument state, ulong threadId)
+    public RecruitmentAction EvaluateAction(RecruitmentStateDocument state, ulong threadId, DateTimeOffset? decisionAtUtc = null)
     {
         var post = state.Posts[threadId];
-        var now = _time.GetUtcNow();
+        var now = decisionAtUtc ?? _time.GetUtcNow();
         if (!_options.Enabled || _options.Mode != RecruitmentMode.Enforce || !post.EnforcementEnrolled ||
             post.IsExempt || post.IsPinned || post.RequiresReview || post.Lifecycle != RecruitmentLifecycle.Open)
             return RecruitmentAction.None;
@@ -107,7 +108,7 @@ public sealed class RecruitmentPolicyEvaluator
         }
         if (_options.EnforceLifecycleClosures && post.AcceptedAtUtc is not null &&
             post.CreatedAtUtc.AddDays(_options.UnansweredDays) <= now &&
-            post.FirstQualifyingResponseAtUtc is null && post.ResponsesCheckedThroughUtc >= now)
+            post.FirstQualifyingResponseAtUtc is null && !post.Observation.HistoryUncertain && post.ResponsesCheckedThroughUtc >= now)
             return new(RecruitmentActionKind.LockArchive, RecruitmentCloseReason.Unanswered);
         return RecruitmentAction.None;
     }
@@ -145,6 +146,9 @@ public sealed class RecruitmentPolicyEvaluator
                 return i == 0 ? $"< {months[i]} months" : $"{months[i - 1]}–{months[i]} months";
         return $"{months[^1]}+ months";
     }
+
+    private DateTimeOffset? Cooldown(DateTimeOffset? anchor, DateTimeOffset? waivedThrough) =>
+        anchor is null || anchor <= waivedThrough ? null : anchor.Value.AddDays(_options.CooldownDays);
 
     private static DateTimeOffset? Later(DateTimeOffset? left, DateTimeOffset? right) =>
         left is null ? right : right is null || left >= right ? left : right;

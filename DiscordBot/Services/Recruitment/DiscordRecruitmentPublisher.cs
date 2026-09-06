@@ -139,7 +139,7 @@ public sealed class DiscordRecruitmentPublisher(DiscordSocketClient client, Recr
         return true;
     }
 
-    public async Task ApplyOwnerActionAsync(RecruitmentPublicPost expected, RecruitmentActionKind action, ulong? closedTagId,
+    public async Task ApplyLifecycleActionAsync(RecruitmentPublicPost expected, RecruitmentActionKind action, ulong? closedTagId,
         string actionId, CancellationToken token)
     {
         RestThreadChannel? thread = await ThreadAsync(expected.Id, token);
@@ -153,6 +153,19 @@ public sealed class DiscordRecruitmentPublisher(DiscordSocketClient client, Recr
         if (action == RecruitmentActionKind.Delete)
         {
             await thread.DeleteAsync(request);
+            return;
+        }
+        if (action == RecruitmentActionKind.Reopen)
+        {
+            var forum = await GetForumAsync(thread.ParentChannelId, token);
+            ulong[] closedIds = forum.Tags.Where(tag => string.Equals(tag.Name.Trim(), "Closed", StringComparison.OrdinalIgnoreCase))
+                .Select(tag => tag.Id).ToArray();
+            await thread.ModifyAsync(properties =>
+            {
+                properties.AppliedTags = thread.AppliedTags.Where(id => id != closedTagId && !closedIds.Contains(id)).ToArray();
+                properties.Locked = false;
+                properties.Archived = false;
+            }, request);
             return;
         }
         if (action != RecruitmentActionKind.LockArchive) throw new InvalidOperationException("Unsupported owner action.");

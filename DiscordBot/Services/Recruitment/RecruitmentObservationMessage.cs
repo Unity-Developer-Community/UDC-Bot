@@ -20,9 +20,19 @@ internal static class RecruitmentObservationMessage
             DescribeAuthorFacts(post, policy),
             $"Payment signal: {post.Payment} · {DescribeResponseEvidence(post)}",
             DescribeEligibility(post, eligibility),
-            options.Mode == RecruitmentMode.Advisory ? "Practice only; automatic enforcement is unavailable." : DescribeProposal(post, options, now)
+            DescribeModeProposal(post, options, now)
         ];
 
+        if (post.PendingAction is { } action)
+        {
+            lines.Add($"Action `{action.Id}`: {action.Origin} {action.Kind} / {action.Reason}; " +
+                $"dispatched: {action.AttemptedAtUtc:O}; completed: {action.CompletedAtUtc:O}; cancelled: {action.CancelledAtUtc:O}.");
+            if (action.TimeoutCountAfter >= 3)
+                lines.Add($"**Staff review alert:** {action.TimeoutCountAfter} consecutive confirmed timeouts; action `{action.Id}`.");
+        }
+        if (post.Audit.LastOrDefault() is { } review)
+            lines.Add($"Latest record: {review.Operation} by `{review.ActorId}` — {Format.Sanitize(review.Reason)}");
+        if (post.FindingDismissed) lines.Add("Staff marked this finding dismissed; recorded history is retained.");
         if (eligibility.PlacementReminder is { } reminder)
         {
             lines.Add(reminder);
@@ -32,7 +42,7 @@ internal static class RecruitmentObservationMessage
             lines.Add($"Coverage: {error}");
         }
 
-        if (options.Mode == RecruitmentMode.Advisory)
+        if (options.Mode != RecruitmentMode.Observe)
         {
             if (post.Advisory.Error is { } deliveryError) lines.Add($"Public advisory/action: {deliveryError}");
             if (post.Advisory.RenderError is { } imageError) lines.Add(imageError);
@@ -41,6 +51,15 @@ internal static class RecruitmentObservationMessage
         }
         lines.Add(PreviousPostLinks(state, post));
         return AppendRecoveryMarker(string.Join('\n', lines), marker);
+    }
+
+    private static string DescribeModeProposal(RecruitmentPostRecord post, RecruitmentOptions options, DateTimeOffset now)
+    {
+        if (options.Mode == RecruitmentMode.Observe) return DescribeProposal(post, options, now);
+        if (options.Mode == RecruitmentMode.Advisory || !post.EnforcementEnrolled)
+            return "Practice only; no automatic enforcement for this record.";
+        return $"Enrolled for Enforce; timeout={options.EnforceGuidelineTimeouts}, lifecycle={options.EnforceLifecycleClosures}, " +
+            $"listing limits={options.EnforceListingLimits}. Current evidence and audit delivery are rechecked before action.";
     }
 
     private static string DescribeOrigin(RecruitmentPostRecord post)

@@ -1,19 +1,82 @@
-# Paid recruiting
+# ⚠️ PAID — JOBS / HIRING
 
-Use this forum when you are hiring people for paid work.
+Use this forum when hiring people for **guaranteed paid work**.
 
-## Make the offer clear
-State the role, scope, currency, guaranteed budget or rate/range, payment schedule, and how applicants will be assessed.
-Revenue share is not guaranteed pay. Label it explicitly; an offer with no guaranteed payment belongs in a hobby forum. Missing details will receive advice rather than automatic rejection.
+## Your post must include
 
-## Start the conversation here
-Keep the initial scope, terms, rate and portfolio verification in the public post. Ask questions here before moving to DMs. Verify work and identity independently; an acknowledgement code or bot summary is not an endorsement. Do not run unknown files, share credentials, or let urgency pressure you into payment.
+* **Project / company** and who you are hiring for
+* **Role(s)** you need
+* **Scope / responsibilities**
+* **Rate or budget range + currency**
+* **Payment schedule** or milestones
+* **Duration / expected workload**
+* How applicants will be **assessed or selected**
 
-## Maintain your listing
-The planned policy allows one recruiting listing and one for-hire listing across the paid/hobby forums. Each group has its own {{cooldown_days}}-day wait from an accepted listing's creation, and from its deletion when applicable. Close the existing listing before replacing it. Posting in both groups is allowed; double-check that each post belongs in its chosen forum.
-Use the bot's Close control when finished, or add Closed to signal that you are finished. Removing Closed does not reopen a listing. Accepted listings with no qualifying response close after {{unanswered_days}} days when lifecycle enforcement is enabled. Ordinary replies remain public.
+**Revenue share, equity, exposure or future payment is not guaranteed pay.** If there is no guaranteed payment, use Hobby instead.
 
-## Acknowledge these guidelines
-Use the acknowledgement button on the bot's message and enter the code in its private form. Do not post the answer in the thread. A challenge gives you {{acknowledgement_minutes}} minutes from successful delivery. In Advisory mode this is practice: no automatic deletion, closure or failure count. When enforcement is enabled, an unresolved usable challenge can result in deletion. The bot message states the active mode and your deadline.
+Link your **studio, project, website, itch.io/Steam page, previous work, or other relevant presence** where available. Give applicants enough information to independently understand who they may be working with.
+
+## Keep useful questions public
+
+Ask about **scope, compensation, deadlines, requirements, payment terms and project details in the thread** when the answer would benefit everyone.
+
+Do not immediately push applicants into DMs. Bad actors prefer private conversations because there is less visibility, making suspicious behaviour harder for users and moderators to identify.
+
+Move to DMs when applications, personal information or other genuinely private details need to be exchanged.
+
+**Never ask applicants to run unknown files, share credentials, pay upfront fees, or make purchases as a condition of employment.**
+
+## Acknowledgement
+
+Use the button on the bot message and enter this code **privately**:
 
 UDC acknowledgement code: {{code}}
+
+Do **not** post the code in your thread. You have **{{acknowledgement_minutes}} minutes** after receiving the challenge.
+
+**One active listing per group.** Close your existing listing before replacing it. Cooldowns apply.
+
+## Examples
+
+These are examples, not required formatting.
+
+```markdown
+Project: Example Studio — Project Atlas
+Looking for: Gameplay Programmer
+Work: Unity / C#, gameplay systems and UI integration
+
+Payment: $40–55 USD/hr
+Workload: ~15–20 hrs/week for 6–8 weeks
+Payment schedule: Fortnightly
+
+Project:
+https://examplestudio.dev
+https://store.steampowered.com/app/example
+https://example.itch.io/project-atlas
+
+Applying:
+Post questions in this thread.
+Send your portfolio/GitHub when applying.
+Applicants will be assessed based on relevant shipped or personal work.
+```
+
+```markdown
+Project: Small indie game currently in production
+Looking for: 3D Environment Artist
+
+Scope:
+5 modular environment sets including models, UVs and textures.
+
+Payment: $2,000–3,000 USD total
+Payment schedule: 25% upfront, remaining payments per approved milestone
+Timeline: Approximately 6 weeks
+
+Project:
+https://examplegame.com
+https://artstation.com/examplestudio
+
+Applying:
+Portfolio required.
+Please include similar environment work and your estimated availability.
+Questions about scope or payment should be asked in this thread.
+```

@@ -1,19 +1,67 @@
-# Paid for hire
+# ⚠️ PAID — FOR HIRE
 
-Use this forum when you are offering your services for paid work.
+Use this forum when offering your services for **guaranteed paid work**.
 
-## Make the offer clear
-Describe your services, availability, currency and rate/range. Link a portfolio you can verify as your own and explain what the quoted price covers.
-Revenue share is not guaranteed pay. Label it explicitly; an offer with no guaranteed payment belongs in a hobby forum. Missing details will receive advice rather than automatic rejection.
+## Your post must include
 
-## Start the conversation here
-Keep the initial scope, terms, rate and portfolio verification in the public post. Ask questions here before moving to DMs. Verify work and identity independently; an acknowledgement code or bot summary is not an endorsement. Do not run unknown files, share credentials, or let urgency pressure you into payment.
+* **Role / services**
+* **Rate or price range + currency**
+* **Availability**
+* **Portfolio** showing your work
+* What the quoted price **includes**
 
-## Maintain your listing
-The planned policy allows one recruiting listing and one for-hire listing across the paid/hobby forums. Each group has its own {{cooldown_days}}-day wait from an accepted listing's creation, and from its deletion when applicable. Close the existing listing before replacing it. Posting in both groups is allowed; double-check that each post belongs in its chosen forum.
-Use the bot's Close control when finished, or add Closed to signal that you are finished. Removing Closed does not reopen a listing. Accepted listings with no qualifying response close after {{unanswered_days}} days when lifecycle enforcement is enabled. Ordinary replies remain public.
+**Revenue share is not guaranteed pay.** Rev-share-only offers belong in Hobby.
 
-## Acknowledge these guidelines
-Use the acknowledgement button on the bot's message and enter the code in its private form. Do not post the answer in the thread. A challenge gives you {{acknowledgement_minutes}} minutes from successful delivery. In Advisory mode this is practice: no automatic deletion, closure or failure count. When enforcement is enabled, an unresolved usable challenge can result in deletion. The bot message states the active mode and your deadline.
+**Good portfolio links include:** ArtStation, Behance, GitHub/GitLab, itch.io, Sketchfab, Vimeo/YouTube, SoundCloud/Bandcamp, or your own website. LinkedIn is useful supporting information, but should not replace actual work samples.
+
+## Keep useful questions public
+
+Ask about **scope, rates, terms, experience and portfolio verification in the thread** when the answer would benefit everyone.
+
+Do not immediately push conversations into DMs. Bad actors prefer private conversations because there is less visibility, making suspicious behaviour harder for users and moderators to identify.
+
+Move to DMs when information actually needs to be private.
+
+**Never run unknown files, share credentials, or let urgency pressure you into payment or sensitive information.**
+
+## Acknowledgement
+
+Use the button on the bot message and enter this code **privately**:
 
 UDC acknowledgement code: {{code}}
+
+Do **not** post the code in your thread. You have **{{acknowledgement_minutes}} minutes** after receiving the challenge.
+
+**One active listing per group.** Close your existing listing before replacing it. Cooldowns apply.
+
+## Examples
+
+These are examples, not required formatting.
+
+```markdown
+Role: Gameplay / Tools Programmer
+Skills: C#, Unity, backend services, Discord integrations
+Rate: $40–60 USD/hr
+Availability: 15 hrs/week
+
+Portfolio:
+https://github.com/yourname
+https://yourname.dev
+https://yourname.itch.io
+
+Includes: Implementation, testing, documentation and one revision pass.
+```
+
+```markdown
+Role: 3D Environment Artist
+Skills: Blender, Substance Painter, Unreal Engine
+Rate: $250–500 USD per asset
+Availability: Open for new work
+
+Portfolio:
+https://artstation.com/yourname
+https://sketchfab.com/yourname
+https://yourname.com
+
+Includes: Modelling, UVs, textures and two revision passes.
+```
