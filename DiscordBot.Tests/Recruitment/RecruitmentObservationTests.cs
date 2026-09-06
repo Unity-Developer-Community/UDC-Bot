@@ -231,7 +231,7 @@ public sealed class RecruitmentObservationTests
     [TestMethod]
     [DataRow(RecruitmentMode.Advisory)]
     [DataRow(RecruitmentMode.Enforce)]
-    public async Task PublicModes_RejectStartupBeforeSubscribingOrCreatingState(RecruitmentMode mode)
+    public async Task EnforceOrMissingAdvisoryServices_RejectStartupBeforeSubscribingOrCreatingState(RecruitmentMode mode)
     {
         await using var f = new Fixture(); f.Options.Mode = mode;
         var service = f.Service();

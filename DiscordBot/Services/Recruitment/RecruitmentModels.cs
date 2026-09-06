@@ -12,7 +12,7 @@ public enum RecruitmentPaymentSignal { Unknown, NotApplicable, Missing, Ambiguou
 
 public sealed class RecruitmentStateDocument
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
     [JsonRequired] public int SchemaVersion { get; set; } = CurrentSchemaVersion;
     [JsonRequired] public ulong GuildId { get; set; }
     [JsonRequired] public long Revision { get; set; }
@@ -74,10 +74,12 @@ public sealed class RecruitmentPostRecord
     public ulong? AdvisoryMessageId { get; set; }
     public ulong? FeedMessageId { get; set; }
     public RecruitmentPostObservation Observation { get; set; } = new();
+    public RecruitmentPostAdvisory Advisory { get; set; } = new();
 }
 
 public sealed class RecruitmentForumObservation
 {
+    public RecruitmentForumPublication Publication { get; set; } = new();
     public DateTimeOffset? ActiveCheckedAtUtc { get; set; }
     public DateTimeOffset? ArchiveBeforeUtc { get; set; }
     public DateTimeOffset? ArchiveCompletedAtUtc { get; set; }

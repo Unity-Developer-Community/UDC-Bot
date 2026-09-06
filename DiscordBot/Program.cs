@@ -27,6 +27,13 @@ public static class Program
 {
     public static async Task<int> Main(string[] args)
     {
+        if (args.Length > 0 && args[0].Equals("--recruitment-preview", StringComparison.OrdinalIgnoreCase))
+        {
+            var output = args.Length > 1 ? args[1] : null;
+            var assets = args.Length > 2 ? args[2] : Path.Combine(AppContext.BaseDirectory, "Assets");
+            return await RecruitmentRenderPreview.RunAsync(assets, output);
+        }
+
         if (args.Length > 0 && args[0].Equals("--render-smoke", StringComparison.OrdinalIgnoreCase))
         {
             var outputPath = args.Length > 1 ? args[1] : null;
@@ -158,8 +165,12 @@ public static class Program
 
         services.AddSingleton<DatabaseService>();
         services.AddSingleton(serviceProvider =>
-            new ImageRenderOptions(
-                serviceProvider.GetRequiredService<IOptions<StorageOptions>>().Value.AssetsRootPath));
+        {
+            var options = new ImageRenderOptions(serviceProvider.GetRequiredService<IOptions<StorageOptions>>().Value.AssetsRootPath);
+            options.Validate();
+            MagickResourcePolicy.Configure(options);
+            return options;
+        });
         services.AddSingleton<IAvatarDownloader>(serviceProvider =>
         {
             var handler = new SocketsHttpHandler
@@ -177,6 +188,12 @@ public static class Program
         services.AddSingleton<RecruitmentStateStore>();
         services.AddSingleton<IRecruitmentObserver, DiscordRecruitmentObserver>();
         services.AddSingleton<RecruitmentObservationCoordinator>();
+        services.AddSingleton<IRecruitmentPublisher, DiscordRecruitmentPublisher>();
+        services.AddSingleton<RecruitmentGuidelines>();
+        services.AddSingleton<RecruitmentGuidelinePublisher>();
+        services.AddSingleton<IRecruitmentBannerRenderer, RecruitmentBannerRenderer>();
+        services.AddSingleton<RecruitmentOwnerActions>();
+        services.AddSingleton<RecruitmentAdvisoryCoordinator>();
         services.AddSingleton<UserService>();
         services.AddSingleton<IntroductionWatcherService>();
         services.AddSingleton<ModerationService>();

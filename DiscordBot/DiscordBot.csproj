@@ -18,4 +18,7 @@
     <PackageReference Include="Pathoschild.NaturalTimeParser" Version="0.2.0-alpha" />
     <PackageReference Include="System.ServiceModel.Syndication" Version="9.0.6" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="Assets/recruitment/**/*.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

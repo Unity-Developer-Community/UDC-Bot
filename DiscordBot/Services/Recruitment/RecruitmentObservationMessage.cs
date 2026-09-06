@@ -12,7 +12,7 @@ internal static class RecruitmentObservationMessage
         RecruitmentEligibility eligibility = policy.EvaluateEligibility(state, post.ThreadId);
         List<string> lines =
         [
-            "**Recruitment · Observe**",
+            $"**Recruitment · {options.Mode}**",
             Format.Sanitize(post.Title),
             PostLink(state.GuildId, post.ThreadId),
             $"Author: `{post.AuthorId}` · {post.Forum} · {post.Lifecycle}",
@@ -20,7 +20,7 @@ internal static class RecruitmentObservationMessage
             DescribeAuthorFacts(post, policy),
             $"Payment signal: {post.Payment} · {DescribeResponseEvidence(post)}",
             DescribeEligibility(post, eligibility),
-            DescribeProposal(post, options, now)
+            options.Mode == RecruitmentMode.Advisory ? "Practice only; automatic enforcement is unavailable." : DescribeProposal(post, options, now)
         ];
 
         if (eligibility.PlacementReminder is { } reminder)
@@ -32,6 +32,13 @@ internal static class RecruitmentObservationMessage
             lines.Add($"Coverage: {error}");
         }
 
+        if (options.Mode == RecruitmentMode.Advisory)
+        {
+            if (post.Advisory.Error is { } deliveryError) lines.Add($"Public advisory/action: {deliveryError}");
+            if (post.Advisory.RenderError is { } imageError) lines.Add(imageError);
+            if (state.Forums.GetValueOrDefault(post.ParentChannelId)?.Publication.Error is { } setupError)
+                lines.Add($"Forum setup: {setupError}");
+        }
         lines.Add(PreviousPostLinks(state, post));
         return AppendRecoveryMarker(string.Join('\n', lines), marker);
     }

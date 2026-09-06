@@ -53,16 +53,19 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
             {
                 _state = null;
             }
-            if (_state?.SchemaVersion == 1)
+            if (_state is { SchemaVersion: < RecruitmentStateDocument.CurrentSchemaVersion })
             {
                 var migrated = Clone(_state);
                 migrated.SchemaVersion = RecruitmentStateDocument.CurrentSchemaVersion;
                 migrated.Revision = checked(migrated.Revision + 1);
-                foreach (var post in migrated.Posts.Values)
+                if (_state.SchemaVersion == 1)
                 {
-                    post.Observation.Imported = true;
-                    post.Observation.HistoryUncertain = true;
-                    post.RequiresReview = true;
+                    foreach (var post in migrated.Posts.Values)
+                    {
+                        post.Observation.Imported = true;
+                        post.Observation.HistoryUncertain = true;
+                        post.RequiresReview = true;
+                    }
                 }
                 await WriteAsync(migrated, preservePrevious: true, overwrite: true, cancellationToken);
                 _state = migrated;
@@ -229,12 +232,13 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
 
     private void Validate(RecruitmentStateDocument document)
     {
-        if (document.SchemaVersion is not (1 or RecruitmentStateDocument.CurrentSchemaVersion))
+        if (document.SchemaVersion is not (1 or 2 or RecruitmentStateDocument.CurrentSchemaVersion))
             throw new InvalidDataException("Unsupported recruitment state schema; explicit migration is required.");
         if (document.GuildId != _guildId || document.Revision < 0 || document.DroppedObservationEvents < 0 ||
             document.Posts is null || document.Authors is null || document.Forums is null)
             throw new InvalidDataException("Recruitment state has an invalid guild, revision or collection.");
         RequireUtc(document.EnrolledAtUtc, document.LastGatewayGapAtUtc);
+        RecruitmentPublicationValidation.Validate(document);
         foreach (var (id, forum) in document.Forums)
         {
             if (id == 0 || forum is null || forum.Error?.Length > 200)

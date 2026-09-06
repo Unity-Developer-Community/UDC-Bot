@@ -9,9 +9,10 @@ namespace DiscordBot.Services;
 
 public sealed class RecruitService(
     RecruitmentStateStore store, RecruitmentObservationCoordinator coordinator, IRecruitmentObserver discord,
-    IOptions<RecruitmentOptions> options, TimeProvider time) : IManagedBotService, IComponentHealthContributor
+    IOptions<RecruitmentOptions> options, TimeProvider time, RecruitmentAdvisoryCoordinator? advisory = null) : IManagedBotService, IComponentHealthContributor
 {
     private readonly SemaphoreSlim _lifetime = new(1, 1);
+    private readonly SemaphoreSlim _work = new(1, 1);
     private CancellationTokenSource? _cancellation;
     private Task? _worker;
     private IDisposable? _subscription;
@@ -27,8 +28,10 @@ public sealed class RecruitService(
         try
         {
             if (IsRunning) return;
-            if (!options.Value.Enabled || options.Value.Mode != RecruitmentMode.Observe)
-                throw new InvalidOperationException("This build supports enabled Recruitment:Mode Observe only. Advisory and Enforce require later uplift chunks.");
+            if (!options.Value.Enabled || options.Value.Mode == RecruitmentMode.Enforce)
+                throw new InvalidOperationException("This build supports enabled Observe or Advisory only; Enforce requires a later chunk.");
+            if (options.Value.Mode == RecruitmentMode.Advisory && advisory is null)
+                throw new InvalidOperationException("Advisory services are unavailable.");
             var errors = RecruitmentOptionsValidator.ValidateValues(options.Value);
             if (errors.Count > 0) throw new InvalidOperationException(string.Join(" ", errors));
             _fault = null;
@@ -47,6 +50,7 @@ public sealed class RecruitService(
             try
             {
                 await coordinator.InitializeAsync(cancellationToken);
+                if (options.Value.Mode == RecruitmentMode.Advisory) await advisory!.InitializeAsync(cancellationToken);
                 _worker = RunAsync(_cancellation.Token);
             }
             catch
@@ -72,7 +76,9 @@ public sealed class RecruitService(
             if (_cancellation is not null) await _cancellation.CancelAsync();
             // Drain owned calls before releasing the writer, even if stop's deadline expires.
             if (_worker is not null) await _worker;
-            await store.ReleaseAsync();
+            await _work.WaitAsync(CancellationToken.None);
+            try { await store.ReleaseAsync(); }
+            finally { _work.Release(); }
             _worker = null;
             _cancellation?.Dispose();
             _cancellation = null;
@@ -87,15 +93,9 @@ public sealed class RecruitService(
             while (true)
             {
                 token.ThrowIfCancellationRequested();
-                var dropped = Interlocked.Exchange(ref _dropped, 0);
-                if (dropped != 0) await coordinator.RecordGapAsync(token, dropped);
-                for (var count = 0; count < 64 && _queue!.Reader.TryRead(out var item); count++)
-                {
-                    try { await coordinator.HandleAsync(item, token); }
-                    catch (Exception) when (store.IsHealthy && !token.IsCancellationRequested)
-                    { await coordinator.RecordGapAsync(token); }
-                }
-                await coordinator.TickAsync(token);
+                await _work.WaitAsync(token);
+                try { await ProcessWorkAsync(token); }
+                finally { _work.Release(); }
                 await Task.Delay(TimeSpan.FromSeconds(30), time, token);
             }
         }
@@ -108,8 +108,71 @@ public sealed class RecruitService(
         }
     }
 
-    public Task<ComponentHealthSnapshot> GetHealthAsync(CancellationToken cancellationToken) => Task.FromResult(new ComponentHealthSnapshot(
-        _fault is not null ? ComponentRuntimeState.Faulted : !IsRunning ? ComponentRuntimeState.Stopped :
-        coordinator.HasGaps || Interlocked.Read(ref _dropped) > 0 ? ComponentRuntimeState.Degraded : ComponentRuntimeState.Running,
-        _fault ?? (IsRunning ? coordinator.Summary : "Stopped; no recruitment subscriptions or actions."), time.GetUtcNow()));
+    private async Task ProcessWorkAsync(CancellationToken token)
+    {
+        var dropped = Interlocked.Exchange(ref _dropped, 0);
+        if (dropped != 0) await RecordGapAsync(token, dropped);
+        for (var count = 0; count < 64 && _queue!.Reader.TryRead(out var item); count++)
+        {
+            try
+            {
+                await coordinator.HandleAsync(item, token);
+                if (item.Kind == RecruitmentEventKind.Gap && options.Value.Mode == RecruitmentMode.Advisory)
+                    await advisory!.RecordGapAsync(token);
+            }
+            catch (Exception) when (store.IsHealthy && !token.IsCancellationRequested)
+            { await RecordGapAsync(token); }
+        }
+        await coordinator.TickAsync(token);
+        if (options.Value.Mode == RecruitmentMode.Advisory) await advisory!.TickAsync(token);
+    }
+
+    private async Task RecordGapAsync(CancellationToken token, long dropped = 0)
+    {
+        await coordinator.RecordGapAsync(token, dropped);
+        if (options.Value.Mode == RecruitmentMode.Advisory) await advisory!.RecordGapAsync(token);
+    }
+
+    public bool IsAdvisoryRunning => IsRunning && options.Value.Mode == RecruitmentMode.Advisory &&
+        _cancellation is { IsCancellationRequested: false };
+
+    public async Task<T> ExecuteAdvisoryAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken = default)
+    {
+        // Commands share the worker's gate and cancellation. Stop drains both before releasing state ownership.
+        var lifetime = _cancellation;
+        if (!IsAdvisoryRunning || lifetime is null) throw new InvalidOperationException("Advisory is stopped or unavailable.");
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, cancellationToken);
+        CancellationToken token = linked.Token;
+        await _work.WaitAsync(token);
+        try
+        {
+            token.ThrowIfCancellationRequested();
+            if (!IsAdvisoryRunning) throw new InvalidOperationException("Advisory is stopped or unavailable.");
+            return await action(token);
+        }
+        finally { _work.Release(); }
+    }
+
+    public Task<ComponentHealthSnapshot> GetHealthAsync(CancellationToken cancellationToken)
+    {
+        var state = ComponentRuntimeState.Stopped;
+        string summary = "Stopped; no recruitment subscriptions or actions.";
+        if (_fault is not null)
+        {
+            state = ComponentRuntimeState.Faulted;
+            summary = _fault;
+        }
+        else if (IsRunning)
+        {
+            bool gaps = coordinator.HasGaps || Interlocked.Read(ref _dropped) > 0;
+            summary = coordinator.Summary;
+            if (options.Value.Mode == RecruitmentMode.Advisory)
+            {
+                gaps |= advisory!.HasGaps;
+                summary += " " + advisory.Summary;
+            }
+            state = gaps ? ComponentRuntimeState.Degraded : ComponentRuntimeState.Running;
+        }
+        return Task.FromResult(new ComponentHealthSnapshot(state, summary, time.GetUtcNow()));
+    }
 }

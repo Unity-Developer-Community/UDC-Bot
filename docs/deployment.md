@@ -140,14 +140,23 @@ kubectl apply -f k8s/prod/bot-settings-config.yaml
 `CoreSettings.json` and `FeatureSettings.json`. The ConfigMap must remain non-secret. The deployment
 maps Kubernetes Secrets directly to the documented `UDCBOT_` environment variables.
 
-Recruitment now supports the Observe coordinator. Checked-in deployment settings remain
+Recruitment supports Observe and Advisory practice. Checked-in deployment settings remain
 disabled. Production lists the four new forum IDs; development uses zero placeholders
 until its own four forums are supplied. To activate observation, supply a staff-only text
 channel as `Recruitment:FeedChannelId`, verify all five channels belong to the configured
 guild, and set `Enabled: true` and `Mode: Observe`. Retain disabled enforcement gates.
 The bot needs View Channel and Read Message History in all four forums, and View Channel,
-Read Message History and Send Messages in the staff feed. No tags or Guidelines assets are required for Observe. Advisory and
-Enforce startup are rejected in this build. Configuration requires a process restart.
+Read Message History and Send Messages in the staff feed. No tags or Guidelines assets are required for Observe.
+Enforce startup is rejected in this build. Configuration requires a process restart.
+
+For an Advisory staging rollout, use `Mode: Advisory` with the same configured forums/feed.
+The bot additionally needs Manage Channels for forum topics/tags, Send Messages in Threads
+and Embed Links for public messages, Attach Files for optional banners, and Manage Threads
+for explicitly confirmed owner close/remove actions. Keep every enforcement gate disabled.
+The image packages `Assets/recruitment/guidelines/*.md`; a native forum topic is used for
+Guidelines, so no guidelines-post or tag IDs need configuring. Empty topics are initialized;
+existing or manually changed topics require staff preview/adoption. See the
+[Advisory setup and staging checklist](recruitment.md) before activation.
 
 The first enabled Observe start creates a missing, backup-free recruitment state file and
 imports existing posts as unverified. Keep a single replica and preserve the state volume.
@@ -156,7 +165,8 @@ operator recovery; the bot will not reset history. Stop the bot before restoring
 good snapshot, preserve the damaged primary separately, and restart to validate the restored
 guild/schema before any observations resume. The store also provides explicit validated
 backup recovery; a Discord recovery command is planned for a later chunk. Existing v1
-foundation state upgrades to v2 with its original snapshot retained as the first backup.
+foundation state and v2 Observe state upgrade to v3 with the previous snapshot retained as
+the first backup. Preserve a separate pre-upgrade copy for rollback; subsequent writes rotate `.bak`.
 See the [Observe notes](features.md#recruitment-observe) for recovery, coverage limits and
 staff-feed retention. Live guild permissions and restart/delivery behavior still need a
 staging check before production activation.

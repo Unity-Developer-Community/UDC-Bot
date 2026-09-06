@@ -102,7 +102,7 @@ public sealed class RecruitmentStateStoreTests
             await store.LoadAsync(); await store.InitializeAsync(Now); statePath = store.StatePath;
         }
         var original = File.ReadAllText(statePath);
-        foreach (var text in new[] { original.Replace("\"SchemaVersion\": 2", "\"SchemaVersion\": 99"),
+        foreach (var text in new[] { original.Replace("\"SchemaVersion\": 3", "\"SchemaVersion\": 99"),
                      original.Replace("\"GuildId\": \"1\"", "\"GuildId\": \"2\"") })
         {
             File.WriteAllText(statePath, text);
@@ -137,6 +137,32 @@ public sealed class RecruitmentStateStoreTests
         Assert.AreEqual(original, File.ReadAllText(reopened.BackupPath));
         await reopened.UpdateAsync(s => true);
         Assert.AreEqual(3L, (await reopened.LoadAsync())!.Revision);
+    }
+
+    [TestMethod]
+    public async Task VersionTwoUpgrade_AddsEmptyPublicationStateWithoutChangingEvidenceOrAcceptance()
+    {
+        using var root = new StoreRoot(); string path;
+        await using (var store = root.Store())
+        {
+            await store.LoadAsync(); await store.InitializeAsync(Now);
+            await store.UpdateAsync(state => { state.Posts[10] = Post(accepted: true); state.Forums[101] = new(); return true; });
+            path = store.StatePath;
+        }
+        var old = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+        old["SchemaVersion"] = 2;
+        old["Posts"]!["10"]!.AsObject().Remove("Advisory");
+        old["Forums"]!["101"]!.AsObject().Remove("Publication");
+        string source = old.ToJsonString(); File.WriteAllText(path, source);
+        await using var reopened = root.Store();
+        var state = (await reopened.LoadAsync())!;
+        Assert.AreEqual(3, state.SchemaVersion);
+        Assert.AreEqual(Now, state.Posts[10].AcceptedAtUtc);
+        Assert.IsFalse(state.Posts[10].RequiresReview);
+        Assert.IsFalse(state.Posts[10].Observation.HistoryUncertain);
+        Assert.IsNull(state.Forums[101].Publication.Confirmed);
+        Assert.AreEqual("", state.Posts[10].Advisory.Generation);
+        Assert.AreEqual(source, File.ReadAllText(reopened.BackupPath));
     }
 
     [TestMethod]

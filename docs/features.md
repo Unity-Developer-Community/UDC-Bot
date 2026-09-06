@@ -26,7 +26,7 @@ post_date: "2026-04-03"
 | **Tips** | Searchable tip database with image support, keyword lookups | `TipModule` | `TipService` | Feature |
 | **Tickets** | Private complaint/support ticket channels | `TicketModule` | — | Feature |
 | **Unity Help** | Help forum thread management, auto-archive, canned responses, FAQ, resources | `UnityHelpModule`, `CannedResponseModule`, `GeneralHelpModule`, `UnityHelpInteractiveModule`, `CannedInteractiveModule` | `UnityHelpService`, `CannedResponseService` | Core |
-| **Recruitment** | Four-forum Observe inventory, durable reconciliation and staff-feed findings; public modes pending | — | `RecruitService` | Feature |
+| **Recruitment** | Four-forum Observe inventory and Advisory practice with managed Guidelines and owner controls | `/recruitment preview`, `/recruitment publish` | `RecruitService` | Feature |
 | **Birthday Announcements** | Scheduled birthday notifications (configurable interval) | — | `BirthdayAnnouncementService` | Feature |
 | **Currency Conversion** | Real-time currency conversion | — | `CurrencyService` | Feature |
 | **Flight Data** | Airport and flight lookups | `AirportModule` | `AirportService` | Feature |
@@ -49,11 +49,12 @@ settings. It captures thread creation/changes/deletion, starter edits, replies a
 changes; inventories active and archived posts; and maintains one staff-feed entry per
 observed attempt. Entries show known facts, eligibility findings, placement reminders,
 previous-post links and evidence gaps. Observe does not publish public messages, create tags,
-change Guidelines, accept listings, or delete/lock/archive posts. Advisory and Enforce
-startup are rejected until later chunks. Checked-in deployments remain disabled.
+change Guidelines, accept listings, or delete/lock/archive posts. Advisory now adds the public
+practice workflow described in [Recruitment Advisory](recruitment.md). Enforce startup is
+still rejected. Checked-in deployments remain disabled.
 
-The tested policy permits one recruiting listing across paid/hobby recruiting and one
-for-hire listing across paid/hobby for-hire. Each group has its own 30-day creation/deletion
+The tested policy foundation permits one recruiting listing across paid/hobby recruiting
+and one for-hire listing across paid/hobby for-hire. Automatic enforcement remains unavailable. Each group has its own 30-day creation/deletion
 cooldown. Recent posts in a different forum produce a placement reminder; activity in the
 other group does not consume the current group's slot. Missing rates are advisory.
 Unanswered accepted listings close after 30 days; unacknowledged attempts are scheduled
@@ -65,7 +66,7 @@ even while recruitment moderation is disabled. Existing XP and karma are retaine
 Incomplete or malformed forum mappings are ignored by the XP classifier and reported by
 recruitment validation when enabled; they do not stop UserService.
 
-The state store uses `{ServerRootPath}/recruitment/recruitment-state.json`, schema v2,
+The state store uses `{ServerRootPath}/recruitment/recruitment-state.json`, schema v3,
 UTC timestamps and decimal-string IDs. It acquires an exclusive writer lock when loaded.
 The first enabled Observe start enrolls a missing, backup-free state file. Existing posts
 are imported as unverified; their past acknowledgement/acceptance is never invented.
@@ -73,6 +74,8 @@ Corrupt, incompatible or wrong-guild state is preserved and prevents writes. Suc
 updates retain the preceding valid snapshot at
 `.json.bak`; explicit backup recovery preserves the replaced primary as `.json.replaced-*`.
 The v1 foundation schema upgrades with a preserved backup and review/coverage flags.
+The v2 Observe schema upgrades with empty publication/control metadata while preserving
+its evidence and acceptance history.
 Recovery commands and retention cleanup remain future work; do not delete state to recover.
 
 One worker drains a bounded 256-event queue and checks due work every 30 seconds. Active
@@ -92,7 +95,7 @@ The configured feed has its own Discord retention: local future metadata cleanup
 remove staff-feed messages. Post bodies are not stored in recruitment state.
 
 Settings apply on process restart. `GuidelinesDirectory` is a relative subdirectory of
-`AssetsRootPath`; template file checks/publication belong to the forthcoming content chunk.
+`AssetsRootPath`; Advisory validates four Markdown templates and publishes native forum topics.
 Both dev and prod examples keep all enforcement gates disabled. Development forum IDs and
 the staff-feed channel must be filled in before Observe activation. Stop unsubscribes and
 drains owned work before releasing the writer. Component toggle/restart controls remain
