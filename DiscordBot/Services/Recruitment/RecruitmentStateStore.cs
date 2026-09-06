@@ -53,6 +53,20 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
             {
                 _state = null;
             }
+            if (_state?.SchemaVersion == 1)
+            {
+                var migrated = Clone(_state);
+                migrated.SchemaVersion = RecruitmentStateDocument.CurrentSchemaVersion;
+                migrated.Revision = checked(migrated.Revision + 1);
+                foreach (var post in migrated.Posts.Values)
+                {
+                    post.Observation.Imported = true;
+                    post.Observation.HistoryUncertain = true;
+                    post.RequiresReview = true;
+                }
+                await WriteAsync(migrated, preservePrevious: true, overwrite: true, cancellationToken);
+                _state = migrated;
+            }
             _loaded = true;
             _faulted = false;
             return _state is null ? null : Clone(_state);
@@ -125,6 +139,14 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
         {
             AcquireWriter();
             var backup = await ReadAsync(BackupPath, cancellationToken);
+            if (backup.SchemaVersion == 1)
+                foreach (var post in backup.Posts.Values)
+                {
+                    post.Observation.Imported = true;
+                    post.Observation.HistoryUncertain = true;
+                    post.RequiresReview = true;
+                }
+            backup.SchemaVersion = RecruitmentStateDocument.CurrentSchemaVersion;
             if (File.Exists(StatePath))
                 File.Copy(StatePath, StatePath + $".replaced-{Guid.NewGuid():N}", overwrite: false);
             await WriteAsync(backup, preservePrevious: false, overwrite: true, cancellationToken);
@@ -207,11 +229,18 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
 
     private void Validate(RecruitmentStateDocument document)
     {
-        if (document.SchemaVersion != RecruitmentStateDocument.CurrentSchemaVersion)
+        if (document.SchemaVersion is not (1 or RecruitmentStateDocument.CurrentSchemaVersion))
             throw new InvalidDataException("Unsupported recruitment state schema; explicit migration is required.");
-        if (document.GuildId != _guildId || document.Revision < 0 || document.Posts is null || document.Authors is null)
+        if (document.GuildId != _guildId || document.Revision < 0 || document.DroppedObservationEvents < 0 ||
+            document.Posts is null || document.Authors is null || document.Forums is null)
             throw new InvalidDataException("Recruitment state has an invalid guild, revision or collection.");
-        RequireUtc(document.EnrolledAtUtc);
+        RequireUtc(document.EnrolledAtUtc, document.LastGatewayGapAtUtc);
+        foreach (var (id, forum) in document.Forums)
+        {
+            if (id == 0 || forum is null || forum.Error?.Length > 200)
+                throw new InvalidDataException("Recruitment inventory metadata is invalid.");
+            RequireUtc(forum.ActiveCheckedAtUtc, forum.ArchiveBeforeUtc, forum.ArchiveCompletedAtUtc);
+        }
         foreach (var (id, post) in document.Posts)
         {
             if (post is null || id == 0 || id != post.ThreadId || post.ParentChannelId == 0 || post.AuthorId == 0 ||
@@ -226,6 +255,14 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
             RequireUtc(post.CreatedAtUtc, post.FirstSeenAtUtc, post.AcceptedAtUtc, post.PromptedAtUtc,
                 post.ChallengeDeadlineUtc, post.ClosedAtUtc, post.DeletedObservedAtUtc,
                 post.FirstQualifyingResponseAtUtc, post.ResponsesCheckedThroughUtc);
+            var observation = post.Observation;
+            if (observation is null || observation.Error?.Length > 200 || observation.FeedError?.Length > 200 ||
+                observation.StarterHash?.Length > 64 || observation.FeedHash?.Length > 64 ||
+                observation.FeedSearchBeforeId == 0 ||
+                observation.FeedSendRequestedAtUtc is not null && observation.FeedChannelId == 0)
+                throw new InvalidDataException("Recruitment observation metadata is invalid.");
+            RequireUtc(observation.LastSeenAtUtc, observation.NextCheckAtUtc, observation.JoinedAtUtc,
+                observation.FeedSendRequestedAtUtc, observation.FeedRetryAtUtc);
             if (post.FirstSeenAtUtc < post.CreatedAtUtc || post.AcceptedAtUtc < post.CreatedAtUtc ||
                 post.PromptedAtUtc < post.CreatedAtUtc || post.ClosedAtUtc < post.CreatedAtUtc ||
                 post.DeletedObservedAtUtc < post.CreatedAtUtc || post.FirstQualifyingResponseAtUtc <= post.CreatedAtUtc ||
@@ -253,6 +290,20 @@ public sealed class RecruitmentStateStore : IAsyncDisposable
     {
         if (dates.Any(date => date is { } value && (value.Offset != TimeSpan.Zero || value == default)))
             throw new InvalidDataException("Recruitment timestamps must be non-default UTC values.");
+    }
+
+    /// <summary>Release the writer between managed lifetimes; the next start must reread disk.</summary>
+    public async Task ReleaseAsync()
+    {
+        await _mutex.WaitAsync();
+        try
+        {
+            _writerLease?.Dispose();
+            _writerLease = null;
+            _state = null;
+            _loaded = false;
+        }
+        finally { _mutex.Release(); }
     }
 
     public async ValueTask DisposeAsync()

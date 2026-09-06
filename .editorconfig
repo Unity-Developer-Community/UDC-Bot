@@ -28,12 +28,37 @@ csharp_style_var_for_built_in_types = false:suggestion
 csharp_style_var_when_type_is_apparent = true:suggestion
 csharp_style_var_elsewhere = false:suggestion
 
-# Modern C#
-csharp_style_namespace_declarations = file_scoped:suggestion
-
 # Members
 dotnet_style_require_accessibility_modifiers = for_non_interface_members:suggestion
 dotnet_style_readonly_field = true:suggestion
+
+# Modern C#
+csharp_style_namespace_declarations = file_scoped:suggestion
+# Enforce pattern matching over old 'is' or 'as' casts
+csharp_style_pattern_matching_over_as_with_null_check = true:warning
+csharp_style_pattern_matching_over_is_with_cast_check = true:warning
+# Prefer modern switch expressions over verbose switch statements
+csharp_style_prefer_switch_expression = true:warning
+# Prefer modern top-level, index, and range operators (e.g., list[^1])
+csharp_style_prefer_index_operator = true:warning
+csharp_style_prefer_range_operator = true:warning
+# Enforce target-typed new() expressions -> Dictionary<string, string> dict = new();
+csharp_style_implicit_object_creation_when_type_is_apparent = true:warning
+# Enforce modern primary constructors for simpler class definitions (C# 12+)
+csharp_style_prefer_primary_constructors = true:warning
+# Prefer null-coalescing compound assignments (x ??= y)
+csharp_style_prefer_null_check_over_type_check = true:warning
+dotnet_style_coalesce_expression = true:warning
+# Avoid redundant 'this.' qualifiers unless strictly necessary
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_qualification_for_event = false:warning
+# Enforce modern, single-line lambda/expression methods where possible
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_expression_bodied_constructors = false:silent
+csharp_style_expression_bodied_properties = true:warning
+csharp_style_expression_bodied_accessors = true:warning
 
 [*.md]
 trim_trailing_whitespace = false

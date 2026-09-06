@@ -12,13 +12,16 @@ public enum RecruitmentPaymentSignal { Unknown, NotApplicable, Missing, Ambiguou
 
 public sealed class RecruitmentStateDocument
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
     [JsonRequired] public int SchemaVersion { get; set; } = CurrentSchemaVersion;
     [JsonRequired] public ulong GuildId { get; set; }
     [JsonRequired] public long Revision { get; set; }
     [JsonRequired] public DateTimeOffset EnrolledAtUtc { get; set; }
     [JsonRequired] public Dictionary<ulong, RecruitmentPostRecord> Posts { get; set; } = [];
     [JsonRequired] public Dictionary<ulong, RecruitmentAuthorRecord> Authors { get; set; } = [];
+    public Dictionary<ulong, RecruitmentForumObservation> Forums { get; set; } = [];
+    public DateTimeOffset? LastGatewayGapAtUtc { get; set; }
+    public long DroppedObservationEvents { get; set; }
 }
 
 public sealed class RecruitmentAuthorRecord
@@ -70,6 +73,38 @@ public sealed class RecruitmentPostRecord
     public RecruitmentPaymentSignal Payment { get; set; }
     public ulong? AdvisoryMessageId { get; set; }
     public ulong? FeedMessageId { get; set; }
+    public RecruitmentPostObservation Observation { get; set; } = new();
+}
+
+public sealed class RecruitmentForumObservation
+{
+    public DateTimeOffset? ActiveCheckedAtUtc { get; set; }
+    public DateTimeOffset? ArchiveBeforeUtc { get; set; }
+    public DateTimeOffset? ArchiveCompletedAtUtc { get; set; }
+    public bool ArchiveRescanRequired { get; set; }
+    public string? Error { get; set; }
+}
+
+/// <summary>Evidence and resumable read/feed work; never acknowledgement or penalty state.</summary>
+public sealed class RecruitmentPostObservation
+{
+    public bool Imported { get; set; }
+    public bool Archived { get; set; }
+    public bool Locked { get; set; }
+    public bool HasClosedTag { get; set; }
+    public DateTimeOffset? LastSeenAtUtc { get; set; }
+    public DateTimeOffset? NextCheckAtUtc { get; set; }
+    public ulong HistoryAfterId { get; set; }
+    public bool HistoryUncertain { get; set; }
+    public string? StarterHash { get; set; }
+    public string? Error { get; set; }
+    public DateTimeOffset? JoinedAtUtc { get; set; }
+    public ulong FeedChannelId { get; set; }
+    public string? FeedHash { get; set; }
+    public DateTimeOffset? FeedSendRequestedAtUtc { get; set; }
+    public ulong? FeedSearchBeforeId { get; set; }
+    public DateTimeOffset? FeedRetryAtUtc { get; set; }
+    public string? FeedError { get; set; }
 }
 
 public sealed record RecruitmentEligibility(

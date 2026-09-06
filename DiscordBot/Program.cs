@@ -175,6 +175,8 @@ public static class Program
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<RecruitmentForumClassifier>();
         services.AddSingleton<RecruitmentStateStore>();
+        services.AddSingleton<IRecruitmentObserver, DiscordRecruitmentObserver>();
+        services.AddSingleton<RecruitmentObservationCoordinator>();
         services.AddSingleton<UserService>();
         services.AddSingleton<IntroductionWatcherService>();
         services.AddSingleton<ModerationService>();

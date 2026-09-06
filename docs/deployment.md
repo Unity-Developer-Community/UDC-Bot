@@ -140,13 +140,26 @@ kubectl apply -f k8s/prod/bot-settings-config.yaml
 `CoreSettings.json` and `FeatureSettings.json`. The ConfigMap must remain non-secret. The deployment
 maps Kubernetes Secrets directly to the documented `UDCBOT_` environment variables.
 
-Recruitment is currently at the configuration/policy foundation stage. Keep
-`Recruitment:Enabled` false: its legacy handler has been retired and the replacement event
-coordinator is not available yet. Production lists the four new forum IDs; development
-uses zero placeholders until its own four forums are supplied. Set `Recruitment:FeedChannelId`
-before future activation, and retain the default disabled enforcement gates. See the
-[recruitment foundation notes](features.md#recruitment-foundation) for migration and state
-recovery behavior. Configuration remains read-only and requires a process restart.
+Recruitment now supports the Observe coordinator. Checked-in deployment settings remain
+disabled. Production lists the four new forum IDs; development uses zero placeholders
+until its own four forums are supplied. To activate observation, supply a staff-only text
+channel as `Recruitment:FeedChannelId`, verify all five channels belong to the configured
+guild, and set `Enabled: true` and `Mode: Observe`. Retain disabled enforcement gates.
+The bot needs View Channel and Read Message History in all four forums, and View Channel,
+Read Message History and Send Messages in the staff feed. No tags or Guidelines assets are required for Observe. Advisory and
+Enforce startup are rejected in this build. Configuration requires a process restart.
+
+The first enabled Observe start creates a missing, backup-free recruitment state file and
+imports existing posts as unverified. Keep a single replica and preserve the state volume.
+A missing primary with an existing backup, corrupt state, or changed forum mapping requires
+operator recovery; the bot will not reset history. Stop the bot before restoring a known
+good snapshot, preserve the damaged primary separately, and restart to validate the restored
+guild/schema before any observations resume. The store also provides explicit validated
+backup recovery; a Discord recovery command is planned for a later chunk. Existing v1
+foundation state upgrades to v2 with its original snapshot retained as the first backup.
+See the [Observe notes](features.md#recruitment-observe) for recovery, coverage limits and
+staff-feed retention. Live guild permissions and restart/delivery behavior still need a
+staging check before production activation.
 
 ### Step 6: Deploy PostgreSQL
 

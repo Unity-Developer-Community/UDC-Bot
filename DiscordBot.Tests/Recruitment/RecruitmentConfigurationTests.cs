@@ -142,16 +142,6 @@ public sealed class RecruitmentConfigurationTests
         Assert.IsNotNull(host.Services.GetRequiredService<IOptions<DiscordGuildOptions>>().Value);
     }
 
-    [TestMethod]
-    public async Task FoundationRuntime_RejectsStart_AndNeverClaimsToBeRunning()
-    {
-        var service = new RecruitService();
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.StartAsync(CancellationToken.None));
-        StringAssert.Contains(error.Message, "event coordinator");
-        await service.StopAsync(CancellationToken.None);
-        Assert.IsFalse(service.IsRunning);
-    }
-
     private static Dictionary<string, string?> ValidConfiguration() => new()
     {
         ["Recruitment:Enabled"] = "true", ["Recruitment:Mode"] = "Observe",
