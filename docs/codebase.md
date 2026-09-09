@@ -1,15 +1,4 @@
----
-post_title: "Codebase Map"
-author1: "UDC-Bot Contributors"
-post_slug: "codebase"
-microsoft_alias: "N/A"
-featured_image: ""
-categories: []
-tags: ["codebase", "architecture", "conventions"]
-ai_note: "Generated with AI assistance"
-summary: "Directory structure, naming conventions, and guidance for adding new code."
-post_date: "2026-04-03"
----
+# Codebase Map
 
 ## Top-Level Structure
 
@@ -68,7 +57,7 @@ DiscordBot/
 │   │   ├── ProfileModule.cs
 │   │   ├── RankModule.cs
 │   │   └── BirthdayModule.cs
-│   ├── Server/              # Server management, moderation, embeds, quotes, reminders
+│   ├── Server/              # Server management, embeds, quotes, reminders, tickets
 │   │   ├── ServerModule.cs / ServerSlashModule.cs
 │   │   ├── TicketModule.cs
 │   │   ├── RulesModule.cs

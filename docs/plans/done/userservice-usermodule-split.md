@@ -1,15 +1,4 @@
----
-post_title: "UserService & UserModule Split Plan"
-author1: "Copilot"
-post_slug: "userservice-usermodule-split"
-microsoft_alias: ""
-featured_image: ""
-categories: []
-tags: ["refactor", "architecture"]
-ai_note: "AI-generated plan"
-summary: "Detailed plan for extracting focused services from UserService and focused modules from UserModule"
-post_date: "2026-04-06"
----
+# UserService & UserModule Split Plan
 
 ## Overview
 

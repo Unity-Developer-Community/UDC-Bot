@@ -1,16 +1,3 @@
----
-post_title: "Deployment Guide"
-author1: "UDC-Bot Contributors"
-post_slug: "deployment"
-microsoft_alias: "N/A"
-featured_image: ""
-categories: []
-tags: ["deployment", "docker", "kubernetes", "k3s"]
-ai_note: "Generated with AI assistance"
-summary: "Guide to deploying UDC-Bot from scratch using Kubernetes (k3s) or Docker Compose."
-post_date: "2026-04-03"
----
-
 # UDC-Bot Deployment Guide
 
 ## Overview
@@ -22,7 +9,7 @@ UDC-Bot can be deployed in two ways:
 | **Kubernetes (k3s/k8s)** | Production and dev server | Medium-High |
 | **Docker Compose** | Local development or simple single-server deployment | Low |
 
-Both methods run the same Docker image and use MySQL as the database.
+Both methods run the same Docker image and use PostgreSQL as the database.
 
 ## Table of Contents
 
@@ -37,9 +24,9 @@ Both methods run the same Docker image and use MySQL as the database.
     - [Step 3: Create the Namespace](#step-3-create-the-namespace)
     - [Step 4: Create Secrets](#step-4-create-secrets)
     - [Step 5: Deploy ConfigMaps](#step-5-deploy-configmaps)
-    - [Step 6: Deploy MySQL](#step-6-deploy-mysql)
+    - [Step 6: Deploy PostgreSQL](#step-6-deploy-postgresql)
     - [Step 7: Deploy the Bot](#step-7-deploy-the-bot)
-    - [Step 8 (Optional): Backups and phpMyAdmin](#step-8-optional-backups-and-phpmyadmin)
+    - [Step 8 (Optional): Backups and Adminer](#step-8-optional-backups-and-adminer)
     - [Verify](#verify)
     - [Updating the Bot](#updating-the-bot)
     - [Advanced: Optional Integrations](#advanced-optional-integrations)
@@ -68,9 +55,9 @@ This is the primary deployment method used for both the production and dev serve
 ### What You Get
 
 - Bot container with init-container config rendering
-- MySQL 8.0 with persistent storage (5 Gi)
-- phpMyAdmin with TLS ingress (Traefik + Let's Encrypt)
-- Optionally: automated daily MySQL backups to S3
+- PostgreSQL 16 with persistent storage (5 Gi)
+- Adminer with TLS ingress (Traefik + Let's Encrypt)
+- Optionally: automated daily PostgreSQL backups to S3
 - Optionally: secrets managed via External Secrets Operator (1Password)
 
 ### Step 1: Set Up the Cluster
@@ -89,7 +76,7 @@ kubectl get nodes
 
 ### Step 2: Install cert-manager
 
-cert-manager handles TLS certificates for ingress (phpMyAdmin):
+cert-manager handles TLS certificates for ingress (Adminer):
 
 ```bash
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
@@ -108,14 +95,11 @@ This creates the `udc-bot-prod` namespace (or `udc-bot-dev` for the dev environm
 Create Kubernetes secrets for the bot's credentials:
 
 ```bash
-kubectl -n udc-bot-prod create secret generic mysql-credentials \
-  --from-literal=password='YOUR_MYSQL_ROOT_PASSWORD'
-
-kubectl -n udc-bot-prod create secret generic mysql-user-credentials \
-  --from-literal=password='YOUR_MYSQL_USER_PASSWORD'
+kubectl -n udc-bot-prod create secret generic postgresql-credentials \
+  --from-literal=password='YOUR_POSTGRESQL_PASSWORD'
 
 kubectl -n udc-bot-prod create secret generic discord-bot-token \
-  --from-literal=token='YOUR_DISCORD_BOT_TOKEN'
+  --from-literal=identifiant='YOUR_DISCORD_BOT_TOKEN'
 
 kubectl -n udc-bot-prod create secret generic bot-api-keys \
   --from-literal=weather-api-key='YOUR_KEY' \
@@ -140,16 +124,16 @@ kubectl apply -f k8s/prod/bot-settings-config.yaml
 in the `Settings.json` template. API keys and tokens are injected from secrets automatically
 via the init container's `envsubst`.
 
-### Step 6: Deploy MySQL
+### Step 6: Deploy PostgreSQL
 
 ```bash
-kubectl apply -f k8s/prod/mysql.yaml
+kubectl apply -f k8s/prod/postgresql.yaml
 ```
 
-Wait for MySQL to be ready:
+Wait for PostgreSQL to be ready:
 
 ```bash
-kubectl -n udc-bot-prod wait --for=condition=ready pod -l app.kubernetes.io/name=mysql --timeout=120s
+kubectl -n udc-bot-prod wait --for=condition=ready pod -l app.kubernetes.io/name=postgresql --timeout=120s
 ```
 
 ### Step 7: Deploy the Bot
@@ -162,30 +146,30 @@ The bot deployment includes:
 
 - An init container (`render-config`) that renders `Settings.json` from the template by
   substituting environment variables from secrets
-- An init container (`wait-for-mysql`) that blocks until MySQL is reachable
+- An init container (`wait-for-postgresql`) that blocks until PostgreSQL is reachable
 - The main bot container with the rendered config mounted at `/app/Settings`
 
-### Step 8 (Optional): Backups and phpMyAdmin
+### Step 8 (Optional): Backups and Adminer
 
-**Database backups:** You should set up regular MySQL backups using your preferred method.
+**Database backups:** You should set up regular PostgreSQL backups using your preferred method.
 Common options include:
 
-- `mysqldump` via a cron job
+- `pg_dump` via a cron job
 - Volume snapshots (if your storage provider supports it)
-- Dedicated backup tools like [databack/mysql-backup](https://github.com/databacker/mysql-backup)
+- Dedicated backup tools like [eeshugerman/postgres-backup-s3](https://github.com/eeshugerman/postgres-backup-s3)
 - Cloud-managed backup (AWS RDS, GCP Cloud SQL, etc.)
 
 The repository includes an S3-based backup manifest — see
 [Using S3 Backups](#using-s3-backups) below if you want to use it.
 
-**phpMyAdmin** (database UI):
+**Adminer** (database UI):
 
 ```bash
-kubectl apply -f k8s/prod/phpmyadmin.yaml
+kubectl apply -f k8s/prod/adminer.yaml
 ```
 
-phpMyAdmin is exposed via Traefik ingress with TLS at `phpmyadmin.bot.udc.ovh` (prod)
-or `phpmyadmin.dev.bot.udc.ovh` (dev). Edit the ingress host to match your domain.
+Adminer is exposed via Traefik ingress with TLS at `adminer.bot.udc.ovh` (prod)
+or `adminer.dev.bot.udc.ovh` (dev). Edit the ingress host to match your domain.
 Access is restricted by IP allowlist.
 
 ### Verify
@@ -267,19 +251,18 @@ This creates the following secrets automatically from 1Password:
 
 | Secret | 1Password Item |
 |--------|----------------|
-| `mysql-credentials` | MySQL root password |
-| `mysql-user-credentials` | MySQL user password |
+| `postgresql-credentials` | PostgreSQL password |
 | `discord-bot-token` | Discord bot token |
 | `bot-api-keys` | Weather, IP Geo, Flight, Airlab API keys |
-| `mysql-backup-credentials` | AWS S3 keys (only needed for S3 backups) |
+| `postgresql-backup-credentials` | AWS S3 keys (only needed for S3 backups) |
 
 Secrets are refreshed every hour automatically.
 
 #### Using S3 Backups
 
 The repository includes a backup deployment using
-[databack/mysql-backup](https://github.com/databacker/mysql-backup) that dumps MySQL
-to an S3 bucket daily.
+[eeshugerman/postgres-backup-s3](https://github.com/eeshugerman/postgres-backup-s3) that dumps
+PostgreSQL to an S3 bucket daily.
 
 **Prerequisites:**
 
@@ -289,20 +272,20 @@ to an S3 bucket daily.
 **Step 1: Create the backup credentials secret**
 
 ```bash
-kubectl -n udc-bot-prod create secret generic mysql-backup-credentials \
-  --from-literal=access-key-id='YOUR_AWS_KEY' \
-  --from-literal=secret-access-key='YOUR_AWS_SECRET'
+kubectl -n udc-bot-prod create secret generic postgresql-backup-credentials \
+  --from-literal=AWS_ACCESS_KEY_ID='YOUR_AWS_KEY' \
+  --from-literal=AWS_SECRET_ACCESS_KEY='YOUR_AWS_SECRET'
 ```
 
 **Step 2: Deploy the backup service**
 
-Review `k8s/prod/mysql-backup.yaml` and update the S3 bucket name and region if needed, then:
+Review `k8s/prod/postgresql-backup.yaml` and update the S3 bucket name and region if needed, then:
 
 ```bash
-kubectl apply -f k8s/prod/mysql-backup.yaml
+kubectl apply -f k8s/prod/postgresql-backup.yaml
 ```
 
-The backup runs every 24 hours (1440 minutes) and stores dumps in the configured S3 bucket.
+The backup runs daily (`@daily`) with 90-day retention and stores dumps in the configured S3 bucket.
 
 ---
 
@@ -313,8 +296,8 @@ Simpler setup for local development or single-server deployment.
 ### What You Get
 
 - Bot container built from source
-- MySQL with persistent volume
-- phpMyAdmin (port 8080)
+- PostgreSQL with persistent volume
+- Adminer (port 8080)
 
 ### Step 1: Configure Settings
 
@@ -325,7 +308,7 @@ cp DiscordBot/Settings/Settings.example.json DiscordBot/Settings/Settings.json
 Edit `Settings.json`:
 
 - Set `Token` to your Discord bot token
-- Set `DbConnectionString` to `Server=db;Database=udcbot;Uid=udcbot;Pwd=123456789;`
+- Set `DbConnectionString` to `Host=db;Port=5432;Database=udcbot;Username=udcbot;Password=123456789`
 - Configure channel and role IDs for your Discord server
 - Set API keys for Weather, Flight, etc.
 
@@ -344,8 +327,8 @@ docker-compose up db
 ### Step 3: Verify
 
 - Bot logs appear in the terminal
-- phpMyAdmin is available at `http://localhost:8080`
-- Database is on `localhost:3306`
+- Adminer is available at `http://localhost:8080`
+- Database is on `localhost:5432`
 
 ### Production Hardening (if using Compose for production)
 
@@ -357,27 +340,26 @@ For a production deployment with Docker Compose:
 
 ```yaml
 environment:
-  MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-  MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 ```
 
-1. **Restrict phpMyAdmin access** — either remove it or bind to localhost only:
+1. **Restrict Adminer access** — either remove it or bind to localhost only:
 
 ```yaml
 ports:
   - "127.0.0.1:8080:80"
 ```
 
-1. **Set up database backups** — use `mysqldump` via cron, volume snapshots, or a dedicated
+1. **Set up database backups** — use `pg_dump` via cron, volume snapshots, or a dedicated
    backup tool. See [Using S3 Backups](#using-s3-backups) for an example.
 
 2. **Pin image versions** — use specific tags instead of `latest`:
 
 ```yaml
 db:
-  image: mysql:8.0
-phpmyadmin:
-  image: phpmyadmin:5.2.3
+  image: postgres:16
+adminer:
+  image: adminer:4
 ```
 
 ---
@@ -390,9 +372,9 @@ phpmyadmin:
 | Bot image | Pinned commit SHA | `latest` | Built from source |
 | CPU request | 100m | 50m | Unlimited |
 | Memory limit | 512Mi | 512Mi | Unlimited |
-| MySQL storage | 5 Gi PVC | 5 Gi PVC | Docker volume |
+| PostgreSQL storage | 5 Gi PVC | 5 Gi PVC | Docker volume |
 | Backups | User's choice | User's choice | Manual |
 | Secrets | Manual or External Secrets | Manual or External Secrets | Hardcoded / `.env` file |
-| phpMyAdmin | TLS ingress + IP allowlist | TLS ingress + IP allowlist | `localhost:8080` |
+| Adminer | TLS ingress + IP allowlist | TLS ingress + IP allowlist | `localhost:8080` |
 
 ---

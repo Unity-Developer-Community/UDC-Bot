@@ -1,39 +1,37 @@
----
-post_title: "Features"
-author1: "UDC-Bot Contributors"
-post_slug: "features"
-microsoft_alias: "N/A"
-featured_image: ""
-categories: []
-tags: ["features"]
-ai_note: "Generated with AI assistance"
-summary: "Complete feature list for UDC-Bot with descriptions and ownership."
-post_date: "2026-04-03"
----
+# Features
 
 ## Feature List
 
 | Feature | Description | Module(s) | Service(s) | Criticality |
 |---------|-------------|-----------|------------|-------------|
-| **User Profiles** | XP/level system, karma tracking, profile cards with customizable skins | `UserModule`, `UserSlashModule` | `UserService` | Core |
-| **Moderation** | Mute, kick, ban, slowmode, message clear, audit logging, invite enforcement | `ModerationModule` | `ModerationService` | Core |
+| **User Profiles** | XP/level system, karma tracking, profile cards with customizable skins | `ProfileModule`, `RankModule` | `XpService`, `KarmaService`, `ProfileCardService`, `UserExtendedService` | Core |
 | **Command Handling** | Text command + slash command routing, history tracking, prefix config | — | `CommandHandlingService` | Core |
 | **Logging** | Multi-destination logging (console, file, Discord channel) with severity levels | — | `LoggingService` | Core |
-| **Database** | MySQL connection pooling, user/casino repositories | — | `DatabaseService` | Core |
-| **Casino** | Token economy, Blackjack, Poker, Rock Paper Scissors, daily rewards, leaderboards | `CasinoSlashModule` | `CasinoService`, `GameService` | Feature |
-| **Weather** | Temperature, conditions, air quality, local time via OpenWeatherMap | `WeatherModule` | `WeatherService` | Feature |
-| **Reminders** | Persistent scheduled reminders with natural time parsing | `ReminderModule` | `ReminderService` | Feature |
+| **Database** | PostgreSQL connection pooling, user/casino repositories | — | `DatabaseService` | Core |
+| **Audit Logging** | Background logging of moderator-relevant server events | — | `AuditLogService` | Core |
+| **Unity Help** | Help forum thread management, auto-archive, canned responses, resources | `UnityHelpModule`, `UnityHelpInteractiveModule`, `GeneralHelpModule`, `CannedResponseModule`, `CannedInteractiveModule` | `UnityHelpService`, `CannedResponseService` | Core |
+| **Welcome** | New-member welcome messages | — | `WelcomeService` | Core |
+| **Code Assistance** | Code-block formatting checks/reminders and code tips | `CodeTipModule` | `CodeCheckService` | Feature |
 | **Tips** | Searchable tip database with image support, keyword lookups | `TipModule` | `TipService` | Feature |
-| **Tickets** | Private complaint/support ticket channels | `TicketModule` | — | Feature |
-| **Unity Help** | Help forum thread management, auto-archive, canned responses, FAQ, resources | `UnityHelpModule`, `CannedResponseModule`, `GeneralHelpModule`, `UnityHelpInteractiveModule`, `CannedInteractiveModule` | `UnityHelpService`, `CannedResponseService` | Core |
-| **Recruitment** | Configurable recruitment workflow (toggleable) | — | `RecruitService` | Feature |
-| **Birthday Announcements** | Scheduled birthday notifications (configurable interval) | — | `BirthdayAnnouncementService` | Feature |
-| **Currency Conversion** | Real-time currency conversion | — | `CurrencyService` | Feature |
+| **Casino** | Token economy, Blackjack, Poker, Rock Paper Scissors, daily rewards, leaderboards | `CasinoSlashModule` | `CasinoService`, `GameService`, `TransactionFormatter` | Feature |
+| **Duels** | Player-vs-player duels with configurable stakes | `DuelSlashModule` | `DuelService` | Feature |
+| **Fun** | Slap, coin flip, dice rolls (including D&D format) | `FunModule` | — | Feature |
+| **Search** | Documentation, manual, and wiki lookups | `SearchModule` | `SearchService` | Feature |
+| **Weather** | Temperature, conditions, air quality, local time via OpenWeatherMap | `WeatherModule` | `WeatherService` | Feature |
+| **Conversion** | Currency, temperature, and unit conversion | `ConvertModule` | `CurrencyService` | Feature |
 | **Flight Data** | Airport and flight lookups | `AirportModule` | `AirportService` | Feature |
-| **RSS Feeds** | Feed parsing and management | — | `FeedService` | Feature |
-| **Embed Builder** | Generate embeds from messages or hastebin URLs | `EmbedModule` | — | Feature |
-| **Introduction Watcher** | Monitors introduction channel (toggleable) | — | `IntroductionWatcherService` | Feature |
-| **User Extended Data** | Extended user data (default city for weather, etc.) | — | `UserExtendedService` | Feature |
+| **Reminders** | Persistent scheduled reminders with natural time parsing | `ReminderModule` | `ReminderService` | Feature |
+| **Quotes** | Quote a message by ID into the current channel | `QuoteModule` | — | Feature |
+| **Rules** | Server/global rules and channel listings | `RulesModule` | — | Feature |
+| **Server Utilities** | Help, ping, member count, and server info | `ServerModule`, `ServerSlashModule` | `ServerService` | Feature |
+| **Tickets** | Private complaint/support ticket channels | `TicketModule` | — | Feature |
+| **Embed Builder** | Generate embeds from messages or hastebin URLs | `EmbedModule` | `EmbedParsingService` | Feature |
+| **Birthday Announcements** | Scheduled birthday notifications (configurable interval) | `BirthdayModule` | `BirthdayAnnouncementService` | Feature |
+| **Recruitment** | Configurable recruitment workflow (toggleable) | — | `RecruitService` | Feature |
+| **Release Feeds** | RSS feed parsing and Unity release-notes tracking | — | `FeedService`, `ReleaseNotesParser` | Feature |
+| **@everyone Scold** | Warns users who use `@everyone`/`@here` without permission | — | `EveryoneScoldService` | Feature |
+| **Miku** | Playful auto-reply when Hatsune Miku is mentioned | — | `MikuService` | Feature |
+| **Karma Reset** | Scheduled periodic karma resets | — | `KarmaResetService` | Maintenance |
 | **Update Checker** | Background bot update checking | — | `UpdateService` | Maintenance |
 
 ## Slash Commands vs Text Commands
