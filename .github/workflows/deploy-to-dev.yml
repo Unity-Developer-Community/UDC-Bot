@@ -16,8 +16,9 @@ on:
 permissions:
     contents: write
     packages: write
-    pull-requests: read
+    pull-requests: write
     issues: write
+    deployments: write
 
 concurrency:
     group: deploy-dev
@@ -89,6 +90,7 @@ jobs:
             manifest_path: k8s/dev/bot.yaml
             manifest_ref: master
             commit_message: ${{ needs.resolve.outputs.commit_message }}
+            environment: dev
         secrets:
             APP_ID: ${{ secrets.APP_ID }}
             APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
@@ -103,14 +105,16 @@ jobs:
         steps:
             - name: Post success comment
               if: needs.deploy.result == 'success'
+              continue-on-error: true
               uses: actions/github-script@v7
               env:
                   PR_NUMBER: ${{ inputs.pr_number }}
                   SHORT_SHA: ${{ needs.build.outputs.short_sha }}
                   REPO_OWNER: ${{ github.repository_owner }}
+                  CHECKOUT_REF: ${{ needs.resolve.outputs.checkout_ref }}
               with:
                   script: |
-                      const { PR_NUMBER, SHORT_SHA, REPO_OWNER } = process.env;
+                      const { PR_NUMBER, SHORT_SHA, REPO_OWNER, CHECKOUT_REF } = process.env;
                       const owner = REPO_OWNER.toLowerCase();
                       await github.rest.issues.createComment({
                         owner: context.repo.owner,
@@ -118,9 +122,32 @@ jobs:
                         issue_number: Number(PR_NUMBER),
                         body: `✅ PR deployed to dev!\n\nImage: \`ghcr.io/${owner}/udc-bot-dev:${SHORT_SHA}\`\nArgoCD will sync shortly.`,
                       });
+                      
+                      try {
+                        const deployment = await github.rest.repos.createDeployment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          ref: CHECKOUT_REF,
+                          environment: 'dev',
+                          auto_merge: false,
+                          required_contexts: [],
+                          description: 'Deployed from workflow_dispatch'
+                        });
+                        if (deployment.data.id) {
+                          await github.rest.repos.createDeploymentStatus({
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            deployment_id: deployment.data.id,
+                            state: 'success'
+                          });
+                        }
+                      } catch (e) {
+                        console.error('Failed to create deployment status:', e);
+                      }
 
             - name: Post failure comment
               if: needs.deploy.result == 'failure'
+              continue-on-error: true
               uses: actions/github-script@v7
               env:
                   PR_NUMBER: ${{ inputs.pr_number }}
