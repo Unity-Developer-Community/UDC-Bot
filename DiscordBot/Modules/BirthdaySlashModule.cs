@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.Text;
 using Discord.Interactions;
 using Discord.WebSocket;
+using DiscordBot.Extensions;
 using DiscordBot.Services;
 
 namespace DiscordBot.Modules;
@@ -11,16 +13,20 @@ public class BirthdaySlashModule : InteractionModuleBase
     public DatabaseService DatabaseService { get; set; }
     public ILoggingService LoggingService { get; set; }
 
-    [SlashCommand("show", "Shows the next upcoming birthday(s)")]
-    public async Task ShowNextBirthday()
+    [SlashCommand("show", "Shows the next upcoming birthday date(s)")]
+    public async Task ShowNextBirthday(
+        [Summary(description: "Number of upcoming birthday dates to show (min 1, max 10)")]
+        [MinValue(1)]
+        [MaxValue(10)]
+        int count = 3)
     {
         await Context.Interaction.DeferAsync();
 
         try
         {
-            var upcomingBirthdays = await GetNextBirthdays();
+            var upcomingBirthdayGroups = await GetUpcomingBirthdayGroups(count);
 
-            if (upcomingBirthdays.Count == 0)
+            if (upcomingBirthdayGroups.Count == 0)
             {
                 await Context.Interaction.FollowupAsync("**No upcoming birthdays found!**");
                 return;
@@ -30,47 +36,34 @@ public class BirthdaySlashModule : InteractionModuleBase
                 .WithColor(Color.Orange)
                 .WithTitle("🎂 Upcoming Birthdays");
 
-            var birthday = upcomingBirthdays[0].Birthday.Value;
             var today = DateTime.Today;
+            var descriptionBuilder = new StringBuilder();
 
-            // Calculate next occurrence of birthday
-            var nextOccurrence = new DateTime(today.Year, birthday.Month, birthday.Day);
-            if (nextOccurrence < today)
+            for (var groupIndex = 0; groupIndex < upcomingBirthdayGroups.Count; groupIndex++)
             {
-                nextOccurrence = new DateTime(today.Year + 1, birthday.Month, birthday.Day);
+                var birthdayGroup = upcomingBirthdayGroups[groupIndex];
+
+                if (groupIndex > 0)
+                {
+                    descriptionBuilder.AppendLine();
+                    descriptionBuilder.AppendLine();
+                }
+
+                descriptionBuilder.AppendLine($"**{FormatUpcomingTimeframe(today, birthdayGroup.NextDate)}**");
+
+                foreach (var userBirthday in birthdayGroup.Users)
+                {
+                    var displayName = await ResolveDisplayName(userBirthday.UserID);
+                    var age = userBirthday.Birthday.HasValue
+                        ? CalculateAge(userBirthday.Birthday.Value, birthdayGroup.NextDate)
+                        : null;
+                    var ageString = age.HasValue ? $" (turns {age.Value})" : "";
+
+                    descriptionBuilder.AppendLine($"🎂 **{displayName}**{ageString}");
+                }
             }
 
-            // Calculate days until birthday
-            var daysUntil = (nextOccurrence - today).Days;
-
-            string timeframe;
-            if (daysUntil == 0)
-            {
-                timeframe = "Today! 🎉";
-            }
-            else if (daysUntil == 1)
-            {
-                timeframe = "Tomorrow!";
-            }
-            else
-            {
-                timeframe = $"In {daysUntil} days ({nextOccurrence:MMMM dd})";
-            }
-
-            var description = $"**{timeframe}**\n\n";
-
-            foreach (var userBirthday in upcomingBirthdays)
-            {
-                var user = await Context.Guild.GetUserAsync(ulong.Parse(userBirthday.UserID));
-                var displayName = user?.DisplayName ?? user?.Username ?? "Unknown User";
-
-                var age = CalculateAge(userBirthday.Birthday.Value, nextOccurrence);
-                var ageString = age.HasValue ? $" (turns {age.Value})" : "";
-
-                description += $"🎂 **{displayName}**{ageString}\n";
-            }
-
-            embed.WithDescription(description);
+            embed.WithDescription(descriptionBuilder.ToString());
             await Context.Interaction.FollowupAsync(embed: embed.Build());
         }
         catch (Exception e)
@@ -213,24 +206,60 @@ public class BirthdaySlashModule : InteractionModuleBase
         return birthdayString;
     }
 
-    private async Task<List<ServerUser>> GetNextBirthdays()
+    private static DateTime GetNextBirthdayOccurrence(DateTime birthday, DateTime today)
     {
-        // Get the next birthday to find the date, then get all users with birthdays on that date
-        var nextBirthday = await DatabaseService.Query.GetNextBirthday();
-        if (nextBirthday?.Birthday == null)
-            return new List<ServerUser>();
+        var nextDate = new DateTime(today.Year, birthday.Month, birthday.Day);
+        if (nextDate < today)
+        {
+            nextDate = new DateTime(today.Year + 1, birthday.Month, birthday.Day);
+        }
 
-        // Get all users who have birthdays on the same month/day as the next birthday
-        var nextBirthdayDate = nextBirthday.Birthday.Value;
-        var allUsersWithBirthdays = await GetUsersWithBirthdayOnDate(nextBirthdayDate.Month, nextBirthdayDate.Day);
-
-        return allUsersWithBirthdays;
+        return nextDate;
     }
 
-    private async Task<List<ServerUser>> GetUsersWithBirthdayOnDate(int month, int day)
+    private static string FormatUpcomingTimeframe(DateTime today, DateTime nextOccurrence)
     {
-        // Use the new database method to get all users with birthdays on a specific month/day
-        return (await DatabaseService.Query.GetBirthdaysOnDate(month, day)).ToList();
+        var daysUntil = (nextOccurrence - today).Days;
+        if (daysUntil == 0)
+        {
+            return "Today! 🎉";
+        }
+
+        if (daysUntil == 1)
+        {
+            return "Tomorrow!";
+        }
+
+        return $"In {daysUntil} days ({nextOccurrence:MMMM dd})";
+    }
+
+    private async Task<string> ResolveDisplayName(string userId)
+    {
+        if (!ulong.TryParse(userId, out var discordUserId))
+        {
+            return $"Unknown User ({userId})";
+        }
+
+        var user = await Context.Guild.GetUserAsync(discordUserId);
+        return user?.DisplayName ?? user?.Username ?? $"Unknown User ({userId})";
+    }
+
+    private async Task<List<UpcomingBirthdayGroup>> GetUpcomingBirthdayGroups(int numberOfDates)
+    {
+        var allBirthdays = await DatabaseService.Query.GetAllBirthdays();
+        var today = DateTime.Today;
+
+        return allBirthdays
+            .Where(u => u.Birthday.HasValue)
+            .GroupBy(u => GetNextBirthdayOccurrence(u.Birthday!.Value, today))
+            .OrderBy(g => g.Key)
+            .Take(numberOfDates)
+            .Select(g => new UpcomingBirthdayGroup
+            {
+                NextDate = g.Key,
+                Users = g.OrderBy(u => u.UserID).ToList()
+            })
+            .ToList();
     }
 
     private int? CalculateAge(DateTime birthDate, DateTime referenceDate)
@@ -273,5 +302,11 @@ public class BirthdaySlashModule : InteractionModuleBase
         }
 
         return false;
+    }
+
+    private sealed class UpcomingBirthdayGroup
+    {
+        public DateTime NextDate { get; init; }
+        public List<ServerUser> Users { get; init; } = new();
     }
 }
