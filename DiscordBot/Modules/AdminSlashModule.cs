@@ -10,7 +10,6 @@ namespace DiscordBot.Modules;
 
 [Group("admin", "Administrator-only commands")]
 [DefaultMemberPermissions(GuildPermission.Administrator)]
-[RequireUserPermission(GuildPermission.Administrator)]
 public class AdminSlashModule : InteractionModuleBase
 {
     [Group("casino", "Casino administration commands")]
