@@ -145,7 +145,7 @@ public class BirthdaySlashModule : InteractionModuleBase
 
     [SlashCommand("set", "Set your birthday")]
     public async Task SetBirthday(
-        [Summary(description: "Your birthday in MM/DD/YYYY or MM/DD format (e.g., 03/15/1990 or 03/15)")] string date)
+        [Summary(description: "Your birthday in DD/MM/YYYY or DD/MM format (e.g., 15/03/1990 or 15/03)")] string date)
     {
         await Context.Interaction.DeferAsync(ephemeral: true);
 
@@ -153,7 +153,7 @@ public class BirthdaySlashModule : InteractionModuleBase
 
         if (!TryParseBirthdayInput(date, out var birthday))
         {
-            await Context.Interaction.FollowupAsync("Invalid date format. Please use MM/DD/YYYY or MM/DD format (e.g., 03/15/1990 or 03/15).", ephemeral: true);
+            await Context.Interaction.FollowupAsync("Invalid date format. Please use DD/MM/YYYY or DD/MM format (e.g., 15/03/1990 or 15/03).", ephemeral: true);
             return;
         }
 
@@ -258,16 +258,17 @@ public class BirthdaySlashModule : InteractionModuleBase
             
         var provider = CultureInfo.InvariantCulture;
         
-        // Try parsing with year first (MM/DD/YYYY)
-        if (DateTime.TryParseExact(input, "M/d/yyyy", provider, DateTimeStyles.None, out birthday))
+        // Parse as a date-only value, then force UTC kind for PostgreSQL timestamptz writes.
+        if (DateTime.TryParseExact(input, "d/M/yyyy", provider, DateTimeStyles.None, out birthday))
         {
+            birthday = DateTime.SpecifyKind(birthday, DateTimeKind.Utc);
             return true;
         }
         
-        // Try parsing without year (MM/DD) - use 1900 as sentinel value
-        if (DateTime.TryParseExact(input, "M/d", provider, DateTimeStyles.None, out var tempDate))
+        // Try parsing without year (DD/MM) - use 1900 as sentinel value
+        if (DateTime.TryParseExact(input, "d/M", provider, DateTimeStyles.None, out var tempDate))
         {
-            birthday = new DateTime(1900, tempDate.Month, tempDate.Day);
+            birthday = DateTime.SpecifyKind(new DateTime(1900, tempDate.Month, tempDate.Day), DateTimeKind.Utc);
             return true;
         }
         

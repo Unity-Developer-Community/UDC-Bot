@@ -174,122 +174,136 @@ public class BirthdayModule : ModuleBase
     [RequireAdmin]
     public async Task BirthdayMigrate()
     {
-        await ReplyAsync("⏳ Fetching birthday data from Google Sheets…");
-
-        var rows = await WebClient.GetHtmlNodes(BirthdayTableUrl, "/html/body/table/tr");
-        if (rows == null || rows.Count == 0)
+        try
         {
-            await ReplyAsync("❌ Could not fetch data from the Google Sheet. Please try again later.");
-            return;
-        }
+            await ReplyAsync("⏳ Fetching birthday data from Google Sheets…");
 
-        var guild = Context.Guild;
-        var allMembers = (await guild.GetUsersAsync()).ToList();
-
-        int imported = 0, skipped = 0;
-        var ambiguous = new List<string>();
-        var unmatched = new List<string>();
-
-        foreach (var row in rows)
-        {
-            var nameNode = row.SelectSingleNode("td[2]");
-            var dateNode = row.SelectSingleNode("td[1]");
-            var yearNode = row.SelectSingleNode("td[3]");
-
-            if (nameNode == null || dateNode == null) continue;
-
-            var sheetName = nameNode.InnerText?.Trim();
-            if (string.IsNullOrEmpty(sheetName)) continue;
-
-            var dateString = dateNode.InnerText?.Trim();
-            if (string.IsNullOrEmpty(dateString)) continue;
-
-            if (!TryParseBirthdayDate(dateString, yearNode?.InnerText, out var birthDate))
-                continue;
-
-            // Match sheet name against guild members
-            var exactMatches = allMembers
-                .Where(m =>
-                    string.Equals(m.DisplayName, sheetName, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(m.Username, sheetName, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(m.GlobalName, sheetName, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            IGuildUser? matchedMember;
-
-            if (exactMatches.Count == 1)
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var rows = await WebClient.GetHtmlNodes(BirthdayTableUrl, "/html/body/table/tr", cts.Token);
+            if (rows == null || rows.Count == 0)
             {
-                matchedMember = exactMatches[0];
+                await ReplyAsync("❌ Could not fetch data from the Google Sheet. Please try again later.");
+                return;
             }
-            else if (exactMatches.Count > 1)
+
+            var guild = Context.Guild;
+            var allMembers = (await guild.GetUsersAsync()).ToList();
+
+            int imported = 0, skipped = 0;
+            var ambiguous = new List<string>();
+            var unmatched = new List<string>();
+
+            foreach (var row in rows)
             {
-                ambiguous.Add($"{sheetName} ({exactMatches.Count} exact matches)");
-                continue;
-            }
-            else
-            {
-                // Fall back to substring match
-                var subMatches = allMembers
+                var nameNode = row.SelectSingleNode("td[2]");
+                var dateNode = row.SelectSingleNode("td[1]");
+                var yearNode = row.SelectSingleNode("td[3]");
+
+                if (nameNode == null || dateNode == null) continue;
+
+                var sheetName = nameNode.InnerText?.Trim();
+                if (string.IsNullOrEmpty(sheetName)) continue;
+
+                var dateString = dateNode.InnerText?.Trim();
+                if (string.IsNullOrEmpty(dateString)) continue;
+
+                if (!TryParseBirthdayDate(dateString, yearNode?.InnerText, out var birthDate))
+                    continue;
+
+                // Match sheet name against guild members
+                var exactMatches = allMembers
                     .Where(m =>
-                        (m.DisplayName?.Contains(sheetName, StringComparison.OrdinalIgnoreCase) == true) ||
-                        m.Username.Contains(sheetName, StringComparison.OrdinalIgnoreCase))
+                        string.Equals(m.DisplayName, sheetName, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(m.Username, sheetName, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(m.GlobalName, sheetName, StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
-                if (subMatches.Count == 1)
+                IGuildUser? matchedMember;
+
+                if (exactMatches.Count == 1)
                 {
-                    matchedMember = subMatches[0];
+                    matchedMember = exactMatches[0];
                 }
-                else if (subMatches.Count > 1)
+                else if (exactMatches.Count > 1)
                 {
-                    ambiguous.Add($"{sheetName} ({subMatches.Count} partial matches)");
+                    ambiguous.Add($"{sheetName} ({exactMatches.Count} exact matches)");
                     continue;
                 }
                 else
                 {
-                    unmatched.Add(sheetName);
+                    // Fall back to substring match
+                    var subMatches = allMembers
+                        .Where(m =>
+                            (m.DisplayName?.Contains(sheetName, StringComparison.OrdinalIgnoreCase) == true) ||
+                            m.Username.Contains(sheetName, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+                    if (subMatches.Count == 1)
+                    {
+                        matchedMember = subMatches[0];
+                    }
+                    else if (subMatches.Count > 1)
+                    {
+                        ambiguous.Add($"{sheetName} ({subMatches.Count} partial matches)");
+                        continue;
+                    }
+                    else
+                    {
+                        unmatched.Add(sheetName);
+                        continue;
+                    }
+                }
+
+                // Check if user already has a birthday set — skip to avoid overwriting
+                var serverUser = await DatabaseService.GetOrAddUser(matchedMember as SocketGuildUser);
+                if (serverUser == null) continue;
+
+                var existing = await DatabaseService.Query.GetBirthday(serverUser.UserID);
+                if (existing != null)
+                {
+                    skipped++;
                     continue;
                 }
+
+                await DatabaseService.Query.UpdateBirthday(serverUser.UserID, birthDate);
+                imported++;
             }
 
-            // Check if user already has a birthday set — skip to avoid overwriting
-            var serverUser = await DatabaseService.GetOrAddUser(matchedMember as SocketGuildUser);
-            if (serverUser == null) continue;
+            // Build summary
+            var sb = new StringBuilder();
+            sb.AppendLine("**Birthday Migration Complete**");
+            sb.AppendLine($"✅ Imported: **{imported}**");
+            sb.AppendLine($"⏭️ Skipped (already set): **{skipped}**");
 
-            var existing = await DatabaseService.Query.GetBirthday(serverUser.UserID);
-            if (existing != null)
+            if (ambiguous.Count > 0)
             {
-                skipped++;
-                continue;
+                sb.AppendLine($"⚠️ Ambiguous ({ambiguous.Count}) — set manually with `/bday set`:");
+                foreach (var name in ambiguous)
+                    sb.AppendLine($"  • {name}");
             }
 
-            await DatabaseService.Query.UpdateBirthday(serverUser.UserID, birthDate);
-            imported++;
+            if (unmatched.Count > 0)
+            {
+                sb.AppendLine($"❌ Not found in server ({unmatched.Count}):");
+                foreach (var name in unmatched)
+                    sb.AppendLine($"  • {name}");
+            }
+
+            await ReplyAsync(sb.ToString());
+            await LoggingService.LogAction(
+                $"[BirthdayMigrate] Run by {Context.User}: imported={imported}, skipped={skipped}, ambiguous={ambiguous.Count}, unmatched={unmatched.Count}",
+                ExtendedLogSeverity.Info);
         }
-
-        // Build summary
-        var sb = new StringBuilder();
-        sb.AppendLine("**Birthday Migration Complete**");
-        sb.AppendLine($"✅ Imported: **{imported}**");
-        sb.AppendLine($"⏭️ Skipped (already set): **{skipped}**");
-
-        if (ambiguous.Count > 0)
+        catch (OperationCanceledException)
         {
-            sb.AppendLine($"⚠️ Ambiguous ({ambiguous.Count}) — set manually with `/bday set`:");
-            foreach (var name in ambiguous)
-                sb.AppendLine($"  • {name}");
+            await ReplyAsync("❌ Timed out while fetching Google Sheet data. Please try again later.");
+            await LoggingService.LogAction("[BirthdayMigrate] Google Sheet fetch timed out after 30s.", ExtendedLogSeverity.Warning);
         }
-
-        if (unmatched.Count > 0)
+        catch (Exception e)
         {
-            sb.AppendLine($"❌ Not found in server ({unmatched.Count}):");
-            foreach (var name in unmatched)
-                sb.AppendLine($"  • {name}");
+            await LoggingService.LogAction($"[BirthdayMigrate] Failed: {e.Message}", ExtendedLogSeverity.Warning);
+            await ReplyAsync("❌ Migration failed due to an internal error. Please check logs and try again.");
         }
-
-        await ReplyAsync(sb.ToString());
-        await LoggingService.LogAction(
-            $"[BirthdayMigrate] Run by {Context.User}: imported={imported}, skipped={skipped}, ambiguous={ambiguous.Count}, unmatched={unmatched.Count}",
-            ExtendedLogSeverity.Info);
     }
 
     private static bool TryParseBirthdayDate(string dateString, string? yearString, out DateTime birthDate)
@@ -301,12 +315,13 @@ public class BirthdayModule : ModuleBase
             if (!string.IsNullOrEmpty(yearString) && !yearString.Contains("&nbsp;"))
             {
                 var full = $"{dateString}/{yearString.Trim()}";
-                birthDate = DateTime.ParseExact(full, "M/d/yyyy", provider);
+                var parsed = DateTime.ParseExact(full, "M/d/yyyy", provider);
+                birthDate = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
             }
             else
             {
                 var tempDate = DateTime.ParseExact(dateString, "M/d", provider);
-                birthDate = new DateTime(1900, tempDate.Month, tempDate.Day);
+                birthDate = DateTime.SpecifyKind(new DateTime(1900, tempDate.Month, tempDate.Day), DateTimeKind.Utc);
             }
             return true;
         }
