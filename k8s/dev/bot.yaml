@@ -128,7 +128,7 @@ spec:
                 - ALL
       containers:
         - name: bot
-          image: ghcr.io/unity-developer-community/udc-bot-dev:ab497d8
+          image: ghcr.io/unity-developer-community/udc-bot-dev:1825f71
           volumeMounts:
             - name: app-settings
               mountPath: /app/Settings
