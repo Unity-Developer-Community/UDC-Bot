@@ -26,7 +26,7 @@ jobs:
     steps:
       - name: Get PR details
         id: pr
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { data: pr } = await github.rest.pulls.get({
@@ -42,7 +42,7 @@ jobs:
             core.setOutput('pr_number', context.issue.number);
 
       - name: React to comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.reactions.createForIssueComment({
@@ -73,7 +73,7 @@ jobs:
     steps:
       - name: Post success comment
         if: needs.build.result == 'success'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           PR_NUMBER: ${{ needs.check.outputs.pr_number }}
           IMAGE_REF: ${{ needs.build.outputs.image_ref }}
@@ -98,7 +98,7 @@ jobs:
 
       - name: Post failure comment
         if: needs.build.result == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           PR_NUMBER: ${{ needs.check.outputs.pr_number }}
         with:
