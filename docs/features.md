@@ -13,7 +13,7 @@
 | **Welcome** | New-member welcome messages | — | `WelcomeService` | Core |
 | **Code Assistance** | Code-block formatting checks/reminders and code tips | `CodeTipModule` | `CodeCheckService` | Feature |
 | **Tips** | Searchable tip database with image support, keyword lookups | `TipModule` | `TipService` | Feature |
-| **Casino** | Token economy, Blackjack, Poker, Rock Paper Scissors, daily rewards, leaderboards | `CasinoSlashModule` | `CasinoService`, `GameService`, `TransactionFormatter` | Feature |
+| **Casino** | Token economy, Blackjack, Poker, Rock Paper Scissors, daily rewards, leaderboards, plus admin moderation commands under `/admin casino` (`tokens history-admin`, `tokens set`, `tokens add`, `reset`) | `CasinoSlashModule`, `AdminSlashModule` | `CasinoService`, `GameService`, `TransactionFormatter` | Feature |
 | **Duels** | Player-vs-player duels with configurable stakes | `DuelSlashModule` | `DuelService` | Feature |
 | **Fun** | Slap, coin flip, dice rolls (including D&D format) | `FunModule` | — | Feature |
 | **Search** | Documentation, manual, and wiki lookups | `SearchModule` | `SearchService` | Feature |
@@ -26,7 +26,7 @@
 | **Server Utilities** | Help, ping, member count, and server info | `ServerModule`, `ServerSlashModule` | `ServerService` | Feature |
 | **Tickets** | Private complaint/support ticket channels | `TicketModule` | — | Feature |
 | **Embed Builder** | Generate embeds from messages or hastebin URLs | `EmbedModule` | `EmbedParsingService` | Feature |
-| **Birthday Announcements** | Scheduled birthday notifications (configurable interval), plus birthday command management (`/bday set`, `/bday del`, admin-only `/bday set-user`, `/bday del-user`, `/bday list`) | `BirthdayModule`, `BirthdaySlashModule` | `BirthdayAnnouncementService` | Feature |
+| **Birthday Announcements** | Scheduled birthday notifications (configurable interval), plus birthday command management (`/bday set`, `/bday del`, admin-only `/admin bday set-user`, `/admin bday del-user`, `/admin bday list`) | `BirthdayModule`, `BirthdaySlashModule`, `AdminSlashModule` | `BirthdayAnnouncementService` | Feature |
 | **Recruitment** | Configurable recruitment workflow (toggleable) | — | `RecruitService` | Feature |
 | **Release Feeds** | RSS feed parsing and Unity release-notes tracking | — | `FeedService`, `ReleaseNotesParser` | Feature |
 | **@everyone Scold** | Warns users who use `@everyone`/`@here` without permission | — | `EveryoneScoldService` | Feature |

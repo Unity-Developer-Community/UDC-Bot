@@ -1,10 +1,7 @@
 using System.Globalization;
-using System.Text;
 using Discord.Interactions;
 using Discord.WebSocket;
-using DiscordBot.Extensions;
 using DiscordBot.Services;
-using DiscordBot.Utils;
 
 namespace DiscordBot.Modules;
 
@@ -206,131 +203,6 @@ public class BirthdaySlashModule : InteractionModuleBase
         }
     }
 
-    // DefaultMemberPermissions sets Discord's native default_member_permissions, hiding this command
-    // from members without the Administrator permission. RequireUserPermission is kept as a bot-side
-    // safeguard because server admins can override command visibility in Server Settings > Integrations.
-    [SlashCommand("set-user", "Set another user's birthday (Admin only)")]
-    [DefaultMemberPermissions(GuildPermission.Administrator)]
-    [RequireUserPermission(GuildPermission.Administrator)]
-    public async Task SetUserBirthday(
-        [Summary(description: "User to set the birthday for")] SocketGuildUser targetUser,
-        [Summary(description: "Birthday in DD/MM/YYYY or DD/MM format (e.g., 15/03/1990 or 15/03)")] string date)
-    {
-        await Context.Interaction.DeferAsync(ephemeral: true);
-
-        if (targetUser.IsBot)
-        {
-            await Context.Interaction.FollowupAsync("🤖 You cannot set a birthday for a bot.", ephemeral: true);
-            return;
-        }
-
-        if (!TryParseBirthdayInput(date, out var birthday))
-        {
-            await Context.Interaction.FollowupAsync("Invalid date format. Please use DD/MM/YYYY or DD/MM format (e.g., 15/03/1990 or 15/03).", ephemeral: true);
-            return;
-        }
-
-        try
-        {
-            var user = await DatabaseService.GetOrAddUser(targetUser);
-            if (user == null)
-            {
-                await Context.Interaction.FollowupAsync("Failed to access user data.", ephemeral: true);
-                return;
-            }
-
-            await DatabaseService.Query.UpdateBirthday(user.UserID, birthday);
-            await Context.Interaction.FollowupAsync($"Set **{targetUser.DisplayName}**'s birthday to **{FormatBirthday(birthday)}**. 🎂", ephemeral: true);
-            await LoggingService.LogAction(
-                $"[BirthdayAdminSet] actor={Context.User.Id} target={targetUser.Id} value={birthday:yyyy-MM-dd}",
-                ExtendedLogSeverity.Info);
-        }
-        catch (Exception e)
-        {
-            await LoggingService.LogAction(
-                $"Error setting birthday for target {targetUser.Id} by actor {Context.User.Id}: {e.Message}",
-                ExtendedLogSeverity.Warning);
-            await Context.Interaction.FollowupAsync("An error occurred while setting the birthday.", ephemeral: true);
-        }
-    }
-
-    [SlashCommand("del-user", "Remove another user's birthday (Admin only)")]
-    [DefaultMemberPermissions(GuildPermission.Administrator)]
-    [RequireUserPermission(GuildPermission.Administrator)]
-    public async Task RemoveUserBirthday(
-        [Summary(description: "User to remove the birthday for")] SocketGuildUser targetUser)
-    {
-        await Context.Interaction.DeferAsync(ephemeral: true);
-
-        try
-        {
-            var user = await DatabaseService.GetOrAddUser(targetUser);
-            if (user == null)
-            {
-                await Context.Interaction.FollowupAsync("Failed to access user data.", ephemeral: true);
-                return;
-            }
-
-            var currentBirthday = await DatabaseService.Query.GetBirthday(user.UserID);
-            if (currentBirthday == null)
-            {
-                await Context.Interaction.FollowupAsync($"**{targetUser.DisplayName}** doesn't have a birthday set.", ephemeral: true);
-                return;
-            }
-
-            await DatabaseService.Query.UpdateBirthday(user.UserID, null);
-            await Context.Interaction.FollowupAsync($"Removed **{targetUser.DisplayName}**'s birthday.", ephemeral: true);
-            await LoggingService.LogAction(
-                $"[BirthdayAdminDelete] actor={Context.User.Id} target={targetUser.Id}",
-                ExtendedLogSeverity.Info);
-        }
-        catch (Exception e)
-        {
-            await LoggingService.LogAction(
-                $"Error removing birthday for target {targetUser.Id} by actor {Context.User.Id}: {e.Message}",
-                ExtendedLogSeverity.Warning);
-            await Context.Interaction.FollowupAsync("An error occurred while removing the birthday.", ephemeral: true);
-        }
-    }
-
-    [SlashCommand("list", "List all defined birthdays (Admin only)")]
-    [DefaultMemberPermissions(GuildPermission.Administrator)]
-    [RequireUserPermission(GuildPermission.Administrator)]
-    public async Task ListBirthdays()
-    {
-        await Context.Interaction.DeferAsync(ephemeral: true);
-
-        try
-        {
-            var birthdays = (await DatabaseService.Query.GetAllBirthdays()).ToList();
-            if (birthdays.Count == 0)
-            {
-                await Context.Interaction.FollowupAsync("No birthdays are currently defined.", ephemeral: true);
-                return;
-            }
-
-            var lines = new List<string>(birthdays.Count);
-            for (var i = 0; i < birthdays.Count; i++)
-            {
-                lines.Add(await BuildBirthdayListLine(birthdays[i], i + 1));
-            }
-            var chunks = BuildBirthdayListChunks(lines, birthdays.Count);
-
-            foreach (var chunk in chunks)
-            {
-                await Context.Interaction.FollowupAsync(chunk, ephemeral: true);
-            }
-
-            await LoggingService.LogAction(
-                $"[BirthdayAdminList] actor={Context.User.Id} count={birthdays.Count}",
-                ExtendedLogSeverity.Info);
-        }
-        catch (Exception e)
-        {
-            await LoggingService.LogAction($"Error listing birthdays for actor {Context.User.Id}: {e.Message}", ExtendedLogSeverity.Warning);
-            await Context.Interaction.FollowupAsync("An error occurred while listing birthdays.", ephemeral: true);
-        }
-    }
 
     private static string FormatBirthday(DateTime birthday)
     {
@@ -339,59 +211,6 @@ public class BirthdaySlashModule : InteractionModuleBase
         if (birthday.Year != 1900)
             birthdayString += $", {birthday.Year}";
         return birthdayString;
-    }
-
-    private async Task<string> BuildBirthdayListLine(ServerUser entry, int index)
-    {
-        string displayName;
-        if (!ulong.TryParse(entry.UserID, out var userId))
-        {
-            displayName = $"Unknown User ({entry.UserID})";
-        }
-        else
-        {
-            var guildUser = await Context.Guild.GetUserAsync(userId);
-            displayName = guildUser?.DisplayName ?? $"Unknown User ({entry.UserID})";
-        }
-
-        var birthdayText = entry.Birthday.HasValue ? FormatBirthday(entry.Birthday.Value) : "Unknown date";
-        return $"{index}. {birthdayText} - {displayName}";
-    }
-
-    private static List<string> BuildBirthdayListChunks(IList<string> lines, int totalCount)
-    {
-        const int maxMessageLength = 1800;
-        var chunks = new List<string>();
-        var current = new StringBuilder();
-        var isFirstChunk = true;
-
-        for (int i = 0; i < lines.Count; i++)
-        {
-            var line = lines[i];
-
-            if (current.Length == 0)
-            {
-                var header = isFirstChunk ? $"Birthday List ({totalCount})\n" : "Birthday List (continued)\n";
-                current.Append(header);
-                isFirstChunk = false;
-            }
-
-            if (current.Length + line.Length + 1 > maxMessageLength)
-            {
-                chunks.Add(current.ToString());
-                current.Clear();
-                current.Append("Birthday List (continued)\n");
-            }
-
-            current.AppendLine(line);
-        }
-
-        if (current.Length > 0)
-        {
-            chunks.Add(current.ToString());
-        }
-
-        return chunks;
     }
 
     private async Task<List<ServerUser>> GetNextBirthdays()
