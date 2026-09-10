@@ -34,17 +34,17 @@ public class BirthdaySlashModule : InteractionModuleBase
 
             var birthday = upcomingBirthdays[0].Birthday.Value;
             var today = DateTime.Today;
-            
+
             // Calculate next occurrence of birthday
             var nextOccurrence = new DateTime(today.Year, birthday.Month, birthday.Day);
             if (nextOccurrence < today)
             {
                 nextOccurrence = new DateTime(today.Year + 1, birthday.Month, birthday.Day);
             }
-            
+
             // Calculate days until birthday
             var daysUntil = (nextOccurrence - today).Days;
-            
+
             string timeframe;
             if (daysUntil == 0)
             {
@@ -65,10 +65,10 @@ public class BirthdaySlashModule : InteractionModuleBase
             {
                 var user = await Context.Guild.GetUserAsync(ulong.Parse(userBirthday.UserID));
                 var displayName = user?.DisplayName ?? user?.Username ?? "Unknown User";
-                
+
                 var age = CalculateAge(userBirthday.Birthday.Value, nextOccurrence);
                 var ageString = age.HasValue ? $" (turns {age.Value})" : "";
-                
+
                 description += $"🎂 **{displayName}**{ageString}\n";
             }
 
@@ -98,7 +98,7 @@ public class BirthdaySlashModule : InteractionModuleBase
             }
 
             var birthday = await DatabaseService.Query.GetBirthday(searchUser.UserID);
-            
+
             if (birthday == null)
             {
                 await Context.Interaction.FollowupAsync(
@@ -108,11 +108,11 @@ public class BirthdaySlashModule : InteractionModuleBase
 
             var guildUser = await Context.Guild.GetUserAsync(user.Id);
             var displayName = guildUser?.DisplayName ?? user.Username;
-            
+
             var provider = CultureInfo.InvariantCulture;
             string birthdayString;
             string ageString = "";
-            
+
             // Check if year is meaningful (not 1900 which indicates no year specified)
             if (birthday.Value.Year != 1900)
             {
@@ -149,8 +149,6 @@ public class BirthdaySlashModule : InteractionModuleBase
     {
         await Context.Interaction.DeferAsync(ephemeral: true);
 
-        var provider = CultureInfo.InvariantCulture;
-
         if (!TryParseBirthdayInput(date, out var birthday))
         {
             await Context.Interaction.FollowupAsync("Invalid date format. Please use DD/MM/YYYY or DD/MM format (e.g., 15/03/1990 or 15/03).", ephemeral: true);
@@ -167,13 +165,7 @@ public class BirthdaySlashModule : InteractionModuleBase
             }
 
             await DatabaseService.Query.UpdateBirthday(user.UserID, birthday);
-            var birthdayString = birthday.ToString("MMMM dd", provider);
-            if (birthday.Year != 1900)
-            {
-                birthdayString += $", {birthday.Year}";
-            }
-            
-            await Context.Interaction.FollowupAsync($"Your birthday has been set to **{birthdayString}**! 🎂", ephemeral: true);
+            await Context.Interaction.FollowupAsync($"Your birthday has been set to **{FormatBirthday(birthday)}**! 🎂", ephemeral: true);
         }
         catch (Exception e)
         {
@@ -213,6 +205,102 @@ public class BirthdaySlashModule : InteractionModuleBase
         }
     }
 
+    // DefaultMemberPermissions sets Discord's native default_member_permissions, hiding this command
+    // from members without the Administrator permission. RequireUserPermission is kept as a bot-side
+    // safeguard because server admins can override command visibility in Server Settings > Integrations.
+    [SlashCommand("set-user", "Set another user's birthday (Admin only)")]
+    [DefaultMemberPermissions(GuildPermission.Administrator)]
+    [RequireUserPermission(GuildPermission.Administrator)]
+    public async Task SetUserBirthday(
+        [Summary(description: "User to set the birthday for")] SocketGuildUser targetUser,
+        [Summary(description: "Birthday in DD/MM/YYYY or DD/MM format (e.g., 15/03/1990 or 15/03)")] string date)
+    {
+        await Context.Interaction.DeferAsync(ephemeral: true);
+
+        if (targetUser.IsBot)
+        {
+            await Context.Interaction.FollowupAsync("🤖 You cannot set a birthday for a bot.", ephemeral: true);
+            return;
+        }
+
+        if (!TryParseBirthdayInput(date, out var birthday))
+        {
+            await Context.Interaction.FollowupAsync("Invalid date format. Please use DD/MM/YYYY or DD/MM format (e.g., 15/03/1990 or 15/03).", ephemeral: true);
+            return;
+        }
+
+        try
+        {
+            var user = await DatabaseService.GetOrAddUser(targetUser);
+            if (user == null)
+            {
+                await Context.Interaction.FollowupAsync("Failed to access user data.", ephemeral: true);
+                return;
+            }
+
+            await DatabaseService.Query.UpdateBirthday(user.UserID, birthday);
+            await Context.Interaction.FollowupAsync($"Set **{targetUser.DisplayName}**'s birthday to **{FormatBirthday(birthday)}**. 🎂", ephemeral: true);
+            await LoggingService.LogAction(
+                $"[BirthdayAdminSet] actor={Context.User.Id} target={targetUser.Id} value={birthday:yyyy-MM-dd}",
+                ExtendedLogSeverity.Info);
+        }
+        catch (Exception e)
+        {
+            await LoggingService.LogAction(
+                $"Error setting birthday for target {targetUser.Id} by actor {Context.User.Id}: {e.Message}",
+                ExtendedLogSeverity.Warning);
+            await Context.Interaction.FollowupAsync("An error occurred while setting the birthday.", ephemeral: true);
+        }
+    }
+
+    [SlashCommand("del-user", "Remove another user's birthday (Admin only)")]
+    [DefaultMemberPermissions(GuildPermission.Administrator)]
+    [RequireUserPermission(GuildPermission.Administrator)]
+    public async Task RemoveUserBirthday(
+        [Summary(description: "User to remove the birthday for")] SocketGuildUser targetUser)
+    {
+        await Context.Interaction.DeferAsync(ephemeral: true);
+
+        try
+        {
+            var user = await DatabaseService.GetOrAddUser(targetUser);
+            if (user == null)
+            {
+                await Context.Interaction.FollowupAsync("Failed to access user data.", ephemeral: true);
+                return;
+            }
+
+            var currentBirthday = await DatabaseService.Query.GetBirthday(user.UserID);
+            if (currentBirthday == null)
+            {
+                await Context.Interaction.FollowupAsync($"**{targetUser.DisplayName}** doesn't have a birthday set.", ephemeral: true);
+                return;
+            }
+
+            await DatabaseService.Query.UpdateBirthday(user.UserID, null);
+            await Context.Interaction.FollowupAsync($"Removed **{targetUser.DisplayName}**'s birthday.", ephemeral: true);
+            await LoggingService.LogAction(
+                $"[BirthdayAdminDelete] actor={Context.User.Id} target={targetUser.Id}",
+                ExtendedLogSeverity.Info);
+        }
+        catch (Exception e)
+        {
+            await LoggingService.LogAction(
+                $"Error removing birthday for target {targetUser.Id} by actor {Context.User.Id}: {e.Message}",
+                ExtendedLogSeverity.Warning);
+            await Context.Interaction.FollowupAsync("An error occurred while removing the birthday.", ephemeral: true);
+        }
+    }
+
+    private static string FormatBirthday(DateTime birthday)
+    {
+        var provider = CultureInfo.InvariantCulture;
+        var birthdayString = birthday.ToString("MMMM dd", provider);
+        if (birthday.Year != 1900)
+            birthdayString += $", {birthday.Year}";
+        return birthdayString;
+    }
+
     private async Task<List<ServerUser>> GetNextBirthdays()
     {
         // Get the next birthday to find the date, then get all users with birthdays on that date
@@ -223,7 +311,7 @@ public class BirthdaySlashModule : InteractionModuleBase
         // Get all users who have birthdays on the same month/day as the next birthday
         var nextBirthdayDate = nextBirthday.Birthday.Value;
         var allUsersWithBirthdays = await GetUsersWithBirthdayOnDate(nextBirthdayDate.Month, nextBirthdayDate.Day);
-        
+
         return allUsersWithBirthdays;
     }
 
@@ -239,39 +327,39 @@ public class BirthdaySlashModule : InteractionModuleBase
         {
             return null; // No year information available or invalid year
         }
-        
+
         var age = referenceDate.Year - birthDate.Year;
         if (referenceDate.Month < birthDate.Month || (referenceDate.Month == birthDate.Month && referenceDate.Day < birthDate.Day))
         {
             age--;
         }
-        
+
         return age;
     }
 
     private bool TryParseBirthdayInput(string input, out DateTime birthday)
     {
         birthday = default;
-        
+
         if (string.IsNullOrWhiteSpace(input))
             return false;
-            
+
         var provider = CultureInfo.InvariantCulture;
-        
+
         // Parse as a date-only value, then force UTC kind for PostgreSQL timestamptz writes.
         if (DateTime.TryParseExact(input, "d/M/yyyy", provider, DateTimeStyles.None, out birthday))
         {
             birthday = DateTime.SpecifyKind(birthday, DateTimeKind.Utc);
             return true;
         }
-        
+
         // Try parsing without year (DD/MM) - use 1900 as sentinel value
         if (DateTime.TryParseExact(input, "d/M", provider, DateTimeStyles.None, out var tempDate))
         {
             birthday = DateTime.SpecifyKind(new DateTime(1900, tempDate.Month, tempDate.Day), DateTimeKind.Utc);
             return true;
         }
-        
+
         return false;
     }
 }
