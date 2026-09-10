@@ -123,6 +123,7 @@ public class BirthdaySlashModule : InteractionModuleBase
                 .WithColor(Color.Blue)
                 .WithTitle($"🎂 {displayName}'s Birthday")
                 .WithDescription($"**{birthdayString}**{ageString}")
+                .WithFooter($"Use `/bday set` to add or update your birthday")
                 .Build();
 
             await Context.Interaction.FollowupAsync(embed: embed);
