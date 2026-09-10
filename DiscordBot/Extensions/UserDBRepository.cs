@@ -106,7 +106,7 @@ public interface IServerUserRepo
     #endregion // Get Single Values
 
     #region Birthday Queries
-    
+
     /// <summary>Get all users whose birthday is today (ignoring year)</summary>
     [Sql($"SELECT {UserProps.UserID}, {UserProps.Birthday} FROM {UserProps.TableName} WHERE {UserProps.Birthday} IS NOT NULL AND EXTRACT(MONTH FROM {UserProps.Birthday}) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM {UserProps.Birthday}) = EXTRACT(DAY FROM CURRENT_DATE)")]
     Task<IList<ServerUser>> GetTodaysBirthdays();
@@ -128,7 +128,15 @@ public interface IServerUserRepo
     /// <summary>Get all users whose birthday is on a specific month and day (ignoring year)</summary>
     [Sql($"SELECT {UserProps.UserID}, {UserProps.Birthday} FROM {UserProps.TableName} WHERE {UserProps.Birthday} IS NOT NULL AND EXTRACT(MONTH FROM {UserProps.Birthday}) = @month AND EXTRACT(DAY FROM {UserProps.Birthday}) = @day")]
     Task<IList<ServerUser>> GetBirthdaysOnDate(int month, int day);
-    
+
+    /// <summary>Get all users with a defined birthday, sorted by month/day.</summary>
+    [Sql($@"
+    SELECT {UserProps.UserID}, {UserProps.Birthday}
+    FROM {UserProps.TableName}
+    WHERE {UserProps.Birthday} IS NOT NULL
+    ORDER BY EXTRACT(MONTH FROM {UserProps.Birthday}), EXTRACT(DAY FROM {UserProps.Birthday}), {UserProps.UserID}")]
+    Task<IList<ServerUser>> GetAllBirthdays();
+
     #endregion // Birthday Queries
 
     /// <summary>Returns a count of {Props.TableName} in the Table, otherwise it fails. </summary>
