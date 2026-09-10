@@ -54,7 +54,7 @@ public class ServerSlashModule : InteractionModuleBase
     private (int, Embed) HelpEmbed(int page, string search = "")
     {
         EmbedBuilder embedBuilder = new();
-        embedBuilder.Title = "User Module Commands";
+        embedBuilder.Title = "Server Module Commands";
         embedBuilder.Color = Color.LighterGrey;
 
         List<string>? helpMessages = null;

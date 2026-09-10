@@ -80,8 +80,8 @@ public class ConvertModule : ModuleBase
         from = from.ToLower();
         to = to.ToLower();
 
-        bool fromValid = await CurrencyService.IsCurrency(from.ToLower());
-        bool toValid = await CurrencyService.IsCurrency(to.ToLower());
+        bool fromValid = await CurrencyService.IsCurrency(from);
+        bool toValid = await CurrencyService.IsCurrency(to);
 
         if (!fromValid || !toValid)
         {

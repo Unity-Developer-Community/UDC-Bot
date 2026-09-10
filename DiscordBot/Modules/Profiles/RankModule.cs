@@ -66,7 +66,7 @@ public class RankModule : ModuleBase
     }
 
     [Command("TopKarmaYearly"), Priority(5)]
-    [Summary("Display tearly top 10 users by karma.")]
+    [Summary("Display yearly top 10 users by karma.")]
     [Alias("karmaranktearly", "rankingkarmayearly", "topky")]
     public async Task TopKarmaYearly()
     {
