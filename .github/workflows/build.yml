@@ -62,4 +62,4 @@ jobs:
             ghcr.io/${{ steps.sha.outputs.owner }}/${{ steps.sha.outputs.image }}:${{ steps.sha.outputs.short }}
             ghcr.io/${{ steps.sha.outputs.owner }}/${{ steps.sha.outputs.image }}:latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,ignore-error=true
