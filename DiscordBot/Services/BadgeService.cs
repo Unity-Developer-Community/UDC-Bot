@@ -17,10 +17,18 @@ public class BadgeService
         _databaseService = databaseService;
     }
 
+    public string? NormalizeGroupKey(string? groupKey)
+    {
+        if (string.IsNullOrWhiteSpace(groupKey))
+            return null;
+
+        return groupKey.Trim().ToLowerInvariant();
+    }
+
     /// <summary>
     /// Creates a new badge with the specified title and description.
     /// </summary>
-    public async Task<Badge> CreateBadge(string title, string description, bool isPublic = true)
+    public async Task<Badge> CreateBadge(string title, string description, bool isPublic = true, string? groupKey = null)
     {
         try
         {
@@ -40,6 +48,7 @@ public class BadgeService
             {
                 Title = title,
                 Description = description,
+                GroupKey = NormalizeGroupKey(groupKey),
                 IsPublic = isPublic,
                 CreatedAt = DateTime.UtcNow
             };
@@ -47,7 +56,7 @@ public class BadgeService
             var createdBadge = await badgeQuery.CreateBadge(badge);
             
             await _logging.Log(LogBehaviour.File,
-                $"Badge '{title}' created successfully with ID {createdBadge.Id} (Public: {isPublic}).", ExtendedLogSeverity.Positive);
+                $"Badge '{title}' created successfully with ID {createdBadge.Id} (Public: {isPublic}, Group: {createdBadge.GroupKey ?? "none"}).", ExtendedLogSeverity.Positive);
             
             return createdBadge;
         }
@@ -62,7 +71,7 @@ public class BadgeService
     /// <summary>
     /// Updates an existing badge with new title, description, and/or visibility.
     /// </summary>
-    public async Task<Badge> UpdateBadge(int badgeId, string title, string description, bool isPublic)
+    public async Task<Badge> UpdateBadge(int badgeId, string title, string description, bool isPublic, string? groupKey = null, bool updateGroup = false)
     {
         try
         {
@@ -92,12 +101,14 @@ public class BadgeService
 
             existingBadge.Title = title;
             existingBadge.Description = description;
+            if (updateGroup)
+                existingBadge.GroupKey = NormalizeGroupKey(groupKey);
             existingBadge.IsPublic = isPublic;
 
             await badgeQuery.UpdateBadge(existingBadge);
             
             await _logging.Log(LogBehaviour.File,
-                $"Badge ID {badgeId} updated successfully: '{title}' (Public: {isPublic}).", ExtendedLogSeverity.Positive);
+                $"Badge ID {badgeId} updated successfully: '{title}' (Public: {isPublic}, Group: {existingBadge.GroupKey ?? "none"}).", ExtendedLogSeverity.Positive);
             
             return existingBadge;
         }
@@ -289,6 +300,37 @@ public class BadgeService
             await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
                 $"Error retrieving badges for user {user.GetPreferredAndUsername()}: {e}", ExtendedLogSeverity.Error);
             return new List<UserBadge>();
+        }
+    }
+
+    /// <summary>
+    /// Gets the badge leaderboard, optionally filtered by group.
+    /// </summary>
+    public async Task<IList<BadgeLeaderboardEntry>> GetBadgeLeaderboard(bool isAdmin = false, string? groupKey = null, int limit = 10)
+    {
+        try
+        {
+            var badgeQuery = _databaseService.BadgeQuery;
+            if (badgeQuery == null)
+                return new List<BadgeLeaderboardEntry>();
+
+            var normalizedGroupKey = NormalizeGroupKey(groupKey);
+            if (string.IsNullOrEmpty(normalizedGroupKey))
+            {
+                return isAdmin
+                    ? await badgeQuery.GetBadgeLeaderboard(limit)
+                    : await badgeQuery.GetPublicBadgeLeaderboard(limit);
+            }
+
+            return isAdmin
+                ? await badgeQuery.GetBadgeLeaderboardByGroup(normalizedGroupKey, limit)
+                : await badgeQuery.GetPublicBadgeLeaderboardByGroup(normalizedGroupKey, limit);
+        }
+        catch (Exception e)
+        {
+            await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
+                $"Error retrieving badge leaderboard for group '{groupKey ?? "all"}': {e}", ExtendedLogSeverity.Error);
+            return new List<BadgeLeaderboardEntry>();
         }
     }
 

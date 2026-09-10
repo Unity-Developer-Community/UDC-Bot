@@ -333,6 +333,16 @@ public class DatabaseService
                 await _logging.LogAction("DatabaseService: IsPublic column added successfully.",
                     ExtendedLogSeverity.Positive);
             }
+
+            var groupKeyExists = await c.ColumnExists(BadgeProps.TableName, BadgeProps.GroupKey);
+            if (!groupKeyExists)
+            {
+                await _logging.LogAction("DatabaseService: Adding GroupKey column to badges table.",
+                    ExtendedLogSeverity.LowWarning);
+                c.ExecuteSql($"ALTER TABLE {BadgeProps.TableName} ADD COLUMN {BadgeProps.GroupKey} varchar(64) DEFAULT NULL");
+                await _logging.LogAction("DatabaseService: GroupKey column added successfully.",
+                    ExtendedLogSeverity.Positive);
+            }
         }
         catch
         {
@@ -346,6 +356,7 @@ public class DatabaseService
                     $"{BadgeProps.Id} SERIAL PRIMARY KEY, " +
                     $"{BadgeProps.Title} varchar(100) NOT NULL UNIQUE, " +
                     $"{BadgeProps.Description} text NOT NULL, " +
+                    $"{BadgeProps.GroupKey} varchar(64) DEFAULT NULL, " +
                     $"{BadgeProps.IsPublic} boolean NOT NULL DEFAULT TRUE, " +
                     $"{BadgeProps.CreatedAt} timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP)");
 

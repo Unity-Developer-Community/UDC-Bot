@@ -21,7 +21,8 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
     public async Task CreateBadge(
         [Summary("title", "The title of the badge")] string title,
         [Summary("description", "The description of the badge")] string description,
-        [Summary("public", "Whether the badge is public (default: true)")] bool isPublic = true)
+        [Summary("public", "Whether the badge is public (default: true)")] bool isPublic = true,
+        [Summary("group", "Optional group key for leaderboard filtering (example: udcjam)")] string? group = null)
     {
         await Context.Interaction.DeferAsync(ephemeral: true);
 
@@ -37,7 +38,13 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             return;
         }
 
-        var createdBadge = await BadgeService.CreateBadge(title, description, isPublic);
+        if (!TryNormalizeGroupKey(group, out var normalizedGroup, out var groupValidationError))
+        {
+            await Context.Interaction.FollowupAsync(groupValidationError, ephemeral: true);
+            return;
+        }
+
+        var createdBadge = await BadgeService.CreateBadge(title, description, isPublic, normalizedGroup);
         
         if (createdBadge != null)
         {
@@ -46,6 +53,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
                 .WithDescription($"**{createdBadge.Title}**")
                 .AddField("Description", createdBadge.Description)
                 .AddField("Badge ID", createdBadge.Id.ToString())
+                .AddField("Group", createdBadge.GroupKey ?? "None")
                 .AddField("Visibility", createdBadge.IsPublic ? "Public" : "Private")
                 .AddField("Created", createdBadge.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss UTC"))
                 .WithColor(Color.Green)
@@ -66,7 +74,8 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         [Summary("badge", "The title of the badge to edit")] string badgeTitle,
         [Summary("title", "New title for the badge")] string newTitle,
         [Summary("description", "New description for the badge")] string newDescription,
-        [Summary("public", "Whether the badge should be public")] bool isPublic = true)
+        [Summary("public", "Whether the badge should be public")] bool isPublic = true,
+        [Summary("group", "Optional new group key (leave unset to keep the current group)")] string? group = null)
     {
         await Context.Interaction.DeferAsync(ephemeral: true);
 
@@ -89,7 +98,13 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             return;
         }
 
-        var updatedBadge = await BadgeService.UpdateBadge(existingBadge.Id, newTitle, newDescription, isPublic);
+        if (!TryNormalizeGroupKey(group, out var normalizedGroup, out var groupValidationError))
+        {
+            await Context.Interaction.FollowupAsync(groupValidationError, ephemeral: true);
+            return;
+        }
+
+        var updatedBadge = await BadgeService.UpdateBadge(existingBadge.Id, newTitle, newDescription, isPublic, normalizedGroup, group != null);
         
         if (updatedBadge != null)
         {
@@ -98,6 +113,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
                 .WithDescription($"**{updatedBadge.Title}**")
                 .AddField("Description", updatedBadge.Description)
                 .AddField("Badge ID", updatedBadge.Id.ToString())
+                .AddField("Group", updatedBadge.GroupKey ?? "None")
                 .AddField("Visibility", updatedBadge.IsPublic ? "Public" : "Private")
                 .AddField("Updated", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC"))
                 .WithColor(Color.Blue)
@@ -250,7 +266,8 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         foreach (var badge in badges)
         {
             var visibilityIndicator = isAdmin && !badge.IsPublic ? " 🔒" : "";
-            var badgeInfo = $"**{badge.Title}**{visibilityIndicator} (ID: {badge.Id})\n{badge.Description}\n\n";
+            var groupInfo = string.IsNullOrEmpty(badge.GroupKey) ? string.Empty : $"\n*Group: `{badge.GroupKey}`*";
+            var badgeInfo = $"**{badge.Title}**{visibilityIndicator} (ID: {badge.Id})\n{badge.Description}{groupInfo}\n\n";
             
             if (description.Length + badgeInfo.Length > maxFieldValue)
             {
@@ -317,7 +334,8 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             var awardedByName = awardedBy?.DisplayName ?? "Unknown";
             
             var visibilityIndicator = isAdmin && !userBadge.Badge.IsPublic ? " 🔒" : "";
-            var badgeInfo = $"**{userBadge.Badge.Title}**{visibilityIndicator}\n{userBadge.Badge.Description}\n*Awarded by {awardedByName} on {userBadge.AwardedAt:yyyy-MM-dd}*\n\n";
+            var groupInfo = string.IsNullOrEmpty(userBadge.Badge.GroupKey) ? string.Empty : $"\n*Group: `{userBadge.Badge.GroupKey}`*";
+            var badgeInfo = $"**{userBadge.Badge.Title}**{visibilityIndicator}\n{userBadge.Badge.Description}{groupInfo}\n*Awarded by {awardedByName} on {userBadge.AwardedAt:yyyy-MM-dd}*\n\n";
             
             if (description.Length + badgeInfo.Length > maxFieldValue)
             {
@@ -348,5 +366,81 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         embed.WithFooter(footerText);
 
         await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: false);
+    }
+
+    [SlashCommand("leaderboard", "Show the badge leaderboard")]
+    public async Task BadgeLeaderboard(
+        [Summary("group", "Optional group key to filter the leaderboard (example: udcjam)")] string? group = null)
+    {
+        await Context.Interaction.DeferAsync(ephemeral: false);
+
+        if (!TryNormalizeGroupKey(group, out var normalizedGroup, out var groupValidationError))
+        {
+            await Context.Interaction.FollowupAsync(groupValidationError, ephemeral: false);
+            return;
+        }
+
+        var requestingUser = Context.User as SocketGuildUser;
+        var isAdmin = BadgeService.IsUserAdmin(requestingUser);
+        var leaderboard = await BadgeService.GetBadgeLeaderboard(isAdmin, normalizedGroup);
+
+        if (!leaderboard.Any())
+        {
+            var scope = normalizedGroup == null ? "yet" : $"for group `{normalizedGroup}` yet";
+            await Context.Interaction.FollowupAsync($"📭 No visible badge awards have been recorded {scope}.", ephemeral: false);
+            return;
+        }
+
+        var title = normalizedGroup == null ? "🏆 Badge Leaderboard" : $"🏆 Badge Leaderboard — {normalizedGroup}";
+        var lines = leaderboard.Select((entry, index) =>
+        {
+            var userLabel = TryGetLeaderboardUserLabel(entry.UserID);
+            var badgeWord = entry.BadgeCount == 1 ? "badge" : "badges";
+            return $"**{index + 1}.** {userLabel} — **{entry.BadgeCount}** {badgeWord}";
+        });
+
+        var embed = new EmbedBuilder()
+            .WithTitle(title)
+            .WithDescription(string.Join('\n', lines))
+            .WithColor(Color.Purple)
+            .WithTimestamp(DateTimeOffset.UtcNow)
+            .WithFooter(isAdmin ? "Admins see public and private badges." : "Only public badges are counted.")
+            .Build();
+
+        await Context.Interaction.FollowupAsync(embed: embed, ephemeral: false);
+    }
+
+    private bool TryNormalizeGroupKey(string? group, out string? normalizedGroup, out string? errorMessage)
+    {
+        errorMessage = null;
+        normalizedGroup = BadgeService.NormalizeGroupKey(group);
+        if (normalizedGroup == null)
+            return true;
+
+        if (normalizedGroup.Length > 64)
+        {
+            errorMessage = "Badge group must be 64 characters or fewer.";
+            return false;
+        }
+
+        if (normalizedGroup.Any(ch => !char.IsLetterOrDigit(ch) && ch != '-' && ch != '_'))
+        {
+            errorMessage = "Badge group may only contain letters, numbers, hyphens, and underscores.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private string TryGetLeaderboardUserLabel(string userId)
+    {
+        if (ulong.TryParse(userId, out var parsedUserId))
+        {
+            var user = Context.Guild.GetUser(parsedUserId);
+            if (user != null)
+                return user.Mention;
+        }
+
+        return $"User `{userId}`";
     }
 }

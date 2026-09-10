@@ -7,6 +7,7 @@ public class Badge
     public int Id { get; set; }
     public string Title { get; set; }
     public string Description { get; set; }
+    public string? GroupKey { get; set; }
     public bool IsPublic { get; set; } = true;
     public DateTime CreatedAt { get; set; }
 }
@@ -23,6 +24,12 @@ public class UserBadge
     public Badge Badge { get; set; }
 }
 
+public class BadgeLeaderboardEntry
+{
+    public string UserID { get; set; }
+    public long BadgeCount { get; set; }
+}
+
 /// <summary>
 /// Table Properties for Badge. Intended to be used with IBadgeRepo and enforce consistency.
 /// </summary>
@@ -33,6 +40,7 @@ public static class BadgeProps
     public const string Id = nameof(Badge.Id);
     public const string Title = nameof(Badge.Title);
     public const string Description = nameof(Badge.Description);
+    public const string GroupKey = nameof(Badge.GroupKey);
     public const string IsPublic = nameof(Badge.IsPublic);
     public const string CreatedAt = nameof(Badge.CreatedAt);
 }
@@ -56,8 +64,8 @@ public interface IBadgeRepo
     #region Badge Management
     
     [Sql($@"
-    INSERT INTO {BadgeProps.TableName} ({BadgeProps.Title}, {BadgeProps.Description}, {BadgeProps.IsPublic}, {BadgeProps.CreatedAt}) 
-    VALUES (@{BadgeProps.Title}, @{BadgeProps.Description}, @{BadgeProps.IsPublic}, @{BadgeProps.CreatedAt})
+    INSERT INTO {BadgeProps.TableName} ({BadgeProps.Title}, {BadgeProps.Description}, {BadgeProps.GroupKey}, {BadgeProps.IsPublic}, {BadgeProps.CreatedAt}) 
+    VALUES (@{BadgeProps.Title}, @{BadgeProps.Description}, @{BadgeProps.GroupKey}, @{BadgeProps.IsPublic}, @{BadgeProps.CreatedAt})
     RETURNING *")]
     Task<Badge> CreateBadge(Badge badge);
     
@@ -73,7 +81,7 @@ public interface IBadgeRepo
     [Sql($"SELECT * FROM {BadgeProps.TableName} WHERE {BadgeProps.Title} = @title")]
     Task<Badge> GetBadgeByTitle(string title);
     
-    [Sql($"UPDATE {BadgeProps.TableName} SET {BadgeProps.Title} = @{BadgeProps.Title}, {BadgeProps.Description} = @{BadgeProps.Description}, {BadgeProps.IsPublic} = @{BadgeProps.IsPublic} WHERE {BadgeProps.Id} = @{BadgeProps.Id}")]
+    [Sql($"UPDATE {BadgeProps.TableName} SET {BadgeProps.Title} = @{BadgeProps.Title}, {BadgeProps.Description} = @{BadgeProps.Description}, {BadgeProps.GroupKey} = @{BadgeProps.GroupKey}, {BadgeProps.IsPublic} = @{BadgeProps.IsPublic} WHERE {BadgeProps.Id} = @{BadgeProps.Id}")]
     Task UpdateBadge(Badge badge);
     
     [Sql($"DELETE FROM {BadgeProps.TableName} WHERE {BadgeProps.Id} = @badgeId")]
@@ -93,7 +101,7 @@ public interface IBadgeRepo
     Task RemoveBadgeFromUser(string userId, int badgeId);
     
     [Sql($@"
-    SELECT ub.*, b.{BadgeProps.Title}, b.{BadgeProps.Description}, b.{BadgeProps.IsPublic}, b.{BadgeProps.CreatedAt}
+    SELECT ub.*, b.{BadgeProps.Title}, b.{BadgeProps.Description}, b.{BadgeProps.GroupKey}, b.{BadgeProps.IsPublic}, b.{BadgeProps.CreatedAt}
     FROM {UserBadgeProps.TableName} ub
     JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
     WHERE ub.{UserBadgeProps.UserID} = @userId
@@ -101,12 +109,51 @@ public interface IBadgeRepo
     Task<IList<UserBadge>> GetUserBadges(string userId);
     
     [Sql($@"
-    SELECT ub.*, b.{BadgeProps.Title}, b.{BadgeProps.Description}, b.{BadgeProps.IsPublic}, b.{BadgeProps.CreatedAt}
+    SELECT ub.*, b.{BadgeProps.Title}, b.{BadgeProps.Description}, b.{BadgeProps.GroupKey}, b.{BadgeProps.IsPublic}, b.{BadgeProps.CreatedAt}
     FROM {UserBadgeProps.TableName} ub
     JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
     WHERE ub.{UserBadgeProps.UserID} = @userId AND b.{BadgeProps.IsPublic} = TRUE
     ORDER BY ub.{UserBadgeProps.AwardedAt} DESC")]
     Task<IList<UserBadge>> GetUserPublicBadges(string userId);
+
+    [Sql($@"
+    SELECT ub.{UserBadgeProps.UserID}, COUNT(*) AS BadgeCount
+    FROM {UserBadgeProps.TableName} ub
+    JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
+    GROUP BY ub.{UserBadgeProps.UserID}
+    ORDER BY BadgeCount DESC, ub.{UserBadgeProps.UserID}
+    LIMIT @limit")]
+    Task<IList<BadgeLeaderboardEntry>> GetBadgeLeaderboard(int limit);
+
+    [Sql($@"
+    SELECT ub.{UserBadgeProps.UserID}, COUNT(*) AS BadgeCount
+    FROM {UserBadgeProps.TableName} ub
+    JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
+    WHERE b.{BadgeProps.IsPublic} = TRUE
+    GROUP BY ub.{UserBadgeProps.UserID}
+    ORDER BY BadgeCount DESC, ub.{UserBadgeProps.UserID}
+    LIMIT @limit")]
+    Task<IList<BadgeLeaderboardEntry>> GetPublicBadgeLeaderboard(int limit);
+
+    [Sql($@"
+    SELECT ub.{UserBadgeProps.UserID}, COUNT(*) AS BadgeCount
+    FROM {UserBadgeProps.TableName} ub
+    JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
+    WHERE LOWER(b.{BadgeProps.GroupKey}) = LOWER(@groupKey)
+    GROUP BY ub.{UserBadgeProps.UserID}
+    ORDER BY BadgeCount DESC, ub.{UserBadgeProps.UserID}
+    LIMIT @limit")]
+    Task<IList<BadgeLeaderboardEntry>> GetBadgeLeaderboardByGroup(string groupKey, int limit);
+
+    [Sql($@"
+    SELECT ub.{UserBadgeProps.UserID}, COUNT(*) AS BadgeCount
+    FROM {UserBadgeProps.TableName} ub
+    JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
+    WHERE b.{BadgeProps.IsPublic} = TRUE AND LOWER(b.{BadgeProps.GroupKey}) = LOWER(@groupKey)
+    GROUP BY ub.{UserBadgeProps.UserID}
+    ORDER BY BadgeCount DESC, ub.{UserBadgeProps.UserID}
+    LIMIT @limit")]
+    Task<IList<BadgeLeaderboardEntry>> GetPublicBadgeLeaderboardByGroup(string groupKey, int limit);
     
     [Sql($@"
     SELECT COUNT(*) FROM {UserBadgeProps.TableName}
