@@ -1,17 +1,4 @@
----
-post_title: "Documentation Index"
-author1: "UDC-Bot Contributors"
-post_slug: "docs-index"
-microsoft_alias: "N/A"
-featured_image: ""
-categories: []
-tags: ["documentation", "index"]
-ai_note: "Generated with AI assistance"
-summary: "Table of contents for all UDC-Bot documentation."
-post_date: "2026-04-03"
----
-
-## Documentation Index
+# Documentation Index
 
 ### Project Documentation
 
@@ -40,6 +27,6 @@ post_date: "2026-04-03"
 
 | Document | Description |
 |----------|-------------|
-| [MySQL → PostgreSQL Data Migration](plans/data-migration-mysql-to-postgresql.md) | Operational guide — pgloader, cutover phases, kubectl commands |
+| [MySQL → PostgreSQL Data Migration](plans/done/data-migration-mysql-to-postgresql.md) | Operational guide — pgloader, cutover phases, kubectl commands |
 | [MySQL → PostgreSQL Code Changes](plans/done/mysql-to-postgresql-changes.md) | Architecture reference — all code, schema, and infra changes in PR #375 |
 | [plans/done/](plans/done/) | Completed feature plans |

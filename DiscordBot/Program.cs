@@ -2,9 +2,7 @@ using System.Diagnostics;
 using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
-using DiscordBot.Service;
 using DiscordBot.Services;
-using DiscordBot.Services.Tips;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,26 +12,27 @@ namespace DiscordBot;
 
 public class Program
 {
-    private bool _isInitialized = false;
+    private int _isInitialized = 0;
 
-    private static Rules _rules;
-    private static BotSettings _settings;
-    private static UserSettings _userSettings;
-    private DiscordSocketClient _client;
-    private CommandHandlingService _commandHandlingService;
+    private static Rules _rules = null!;
+    private static BotSettings _settings = null!;
+    private static UserSettings _userSettings = null!;
+    private DiscordSocketClient _client = null!;
 
-    private CommandService _commandService;
-    private InteractionService _interactionService;
-    private IServiceProvider _services;
+    private CommandService _commandService = null!;
+    private InteractionService _interactionService = null!;
+    private IServiceProvider _services = null!;
 
-    private UnityHelpService _unityHelpService;
-    private RecruitService _recruitService;
+    private readonly CancellationTokenSource _cts = new();
 
     public static void Main(string[] args) =>
         new Program().MainAsync().GetAwaiter().GetResult();
 
     private async Task MainAsync()
     {
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; _cts.Cancel(); };
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => _cts.Cancel();
+
         DeserializeSettings();
 
         _client = new DiscordSocketClient(new DiscordSocketConfig
@@ -41,7 +40,12 @@ public class Program
             LogLevel = LogSeverity.Verbose,
             AlwaysDownloadUsers = true,
             MessageCacheSize = 1024,
-            GatewayIntents = GatewayIntents.All,
+            GatewayIntents = GatewayIntents.Guilds
+                           | GatewayIntents.GuildMembers
+                           | GatewayIntents.GuildMessages
+                           | GatewayIntents.GuildMessageReactions
+                           | GatewayIntents.DirectMessages
+                           | GatewayIntents.MessageContent,
         });
         _client.Log += LoggingService.DiscordNetLogger;
 
@@ -52,7 +56,7 @@ public class Program
         {
             // Ready can be called additional times if the bot disconnects for long enough,
             // so we need to make sure we only initialize commands and such for the bot once if it manages to re-establish connection
-            if (_isInitialized) return Task.CompletedTask;
+            if (Interlocked.CompareExchange(ref _isInitialized, 1, 0) != 0) return Task.CompletedTask;
 
             _interactionService = new InteractionService(_client);
             _commandService = new CommandService(new CommandServiceConfig
@@ -62,29 +66,47 @@ public class Program
             });
 
             _services = ConfigureServices();
-            _commandHandlingService = _services.GetRequiredService<CommandHandlingService>();
+            _services.GetRequiredService<CommandHandlingService>();
 
             // Announce, and Log bot started to track issues a bit easier
             var logger = _services.GetRequiredService<ILoggingService>();
             logger.LogChannelAndFile("Bot Started.", ExtendedLogSeverity.Positive);
 
             LoggingService.LogToConsole("Bot is connected.", ExtendedLogSeverity.Positive);
-            _isInitialized = true;
 
-            _unityHelpService = _services.GetRequiredService<UnityHelpService>();
-            _recruitService = _services.GetRequiredService<RecruitService>();
-            _services.GetRequiredService<IntroductionWatcherService>();
+            _services.GetRequiredService<UnityHelpService>();
+            _services.GetRequiredService<RecruitService>();
             _services.GetRequiredService<BirthdayAnnouncementService>();
+            _services.GetRequiredService<AuditLogService>();
+            _services.GetRequiredService<WelcomeService>();
+            _services.GetRequiredService<XpService>();
+            _services.GetRequiredService<KarmaService>();
+            _services.GetRequiredService<CodeCheckService>();
+            _services.GetRequiredService<EveryoneScoldService>();
+            _services.GetRequiredService<MikuService>();
             _services.GetRequiredService<KarmaResetService>();
 
             return Task.CompletedTask;
         };
 
-        await Task.Delay(-1);
+        try
+        {
+            await Task.Delay(Timeout.Infinite, _cts.Token);
+        }
+        catch (TaskCanceledException) { }
+
+        LoggingService.LogToConsole("Shutdown signal received, stopping...", ExtendedLogSeverity.Warning);
+        using var shutdownTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try { await _client.StopAsync().WaitAsync(shutdownTimeout.Token); }
+        catch (OperationCanceledException) { LoggingService.LogToConsole("Client stop timed out.", ExtendedLogSeverity.Warning); }
+        LoggingService.LogToConsole("Bot stopped.", ExtendedLogSeverity.Positive);
     }
 
     private IServiceProvider ConfigureServices() =>
         new ServiceCollection()
+            .AddHttpClient()
+            .AddSingleton<IWebClient, Utils.WebClient>()
+            .AddSingleton(_cts)
             .AddSingleton(_settings)
             .AddSingleton(_rules)
             .AddSingleton(_userSettings)
@@ -94,13 +116,23 @@ public class Program
             .AddSingleton<CommandHandlingService>()
             .AddSingleton<ILoggingService, LoggingService>()
             .AddSingleton<DatabaseService>()
-            .AddSingleton<UserService>()
-            .AddSingleton<IntroductionWatcherService>()
-            .AddSingleton<ModerationService>()
+            .AddSingleton<WelcomeService>()
+            .AddSingleton<XpService>()
+            .AddSingleton<KarmaService>()
+            .AddSingleton<CodeCheckService>()
+            .AddSingleton<EveryoneScoldService>()
+            .AddSingleton<MikuService>()
+            .AddSingleton<ServerService>()
+            .AddSingleton<DuelService>()
+            .AddSingleton<ProfileCardService>()
+            .AddSingleton<AuditLogService>()
+            .AddSingleton<EmbedParsingService>()
+            .AddSingleton<ReleaseNotesParser>()
             .AddSingleton<FeedService>()
             .AddSingleton<UnityHelpService>()
             .AddSingleton<RecruitService>()
             .AddSingleton<UpdateService>()
+            .AddSingleton<SearchService>()
             .AddSingleton<CurrencyService>()
             .AddSingleton<ReminderService>()
             .AddSingleton<WeatherService>()
@@ -110,6 +142,7 @@ public class Program
             .AddSingleton<UserExtendedService>()
             .AddSingleton<BirthdayAnnouncementService>()
             .AddSingleton<CasinoService>()
+            .AddSingleton<TransactionFormatter>()
             .AddSingleton<GameService>()
             .AddSingleton<KarmaResetService>()
             .BuildServiceProvider();
@@ -119,5 +152,17 @@ public class Program
         _settings = SerializeUtil.DeserializeFile<BotSettings>(@"Settings/Settings.json");
         _rules = SerializeUtil.DeserializeFile<Rules>(@"Settings/Rules.json");
         _userSettings = SerializeUtil.DeserializeFile<UserSettings>(@"Settings/UserSettings.json");
+
+        var (errors, warnings) = _settings.Validate();
+        warnings.AddRange(_userSettings.Validate());
+        foreach (var warning in warnings)
+            Console.WriteLine($"[Settings Warning] {warning}");
+        if (errors.Count > 0)
+        {
+            foreach (var error in errors)
+                Console.Error.WriteLine($"[Settings Error] {error}");
+            throw new InvalidOperationException(
+                $"Bot settings validation failed with {errors.Count} error(s). See output above.");
+        }
     }
 }

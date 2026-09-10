@@ -1,5 +1,6 @@
 using DiscordBot.Domain;
 using ImageMagick;
+using ImageMagick.Drawing;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
@@ -21,32 +22,35 @@ public abstract class BaseTextSkinModule : ISkinModule
 
     public bool StrokeAntiAlias { get; set; }
     public bool TextAntiAlias { get; set; }
-    public string StrokeColor { get; set; }
+    public string StrokeColor { get; set; } = string.Empty;
     public double StrokeWidth { get; set; }
-    public string FillColor { get; set; }
+    public string FillColor { get; set; } = string.Empty;
     public string Font { get; set; }
     public double FontPointSize { get; set; }
-    public string Text { get; set; }
+    public string Text { get; set; } = string.Empty;
     public double TextKerning { get; set; }
     [JsonConverter(typeof(StringEnumConverter))]
     public TextAlignment TextAlignment { get; set; }
 
-    public virtual string Type { get; set; }
+    public virtual string Type { get; set; } = string.Empty;
 
-    public virtual Drawables GetDrawables(ProfileData data)
+    public virtual IDrawables<byte> GetDrawables(ProfileData data)
     {
         var position = new PointD(StartX, StartY);
 
-        return new Drawables()
+        var drawables = new Drawables()
             .FontPointSize(FontPointSize)
             .Font(Font)
             .StrokeColor(new MagickColor(StrokeColor))
             .StrokeWidth(StrokeWidth)
-            .StrokeAntialias(StrokeAntiAlias)
             .FillColor(new MagickColor(FillColor))
-            .TextAntialias(TextAntiAlias)
             .TextAlignment(TextAlignment)
             .TextKerning(TextKerning)
             .Text(position.X, position.Y, Text);
+
+        if (StrokeAntiAlias) drawables.EnableStrokeAntialias(); else drawables.DisableStrokeAntialias();
+        if (TextAntiAlias) drawables.EnableTextAntialias(); else drawables.DisableTextAntialias();
+
+        return drawables;
     }
 }

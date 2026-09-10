@@ -1,15 +1,4 @@
----
-post_title: "Tech Stack"
-author1: "UDC-Bot Contributors"
-post_slug: "tech-stack"
-microsoft_alias: "N/A"
-featured_image: ""
-categories: []
-tags: ["tech-stack", "dependencies"]
-ai_note: "Generated with AI assistance"
-summary: "Primary languages, runtimes, and dependencies for UDC-Bot."
-post_date: "2026-04-03"
----
+# Tech Stack
 
 ## Runtime & Language
 
@@ -28,8 +17,8 @@ Versions are defined in `DiscordBot/DiscordBot.csproj` (single source of truth).
 | Discord.Net | Discord API client (commands, interactions, gateway) |
 | Newtonsoft.Json | JSON serialization/deserialization |
 | Microsoft.Extensions.DependencyInjection | DI container |
-| MySql.Data | MySQL database driver |
 | Insight.Database | Micro ORM for database access |
+| Insight.Database.Providers.PostgreSQL | PostgreSQL provider (Npgsql) for Insight |
 | Magick.NET-Q8-x64 | Image processing (profile cards, skins) |
 | HtmlAgilityPack | HTML parsing |
 | System.ServiceModel.Syndication | RSS feed parsing |
@@ -39,7 +28,7 @@ Versions are defined in `DiscordBot/DiscordBot.csproj` (single source of truth).
 
 | Component | Details |
 |-----------|---------|
-| Database | MySQL (containerized or standalone) |
+| Database | PostgreSQL (containerized or standalone) |
 | Container Runtime | Docker with multi-stage builds |
 | Production Deployment | **Kubernetes** (`k8s/prod/`) — primary deployment method |
 | Dev Server | **Kubernetes** (`k8s/dev/`) |
@@ -53,4 +42,4 @@ Versions are defined in `DiscordBot/DiscordBot.csproj` (single source of truth).
 |------|---------|
 | Visual Studio / VS Code / Rider | IDE |
 | Docker Compose | Local database + bot for dev/testing only |
-| PhpMyAdmin | Database administration UI (port 8080) |
+| Adminer | Database administration UI (port 8080) |

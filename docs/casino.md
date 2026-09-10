@@ -8,7 +8,7 @@ The Casino module is a comprehensive gaming system for the Discord bot that enab
 
 ### 1. User Interface Layer
 
-#### CasinoSlashModule (`Modules/Casino/CasinoSlashModule.cs`)
+#### CasinoSlashModule (`Modules/Fun/Casino/CasinoSlashModule.cs`)
 
 - **Primary Interface**: Handles all Discord slash commands and component interactions
 
@@ -22,7 +22,7 @@ The Casino module is a comprehensive gaming system for the Discord bot that enab
   - Response formatting and error handling
   - Delegating business logic to services
 
-#### CasinoSlashModule.Games (`Modules/Casino/CasinoSlashModule.Games.cs`)
+#### CasinoSlashModule.Games (`Modules/Fun/Casino/CasinoSlashModule.Games.cs`)
 
 - **Game Interface**: Handles game-specific interactions and component callbacks
 
@@ -36,7 +36,7 @@ The Casino module is a comprehensive gaming system for the Discord bot that enab
 
 ### 2. Service Layer
 
-#### CasinoService (`Services/Casino/CasinoService.cs`)
+#### CasinoService (`Services/Fun/Casino/CasinoService.cs`)
 
 - **User Management**: Core service for token and user data management
 
@@ -52,7 +52,7 @@ The Casino module is a comprehensive gaming system for the Discord bot that enab
   - Token transfer and validation
   - Statistical data aggregation
 
-#### GameService (`Services/Casino/GameService.cs`)
+#### GameService (`Services/Fun/Casino/GameService.cs`)
 
 - **Session Management**: Manages active game sessions and player interactions
 
@@ -236,7 +236,7 @@ Game End Condition → GameService.EndGame() → Payout Calculation → CasinoSe
 ### Configuration
 
 - Channel restrictions via `CasinoService.IsChannelAllowed()`
-- Starting token amounts in `BotSettings.CasinoStartingTokens`
+- Starting token amounts in `BotSettings.Casino.StartingTokens`
 - Daily reward amounts and cooldowns
 - Game-specific parameters (max players, betting limits)
 

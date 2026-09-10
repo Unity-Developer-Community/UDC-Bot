@@ -1,5 +1,6 @@
 using DiscordBot.Domain;
 using ImageMagick;
+using ImageMagick.Drawing;
 
 namespace DiscordBot.Skin;
 
@@ -14,7 +15,7 @@ public class KarmaPointsSkinModule : BaseTextSkinModule
         FontPointSize = 17;
     }
 
-    public override Drawables GetDrawables(ProfileData data)
+    public override IDrawables<byte> GetDrawables(ProfileData data)
     {
         Text = $"{data.Karma}";
         return base.GetDrawables(data);

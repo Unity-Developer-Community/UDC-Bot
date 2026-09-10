@@ -1,8 +1,4 @@
----
-last-updated: "2026-04-03"
-applicable: ["**"]
-owner: "UDC-Bot Contributors"
----
+# Agent Operations
 
 ## Purpose
 

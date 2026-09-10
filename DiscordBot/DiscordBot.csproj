@@ -4,16 +4,17 @@
     <TargetFramework>net8.0</TargetFramework>
     <LangVersion>12</LangVersion>
     <Nullable>enable</Nullable>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Insight.Database" Version="8.0.6" />
     <PackageReference Include="Insight.Database.Providers.PostgreSQL" Version="8.0.6" />
-    <PackageReference Include="HtmlAgilityPack" Version="1.12.1" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
     <PackageReference Include="Discord.Net" Version="3.17.4" />
-    <PackageReference Include="Magick.NET-Q8-x64" Version="7.5.0.1" />
+    <PackageReference Include="Magick.NET-Q8-x64" Version="14.11.1" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.6" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="Pathoschild.NaturalTimeParser" Version="0.2.0-alpha" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.6" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="System.ServiceModel.Syndication" Version="9.0.6" />
   </ItemGroup>
   <ItemGroup>

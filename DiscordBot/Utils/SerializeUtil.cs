@@ -83,7 +83,7 @@ public static class SerializeUtil
         File.Move(tmpPath, path, overwrite: true);
     }
 
-    public static async Task<T> LoadUrlDeserializeResult<T>(string url)
+    public static async Task<T?> LoadUrlDeserializeResult<T>(string url)
     {
         var result = await InternetExtensions.GetHttpContents(url);
         var resultObject = JsonConvert.DeserializeObject<T>(result);

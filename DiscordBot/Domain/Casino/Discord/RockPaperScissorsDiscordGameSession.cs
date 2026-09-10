@@ -7,7 +7,7 @@ public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperS
         : base(game, maxSeats, client, user, guild)
     { }
 
-    private string GetCurrentPlayerName()
+    private new string GetCurrentPlayerName()
     {
         if (Game.CurrentPlayer == null) return "All players have chosen";
         return GetPlayerName((DiscordGamePlayer)Game.CurrentPlayer);
@@ -26,7 +26,7 @@ public class RockPaperScissorsDiscordGameSession : DiscordGameSession<RockPaperS
             if (Game.State == GameState.Finished)
             {
                 var choice = Game.GameData[p].Choice;
-                playerHand = $"{RockPaperScissors.GetChoiceEmoji(choice.Value)} {choice.Value}";
+                playerHand = $"{RockPaperScissors.GetChoiceEmoji(choice!.Value)} {choice!.Value}";
             }
             description += GeneratePlayerHandDescription(p, playerHand, "");
         }

@@ -12,7 +12,7 @@ public static class ContextExtension
     {
         return context.Message.MentionedRoleIds.Count != 0 || context.Message.MentionedEveryone;
     }
-    
+
     /// <summary>
     /// True if the context includes a RoleID, UserID or Mentions Everyone (Should include @here, unsure)
     /// </summary>
@@ -21,7 +21,7 @@ public static class ContextExtension
     {
         return context.Message.MentionedUserIds.Count > 0 || context.HasRoleOrEveryoneMention();
     }
-    
+
     /// <summary>
     /// True if the Context contains a message that is a reply and only mentions the user that sent the message.
     /// ie; the message is a reply to the user but doesn't contain any other mentions.
@@ -34,7 +34,7 @@ public static class ContextExtension
             return false;
         return context.Message.MentionedUserIds.First() == context.Message.ReferencedMessage.Author.Id;
     }
-    
+
     /// <summary>
     /// Returns true if the Context has a reference to another message.
     /// ie; the message is a reply to another message.

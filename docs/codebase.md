@@ -1,15 +1,4 @@
----
-post_title: "Codebase Map"
-author1: "UDC-Bot Contributors"
-post_slug: "codebase"
-microsoft_alias: "N/A"
-featured_image: ""
-categories: []
-tags: ["codebase", "architecture", "conventions"]
-ai_note: "Generated with AI assistance"
-summary: "Directory structure, naming conventions, and guidance for adding new code."
-post_date: "2026-04-03"
----
+# Codebase Map
 
 ## Top-Level Structure
 
@@ -64,29 +53,41 @@ DiscordBot/
 │   └── ...
 │
 ├── Modules/                 # Discord command handlers (text + slash)
-│   ├── UserModule.cs        # General user commands (text)
-│   ├── UserSlashModule.cs   # User slash commands
-│   ├── ModerationModule.cs  # Mod commands
-│   ├── TipModule.cs         # Tip system
-│   ├── ReminderModule.cs    # Reminders
-│   ├── TicketModule.cs      # Support tickets
-│   ├── EmbedModule.cs       # Embed generation
-│   ├── AirportModule.cs     # Flight lookups
-│   ├── Casino/              # Casino slash commands
-│   ├── UnityHelp/           # Help forum, canned responses, FAQ
-│   └── Weather/             # Weather commands
+│   ├── Profiles/            # User profile, rank & birthday commands
+│   │   ├── ProfileModule.cs
+│   │   ├── RankModule.cs
+│   │   └── BirthdayModule.cs
+│   ├── Server/              # Server management, embeds, quotes, reminders, tickets
+│   │   ├── ServerModule.cs / ServerSlashModule.cs
+│   │   ├── TicketModule.cs
+│   │   ├── RulesModule.cs
+│   │   ├── EmbedModule.cs
+│   │   ├── QuoteModule.cs
+│   │   └── ReminderModule.cs
+│   ├── Fun/                 # Entertainment & games
+│   │   ├── FunModule.cs
+│   │   ├── DuelSlashModule.cs
+│   │   └── Casino/          # Casino slash commands
+│   ├── Utils/               # Search, conversion, flights, weather
+│   │   ├── SearchModule.cs
+│   │   ├── ConvertModule.cs
+│   │   ├── AirportModule.cs
+│   │   └── Weather/         # Weather commands
+│   └── Code/                # Coding tips, Unity help
+│       ├── CodeTipModule.cs
+│       ├── TipModule.cs
+│       └── Unity/UnityHelp/ # Help forum, canned responses, FAQ
 │
 ├── Services/                # Business logic and background services
-│   ├── CommandHandlingService.cs  # Command routing
-│   ├── DatabaseService.cs         # MySQL connection/queries
-│   ├── UserService.cs             # XP, levels, karma, profile cards
-│   ├── LoggingService.cs          # Console/channel/file logging
-│   ├── ModerationService.cs       # Audit logging, invite enforcement
-│   ├── Casino/              # Token management, game sessions
-│   ├── Moderation/          # Moderation sub-services
-│   ├── Recruitment/         # Recruitment workflow
-│   ├── Tips/                # Tip database management
-│   └── UnityHelp/           # Help thread management
+│   ├── CommandHandlingService.cs  # Command routing (core)
+│   ├── DatabaseService.cs         # PostgreSQL connection/queries (core)
+│   ├── LoggingService.cs          # Console/channel/file logging (core)
+│   ├── UpdateService.cs           # Update checking (core)
+│   ├── Profiles/            # Profile cards, XP, karma, birthdays
+│   ├── Server/              # Welcome, audit log, embed parsing, reminders
+│   ├── Fun/                 # Duels, Miku, Casino/
+│   ├── Utils/               # Search, airport, currency, Weather/
+│   └── Code/                # Code checking, Tips/, Unity/ (docs, feeds, UnityHelp/)
 │
 ├── Settings/                # Configuration files
 │   ├── Settings.json        # Main config (gitignored)
@@ -123,15 +124,25 @@ DiscordBot/
 
 | What | Where |
 |------|-------|
-| New text command | `Modules/` — add to existing module or create `*Module.cs` |
-| New slash command | `Modules/` — add to existing module or create `*SlashModule.cs` |
-| New business logic | `Services/` — create `*Service.cs`, register in `Program.cs` |
+| New text command | `Modules/<domain>/` — add to existing module or create `*Module.cs` |
+| New slash command | `Modules/<domain>/` — add to existing module or create `*SlashModule.cs` |
+| New business logic | `Services/<domain>/` — create `*Service.cs`, register in `Program.cs` |
 | New DB queries | `Extensions/` — add to `*Repository.cs` |
 | New game type | `Domain/Casino/Games/` — implement `ICasinoGame` |
 | New precondition | `Attributes/` — extend `PreconditionAttribute` |
 | New skin element | `Skin/` — implement `ISkinModule` |
 | Static assets | `Assets/` — fonts, images, skins (baked into Docker image) |
 | Runtime data | `SERVER/` — auto-generated, gitignored |
+
+### Module/Service Domain Groups
+
+| Domain | Modules | Services |
+|--------|---------|----------|
+| **Profiles** | ProfileModule, RankModule, BirthdayModule | ProfileCardService, XpService, KarmaService, KarmaResetService, UserExtendedService, BirthdayAnnouncementService |
+| **Server** | ServerModule, ServerSlashModule, TicketModule, RulesModule, EmbedModule, QuoteModule, ReminderModule | ServerService, WelcomeService, AuditLogService, EveryoneScoldService, EmbedParsingService, ReminderService, RecruitService |
+| **Fun** | FunModule, DuelSlashModule, Casino/ | DuelService, MikuService, Casino/ |
+| **Utils** | SearchModule, ConvertModule, AirportModule, Weather/ | SearchService, AirportService, CurrencyService, Weather/ |
+| **Code** | CodeTipModule, TipModule, Unity/UnityHelp/ | CodeCheckService, Tips/, Unity/ (feeds, docs, UnityHelp/) |
 
 ### Testing
 

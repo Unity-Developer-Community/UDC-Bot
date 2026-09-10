@@ -1,100 +1,77 @@
 ﻿{
-  /* Auth Info requires creating a Bot which can be done through https://discordapp.com/developers/applications/ (Make sure to give it Administrator Perms)*/
-  /* Auth info */
-  "token": "Y O U R _ B O T _ T O K E N",
-  "invite": "InviteLink", // Currently Unused
-  /* DB Info*/
+  /* Auth Info — create a Bot at https://discordapp.com/developers/applications/ */
+  "Token": "Y O U R _ B O T _ T O K E N",
+  "Invite": "InviteLink",
   "DbConnectionString": "Host=localhost;Port=5432;Database=udcbot;Username=udcbot;Password=USERPASSWORD",
-  /*Server Info*/
-  "serverRootPath": "./SERVER",
-  "assetsRootPath": "./Assets",
-  /* Base info */
-  "prefix": "!",
-  "ModeratorRoleId": "0",
-  "guildId": "0", // Replace with your servers guild ID
-  /* All assignable roles as of 29/04/21 */
-  "UserAssignableRoles": {
-    "desc": "All normal user assignable roles available",
-    "roles": [
-      "Audio-Engineers",
-      "Technical-Artists",
-      "Animators",
-      "3D-Artists",
-      "2D-Artists",
-      "XR-Developers",
-      "Programmers",
-      "Writers",
-      "Game-Designers",
-      "Generalists",
-      "Hobbyists",
-      "Students"
-    ]
-  },
-  /* Channel IDs for certain channels. */
-  "generalChannel": { // Off-topic
-    "desc": "General-Chat Channel",
-    "id": "0"
-  },
-  "IntroductionChannel": { // Introductions
-    "desc": "Introductions Channel",
-    "id": "0"
-  },
-  "botAnnouncementChannel": { // Most bot logs will go here
-    "desc": "Bot-Announcement Channel",
-    "id": "0"
-  },
-  "botCommandsChannel": {
-    "desc": "Bot-Commands Channel",
-    "id": "0"
-  },
-  "unityNewsChannel": {
-    "desc": "Unity News Channel",
-    "id": "0"
-  },
-  "ReportedMessageChannel": {
-    "desc": "Reported Message Channel",
-    "id": "0"
-  },
-  /* Role Ids */
-  "mutedRoleID": "0",
-  "SubsNewsRoleId": "0",
-  "SubsReleasesRoleId": "0",
-  /*Complaints Channels Stuff*/
-  "complaintCategoryId": "0",
-  "complaintChannelPrefix": "Complaint",
-  "closedComplaintChannelPrefix": "Closed-",
-  "closedComplaintCategoryId": "662084543662129175",
-  /*Commands Configuration*/
-  "wikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
+  "ServerRootPath": "./SERVER",
+  "AssetsRootPath": "./Assets",
+  "Prefix": "!",
+  "GuildId": "0",
+  "WikipediaSearchPage": "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|info&generator=prefixsearch&redirects=1&converttitles=1&utf8=1&formatversion=2&exchars=750&exintro=1&explaintext=1&exsectionformat=plain&inprop=url&gpslimit=5&gpsprofile=fuzzy&gpssearch=",
   "EveryoneScoldPeriodSeconds": "21600",
-  /*API Keys*/
-  "WeatherAPIKey": "", // Key for openweathermap.org
-  "FlightAPIKey": "",
-  "FlightAPISecret": "",
-  "AirLabAPIKey": "",
-  /* Recruitment Service */
-  "RecruitmentServiceEnabled": false,
-  "RecruitmentChannel": { // Recruitment
-    "desc": "Channel for job postings",
-    "id": "0"
+
+  "Channels": {
+    "General": { "desc": "General-Chat Channel", "id": "0" },
+    "Introduction": { "desc": "Introductions Channel", "id": "0" },
+    "BotAnnouncement": { "desc": "Bot-Announcement Channel", "id": "0" },
+    "BotCommands": { "desc": "Bot-Commands Channel", "id": "0" },
+    "UnityNews": { "desc": "Unity News Channel", "id": "0" },
+    "UnityReleases": { "desc": "Unity Releases Channel", "id": "0" },
+    "Rules": { "desc": "Rules Channel", "id": "0" },
+    "Recruitment": { "desc": "Channel for job postings", "id": "0" },
+    "GenericHelp": { "desc": "Unity-Help Channel", "id": "0" },
+    "Meme": { "desc": "Meme Channel", "id": "0" },
+    "BirthdayAnnouncement": { "desc": "Channel for birthday announcements", "id": "0" },
+    "ComplaintCategoryId": "0",
+    "ComplaintPrefix": "Complaint",
+    "ClosedComplaintCategoryId": "0",
+    "ClosedComplaintPrefix": "Closed-"
   },
-  "TagLookingToHire": "0",
-  "TagLookingForWork": "0",
-  "TagUnpaidCollab": "0",
-  "TagPositionFilled": "0",
-  "EditPermissionAccessTimeMin": 3,
-  /* Unity Help Service */
-  "UnityHelpBabySitterEnabled": false,
-  "genericHelpChannel": {
-    // Unity-help
-    "desc": "Unity-Help Channel",
-    "id": "0"
+
+  "Roles": {
+    "Moderator": "0",
+    "SubsReleases": "0",
+    "SubsNews": "0",
+    "TipsUser": "0"
   },
-  /* Birthday Announcement Service */
-  "BirthdayAnnouncementEnabled": true,
-  "BirthdayCheckIntervalMinutes": 240, // Check every 4 hours
-  "BirthdayAnnouncementChannel": {
-    "desc": "Channel for birthday announcements (e.g., #offtopic-chat)",
-    "id": "0"
+
+  "Recruitment": {
+    "Enabled": false,
+    "TagLookingToHire": "0",
+    "TagLookingForWork": "0",
+    "TagUnpaidCollab": "0",
+    "TagPositionFilled": "0",
+    "EditPermissionAccessTimeMin": 3
+  },
+
+  "UnityHelp": {
+    "BabySitterEnabled": false,
+    "TipImageDirectory": "tips"
+  },
+
+  "Casino": {
+    "Enabled": true,
+    "StartingTokens": 1000,
+    "AllowedChannels": [],
+    "DailyRewardTokens": 100,
+    "DailyRewardIntervalSeconds": 86400
+  },
+
+  "Birthday": {
+    "Enabled": true,
+    "CheckIntervalMinutes": 240
+  },
+
+  "ApiKeys": {
+    "Weather": "",
+    "Flight": "",
+    "FlightSecret": "",
+    "AirLab": ""
+  },
+
+  "FunCommands": {
+    "SlapObjectsTable": null,
+    "SlapChoices": [],
+    "SlapFails": []
   }
 }
