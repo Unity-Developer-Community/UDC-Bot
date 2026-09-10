@@ -119,7 +119,7 @@ public class ProfileCardService
 
             foreach (var layer in skin.Layers)
             {
-                if (layer.Image != null)
+                if (!string.IsNullOrEmpty(layer.Image))
                 {
                     var image = layer.Image.ToLower() == "avatar"
                         ? profile.Picture
@@ -127,6 +127,9 @@ public class ProfileCardService
 
                     background.Composite(image, (int)layer.StartX, (int)layer.StartY, CompositeOperator.Over);
                 }
+
+                if (layer.Width <= 0 || layer.Height <= 0)
+                    continue;
 
                 var l = new MagickImage(MagickColors.Transparent, (uint)layer.Width, (uint)layer.Height);
                 foreach (var module in layer.Modules) module.GetDrawables(profile).Draw(l);
