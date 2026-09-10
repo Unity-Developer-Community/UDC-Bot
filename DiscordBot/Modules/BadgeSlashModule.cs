@@ -372,13 +372,13 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
     public async Task BadgeLeaderboard(
         [Summary("group", "Optional group key to filter the leaderboard (example: udcjam)")] string? group = null)
     {
-        await Context.Interaction.DeferAsync(ephemeral: false);
-
         if (!TryNormalizeGroupKey(group, out var normalizedGroup, out var groupValidationError))
         {
-            await Context.Interaction.FollowupAsync(groupValidationError, ephemeral: false);
+            await Context.Interaction.RespondAsync(groupValidationError, ephemeral: true);
             return;
         }
+
+        await Context.Interaction.DeferAsync(ephemeral: false);
 
         var requestingUser = Context.User as SocketGuildUser;
         var isAdmin = BadgeService.IsUserAdmin(requestingUser);
@@ -394,7 +394,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         var title = normalizedGroup == null ? "🏆 Badge Leaderboard" : $"🏆 Badge Leaderboard — {normalizedGroup}";
         var lines = leaderboard.Select((entry, index) =>
         {
-            var userLabel = TryGetLeaderboardUserLabel(entry.UserID);
+            var userLabel = GetLeaderboardUserLabel(entry.UserId);
             var badgeWord = entry.BadgeCount == 1 ? "badge" : "badges";
             return $"**{index + 1}.** {userLabel} — **{entry.BadgeCount}** {badgeWord}";
         });
@@ -432,7 +432,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         return true;
     }
 
-    private string TryGetLeaderboardUserLabel(string userId)
+    private string GetLeaderboardUserLabel(string userId)
     {
         if (ulong.TryParse(userId, out var parsedUserId))
         {

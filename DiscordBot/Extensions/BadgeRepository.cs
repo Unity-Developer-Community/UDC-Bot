@@ -26,7 +26,7 @@ public class UserBadge
 
 public class BadgeLeaderboardEntry
 {
-    public string UserID { get; set; }
+    public string UserId { get; set; }
     public long BadgeCount { get; set; }
 }
 
@@ -117,7 +117,7 @@ public interface IBadgeRepo
     Task<IList<UserBadge>> GetUserPublicBadges(string userId);
 
     [Sql($@"
-    SELECT ub.{UserBadgeProps.UserID}, COUNT(*) AS BadgeCount
+    SELECT ub.{UserBadgeProps.UserID} AS UserId, COUNT(*) AS BadgeCount
     FROM {UserBadgeProps.TableName} ub
     JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
     GROUP BY ub.{UserBadgeProps.UserID}
@@ -126,7 +126,7 @@ public interface IBadgeRepo
     Task<IList<BadgeLeaderboardEntry>> GetBadgeLeaderboard(int limit);
 
     [Sql($@"
-    SELECT ub.{UserBadgeProps.UserID}, COUNT(*) AS BadgeCount
+    SELECT ub.{UserBadgeProps.UserID} AS UserId, COUNT(*) AS BadgeCount
     FROM {UserBadgeProps.TableName} ub
     JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
     WHERE b.{BadgeProps.IsPublic} = TRUE
@@ -136,20 +136,20 @@ public interface IBadgeRepo
     Task<IList<BadgeLeaderboardEntry>> GetPublicBadgeLeaderboard(int limit);
 
     [Sql($@"
-    SELECT ub.{UserBadgeProps.UserID}, COUNT(*) AS BadgeCount
+    SELECT ub.{UserBadgeProps.UserID} AS UserId, COUNT(*) AS BadgeCount
     FROM {UserBadgeProps.TableName} ub
     JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
-    WHERE LOWER(b.{BadgeProps.GroupKey}) = LOWER(@groupKey)
+    WHERE b.{BadgeProps.GroupKey} = @groupKey
     GROUP BY ub.{UserBadgeProps.UserID}
     ORDER BY BadgeCount DESC, ub.{UserBadgeProps.UserID}
     LIMIT @limit")]
     Task<IList<BadgeLeaderboardEntry>> GetBadgeLeaderboardByGroup(string groupKey, int limit);
 
     [Sql($@"
-    SELECT ub.{UserBadgeProps.UserID}, COUNT(*) AS BadgeCount
+    SELECT ub.{UserBadgeProps.UserID} AS UserId, COUNT(*) AS BadgeCount
     FROM {UserBadgeProps.TableName} ub
     JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
-    WHERE b.{BadgeProps.IsPublic} = TRUE AND LOWER(b.{BadgeProps.GroupKey}) = LOWER(@groupKey)
+    WHERE b.{BadgeProps.IsPublic} = TRUE AND b.{BadgeProps.GroupKey} = @groupKey
     GROUP BY ub.{UserBadgeProps.UserID}
     ORDER BY BadgeCount DESC, ub.{UserBadgeProps.UserID}
     LIMIT @limit")]
