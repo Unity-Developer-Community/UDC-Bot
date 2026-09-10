@@ -3,7 +3,7 @@
 ## Feature List
 
 | Feature | Description | Module(s) | Service(s) | Criticality |
-|---------|-------------|-----------|------------|-------------|
+| --------- | ------------- | ----------- | ------------ | ------------- |
 | **User Profiles** | XP/level system, karma tracking, profile cards with customizable skins | `ProfileModule`, `RankModule` | `XpService`, `KarmaService`, `ProfileCardService`, `UserExtendedService` | Core |
 | **Command Handling** | Text command + slash command routing, history tracking, prefix config | — | `CommandHandlingService` | Core |
 | **Logging** | Multi-destination logging (console, file, Discord channel) with severity levels | — | `LoggingService` | Core |
@@ -26,7 +26,7 @@
 | **Server Utilities** | Help, ping, member count, and server info | `ServerModule`, `ServerSlashModule` | `ServerService` | Feature |
 | **Tickets** | Private complaint/support ticket channels | `TicketModule` | — | Feature |
 | **Embed Builder** | Generate embeds from messages or hastebin URLs | `EmbedModule` | `EmbedParsingService` | Feature |
-| **Birthday Announcements** | Scheduled birthday notifications (configurable interval) | `BirthdayModule` | `BirthdayAnnouncementService` | Feature |
+| **Birthday Announcements** | Scheduled birthday notifications (configurable interval), plus birthday command management (`/bday set`, `/bday del`, admin-only `/bday set-user`, `/bday del-user`, `/bday list`) | `BirthdayModule`, `BirthdaySlashModule` | `BirthdayAnnouncementService` | Feature |
 | **Recruitment** | Configurable recruitment workflow (toggleable) | — | `RecruitService` | Feature |
 | **Release Feeds** | RSS feed parsing and Unity release-notes tracking | — | `FeedService`, `ReleaseNotesParser` | Feature |
 | **@everyone Scold** | Warns users who use `@everyone`/`@here` without permission | — | `EveryoneScoldService` | Feature |

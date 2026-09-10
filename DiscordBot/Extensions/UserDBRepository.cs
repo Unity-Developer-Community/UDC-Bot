@@ -15,6 +15,8 @@ public class ServerUser
     public int Level { get; set; }
     // DefaultCity - Optional Location for Weather, BDay, Temp, Time, etc. (Added - Jan 2024)
     public string DefaultCity { get; set; } = string.Empty;
+    // Birthday - Optional birthday for user (Added for database birthday feature)
+    public DateTime? Birthday { get; set; }
 }
 
 /// <summary>
@@ -33,6 +35,7 @@ public static class UserProps
     public const string Exp = nameof(ServerUser.Exp);
     public const string Level = nameof(ServerUser.Level);
     public const string DefaultCity = nameof(ServerUser.DefaultCity);
+    public const string Birthday = nameof(ServerUser.Birthday);
 }
 
 public interface IServerUserRepo
@@ -80,6 +83,8 @@ public interface IServerUserRepo
     Task UpdateLevel(string userId, int level);
     [Sql($"UPDATE {UserProps.TableName} SET {UserProps.DefaultCity} = @city WHERE {UserProps.UserID} = @userId")]
     Task UpdateDefaultCity(string userId, string? city);
+    [Sql($"UPDATE {UserProps.TableName} SET {UserProps.Birthday} = @birthday WHERE {UserProps.UserID} = @userId")]
+    Task UpdateBirthday(string userId, DateTime? birthday);
 
     #endregion // Update Values
 
@@ -95,8 +100,44 @@ public interface IServerUserRepo
     Task<int> GetLevel(string userId);
     [Sql($"SELECT {UserProps.DefaultCity} FROM {UserProps.TableName} WHERE {UserProps.UserID} = @userId")]
     Task<string> GetDefaultCity(string userId);
+    [Sql($"SELECT {UserProps.Birthday} FROM {UserProps.TableName} WHERE {UserProps.UserID} = @userId")]
+    Task<DateTime?> GetBirthday(string userId);
 
     #endregion // Get Single Values
+
+    #region Birthday Queries
+
+    /// <summary>Get all users whose birthday is today (ignoring year)</summary>
+    [Sql($"SELECT {UserProps.UserID}, {UserProps.Birthday} FROM {UserProps.TableName} WHERE {UserProps.Birthday} IS NOT NULL AND EXTRACT(MONTH FROM {UserProps.Birthday}) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM {UserProps.Birthday}) = EXTRACT(DAY FROM CURRENT_DATE)")]
+    Task<IList<ServerUser>> GetTodaysBirthdays();
+
+    /// <summary>Get the next upcoming birthday user(s)</summary>
+    [Sql($@"
+    SELECT {UserProps.UserID}, {UserProps.Birthday}
+    FROM {UserProps.TableName}
+    WHERE {UserProps.Birthday} IS NOT NULL
+    ORDER BY
+        CASE
+            WHEN (EXTRACT(MONTH FROM {UserProps.Birthday}) * 100 + EXTRACT(DAY FROM {UserProps.Birthday})) >= (EXTRACT(MONTH FROM CURRENT_DATE) * 100 + EXTRACT(DAY FROM CURRENT_DATE))
+            THEN (EXTRACT(MONTH FROM {UserProps.Birthday}) * 100 + EXTRACT(DAY FROM {UserProps.Birthday}))
+            ELSE (EXTRACT(MONTH FROM {UserProps.Birthday}) * 100 + EXTRACT(DAY FROM {UserProps.Birthday})) + 1231
+        END
+    LIMIT 1")]
+    Task<ServerUser> GetNextBirthday();
+
+    /// <summary>Get all users whose birthday is on a specific month and day (ignoring year)</summary>
+    [Sql($"SELECT {UserProps.UserID}, {UserProps.Birthday} FROM {UserProps.TableName} WHERE {UserProps.Birthday} IS NOT NULL AND EXTRACT(MONTH FROM {UserProps.Birthday}) = @month AND EXTRACT(DAY FROM {UserProps.Birthday}) = @day")]
+    Task<IList<ServerUser>> GetBirthdaysOnDate(int month, int day);
+
+    /// <summary>Get all users with a defined birthday, sorted by month/day.</summary>
+    [Sql($@"
+    SELECT {UserProps.UserID}, {UserProps.Birthday}
+    FROM {UserProps.TableName}
+    WHERE {UserProps.Birthday} IS NOT NULL
+    ORDER BY EXTRACT(MONTH FROM {UserProps.Birthday}), EXTRACT(DAY FROM {UserProps.Birthday}), {UserProps.UserID}")]
+    Task<IList<ServerUser>> GetAllBirthdays();
+
+    #endregion // Birthday Queries
 
     /// <summary>Returns a count of {Props.TableName} in the Table, otherwise it fails. </summary>
     [Sql($"SELECT COUNT(*) FROM {UserProps.TableName}")]
