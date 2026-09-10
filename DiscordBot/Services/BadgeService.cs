@@ -17,7 +17,7 @@ public class BadgeService
         _databaseService = databaseService;
     }
 
-    public string? NormalizeGroupKey(string? groupKey)
+    public static string? NormalizeGroupKey(string? groupKey)
     {
         if (string.IsNullOrWhiteSpace(groupKey))
             return null;

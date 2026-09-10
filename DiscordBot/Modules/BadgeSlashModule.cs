@@ -75,7 +75,8 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         [Summary("title", "New title for the badge")] string newTitle,
         [Summary("description", "New description for the badge")] string newDescription,
         [Summary("public", "Whether the badge should be public")] bool isPublic = true,
-        [Summary("group", "Optional new group key (leave unset to keep the current group)")] string? group = null)
+        [Summary("group", "Optional new group key (leave unset to keep the current group)")] string? group = null,
+        [Summary("clear-group", "Clear the badge's current group")] bool clearGroup = false)
     {
         await Context.Interaction.DeferAsync(ephemeral: true);
 
@@ -104,7 +105,13 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             return;
         }
 
-        var updatedBadge = await BadgeService.UpdateBadge(existingBadge.Id, newTitle, newDescription, isPublic, normalizedGroup, group != null);
+        var updatedBadge = await BadgeService.UpdateBadge(
+            existingBadge.Id,
+            newTitle,
+            newDescription,
+            isPublic,
+            clearGroup ? null : normalizedGroup,
+            clearGroup || group != null);
         
         if (updatedBadge != null)
         {
@@ -372,13 +379,13 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
     public async Task BadgeLeaderboard(
         [Summary("group", "Optional group key to filter the leaderboard (example: udcjam)")] string? group = null)
     {
+        await Context.Interaction.DeferAsync(ephemeral: false);
+
         if (!TryNormalizeGroupKey(group, out var normalizedGroup, out var groupValidationError))
         {
-            await Context.Interaction.RespondAsync(groupValidationError, ephemeral: true);
+            await Context.Interaction.FollowupAsync(groupValidationError, ephemeral: true);
             return;
         }
-
-        await Context.Interaction.DeferAsync(ephemeral: false);
 
         var requestingUser = Context.User as SocketGuildUser;
         var isAdmin = BadgeService.IsUserAdmin(requestingUser);
@@ -413,7 +420,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
     private bool TryNormalizeGroupKey(string? group, out string? normalizedGroup, out string? errorMessage)
     {
         errorMessage = null;
-        normalizedGroup = BadgeService.NormalizeGroupKey(group);
+        normalizedGroup = global::DiscordBot.Services.BadgeService.NormalizeGroupKey(group);
         if (normalizedGroup == null)
             return true;
 
