@@ -1,0 +1,76 @@
+# PostgreSQL backup using eeshugerman/postgres-backup-s3 — pg_dump directly to S3.
+# Dumps go to S3 bucket "udc-bot-postgresql-backups/prod" with 90-day retention.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgresql-backup
+  namespace: udc-bot-prod
+  labels:
+    app.kubernetes.io/name: postgresql-backup
+    app.kubernetes.io/part-of: udc-bot
+    environment: prod
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql-backup
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgresql-backup
+        app.kubernetes.io/part-of: udc-bot
+        environment: prod
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+        - name: postgresql-backup
+          image: eeshugerman/postgres-backup-s3:16@sha256:59e6cef8459fafc73a5383e103309f23be84bd0bceb89c08b49ffc43780efd01
+          env:
+            - name: POSTGRES_HOST
+              value: postgresql
+            - name: POSTGRES_DATABASE
+              value: udcbot
+            - name: POSTGRES_USER
+              value: udcbot
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-credentials
+                  key: password
+            - name: S3_REGION
+              value: eu-west-3
+            - name: S3_BUCKET
+              value: udc-bot-postgresql-backups
+            - name: S3_PREFIX
+              value: prod
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-backup-credentials
+                  key: AWS_ACCESS_KEY_ID
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-backup-credentials
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: SCHEDULE
+              value: "@daily"
+            - name: BACKUP_KEEP_DAYS
+              value: "90"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

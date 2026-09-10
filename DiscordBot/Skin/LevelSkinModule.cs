@@ -1,5 +1,6 @@
 using DiscordBot.Domain;
 using ImageMagick;
+using ImageMagick.Drawing;
 
 namespace DiscordBot.Skin;
 
@@ -14,7 +15,7 @@ public class LevelSkinModule : BaseTextSkinModule
         FontPointSize = 50;
     }
 
-    public override Drawables GetDrawables(ProfileData data)
+    public override IDrawables<byte> GetDrawables(ProfileData data)
     {
         Text = data.Level.ToString();
         return base.GetDrawables(data);

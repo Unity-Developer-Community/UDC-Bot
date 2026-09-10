@@ -1,34 +1,34 @@
 version: "3.3"
 services:
   db:
-    image: mysql
+    image: postgres:16
     volumes:
-      - db_data:/var/lib/mysql
+      - db_data:/var/lib/postgresql/data
     restart: always
     ports:
-      - 127.0.0.1:3306:3306
-      #- 3306:3306
+      - 127.0.0.1:5432:5432
     environment:
-      MYSQL_ROOT_PASSWORD: 123456789
-      MYSQL_DATABASE: udcbot
-      MYSQL_USER: udcbot
-      MYSQL_PASSWORD: 123456789
+      POSTGRES_DB: udcbot
+      POSTGRES_USER: udcbot
+      POSTGRES_PASSWORD: 123456789
 
-  phpmyadmin:
-    image: phpmyadmin
+  adminer:
+    image: adminer:4
     depends_on:
       - db
     restart: always
     ports:
       - 8080:80
     environment:
-      PMA_HOST: db
+      ADMINER_DEFAULT_SERVER: db
+      ADMINER_DESIGN: dracula
 
   bot:
     build: .
     volumes:
       - .\DiscordBot\Settings\:/app/Settings
       - .\DiscordBot\SERVER\:/app/SERVER
+      - .\DiscordBot\Assets\:/app/Assets:ro
     depends_on:
       - db
     restart: always

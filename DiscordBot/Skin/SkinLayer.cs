@@ -7,7 +7,7 @@ public class SkinLayer
         Modules = new List<ISkinModule>();
     }
 
-    public string Image { get; set; }
+    public string Image { get; set; } = string.Empty;
     public double StartX { get; set; }
     public double StartY { get; set; }
     public double Width { get; set; }

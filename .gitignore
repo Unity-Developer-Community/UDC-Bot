@@ -452,3 +452,6 @@ fabric.properties
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/csharp,visualstudiocode,rider
+
+# Bot runtime-generated data (SERVER/ is created by the bot at runtime)
+DiscordBot/SERVER/

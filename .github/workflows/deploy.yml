@@ -1,0 +1,89 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        description: "GHCR image name (without registry prefix)"
+        required: true
+        type: string
+      short_sha:
+        description: "Short SHA to use as the image tag"
+        required: true
+        type: string
+      manifest_path:
+        description: "Path to the k8s manifest to update"
+        required: true
+        type: string
+      manifest_ref:
+        description: "Branch where the manifest lives (for checkout + commit)"
+        required: true
+        type: string
+      commit_message:
+        description: "Commit message template ({sha} will be replaced with short SHA)"
+        required: true
+        type: string
+      environment:
+        description: "Deployment environment name"
+        required: true
+        type: string
+    secrets:
+      APP_ID:
+        description: "GitHub App ID for bypassing branch protection"
+        required: true
+      APP_PRIVATE_KEY:
+        description: "GitHub App private key (.pem)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    name: Update Manifest
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout manifest branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.manifest_ref }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Update manifest image tag
+        env:
+          OWNER: ${{ github.repository_owner }}
+          IMAGE: ${{ inputs.image_name }}
+          SHORT_SHA: ${{ inputs.short_sha }}
+          MANIFEST_PATH: ${{ inputs.manifest_path }}
+        run: |
+          OWNER_LC=$(echo "${OWNER}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_LC=$(echo "${IMAGE}" | tr '[:upper:]' '[:lower:]')
+          sed -i "s|image: ghcr.io/${OWNER_LC}/${IMAGE_LC}:.*|image: ghcr.io/${OWNER_LC}/${IMAGE_LC}:${SHORT_SHA}|" "${MANIFEST_PATH}"
+          if ! grep -q "image: ghcr.io/${OWNER_LC}/${IMAGE_LC}:${SHORT_SHA}" "${MANIFEST_PATH}"; then
+            echo "::error::Failed to update image tag in ${MANIFEST_PATH}"
+            exit 1
+          fi
+
+      - name: Commit and push manifest update
+        env:
+          COMMIT_MSG: ${{ inputs.commit_message }}
+          SHORT_SHA: ${{ inputs.short_sha }}
+          MANIFEST_PATH: ${{ inputs.manifest_path }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          git add "${MANIFEST_PATH}"
+          FINAL_MSG=$(echo "${COMMIT_MSG}" | sed "s/{sha}/${SHORT_SHA}/g")
+          git diff --cached --quiet || git commit -m "${FINAL_MSG}"
+          git push

@@ -1,0 +1,97 @@
+{
+    "Name": "Default",
+    "Codename": "default",
+    "Description": "Default avatar",
+    "AvatarSize": 128,
+    "AvatarX": 36,
+    "AvatarY": 40,
+    "Background": "background.png",
+    "Layers": [
+        {
+            "Image": "foreground.png",
+            "StartX": 30,
+            "StartY": 20,
+            "Width": 640,
+            "Height": 209,
+            "Modules": [
+                {
+                    "Type": "AvatarBorder",
+                    "StartX": 6,
+                    "StartY": 20
+                },
+                {
+                    "Type": "XpBar",
+                    "StartX": 150,
+                    "StartY": 42,
+                    "Width": 360,
+                    "Height": 18,
+                    "OutsideStrokeColor": "#778899FF",
+                    "OutsideFillColor": "#F5F5F5FF",
+                    "InsideStrokeColor": "#FFFFFF00",
+                    "InsideFillColor": "#32CD32FF"
+                },
+                {
+                    "Type": "XpBarInfo",
+                    "StartX": 315,
+                    "StartY": 57,
+                    "Width": 360,
+                    "Height": 18,
+                    "Font": "Consolas",
+                    "FillColor": "#000000FF",
+                    "StrokeColor": "#00000000",
+                    "FontPointSize": 17
+                },
+                {
+                    "Type": "Username",
+                    "StartX": 150,
+                    "StartY": 38,
+                    "FontPointSize": 34,
+                    "Font": "Consolas",
+                    "StrokeColor": "#8A2BE2FF",
+                    "FillColor": "#00BFFFFF",
+                    "StrokeAntialias": true,
+                    "StrokeWidth": 0.4
+                },
+                {
+                    "Type": "TotalXp",
+                    "StartX": 535,
+                    "StartY": 83,
+                    "FontPointSize": 17,
+                    "Font": "Consolas",
+                    "FillColor": "#000000FF"
+                },
+                {
+                    "Type": "XpRank",
+                    "StartX": 535,
+                    "StartY": 108,
+                    "FontPointSize": 17,
+                    "Font": "Consolas",
+                    "FillColor": "#000000FF"
+                },
+                {
+                    "Type": "KarmaRank",
+                    "StartX": 535,
+                    "StartY": 153,
+                    "FontPointSize": 17,
+                    "Font": "Consolas",
+                    "FillColor": "#000000FF"
+                },
+                {
+                    "Type": "KarmaPoints",
+                    "StartX": 535,
+                    "StartY": 130,
+                    "FontPointSize": 17,
+                    "Font": "Consolas",
+                    "FillColor": "#000000FF"
+                },
+                {
+                    "Type": "Level",
+                    "StartX": 220,
+                    "StartY": 140,
+                    "FontPointSize": 50,
+                    "Font": "Consolas"
+                }
+            ]
+        }
+    ]
+}
