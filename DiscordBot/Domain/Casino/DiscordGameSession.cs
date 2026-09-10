@@ -214,6 +214,7 @@ public abstract class DiscordGameSession<TGame> : GameSession<TGame>, IDiscordGa
     {
         return new ComponentBuilder()
         // .WithButton("Reload Embed", $"reload:{Id}", ButtonStyle.Secondary, new Emoji("🔄"))
+        .WithButton("Play Again", $"play_again:{Id}", ButtonStyle.Primary, new Emoji("🔄"))
         .Build();
     }
 

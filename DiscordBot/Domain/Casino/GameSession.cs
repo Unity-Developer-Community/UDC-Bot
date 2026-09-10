@@ -10,12 +10,12 @@ public interface IGameSession
     public Type ActionType { get; }
 
     public DiscordGamePlayer? GetPlayer(ulong userId);
-    public bool AddPlayer(ulong userId, ulong bet);
+    public bool AddPlayer(ulong userId, long bet);
     public bool AddPlayerAI();
     public void RemovePlayer(ulong userId);
     public void RemovePlayerAI();
     public void SetPlayerReady(ulong userId, bool isReady);
-    public void SetPlayerBet(ulong userId, ulong bet);
+    public void SetPlayerBet(ulong userId, long bet);
     public void DoPlayerAction(ulong userId, Enum action);
 
     public bool HasNextDealerAction();
@@ -26,6 +26,8 @@ public interface IGameSession
 
     public bool ShouldFinish();
     public IReadOnlyList<(DiscordGamePlayer player, long payout)> EndGame();
+
+    public void Reset();
 }
 
 /// <summary>
@@ -73,7 +75,7 @@ public class GameSession<TGame> : IGameSession
     /// </summary>
     public bool CanStart => Game.State == GameState.NotStarted && PlayerCount >= Game.MinPlayers && AllPlayersReady;
 
-    public ulong GetTotalPot => (ulong)Players.Sum(p => (long)p.Bet);
+    public long GetTotalPot => Players.Sum(p => p.Bet);
 
     public bool ShouldFinish() => Game.ShouldFinish();
 
@@ -82,11 +84,17 @@ public class GameSession<TGame> : IGameSession
             .Select(p => ((DiscordGamePlayer)p.player, p.payout))
             .ToList();
 
+    public void Reset()
+    {
+        Game.Reset();
+        Players.Clear();
+    }
+
     #region Player Management
 
     public DiscordGamePlayer? GetPlayer(ulong userId) => Players.FirstOrDefault(p => p.UserId == userId);
 
-    public bool AddPlayer(ulong userId, ulong bet)
+    public bool AddPlayer(ulong userId, long bet)
     {
         if (!CanJoin) return false;
         if (Players.Any(p => p.UserId == userId)) return false; // Player already in game
@@ -148,7 +156,7 @@ public class GameSession<TGame> : IGameSession
         if (ready && CanStart) Game.StartGame(Players);
     }
 
-    public void SetPlayerBet(ulong userId, ulong bet)
+    public void SetPlayerBet(ulong userId, long bet)
     {
         if (Game.State != GameState.NotStarted) return; // Cannot change bet after the game has started
         var player = GetPlayer(userId);

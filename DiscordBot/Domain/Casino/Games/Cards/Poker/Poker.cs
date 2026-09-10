@@ -82,6 +82,12 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
             }
         }
 
+        // Sort player cards for consistent display
+        foreach (var player in Players)
+        {
+            GameData[player].PlayerCards.Sort((c1, c2) => c2.CompareTo(c1));
+        }
+
     }
 
     #endregion
@@ -138,6 +144,9 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
             }
         }
 
+        // Sort the player's cards after discarding
+        playerData.PlayerCards.Sort((c1, c2) => c2.CompareTo(c1));
+
         // Reset selection and mark as discarded
         playerData.SelectedForDiscard = [false, false, false, false, false];
         playerData.HasDiscarded = true;
@@ -185,7 +194,7 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
         var playerData = GameData[player];
         if (playerData.PlayerCards.Count != 5) return "Hand incomplete.";
 
-        var hand = string.Join(" ", playerData.PlayerCards.OrderByDescending(c => c).Select((card, index) =>
+        var hand = string.Join(" ", playerData.PlayerCards.Select((card, index) =>
         {
             var display = card.GetDisplayName();
             if (playerData.SelectedForDiscard[index])
@@ -221,11 +230,11 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
         return winners.Any(w => w.player == player) ? GamePlayerResult.Won : GamePlayerResult.Lost;
     }
 
-    public override long CalculatePayout(GamePlayer player, ulong totalPot)
+    public override long CalculatePayout(GamePlayer player, long totalPot)
     {
         var result = GetPlayerGameResult(player);
         if (result == GamePlayerResult.Lost)
-            return -(long)player.Bet;
+            return -player.Bet;
 
         // Calculate winner's share
         var allHands = Players.Where(p => GameData[p].FinalHand != null)
@@ -235,12 +244,11 @@ public class Poker : ACasinoGame<PokerPlayerData, PokerPlayerAction>
 
         if (winner.player != null)
         {
-            // Winner gets their share of the total pot minus their original bet
-            var winnings = (long)(totalPot * (ulong)winner.share);
-            return winnings - (long)player.Bet;
+            var winnings = (long)(totalPot * winner.share);
+            return winnings - player.Bet;
         }
 
-        return -(long)player.Bet;
+        return -player.Bet;
     }
 
     public override bool ShouldFinish() => State == GameState.InProgress && Players.All(p => GameData[p].HasDiscarded);

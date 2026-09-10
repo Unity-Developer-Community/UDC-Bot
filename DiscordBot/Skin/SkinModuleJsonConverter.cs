@@ -9,14 +9,14 @@ public class SkinModuleJsonConverter : JsonConverter
 
     public override bool CanConvert(Type objectType) => objectType == typeof(ISkinModule);
 
-    public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+    public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
     {
         var jo = JObject.Load(reader);
         Type type;
         try
         {
-            var t = $"DiscordBot.Skin.{jo["Type"].Value<string>()}SkinModule";
-            type = Type.GetType(t);
+            var t = $"DiscordBot.Skin.{jo["Type"]!.Value<string>()}SkinModule";
+            type = Type.GetType(t)!;
             return jo.ToObject(type);
         }
         catch (Exception e)
@@ -26,7 +26,7 @@ public class SkinModuleJsonConverter : JsonConverter
         }
     }
 
-    public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+    public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
     {
         throw new NotImplementedException();
     }

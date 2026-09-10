@@ -57,14 +57,14 @@ public interface IBadgeRepo
     
     [Sql($@"
     INSERT INTO {BadgeProps.TableName} ({BadgeProps.Title}, {BadgeProps.Description}, {BadgeProps.IsPublic}, {BadgeProps.CreatedAt}) 
-    VALUES (@{BadgeProps.Title}, @{BadgeProps.Description}, @{BadgeProps.IsPublic}, @{BadgeProps.CreatedAt});
-    SELECT * FROM {BadgeProps.TableName} WHERE {BadgeProps.Id} = LAST_INSERT_ID()")]
+    VALUES (@{BadgeProps.Title}, @{BadgeProps.Description}, @{BadgeProps.IsPublic}, @{BadgeProps.CreatedAt})
+    RETURNING *")]
     Task<Badge> CreateBadge(Badge badge);
     
     [Sql($"SELECT * FROM {BadgeProps.TableName} ORDER BY {BadgeProps.Title}")]
     Task<IList<Badge>> GetAllBadges();
     
-    [Sql($"SELECT * FROM {BadgeProps.TableName} WHERE {BadgeProps.IsPublic} = 1 ORDER BY {BadgeProps.Title}")]
+    [Sql($"SELECT * FROM {BadgeProps.TableName} WHERE {BadgeProps.IsPublic} = TRUE ORDER BY {BadgeProps.Title}")]
     Task<IList<Badge>> GetPublicBadges();
     
     [Sql($"SELECT * FROM {BadgeProps.TableName} WHERE {BadgeProps.Id} = @badgeId")]
@@ -85,8 +85,8 @@ public interface IBadgeRepo
     
     [Sql($@"
     INSERT INTO {UserBadgeProps.TableName} ({UserBadgeProps.UserID}, {UserBadgeProps.BadgeId}, {UserBadgeProps.AwardedAt}, {UserBadgeProps.AwardedBy}) 
-    VALUES (@{UserBadgeProps.UserID}, @{UserBadgeProps.BadgeId}, @{UserBadgeProps.AwardedAt}, @{UserBadgeProps.AwardedBy});
-    SELECT * FROM {UserBadgeProps.TableName} WHERE {UserBadgeProps.Id} = LAST_INSERT_ID()")]
+    VALUES (@{UserBadgeProps.UserID}, @{UserBadgeProps.BadgeId}, @{UserBadgeProps.AwardedAt}, @{UserBadgeProps.AwardedBy})
+    RETURNING *")]
     Task<UserBadge> AssignBadgeToUser(UserBadge userBadge);
     
     [Sql($"DELETE FROM {UserBadgeProps.TableName} WHERE {UserBadgeProps.UserID} = @userId AND {UserBadgeProps.BadgeId} = @badgeId")]
@@ -104,7 +104,7 @@ public interface IBadgeRepo
     SELECT ub.*, b.{BadgeProps.Title}, b.{BadgeProps.Description}, b.{BadgeProps.IsPublic}, b.{BadgeProps.CreatedAt}
     FROM {UserBadgeProps.TableName} ub
     JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
-    WHERE ub.{UserBadgeProps.UserID} = @userId AND b.{BadgeProps.IsPublic} = 1
+    WHERE ub.{UserBadgeProps.UserID} = @userId AND b.{BadgeProps.IsPublic} = TRUE
     ORDER BY ub.{UserBadgeProps.AwardedAt} DESC")]
     Task<IList<UserBadge>> GetUserPublicBadges(string userId);
     

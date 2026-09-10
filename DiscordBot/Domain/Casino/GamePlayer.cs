@@ -16,7 +16,7 @@ public class GamePlayer
     /// <summary>
     /// The bet amount placed by the player
     /// </summary>
-    public required ulong Bet { get; set; }
+    public required long Bet { get; set; }
     /// <summary>
     /// The final result of the player in the game (won, lost, tie)
     /// </summary>

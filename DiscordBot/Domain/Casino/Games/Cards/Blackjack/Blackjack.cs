@@ -79,6 +79,7 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
             GameData[player].Actions.Clear();
         }
         DealerCards.Clear();
+        DealerActions.Clear();
 
         Card? card = null;
         // Deal initial cards (2 cards each)
@@ -104,12 +105,12 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
         return GamePlayerResult.NoResult;
     }
 
-    public override long CalculatePayout(GamePlayer player, ulong _totalPot)
+    public override long CalculatePayout(GamePlayer player, long _totalPot)
     {
         return player.Result switch
         {
-            GamePlayerResult.Won => (long)player.Bet,
-            GamePlayerResult.Lost => -(long)player.Bet,
+            GamePlayerResult.Won => player.Bet,
+            GamePlayerResult.Lost => -player.Bet,
             GamePlayerResult.Tie => 0,
             _ => 0
         };
@@ -142,8 +143,11 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
         if (!CanPlayerAct(player)) return;
 
         var card = Deck.DrawCard();
-        if (card != null) GameData[player].PlayerCards.Add(card);
-        GameData[player].Actions.Add(BlackjackPlayerAction.Hit);
+        if (card != null)
+        {
+            GameData[player].PlayerCards.Add(card);
+            GameData[player].Actions.Add(BlackjackPlayerAction.Hit);
+        }
     }
 
     private void Stand(GamePlayer player)
@@ -157,9 +161,12 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
         if (!CanPlayerAct(player)) return;
 
         var card = Deck.DrawCard();
-        if (card != null) GameData[player].PlayerCards.Add(card);
-        GameData[player].Actions.Add(BlackjackPlayerAction.DoubleDown);
-        player.Bet *= 2; // Double the bet
+        if (card != null)
+        {
+            GameData[player].PlayerCards.Add(card);
+            GameData[player].Actions.Add(BlackjackPlayerAction.DoubleDown);
+            player.Bet *= 2; // Double the bet
+        }
     }
 
     public override void DoPlayerAction(GamePlayer player, BlackjackPlayerAction action)
@@ -194,8 +201,11 @@ public class Blackjack : ACasinoGame<BlackjackPlayerData, BlackjackPlayerAction>
         if (!CanDealerAct()) return;
 
         var card = Deck.DrawCard();
-        if (card != null) DealerCards.Add(card);
-        DealerActions.Add(BlackjackPlayerAction.Hit);
+        if (card != null)
+        {
+            DealerCards.Add(card);
+            DealerActions.Add(BlackjackPlayerAction.Hit);
+        }
     }
 
     private void DealerStand()

@@ -56,7 +56,9 @@ public interface ICasinoGame
     public IReadOnlyList<(GamePlayer player, long payout)> EndGame();
 
     public abstract GamePlayerResult GetPlayerGameResult(GamePlayer player);
-    public abstract long CalculatePayout(GamePlayer player, ulong totalPot);
+    public abstract long CalculatePayout(GamePlayer player, long totalPot);
+
+    public void Reset();
 
     Type ActionType { get; }
 
@@ -147,14 +149,20 @@ public abstract class ACasinoGame<TPlayerData, TPlayerAction> : ICasinoGame
     // Default implementation does nothing, override in specific games if needed
     protected virtual void FinalizeGame(List<GamePlayer> players) { }
     public abstract GamePlayerResult GetPlayerGameResult(GamePlayer player);
-    protected ulong GetTotalPot => (ulong)Players.Sum(p => (long)p.Bet);
-    public abstract long CalculatePayout(GamePlayer player, ulong totalPot);
+    protected long GetTotalPot => Players.Sum(p => p.Bet);
+    public abstract long CalculatePayout(GamePlayer player, long totalPot);
 
     /// <summary>
     /// Determines if the game should enter the FINISHED state. <br />
     /// The default implementation checks if the game is IN_PROGRESS and all players have finished playing.
     /// </summary>
     public virtual bool ShouldFinish() => State == GameState.InProgress && CurrentPlayer == null;
+
+    public void Reset()
+    {
+        State = GameState.NotStarted;
+        GameData.Clear();
+    }
 
     #endregion
     #region Player Actions

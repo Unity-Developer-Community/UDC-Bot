@@ -1,0 +1,162 @@
+name: Deploy to Dev
+
+on:
+    workflow_dispatch:
+        inputs:
+            pr_number:
+                description: "PR number to deploy (leave empty to deploy from ref)"
+                required: false
+                type: string
+            ref:
+                description: "Git ref to build from (branch, tag, or SHA). Ignored if pr_number is set."
+                required: false
+                default: "master"
+                type: string
+
+permissions:
+    contents: write
+    packages: write
+    pull-requests: write
+    issues: write
+    deployments: write
+
+concurrency:
+    group: deploy-dev
+    cancel-in-progress: true
+
+jobs:
+    resolve:
+        name: Resolve build ref
+        runs-on: ubuntu-latest
+        outputs:
+            checkout_ref: ${{ steps.resolve.outputs.checkout_ref }}
+            commit_message: ${{ steps.resolve.outputs.commit_message }}
+            is_pr: ${{ steps.resolve.outputs.is_pr }}
+            short_sha: ${{ steps.resolve.outputs.short_sha }}
+        steps:
+            - name: Resolve ref
+              id: resolve
+              uses: actions/github-script@v7
+              env:
+                  PR_NUMBER: ${{ inputs.pr_number }}
+                  REF: ${{ inputs.ref }}
+              with:
+                  script: |
+                      const prNumberStr = process.env.PR_NUMBER;
+                      const prNumber = prNumberStr ? Number(prNumberStr) : null;
+                      const ref = process.env.REF || 'master';
+
+                      if (prNumberStr && (isNaN(prNumber) || prNumber <= 0)) {
+                        core.setFailed(`Invalid pr_number: "${prNumberStr}"`);
+                        return;
+                      }
+
+                      if (prNumber) {
+                        const { data: pr } = await github.rest.pulls.get({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          pull_number: prNumber,
+                        });
+                        if (pr.state !== 'open') {
+                          core.setFailed(`PR #${prNumber} is not open (state: ${pr.state})`);
+                          return;
+                        }
+                        core.setOutput('checkout_ref', pr.head.sha);
+                        core.setOutput('commit_message', `chore(k8s): deploy PR #${prNumber} to dev ({sha})`);
+                        core.setOutput('is_pr', 'true');
+                        core.setOutput('short_sha', pr.head.sha.substring(0, 7));
+                      } else {
+                        core.setOutput('checkout_ref', ref);
+                        core.setOutput('commit_message', `chore(k8s): deploy ${ref} to dev ({sha})`);
+                        core.setOutput('is_pr', 'false');
+                      }
+
+    build:
+        needs: resolve
+        uses: ./.github/workflows/build.yml
+        with:
+            checkout_ref: ${{ needs.resolve.outputs.checkout_ref }}
+            image_name: udc-bot-dev
+        permissions:
+            contents: read
+            packages: write
+
+    deploy:
+        needs: [resolve, build]
+        uses: ./.github/workflows/deploy.yml
+        with:
+            image_name: udc-bot-dev
+            short_sha: ${{ needs.build.outputs.short_sha }}
+            manifest_path: k8s/dev/bot.yaml
+            manifest_ref: master
+            commit_message: ${{ needs.resolve.outputs.commit_message }}
+            environment: dev
+        secrets:
+            APP_ID: ${{ secrets.APP_ID }}
+            APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+        permissions:
+            contents: write
+
+    notify:
+        needs: [resolve, build, deploy]
+        if: always() && needs.resolve.outputs.is_pr == 'true'
+        name: Notify PR
+        runs-on: ubuntu-latest
+        steps:
+            - name: Post success comment
+              if: needs.deploy.result == 'success'
+              continue-on-error: true
+              uses: actions/github-script@v7
+              env:
+                  PR_NUMBER: ${{ inputs.pr_number }}
+                  SHORT_SHA: ${{ needs.build.outputs.short_sha }}
+                  REPO_OWNER: ${{ github.repository_owner }}
+                  CHECKOUT_REF: ${{ needs.resolve.outputs.checkout_ref }}
+              with:
+                  script: |
+                      const { PR_NUMBER, SHORT_SHA, REPO_OWNER, CHECKOUT_REF } = process.env;
+                      const owner = REPO_OWNER.toLowerCase();
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: Number(PR_NUMBER),
+                        body: `✅ PR deployed to dev!\n\nImage: \`ghcr.io/${owner}/udc-bot-dev:${SHORT_SHA}\`\nArgoCD will sync shortly.`,
+                      });
+                      
+                      try {
+                        const deployment = await github.rest.repos.createDeployment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          ref: CHECKOUT_REF,
+                          environment: 'dev',
+                          auto_merge: false,
+                          required_contexts: [],
+                          description: 'Deployed from workflow_dispatch'
+                        });
+                        if (deployment.data.id) {
+                          await github.rest.repos.createDeploymentStatus({
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            deployment_id: deployment.data.id,
+                            state: 'success'
+                          });
+                        }
+                      } catch (e) {
+                        console.error('Failed to create deployment status:', e);
+                      }
+
+            - name: Post failure comment
+              if: needs.deploy.result == 'failure'
+              continue-on-error: true
+              uses: actions/github-script@v7
+              env:
+                  PR_NUMBER: ${{ inputs.pr_number }}
+              with:
+                  script: |
+                      const { PR_NUMBER } = process.env;
+                      await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: Number(PR_NUMBER),
+                        body: `❌ Deploy to dev failed. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.`,
+                      });

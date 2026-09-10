@@ -8,8 +8,8 @@ public interface ICasinoRepo
     // Casino User Operations
     [Sql($@"
     INSERT INTO {CasinoProps.CasinoTableName} ({CasinoProps.UserID}, {CasinoProps.Tokens}, {CasinoProps.CreatedAt}, {CasinoProps.UpdatedAt}, {CasinoProps.LastDailyReward}) 
-    VALUES (@{CasinoProps.UserID}, @{CasinoProps.Tokens}, @{CasinoProps.CreatedAt}, @{CasinoProps.UpdatedAt}, @{CasinoProps.LastDailyReward});
-    SELECT * FROM {CasinoProps.CasinoTableName} WHERE {CasinoProps.UserID} = @{CasinoProps.UserID}")]
+    VALUES (@{CasinoProps.UserID}, @{CasinoProps.Tokens}, @{CasinoProps.CreatedAt}, @{CasinoProps.UpdatedAt}, @{CasinoProps.LastDailyReward})
+    RETURNING *")]
     Task<CasinoUser> InsertCasinoUser(CasinoUser user);
 
     [Sql($"SELECT * FROM {CasinoProps.CasinoTableName} WHERE {CasinoProps.UserID} = @userId")]
@@ -19,10 +19,10 @@ public interface ICasinoRepo
     Task<IList<CasinoUser>> GetTopTokenHolders(int limit);
 
     [Sql($"UPDATE {CasinoProps.CasinoTableName} SET {CasinoProps.Tokens} = @tokens, {CasinoProps.UpdatedAt} = @updatedAt WHERE {CasinoProps.UserID} = @userId")]
-    Task UpdateTokens(string userId, ulong tokens, DateTime updatedAt);
+    Task UpdateTokens(string userId, long tokens, DateTime updatedAt);
 
     [Sql($"UPDATE {CasinoProps.CasinoTableName} SET {CasinoProps.Tokens} = @tokens, {CasinoProps.UpdatedAt} = @updatedAt, {CasinoProps.LastDailyReward} = @lastDailyReward WHERE {CasinoProps.UserID} = @userId")]
-    Task UpdateTokensAndDailyReward(string userId, ulong tokens, DateTime updatedAt, DateTime lastDailyReward);
+    Task UpdateTokensAndDailyReward(string userId, long tokens, DateTime updatedAt, DateTime lastDailyReward);
 
     [Sql($"DELETE FROM {CasinoProps.CasinoTableName} WHERE {CasinoProps.UserID} = @userId")]
     Task DeleteCasinoUser(string userId);
@@ -32,9 +32,9 @@ public interface ICasinoRepo
 
     // Token Transaction Operations
     [Sql($@"
-    INSERT INTO {CasinoProps.TransactionTableName} ({CasinoProps.TransactionUserID}, {CasinoProps.Amount}, {CasinoProps.TransactionType}, {CasinoProps.Details}, {CasinoProps.TransactionCreatedAt}) 
-    VALUES (@{CasinoProps.TransactionUserID}, @{CasinoProps.Amount}, @{CasinoProps.TransactionType}, @{CasinoProps.Details}, @{CasinoProps.TransactionCreatedAt});
-    SELECT * FROM {CasinoProps.TransactionTableName} WHERE {CasinoProps.TransactionId} = LAST_INSERT_ID()")]
+    INSERT INTO {CasinoProps.TransactionTableName} ({CasinoProps.TransactionUserID}, {CasinoProps.TargetUserID}, {CasinoProps.Amount}, {CasinoProps.TransactionType}, {CasinoProps.Details}, {CasinoProps.TransactionCreatedAt}) 
+    VALUES (@{CasinoProps.TransactionUserID}, @{CasinoProps.TargetUserID}, @{CasinoProps.Amount}, @{CasinoProps.TransactionType}, @{CasinoProps.Details}, @{CasinoProps.TransactionCreatedAt})
+    RETURNING *")]
     Task<TokenTransaction> InsertTransaction(TokenTransaction tokenTransaction);
 
     [Sql($"SELECT * FROM {CasinoProps.TransactionTableName} WHERE {CasinoProps.TransactionUserID} = @userId ORDER BY {CasinoProps.TransactionCreatedAt} DESC LIMIT @limit")]
@@ -47,7 +47,7 @@ public interface ICasinoRepo
     Task ClearAllTransactions();
 
     [Sql($"SELECT * FROM {CasinoProps.TransactionTableName} WHERE {CasinoProps.TransactionType} = @transactionType ORDER BY {CasinoProps.TransactionCreatedAt} DESC")]
-    Task<IList<TokenTransaction>> GetTransactionsOfType(TransactionType transactionType);
+    Task<IList<TokenTransaction>> GetTransactionsOfType(string transactionType);
 
     // Test connection
     [Sql($"SELECT COUNT(*) FROM {CasinoProps.CasinoTableName}")]

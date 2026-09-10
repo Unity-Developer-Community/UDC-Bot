@@ -24,7 +24,11 @@ public class BadgeService
     {
         try
         {
-            var existingBadge = await _databaseService.BadgeQuery.GetBadgeByTitle(title);
+            var badgeQuery = _databaseService.BadgeQuery;
+            if (badgeQuery == null)
+                return null;
+
+            var existingBadge = await badgeQuery.GetBadgeByTitle(title);
             if (existingBadge != null)
             {
                 await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
@@ -40,7 +44,7 @@ public class BadgeService
                 CreatedAt = DateTime.UtcNow
             };
 
-            var createdBadge = await _databaseService.BadgeQuery.CreateBadge(badge);
+            var createdBadge = await badgeQuery.CreateBadge(badge);
             
             await _logging.Log(LogBehaviour.File,
                 $"Badge '{title}' created successfully with ID {createdBadge.Id} (Public: {isPublic}).", ExtendedLogSeverity.Positive);
@@ -62,7 +66,11 @@ public class BadgeService
     {
         try
         {
-            var existingBadge = await _databaseService.BadgeQuery.GetBadge(badgeId);
+            var badgeQuery = _databaseService.BadgeQuery;
+            if (badgeQuery == null)
+                return null;
+
+            var existingBadge = await badgeQuery.GetBadge(badgeId);
             if (existingBadge == null)
             {
                 await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
@@ -73,7 +81,7 @@ public class BadgeService
             // Check if title conflicts with another badge (if title is being changed)
             if (existingBadge.Title != title)
             {
-                var conflictingBadge = await _databaseService.BadgeQuery.GetBadgeByTitle(title);
+                var conflictingBadge = await badgeQuery.GetBadgeByTitle(title);
                 if (conflictingBadge != null && conflictingBadge.Id != badgeId)
                 {
                     await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
@@ -86,7 +94,7 @@ public class BadgeService
             existingBadge.Description = description;
             existingBadge.IsPublic = isPublic;
 
-            await _databaseService.BadgeQuery.UpdateBadge(existingBadge);
+            await badgeQuery.UpdateBadge(existingBadge);
             
             await _logging.Log(LogBehaviour.File,
                 $"Badge ID {badgeId} updated successfully: '{title}' (Public: {isPublic}).", ExtendedLogSeverity.Positive);
@@ -110,11 +118,13 @@ public class BadgeService
         {
             if (isAdmin)
             {
-                return await _databaseService.BadgeQuery.GetAllBadges();
+                var badgeQuery = _databaseService.BadgeQuery;
+                return badgeQuery == null ? new List<Badge>() : await badgeQuery.GetAllBadges();
             }
             else
             {
-                return await _databaseService.BadgeQuery.GetPublicBadges();
+                var badgeQuery = _databaseService.BadgeQuery;
+                return badgeQuery == null ? new List<Badge>() : await badgeQuery.GetPublicBadges();
             }
         }
         catch (Exception e)
@@ -132,7 +142,8 @@ public class BadgeService
     {
         try
         {
-            return await _databaseService.BadgeQuery.GetBadge(badgeId);
+            var badgeQuery = _databaseService.BadgeQuery;
+            return badgeQuery == null ? null : await badgeQuery.GetBadge(badgeId);
         }
         catch (Exception e)
         {
@@ -149,7 +160,8 @@ public class BadgeService
     {
         try
         {
-            return await _databaseService.BadgeQuery.GetBadgeByTitle(title);
+            var badgeQuery = _databaseService.BadgeQuery;
+            return badgeQuery == null ? null : await badgeQuery.GetBadgeByTitle(title);
         }
         catch (Exception e)
         {
@@ -169,8 +181,12 @@ public class BadgeService
 
         try
         {
+            var badgeQuery = _databaseService.BadgeQuery;
+            if (badgeQuery == null)
+                return false;
+
             // Check if user already has this badge
-            var hasCount = await _databaseService.BadgeQuery.CheckUserHasBadge(user.Id.ToString(), badge.Id);
+            var hasCount = await badgeQuery.CheckUserHasBadge(user.Id.ToString(), badge.Id);
             if (hasCount > 0)
             {
                 await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
@@ -186,7 +202,7 @@ public class BadgeService
                 AwardedBy = awardedBy.Id.ToString()
             };
 
-            var result = await _databaseService.BadgeQuery.AssignBadgeToUser(userBadge);
+            var result = await badgeQuery.AssignBadgeToUser(userBadge);
             
             if (result != null)
             {
@@ -217,8 +233,12 @@ public class BadgeService
 
         try
         {
+            var badgeQuery = _databaseService.BadgeQuery;
+            if (badgeQuery == null)
+                return false;
+
             // Check if user has this badge
-            var hasCount = await _databaseService.BadgeQuery.CheckUserHasBadge(user.Id.ToString(), badge.Id);
+            var hasCount = await badgeQuery.CheckUserHasBadge(user.Id.ToString(), badge.Id);
             if (hasCount == 0)
             {
                 await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
@@ -226,7 +246,7 @@ public class BadgeService
                 return false;
             }
 
-            await _databaseService.BadgeQuery.RemoveBadgeFromUser(user.Id.ToString(), badge.Id);
+            await badgeQuery.RemoveBadgeFromUser(user.Id.ToString(), badge.Id);
             
             await _logging.Log(LogBehaviour.File,
                 $"Badge '{badge.Title}' removed from user {user.GetPreferredAndUsername()}.", 
@@ -255,11 +275,13 @@ public class BadgeService
         {
             if (isAdmin)
             {
-                return await _databaseService.BadgeQuery.GetUserBadges(user.Id.ToString());
+                var badgeQuery = _databaseService.BadgeQuery;
+                return badgeQuery == null ? new List<UserBadge>() : await badgeQuery.GetUserBadges(user.Id.ToString());
             }
             else
             {
-                return await _databaseService.BadgeQuery.GetUserPublicBadges(user.Id.ToString());
+                var badgeQuery = _databaseService.BadgeQuery;
+                return badgeQuery == null ? new List<UserBadge>() : await badgeQuery.GetUserPublicBadges(user.Id.ToString());
             }
         }
         catch (Exception e)
@@ -280,7 +302,8 @@ public class BadgeService
 
         try
         {
-            return await _databaseService.BadgeQuery.GetBadgeHolders(badge.Id);
+            var badgeQuery = _databaseService.BadgeQuery;
+            return badgeQuery == null ? new List<UserBadge>() : await badgeQuery.GetBadgeHolders(badge.Id);
         }
         catch (Exception e)
         {

@@ -30,10 +30,5 @@
     "xpMinCooldown": 60,
     "xpMaxCooldown": 180,
     /*Code parameters*/
-    "codeReminderCooldown": 86400,
-    "isSomeoneThere": [
-        "is anyone around?",
-        "can someone help?",
-        "can someone help me?"
-    ]
+    "codeReminderCooldown": 86400
 }
