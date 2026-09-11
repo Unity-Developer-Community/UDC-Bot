@@ -87,7 +87,7 @@ public class FeedService
         }
         catch (Exception e)
         {
-            LoggingService.LogToConsole( $"[{ServiceName} Feed failure: {e.ToString()}", ExtendedLogSeverity.LowWarning);
+            LoggingService.LogExceptionToConsole(e, $"[{ServiceName}] Feed failure", ExtendedLogSeverity.LowWarning);
         }
 
         // Return the feed, empty feed if null to prevent additional checks for null on return
@@ -163,7 +163,7 @@ public class FeedService
         }
         catch (Exception e)
         {
-            await _logging.LogAction($"[{ServiceName}] Error: {e}", ExtendedLogSeverity.Error);
+            await _logging.LogException(e, $"[{ServiceName}] Feed processing failed", LogBehaviour.ConsoleChannelAndFile);
         }
     }
     
@@ -259,7 +259,7 @@ public class FeedService
         }
         catch (Exception e)
         {
-            _logging.LogChannelAndFile($"[{ServiceName}] Error generating release notes: {e}\nLikely updated format.", ExtendedLogSeverity.Warning);
+            _ = _logging.LogException(e, $"[{ServiceName}] Error generating release notes; possibly updated format", LogBehaviour.ConsoleChannelAndFile, ExtendedLogSeverity.Warning);
             // We ignore anything we've generated and return a "No release notes found" to maintain appearance
             return new List<string>() { "No release notes found" };
         }

@@ -122,7 +122,7 @@ public class BirthdayAnnouncementService : IManagedBotService, IComponentHealthC
         }
         catch (Exception e)
         {
-            await _loggingService.LogChannelAndFile($"[{ServiceName}] Birthday announcement service has crashed.\nException: {e.Message}", ExtendedLogSeverity.Warning);
+            await _loggingService.LogException(e, $"[{ServiceName}] Birthday announcement service has crashed.", LogBehaviour.ConsoleChannelAndFile, ExtendedLogSeverity.Warning);
             throw;
         }
     }
@@ -167,7 +167,7 @@ public class BirthdayAnnouncementService : IManagedBotService, IComponentHealthC
         }
         catch (Exception e)
         {
-            _loggingService.LogAction($"[{ServiceName}] Error checking birthdays: {e.Message}", ExtendedLogSeverity.LowWarning);
+            await _loggingService.LogException(e, $"[{ServiceName}] Error checking birthdays", LogBehaviour.ConsoleChannelAndFile, ExtendedLogSeverity.LowWarning);
         }
     }
     

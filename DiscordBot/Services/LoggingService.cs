@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using Discord.WebSocket;
 using DiscordBot.Settings.Options;
 using Microsoft.Extensions.Options;
@@ -54,12 +55,12 @@ public static class ExtendedLogSeverityExtensions
             _ => (LogSeverity)severity
         };
     }
-    
+
     public static ExtendedLogSeverity ToExtended(this LogSeverity severity)
     {
         return (ExtendedLogSeverity)severity;
     }
-    
+
 }
 
 #endregion // Extended Log Severity
@@ -67,22 +68,22 @@ public static class ExtendedLogSeverityExtensions
 public class LoggingService : ILoggingService
 {
     private const string ServiceName = "LoggingService";
-    
+
     private readonly DiscordSocketClient _client;
     private readonly ulong _logChannelId;
-    
+
     // Configuration
     private const long MaxLogSize = 1024 * 1024 * 2; // 2MB
-    private const long FileCheckInterval = 1000 * 60 * 60 * 1; // 1 Hour
     private readonly bool _logCommandExecutions;
-    
+
     // Where backup files go
     private readonly string _backupLogFilePath;
-    
+
     private readonly string _logFilePath; // Normal Logs
     private readonly string _logXpFilePath; // XP Logs
 
-    private DateTime _lastFileCheck;
+    private readonly SemaphoreSlim _fileLock = new(1, 1);
+    private static readonly object ConsoleLock = new();
 
     public LoggingService(
         DiscordSocketClient client,
@@ -93,17 +94,11 @@ public class LoggingService : ILoggingService
         var logging = loggingOptions.Value;
         var storage = storageOptions.Value;
         _logCommandExecutions = logging.LogCommandExecutions;
-        
+
         // Paths
         _backupLogFilePath = storage.ServerRootPath + @"/log_backups/";
         _logFilePath = storage.ServerRootPath + @"/log.txt";
         _logXpFilePath = storage.ServerRootPath + @"/logXP.txt";
-
-        if (!Directory.Exists(_backupLogFilePath))
-        {
-            Directory.CreateDirectory(_backupLogFilePath);
-            LogToConsole($"[{ServiceName}] Created backup log directory", ExtendedLogSeverity.Info);
-        }
 
         // INIT
         _logChannelId = logging.AnnouncementChannelId;
@@ -113,19 +108,21 @@ public class LoggingService : ILoggingService
             return;
         }
     }
-    
+
     public async Task Log(LogBehaviour behaviour, string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null)
     {
         if (behaviour.HasFlag(LogBehaviour.Console))
             LogToConsole(message, severity);
+        if (behaviour.HasFlag(LogBehaviour.File) ||
+            (_logCommandExecutions && behaviour.HasFlag(LogBehaviour.CommandFile)))
+            await LogToFile(message, severity);
         if (behaviour.HasFlag(LogBehaviour.Channel))
-            await LogToChannel(message, severity, embed);
-        if (behaviour.HasFlag(LogBehaviour.File))
-            await LogToFile(message, severity);
-        if (_logCommandExecutions && behaviour.HasFlag(LogBehaviour.CommandFile))
-            await LogToFile(message, severity);
+        {
+            try { await LogToChannel(message, severity, embed); }
+            catch (Exception exception) { LogExceptionToConsole(exception, "Failed to send log to Discord"); }
+        }
     }
-    
+
     public async Task LogToChannel(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null)
     {
         var logChannel = _client.GetChannel(_logChannelId) as ISocketMessageChannel;
@@ -133,19 +130,35 @@ public class LoggingService : ILoggingService
             return;
         await logChannel.SendMessageAsync(message, false, embed);
     }
-    
+
     public async Task LogToFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info)
-    { 
-        PrepareLogFile(_logFilePath);
-        await File.AppendAllTextAsync(_logFilePath,
-            $"[{ConsistentDateTimeFormat()}] - [{severity}] - {message} {Environment.NewLine}");
+    {
+        await _fileLock.WaitAsync();
+        try
+        {
+            PrepareLogFile(_logFilePath);
+            await File.AppendAllTextAsync(_logFilePath,
+                $"[{ConsistentDateTimeFormat()}] - [{severity}] - {message} {Environment.NewLine}");
+        }
+        catch (Exception exception)
+        {
+            LogToConsole(message, severity);
+            LogExceptionToConsole(exception, "Failed to write log file");
+        }
+        finally { _fileLock.Release(); }
     }
-    
+
     public void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, int totalXp)
     {
-        PrepareLogFile(_logXpFilePath);
-        File.AppendAllText(_logXpFilePath,
-            $"[{ConsistentDateTimeFormat()}] - {user} gained {totalXp}xp (base: {baseXp}, bonus : {bonusXp}, reduce : {xpReduce}) in channel {channel} {Environment.NewLine}");
+        _fileLock.Wait();
+        try
+        {
+            PrepareLogFile(_logXpFilePath);
+            File.AppendAllText(_logXpFilePath,
+                $"[{ConsistentDateTimeFormat()}] - {user} gained {totalXp}xp (base: {baseXp}, bonus : {bonusXp}, reduce : {xpReduce}) in channel {channel} {Environment.NewLine}");
+        }
+        catch (Exception exception) { LogExceptionToConsole(exception, "Failed to write XP log"); }
+        finally { _fileLock.Release(); }
     }
 
     // Returns DateTime.Now in format: d/M/yy HH:mm:ss
@@ -157,55 +170,63 @@ public class LoggingService : ILoggingService
     // Logs DiscordNet specific messages, this shouldn't be used for normal logging
     public static Task DiscordNetLogger(LogMessage message)
     {
-        LogToConsole($"{message.Source} | {message.Message}", message.Severity.ToExtended());
+        if (message.Exception is { } exception)
+            LogExceptionToConsole(exception, $"{message.Source} | {message.Message}", message.Severity.ToExtended());
+        else
+            LogToConsole($"{message.Source} | {message.Message}", message.Severity.ToExtended());
         return Task.CompletedTask;
     }
 
     private void PrepareLogFile(string path)
     {
-        if (DateTime.Now - _lastFileCheck < TimeSpan.FromMilliseconds(FileCheckInterval))
-            return;
-        
-        _lastFileCheck = DateTime.Now;
-        if (new FileInfo(path).Length > MaxLogSize)
+        Directory.CreateDirectory(_backupLogFilePath);
+        if (File.Exists(path) && new FileInfo(path).Length > MaxLogSize)
         {
-            // Rename the file, add the year, month and day it was created, and the year month and day it was backed up (SHORT year
-            var backupPath = $"{_backupLogFilePath}log_F{File.GetCreationTime(path):yyMMdd}_T{DateTime.Now:yyMMdd}.txt";
+            var backupPath = Path.Combine(_backupLogFilePath,
+                $"{Path.GetFileNameWithoutExtension(path)}_{DateTime.UtcNow:yyyyMMdd_HHmmss_fffffff}_{Guid.NewGuid():N}.txt");
             File.Move(path, backupPath);
-            LogToConsole($"[{ServiceName}] Log file was backed up to {backupPath}", ExtendedLogSeverity.Info);
         }
-        
-        if (!File.Exists(path))
-        {
-            File.Create(path).Dispose();
-            File.AppendAllText(path, $"[{ConsistentDateTimeFormat()}] - Log file was started. {Environment.NewLine}");
-            LogToConsole($"[{ServiceName}] Log file was started", ExtendedLogSeverity.Info);
-        }
+        // Append creates a missing file; preparation and append share the same lock.
     }
-    
+
     #region Console Messages
     // Logs message to console without changing the colour
-    public static void LogConsole(string message) {
+    public static void LogConsole(string message)
+    {
         Console.WriteLine($"[{ConsistentDateTimeFormat()}] {message}");
     }
 
-    public static void LogToConsole(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info) 
+    public static void LogToConsole(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info)
     {
-        ConsoleColor restoreColour = Console.ForegroundColor;
-        SetConsoleColour(severity);
-
-        Console.WriteLine($"[{ConsistentDateTimeFormat()}] {message} [{severity}]");
-
-        Console.ForegroundColor = restoreColour;
+        lock (ConsoleLock)
+        {
+            ConsoleColor restoreColour = Console.ForegroundColor;
+            try
+            {
+                if (!Console.IsOutputRedirected) SetConsoleColour(severity);
+                Console.WriteLine($"[{ConsistentDateTimeFormat()}] {message} [{severity}]");
+            }
+            finally
+            {
+                if (!Console.IsOutputRedirected) Console.ForegroundColor = restoreColour;
+            }
+        }
     }
-    
+
+    public static void LogExceptionToConsole(Exception exception, string context,
+        ExtendedLogSeverity severity = ExtendedLogSeverity.Error,
+        [CallerFilePath] string callerFile = "", [CallerLineNumber] int callerLine = 0,
+        [CallerMemberName] string callerMember = "") =>
+        LogToConsole(ExceptionLogFormatter.Format(exception, context,
+            callerFile: callerFile, callerLine: callerLine, callerMember: callerMember), severity);
+
     public static void LogToConsole(string message, LogSeverity severity) => LogToConsole(message, severity.ToExtended());
-    
+
     public static void LogServiceDisabled(string service, string varName)
     {
         LogToConsole($"Service \"{service}\" is Disabled, {varName} is false in settings.json", ExtendedLogSeverity.LowWarning);
     }
-    
+
     public static void LogServiceEnabled(string service)
     {
         LogToConsole($"Service \"{service}\" is Enabled", ExtendedLogSeverity.Info);
@@ -251,7 +272,7 @@ public class LoggingService : ILoggingService
         }
     }
     #endregion
-} 
+}
 
 /// <summary>
 /// Interface for the LoggingService, this is only really required if you want to use DI.
@@ -263,7 +284,7 @@ public class LoggingService : ILoggingService
 public interface ILoggingService
 {
     void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, int totalXp);
-    
+
     /// <summary>
     /// Standard logging, this will log to console, channel and file depending on the behaviour.
     /// </summary>
@@ -277,13 +298,13 @@ public interface ILoggingService
     /// 'Short hand' for logging to all CURRENT supported behaviours, console, channel and file.
     /// Same as calling `Log(LogBehaviour.ConsoleChannelAndFile, message, severity, embed);`
     /// </summary>
-    Task LogAction(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null) => 
+    Task LogAction(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null) =>
         Log(LogBehaviour.ConsoleChannelAndFile, message, severity, embed);
-    
+
     /// <summary>
     /// 'Short hand' for logging to channel and file.
     /// Same as calling `Log(LogBehaviour.ChannelAndFile, message, severity, embed);`
     /// </summary>
-    Task LogChannelAndFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null) => 
+    Task LogChannelAndFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed embed = null) =>
         Log(LogBehaviour.ChannelAndFile, message, severity, embed);
 }

@@ -103,6 +103,10 @@ public class CommandHandlingService : ICommandRuntime
             {
                 _client.MessageReceived += HandleCommand;
                 _client.InteractionCreated += HandleInteraction;
+                _commandService.CommandExecuted += OnCommandExecuted;
+                _interactionService.InteractionExecuted += OnInteractionExecuted;
+                _commandService.Log += LoggingService.DiscordNetLogger;
+                _interactionService.Log += LoggingService.DiscordNetLogger;
                 _componentState.StateChanged += OnComponentStateChanged;
                 _eventsSubscribed = true;
             }
@@ -132,7 +136,7 @@ public class CommandHandlingService : ICommandRuntime
         }
         catch (Exception e)
         {
-            await _loggingService.Log(LogBehaviour.Console | LogBehaviour.File, $"[{ServiceName}] Failed to initialize service while adding modules.\nException: {e}", ExtendedLogSeverity.Critical);
+            await _loggingService.LogException(e, $"[{ServiceName}] Failed to initialize service while adding modules.", severity: ExtendedLogSeverity.Critical);
             throw;
         }
         finally
@@ -150,6 +154,10 @@ public class CommandHandlingService : ICommandRuntime
             {
                 _client.MessageReceived -= HandleCommand;
                 _client.InteractionCreated -= HandleInteraction;
+                _commandService.CommandExecuted -= OnCommandExecuted;
+                _interactionService.InteractionExecuted -= OnInteractionExecuted;
+                _commandService.Log -= LoggingService.DiscordNetLogger;
+                _interactionService.Log -= LoggingService.DiscordNetLogger;
                 _componentState.StateChanged -= OnComponentStateChanged;
                 _eventsSubscribed = false;
             }
@@ -335,6 +343,22 @@ public class CommandHandlingService : ICommandRuntime
         await context.Channel.SendMessageAsync(resultString).DeleteAfterSeconds(10);
     }
 
+    private Task OnCommandExecuted(Optional<CommandInfo> command, ICommandContext context, Discord.Commands.IResult result)
+    {
+        return result is Discord.Commands.ExecuteResult { Exception: { } exception }
+            ? _loggingService.LogException(exception,
+                $"Command {(command.IsSpecified ? command.Value.Name : "unknown")} failed")
+            : Task.CompletedTask;
+    }
+
+    private Task OnInteractionExecuted(Discord.Interactions.ICommandInfo command, IInteractionContext context,
+        Discord.Interactions.IResult result)
+    {
+        return result is Discord.Interactions.ExecuteResult { Exception: { } exception }
+            ? _loggingService.LogException(exception, $"Interaction {command.Name} failed")
+            : Task.CompletedTask;
+    }
+
     private async Task HandleInteraction(SocketInteraction arg)
     {
         try
@@ -355,7 +379,7 @@ public class CommandHandlingService : ICommandRuntime
         }
         catch (Exception ex)
         {
-            LoggingService.LogToConsole(ex.ToString(), LogSeverity.Error);
+            await _loggingService.LogException(ex, "Failed to dispatch interaction");
         }
     }
     

@@ -287,7 +287,7 @@ public class UpdateService : IManagedBotService, IComponentHealthContributor
         }
         catch (Exception e)
         {
-            await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to download manual/api file\nEx:{e.ToString()}", ExtendedLogSeverity.Warning);
+            await _loggingService.LogException(e, $"{ServiceName}: Failed to download manual/api file", LogBehaviour.ConsoleChannelAndFile, ExtendedLogSeverity.Warning);
         }
     }
 
@@ -330,7 +330,7 @@ public class UpdateService : IManagedBotService, IComponentHealthContributor
             }
             catch (Exception e)
             {
-                await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to update RSS feeds, attempting to continue.", ExtendedLogSeverity.Error);
+                await _loggingService.LogException(e, $"{ServiceName}: Failed to update RSS feeds, attempting to continue.", LogBehaviour.ConsoleChannelAndFile);
             }
 
             await Task.Delay(TimeSpan.FromSeconds(30d), cancellationToken);
@@ -348,9 +348,9 @@ public class UpdateService : IManagedBotService, IComponentHealthContributor
         {
             wikiSearchResponse = await htmlWeb.LoadFromWebAsync(wikiSearchUri, CurrentToken);
         }
-        catch
+        catch (Exception exception)
         {
-            await _loggingService.LogChannelAndFile($"{ServiceName}: Wikipedia method failed loading URL: {wikiSearchUri}", ExtendedLogSeverity.Warning);
+            await _loggingService.LogException(exception, $"{ServiceName}: Wikipedia request failed", LogBehaviour.ConsoleChannelAndFile, ExtendedLogSeverity.Warning);
             return (null, null, null);
         }
 
@@ -393,7 +393,7 @@ public class UpdateService : IManagedBotService, IComponentHealthContributor
         }
         catch (Exception e)
         {
-            await _loggingService.LogChannelAndFile($"{ServiceName}: Wikipedia method likely failed to parse JSON response from: {wikiSearchUri}.\nEx:{e.ToString()}", ExtendedLogSeverity.Warning);
+            await _loggingService.LogException(e, $"{ServiceName}: Wikipedia response parsing failed", LogBehaviour.ConsoleChannelAndFile, ExtendedLogSeverity.Warning);
         }
 
         return (null, null, null);

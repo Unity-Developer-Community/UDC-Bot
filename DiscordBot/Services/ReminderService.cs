@@ -262,7 +262,7 @@ public class ReminderService : IManagedBotService, IComponentHealthContributor
         catch (Exception e)
         {
             // Catch and show exception
-            await _loggingService.LogChannelAndFile($"Reminder Service has crashed.\nException Msg: {e.Message}.", ExtendedLogSeverity.Warning);
+            await _loggingService.LogException(e, "Reminder Service has crashed.", LogBehaviour.ConsoleChannelAndFile, ExtendedLogSeverity.Warning);
             throw;
         }
     }

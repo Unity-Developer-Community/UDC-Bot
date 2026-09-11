@@ -186,6 +186,85 @@ The process picker can only see processes in the VS Code extension host's enviro
 
 Container attachment is not part of the primary local workflow. Run PostgreSQL in Compose and the bot directly under the debugger for the shortest edit/debug cycle.
 
+## Exception logging
+
+The debugger's `Exception thrown: 'System.FormatException' in System.Private.CoreLib.dll`
+line reports a throw, even when a catch block later handles it. It does not by itself
+mean the bot failed. Normal logging reports failures at the handlers wired into the
+logger; temporary first-chance tracing below can also show throws handled silently
+inside application code or dependencies.
+
+Exception reports include the exception type, message, inner exceptions, and a source
+location. Debug builds and Release builds with `DOTNET_ENVIRONMENT=Development` include
+up to three frames per exception, preferring bot frames. Normal Release builds use a
+single-line summary with one frame per exception. Discord log-channel reports always
+use the compact format. Reports are capped at eight exceptions and 1,800 characters;
+long messages/traces are truncated. No complete stack dump is stored by this formatter.
+
+Example compact output:
+
+```text
+Birthday check failed | FormatException: Invalid date @ BirthdayAnnouncementService.cs:275 (GoogleSheetsBirthdaySource.TryParseBirthdayDate)
+```
+
+File/line information requires matching `.pdb` files alongside the deployed assemblies.
+Keep the PDBs produced by `dotnet publish` if production line numbers are useful.
+Without symbols, reports use class/method names. Async state-machine frames are rendered
+as the owning method. If an exception has never been thrown, exception logging APIs use
+the caller's file/line and explicitly label it `logged here`. Source paths are reduced
+to filenames; exception messages themselves are not automatically redacted.
+
+In catch blocks, pass the exception object instead of interpolating `exception.Message`
+or `exception.ToString()`:
+
+```csharp
+catch (Exception exception)
+{
+    await _loggingService.LogException(exception, "Birthday check failed");
+}
+```
+
+The default destinations are console and file. Pass `LogBehaviour.ConsoleChannelAndFile`
+to include the configured log channel, and `severity:` to override Error.
+`LoggingService.LogExceptionToConsole(exception, "Operation failed")` is available to
+synchronous code without an injected logger. Keep expected cancellation handling ahead
+of general catches. Some older handlers still use their existing string logging; migrate
+them to these APIs when working in those areas.
+
+Discord gateway/library logs retain their exception objects. Prefix and interaction
+command completion events report execution exceptions, including commands dispatched
+asynchronously. Host `ILogger` messages use the same console format. Existing host
+logging levels still apply. File logging serializes append/rotation, creates missing
+files on demand, and falls back to the console on write failure. A failed Discord log
+send is reported locally and cannot prevent the file entry from being written.
+
+### Temporarily trace caught exceptions
+
+Set `UDCBOT_TRACE_EXCEPTION_TYPE` to the exact full exception type name before starting
+the bot. This diagnostic is disabled when the variable is unset or empty.
+
+Bash (one launch only):
+
+```bash
+UDCBOT_TRACE_EXCEPTION_TYPE=System.FormatException dotnet run --project DiscordBot/DiscordBot.csproj
+```
+
+PowerShell:
+
+```powershell
+$env:UDCBOT_TRACE_EXCEPTION_TYPE = "System.FormatException"
+dotnet run --project DiscordBot/DiscordBot.csproj
+Remove-Item Env:UDCBOT_TRACE_EXCEPTION_TYPE
+```
+
+For F5, set the same variable in your local debugger environment. Restart the process
+after changing it. Tracing writes the first 20 matching throws to the console with
+`First-chance (may be handled)` and development detail, then stops reporting. It includes
+dependency exceptions and can duplicate a later catch-block report; it is a temporary
+diagnostic, not an error count. Only the exact type matches (no wildcard or derived-type
+matching). Restart to capture another batch. It does not change debugger break settings,
+swallow exceptions, or send first-chance reports to Discord.
+
 ## Tests and rendering diagnostics
 
 Run the normal suite from the repository root:

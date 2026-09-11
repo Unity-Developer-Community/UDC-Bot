@@ -33,6 +33,7 @@ public static class Program
 {
     public static async Task<int> Main(string[] args)
     {
+        using var exceptionDiagnostics = FirstChanceExceptionDiagnostics.StartFromEnvironment();
         if (args.Length > 0 && args[0].Equals("--recruitment-preview", StringComparison.OrdinalIgnoreCase))
         {
             var output = args.Length > 1 ? args[1] : null;
@@ -101,6 +102,7 @@ public static class Program
             ContentRootPath = root
         });
         builder.Logging.ClearProviders();
+        builder.Logging.AddProvider(new BotConsoleLoggerProvider());
 
         builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions
         {
