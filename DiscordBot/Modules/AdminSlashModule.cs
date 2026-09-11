@@ -12,12 +12,16 @@ namespace DiscordBot.Modules;
 [DefaultMemberPermissions(GuildPermission.Administrator)]
 public class AdminSlashModule : InteractionModuleBase
 {
+    // Discord allows only two levels of command nesting (command -> group -> subcommand),
+    // so casino admin actions are flat subcommands of /admin casino (e.g. /admin casino tokens-set),
+    // not a further nested "tokens" subcommand group.
     [Group("casino", "Casino administration commands")]
     public class CasinoAdminCommands : InteractionModuleBase<SocketInteractionContext>
     {
         public CasinoService CasinoService { get; set; } = null!;
         public ILoggingService LoggingService { get; set; } = null!;
         public BotSettings BotSettings { get; set; } = null!;
+        public TransactionFormatter TransactionFormatter { get; set; } = null!;
 
         private async Task<bool> CheckChannelPermissions()
         {
@@ -32,383 +36,360 @@ public class AdminSlashModule : InteractionModuleBase
             return true;
         }
 
-        [Group("tokens", "Casino token administration")]
-        public class TokenAdminCommands : InteractionModuleBase<SocketInteractionContext>
+        [SlashCommand("tokens-history", "View transaction history for any user or all users")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task TokenHistoryAdmin(
+            [Summary("user", "User to view history for (optional - if omitted, shows all users)")] SocketGuildUser? targetUser = null)
         {
-            public CasinoService CasinoService { get; set; } = null!;
-            public ILoggingService LoggingService { get; set; } = null!;
-            public BotSettings BotSettings { get; set; } = null!;
-            public TransactionFormatter TransactionFormatter { get; set; } = null!;
+            if (!await CheckChannelPermissions()) return;
 
-            private async Task<bool> CheckChannelPermissions()
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            await DisplayAdminTransactionHistory(userId: null, page: 1, targetUser: targetUser, isInitialCall: true);
+        }
+
+        [SlashCommand("tokens-set", "Set a user's token balance")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task SetTokens(
+            [Summary("user", "User to set tokens for")] SocketGuildUser targetUser,
+            [Summary("amount", "New token amount")] int amount)
+        {
+            if (!await CheckChannelPermissions()) return;
+
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            await CasinoService.SetUserTokens(targetUser.Id.ToString(), amount, Context.User.Id.ToString());
+
+            var embed = new EmbedBuilder()
+                .WithTitle("⚙️ Admin: Tokens Set")
+                .WithDescription($"Set {targetUser.Mention}'s tokens to **{amount:N0}**")
+                .WithColor(Color.Purple)
+                .Build();
+
+            await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+            await LoggingService.LogChannelAndFile($"Admin Token Set: {Context.User.Username} set {targetUser.Username}'s tokens to {amount}");
+        }
+
+        [SlashCommand("tokens-add", "Add tokens to a user's balance")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task AddTokens(
+            [Summary("user", "User to add tokens to")] SocketGuildUser targetUser,
+            [Summary("amount", "Amount of tokens to add")] int amount)
+        {
+            if (!await CheckChannelPermissions()) return;
+
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), amount, TransactionKind.Admin, new Dictionary<string, string>
             {
-                if (!CasinoService.IsChannelAllowed(Context.Channel.Id))
-                {
-                    await Context.Interaction.RespondAsync(
-                        "🚫 Casino commands are not allowed in this channel.",
-                        ephemeral: true);
-                    return false;
-                }
+                ["admin"] = Context.User.Id.ToString(),
+                ["action"] = "add"
+            });
 
-                return true;
-            }
+            var embed = new EmbedBuilder()
+                .WithTitle("⚙️ Admin: Tokens Added")
+                .WithDescription($"Added **{amount:N0}** tokens to {targetUser.Mention}")
+                .WithColor(Color.Purple)
+                .Build();
 
-            [SlashCommand("history-admin", "View transaction history for any user or all users")]
-            [RequireUserPermission(GuildPermission.Administrator)]
-            public async Task TokenHistoryAdmin(
-                [Summary("user", "User to view history for (optional - if omitted, shows all users)")] SocketGuildUser? targetUser = null)
-            {
-                if (!await CheckChannelPermissions()) return;
+            await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+            await LoggingService.LogChannelAndFile($"Admin Token Add: {Context.User.Username} added {amount} tokens to {targetUser.Username}");
+        }
 
-                await Context.Interaction.DeferAsync(ephemeral: true);
+        [SlashCommand("reset", "Reset all casino data - REQUIRES CONFIRMATION")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task ResetCasino()
+        {
+            if (!await CheckChannelPermissions()) return;
 
-                await DisplayAdminTransactionHistory(userId: null, page: 1, targetUser: targetUser, isInitialCall: true);
-            }
+            await LoggingService.LogChannelAndFile($"Casino: ResetCasino called by {Context.User.Username} (ID: {Context.User.Id})");
 
-            [SlashCommand("set", "Set a user's token balance")]
-            [RequireUserPermission(GuildPermission.Administrator)]
-            public async Task SetTokens(
-                [Summary("user", "User to set tokens for")] SocketGuildUser targetUser,
-                [Summary("amount", "New token amount")] int amount)
-            {
-                if (!await CheckChannelPermissions()) return;
+            var embed = new EmbedBuilder()
+                .WithTitle("⚠️ Casino Reset Confirmation")
+                .WithDescription("**WARNING:** This will permanently delete:\n"
+                    + "• All user token balances\n"
+                    + "• All transaction history\n"
+                    + "• All active games\n\n"
+                    + "This action **CANNOT** be undone!\n\n"
+                    + "This confirmation will expire in 30 seconds.")
+                .WithColor(Color.Red)
+                .Build();
 
-                await Context.Interaction.DeferAsync(ephemeral: true);
+            var components = new ComponentBuilder()
+                .WithButton("❌ Cancel", $"admin_casino_reset_cancel:{Context.User.Id}", ButtonStyle.Secondary)
+                .WithButton("⚠️ CONFIRM RESET", $"admin_casino_reset_confirm:{Context.User.Id}", ButtonStyle.Danger)
+                .Build();
 
-                await CasinoService.SetUserTokens(targetUser.Id.ToString(), amount, Context.User.Id.ToString());
+            await Context.Interaction.RespondAsync(embed: embed, components: components, ephemeral: true);
 
-                var embed = new EmbedBuilder()
-                    .WithTitle("⚙️ Admin: Tokens Set")
-                    .WithDescription($"Set {targetUser.Mention}'s tokens to **{amount:N0}**")
-                    .WithColor(Color.Purple)
-                    .Build();
-
-                await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
-                await LoggingService.LogChannelAndFile($"Admin Token Set: {Context.User.Username} set {targetUser.Username}'s tokens to {amount}");
-            }
-
-            [SlashCommand("add", "Add tokens to a user's balance")]
-            [RequireUserPermission(GuildPermission.Administrator)]
-            public async Task AddTokens(
-                [Summary("user", "User to add tokens to")] SocketGuildUser targetUser,
-                [Summary("amount", "Amount of tokens to add")] int amount)
-            {
-                if (!await CheckChannelPermissions()) return;
-
-                await Context.Interaction.DeferAsync(ephemeral: true);
-
-                await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), amount, TransactionKind.Admin, new Dictionary<string, string>
-                {
-                    ["admin"] = Context.User.Id.ToString(),
-                    ["action"] = "add"
-                });
-
-                var embed = new EmbedBuilder()
-                    .WithTitle("⚙️ Admin: Tokens Added")
-                    .WithDescription($"Added **{amount:N0}** tokens to {targetUser.Mention}")
-                    .WithColor(Color.Purple)
-                    .Build();
-
-                await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
-                await LoggingService.LogChannelAndFile($"Admin Token Add: {Context.User.Username} added {amount} tokens to {targetUser.Username}");
-            }
-
-            [SlashCommand("reset", "Reset all casino data - REQUIRES CONFIRMATION")]
-            [RequireUserPermission(GuildPermission.Administrator)]
-            public async Task ResetCasino()
-            {
-                if (!await CheckChannelPermissions()) return;
-
-                await LoggingService.LogChannelAndFile($"Casino: ResetCasino called by {Context.User.Username} (ID: {Context.User.Id})");
-
-                var embed = new EmbedBuilder()
-                    .WithTitle("⚠️ Casino Reset Confirmation")
-                    .WithDescription("**WARNING:** This will permanently delete:\n"
-                        + "• All user token balances\n"
-                        + "• All transaction history\n"
-                        + "• All active games\n\n"
-                        + "This action **CANNOT** be undone!\n\n"
-                        + "This confirmation will expire in 30 seconds.")
-                    .WithColor(Color.Red)
-                    .Build();
-
-                var components = new ComponentBuilder()
-                    .WithButton("❌ Cancel", $"admin_casino_reset_cancel:{Context.User.Id}", ButtonStyle.Secondary)
-                    .WithButton("⚠️ CONFIRM RESET", $"admin_casino_reset_confirm:{Context.User.Id}", ButtonStyle.Danger)
-                    .Build();
-
-                await Context.Interaction.RespondAsync(embed: embed, components: components, ephemeral: true);
-
-                _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(async _ =>
-                {
-                    try
-                    {
-                        var expiredEmbed = new EmbedBuilder()
-                            .WithTitle("⏰ Reset Confirmation Expired")
-                            .WithDescription("The reset confirmation has expired. No changes were made.")
-                            .WithColor(Color.Orange)
-                            .Build();
-
-                        await Context.Interaction.ModifyOriginalResponseAsync(msg =>
-                        {
-                            msg.Embed = expiredEmbed;
-                            msg.Components = new ComponentBuilder().Build();
-                        });
-                    }
-                    catch
-                    {
-                        // Ignore if already modified
-                    }
-                });
-            }
-
-            [ComponentInteraction("admin_casino_reset_confirm:*", true)]
-            public async Task ConfirmReset(string userId)
+            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(async _ =>
             {
                 try
                 {
-                    await Context.Interaction.DeferAsync(ephemeral: true);
-
-                    if (Context.User.Id.ToString() != userId)
-                    {
-                        await Context.Interaction.RespondAsync("🚫 You are not authorized to confirm this action.", ephemeral: true);
-                        return;
-                    }
-
-                    await CasinoService.ResetAllCasinoData();
-
-                    var embed = new EmbedBuilder()
-                        .WithTitle("🔄 Casino Reset Complete")
-                        .WithDescription("All casino data has been permanently deleted.")
-                        .WithColor(Color.Green)
-                        .Build();
-
-                    await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
-                    await LoggingService.LogChannelAndFile($"Casino: ConfirmReset completed successfully by admin {Context.User.Username}");
-                }
-                catch (Exception ex)
-                {
-                    await LoggingService.LogChannelAndFile($"Casino: ERROR in ConfirmReset for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
-                    await LoggingService.LogChannelAndFile($"Casino: ConfirmReset Exception Details: {ex}");
-
-                    try
-                    {
-                        if (!Context.Interaction.HasResponded)
-                        {
-                            await Context.Interaction.RespondAsync("❌ An error occurred while resetting casino data. Please try again.", ephemeral: true);
-                        }
-                        else
-                        {
-                            await Context.Interaction.FollowupAsync("❌ An error occurred while resetting casino data. Please try again.", ephemeral: true);
-                        }
-                    }
-                    catch
-                    {
-                        await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in ConfirmReset");
-                    }
-                }
-            }
-
-            [ComponentInteraction("admin_casino_reset_cancel:*", true)]
-            public async Task CancelReset(string userId)
-            {
-                try
-                {
-                    await Context.Interaction.DeferAsync(ephemeral: true);
-
-                    if (Context.User.Id.ToString() != userId)
-                    {
-                        await Context.Interaction.RespondAsync("🚫 You are not authorized to cancel this action.", ephemeral: true);
-                        return;
-                    }
-
-                    var embed = new EmbedBuilder()
-                        .WithTitle("❌ Reset Cancelled")
-                        .WithDescription("Casino reset has been cancelled. No changes were made.")
-                        .WithColor(Color.LightGrey)
+                    var expiredEmbed = new EmbedBuilder()
+                        .WithTitle("⏰ Reset Confirmation Expired")
+                        .WithDescription("The reset confirmation has expired. No changes were made.")
+                        .WithColor(Color.Orange)
                         .Build();
 
                     await Context.Interaction.ModifyOriginalResponseAsync(msg =>
                     {
-                        msg.Embed = embed;
+                        msg.Embed = expiredEmbed;
                         msg.Components = new ComponentBuilder().Build();
                     });
-
-                    await LoggingService.LogChannelAndFile($"Casino: CancelReset completed by admin {Context.User.Username}");
                 }
-                catch (Exception ex)
+                catch
                 {
-                    await LoggingService.LogChannelAndFile($"Casino: ERROR in CancelReset for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
-                    await LoggingService.LogChannelAndFile($"Casino: CancelReset Exception Details: {ex}");
-
-                    try
-                    {
-                        if (!Context.Interaction.HasResponded)
-                        {
-                            await Context.Interaction.RespondAsync("❌ An error occurred while cancelling the reset. Please try again.", ephemeral: true);
-                        }
-                        else
-                        {
-                            await Context.Interaction.FollowupAsync("❌ An error occurred while cancelling the reset. Please try again.", ephemeral: true);
-                        }
-                    }
-                    catch
-                    {
-                        await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in CancelReset");
-                    }
+                    // Ignore if already modified
                 }
-            }
+            });
+        }
 
-            private async Task DisplayAdminTransactionHistory(string? userId = null, int page = 1, SocketGuildUser? targetUser = null, bool isInitialCall = false)
-            {
-                try
-                {
-                    var queryUserId = userId ?? Context.User.Id.ToString();
-                    var isAdminRequest = targetUser != null && targetUser.Id != Context.User.Id;
-                    var isAllUsersRequest = targetUser == null && userId == null;
-
-                    if (isAdminRequest)
-                    {
-                        queryUserId = targetUser!.Id.ToString();
-                    }
-
-                    const int transactionsPerPage = 5;
-
-                    List<TokenTransaction> allTransactions;
-                    if (isAllUsersRequest)
-                    {
-                        var recentTransactions = await CasinoService.GetAllRecentTransactions(int.MaxValue);
-                        allTransactions = recentTransactions.ToList();
-                    }
-                    else
-                    {
-                        allTransactions = await CasinoService.GetUserTransactionHistory(queryUserId, int.MaxValue);
-                    }
-
-                    var totalTransactions = allTransactions.Count;
-
-                    if (totalTransactions == 0)
-                    {
-                        var noHistoryText = isAllUsersRequest
-                            ? "📜 No transaction history found in the casino system."
-                            : isAdminRequest
-                                ? $"📜 No transaction history found for {targetUser?.DisplayName}."
-                                : "📜 No transaction history found.";
-
-                        await Context.Interaction.FollowupAsync(noHistoryText, ephemeral: true);
-                        return;
-                    }
-
-                    var totalPages = (int)Math.Ceiling(totalTransactions / (double)transactionsPerPage);
-                    page = Math.Max(1, Math.Min(page, totalPages));
-
-                    var transactions = allTransactions.Skip((page - 1) * transactionsPerPage).Take(transactionsPerPage).ToList();
-
-                    string title;
-                    string description;
-                    if (isAllUsersRequest)
-                    {
-                        title = "📜 All Users Transaction History";
-                        description = "Recent transactions across all casino users";
-                    }
-                    else
-                    {
-                        var displayUser = targetUser;
-                        if (displayUser == null && ulong.TryParse(queryUserId, out var queryUserUlong))
-                        {
-                            displayUser = Context.Guild.GetUser(queryUserUlong);
-                        }
-
-                        var displayName = displayUser?.DisplayName ?? "Unknown User";
-                        title = $"📜 {(isAdminRequest ? $"{displayName}'s " : "Your ")}Transaction History";
-                        description = $"Current balance: **{(await CasinoService.GetOrCreateCasinoUser(queryUserId)).Tokens:N0} tokens**";
-                    }
-
-                    var embed = new EmbedBuilder()
-                        .WithTitle(title)
-                        .WithColor(Color.Blue)
-                        .WithDescription(description)
-                        .WithFooter($"Page {page}/{totalPages} • {totalTransactions} total transactions");
-
-                    foreach (var transaction in transactions)
-                    {
-                        var amountText = transaction.Amount >= 0 ? $"+{transaction.Amount}" : transaction.Amount.ToString();
-                        var (emoji, transactionTitle, transactionDescription) = TransactionFormatter.Format(transaction, Context.Guild, isAllUsersRequest);
-
-                        embed.AddField($"{emoji} {transactionTitle}",
-                            $"{amountText} tokens - *{TimestampTag.FromDateTime(transaction.CreatedAt)}*\n{transactionDescription}",
-                            false);
-                    }
-
-                    var components = CreateAdminHistoryNavigationComponents(isAllUsersRequest ? "all" : queryUserId, page, totalPages, isAdminRequest || isAllUsersRequest);
-
-                    if (isInitialCall)
-                    {
-                        await Context.Interaction.FollowupAsync(embed: embed.Build(), components: components, ephemeral: true);
-                    }
-                    else
-                    {
-                        await Context.Interaction.ModifyOriginalResponseAsync(msg =>
-                        {
-                            msg.Embed = embed.Build();
-                            msg.Components = components;
-                        });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    await LoggingService.LogChannelAndFile($"Casino Admin: ERROR in DisplayAdminTransactionHistory for user {Context.User.Username}: {ex.Message}", ExtendedLogSeverity.Error);
-
-                    var errorMessage = "❌ An error occurred while displaying transaction history. Please try again.";
-                    try
-                    {
-                        await Context.Interaction.FollowupAsync(errorMessage, ephemeral: true);
-                    }
-                    catch
-                    {
-                        await LoggingService.LogChannelAndFile("Casino Admin: Failed to send error response in DisplayAdminTransactionHistory");
-                    }
-                }
-            }
-
-            private MessageComponent CreateAdminHistoryNavigationComponents(string userId, int currentPage, int totalPages, bool isAdminRequest)
-            {
-                var builder = new ComponentBuilder();
-
-                if (totalPages <= 1)
-                {
-                    return builder.Build();
-                }
-
-                builder.WithButton("◀️ Previous", $"admin_history_nav:{userId}:{currentPage - 1}:{(isAdminRequest ? "admin" : "self")}", ButtonStyle.Secondary, disabled: currentPage <= 1);
-                builder.WithButton($"Page {currentPage}/{totalPages}", "admin_page_info", ButtonStyle.Primary, disabled: true);
-                builder.WithButton("Next ▶️", $"admin_history_nav:{userId}:{currentPage + 1}:{(isAdminRequest ? "admin" : "self")}", ButtonStyle.Secondary, disabled: currentPage >= totalPages);
-
-                return builder.Build();
-            }
-
-            [ComponentInteraction("admin_history_nav:*:*:*", true)]
-            public async Task NavigateAdminHistory(string userId, string pageStr, string requestType)
+        [ComponentInteraction("admin_casino_reset_confirm:*", true)]
+        public async Task ConfirmReset(string userId)
+        {
+            try
             {
                 await Context.Interaction.DeferAsync(ephemeral: true);
 
-                if (!int.TryParse(pageStr, out var page))
+                if (Context.User.Id.ToString() != userId)
                 {
-                    await Context.Interaction.FollowupAsync("❌ Invalid page number.", ephemeral: true);
+                    await Context.Interaction.RespondAsync("🚫 You are not authorized to confirm this action.", ephemeral: true);
                     return;
                 }
 
-                var isAdminRequest = requestType == "admin";
-                SocketGuildUser? targetUser = null;
-                if (isAdminRequest && userId != "all" && ulong.TryParse(userId, out var targetUserId))
-                {
-                    targetUser = Context.Guild.GetUser(targetUserId);
-                }
+                await CasinoService.ResetAllCasinoData();
 
-                await DisplayAdminTransactionHistory(userId: userId == "all" ? null : userId, page: page, targetUser: targetUser, isInitialCall: false);
+                var embed = new EmbedBuilder()
+                    .WithTitle("🔄 Casino Reset Complete")
+                    .WithDescription("All casino data has been permanently deleted.")
+                    .WithColor(Color.Green)
+                    .Build();
+
+                await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+                await LoggingService.LogChannelAndFile($"Casino: ConfirmReset completed successfully by admin {Context.User.Username}");
+            }
+            catch (Exception ex)
+            {
+                await LoggingService.LogChannelAndFile($"Casino: ERROR in ConfirmReset for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+                await LoggingService.LogChannelAndFile($"Casino: ConfirmReset Exception Details: {ex}");
+
+                try
+                {
+                    if (!Context.Interaction.HasResponded)
+                    {
+                        await Context.Interaction.RespondAsync("❌ An error occurred while resetting casino data. Please try again.", ephemeral: true);
+                    }
+                    else
+                    {
+                        await Context.Interaction.FollowupAsync("❌ An error occurred while resetting casino data. Please try again.", ephemeral: true);
+                    }
+                }
+                catch
+                {
+                    await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in ConfirmReset");
+                }
             }
         }
 
+        [ComponentInteraction("admin_casino_reset_cancel:*", true)]
+        public async Task CancelReset(string userId)
+        {
+            try
+            {
+                await Context.Interaction.DeferAsync(ephemeral: true);
+
+                if (Context.User.Id.ToString() != userId)
+                {
+                    await Context.Interaction.RespondAsync("🚫 You are not authorized to cancel this action.", ephemeral: true);
+                    return;
+                }
+
+                var embed = new EmbedBuilder()
+                    .WithTitle("❌ Reset Cancelled")
+                    .WithDescription("Casino reset has been cancelled. No changes were made.")
+                    .WithColor(Color.LightGrey)
+                    .Build();
+
+                await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+                {
+                    msg.Embed = embed;
+                    msg.Components = new ComponentBuilder().Build();
+                });
+
+                await LoggingService.LogChannelAndFile($"Casino: CancelReset completed by admin {Context.User.Username}");
+            }
+            catch (Exception ex)
+            {
+                await LoggingService.LogChannelAndFile($"Casino: ERROR in CancelReset for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+                await LoggingService.LogChannelAndFile($"Casino: CancelReset Exception Details: {ex}");
+
+                try
+                {
+                    if (!Context.Interaction.HasResponded)
+                    {
+                        await Context.Interaction.RespondAsync("❌ An error occurred while cancelling the reset. Please try again.", ephemeral: true);
+                    }
+                    else
+                    {
+                        await Context.Interaction.FollowupAsync("❌ An error occurred while cancelling the reset. Please try again.", ephemeral: true);
+                    }
+                }
+                catch
+                {
+                    await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in CancelReset");
+                }
+            }
+        }
+
+        private async Task DisplayAdminTransactionHistory(string? userId = null, int page = 1, SocketGuildUser? targetUser = null, bool isInitialCall = false)
+        {
+            try
+            {
+                var queryUserId = userId ?? Context.User.Id.ToString();
+                var isAdminRequest = targetUser != null && targetUser.Id != Context.User.Id;
+                var isAllUsersRequest = targetUser == null && userId == null;
+
+                if (isAdminRequest)
+                {
+                    queryUserId = targetUser!.Id.ToString();
+                }
+
+                const int transactionsPerPage = 5;
+
+                List<TokenTransaction> allTransactions;
+                if (isAllUsersRequest)
+                {
+                    var recentTransactions = await CasinoService.GetAllRecentTransactions(int.MaxValue);
+                    allTransactions = recentTransactions.ToList();
+                }
+                else
+                {
+                    allTransactions = await CasinoService.GetUserTransactionHistory(queryUserId, int.MaxValue);
+                }
+
+                var totalTransactions = allTransactions.Count;
+
+                if (totalTransactions == 0)
+                {
+                    var noHistoryText = isAllUsersRequest
+                        ? "📜 No transaction history found in the casino system."
+                        : isAdminRequest
+                            ? $"📜 No transaction history found for {targetUser?.DisplayName}."
+                            : "📜 No transaction history found.";
+
+                    await Context.Interaction.FollowupAsync(noHistoryText, ephemeral: true);
+                    return;
+                }
+
+                var totalPages = (int)Math.Ceiling(totalTransactions / (double)transactionsPerPage);
+                page = Math.Max(1, Math.Min(page, totalPages));
+
+                var transactions = allTransactions.Skip((page - 1) * transactionsPerPage).Take(transactionsPerPage).ToList();
+
+                string title;
+                string description;
+                if (isAllUsersRequest)
+                {
+                    title = "📜 All Users Transaction History";
+                    description = "Recent transactions across all casino users";
+                }
+                else
+                {
+                    var displayUser = targetUser;
+                    if (displayUser == null && ulong.TryParse(queryUserId, out var queryUserUlong))
+                    {
+                        displayUser = Context.Guild.GetUser(queryUserUlong);
+                    }
+
+                    var displayName = displayUser?.DisplayName ?? "Unknown User";
+                    title = $"📜 {(isAdminRequest ? $"{displayName}'s " : "Your ")}Transaction History";
+                    description = $"Current balance: **{(await CasinoService.GetOrCreateCasinoUser(queryUserId)).Tokens:N0} tokens**";
+                }
+
+                var embed = new EmbedBuilder()
+                    .WithTitle(title)
+                    .WithColor(Color.Blue)
+                    .WithDescription(description)
+                    .WithFooter($"Page {page}/{totalPages} • {totalTransactions} total transactions");
+
+                foreach (var transaction in transactions)
+                {
+                    var amountText = transaction.Amount >= 0 ? $"+{transaction.Amount}" : transaction.Amount.ToString();
+                    var (emoji, transactionTitle, transactionDescription) = TransactionFormatter.Format(transaction, Context.Guild, isAllUsersRequest);
+
+                    embed.AddField($"{emoji} {transactionTitle}",
+                        $"{amountText} tokens - *{TimestampTag.FromDateTime(transaction.CreatedAt)}*\n{transactionDescription}",
+                        false);
+                }
+
+                var components = CreateAdminHistoryNavigationComponents(isAllUsersRequest ? "all" : queryUserId, page, totalPages, isAdminRequest || isAllUsersRequest);
+
+                if (isInitialCall)
+                {
+                    await Context.Interaction.FollowupAsync(embed: embed.Build(), components: components, ephemeral: true);
+                }
+                else
+                {
+                    await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+                    {
+                        msg.Embed = embed.Build();
+                        msg.Components = components;
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                await LoggingService.LogChannelAndFile($"Casino Admin: ERROR in DisplayAdminTransactionHistory for user {Context.User.Username}: {ex.Message}", ExtendedLogSeverity.Error);
+
+                var errorMessage = "❌ An error occurred while displaying transaction history. Please try again.";
+                try
+                {
+                    await Context.Interaction.FollowupAsync(errorMessage, ephemeral: true);
+                }
+                catch
+                {
+                    await LoggingService.LogChannelAndFile("Casino Admin: Failed to send error response in DisplayAdminTransactionHistory");
+                }
+            }
+        }
+
+        private MessageComponent CreateAdminHistoryNavigationComponents(string userId, int currentPage, int totalPages, bool isAdminRequest)
+        {
+            var builder = new ComponentBuilder();
+
+            if (totalPages <= 1)
+            {
+                return builder.Build();
+            }
+
+            builder.WithButton("◀️ Previous", $"admin_history_nav:{userId}:{currentPage - 1}:{(isAdminRequest ? "admin" : "self")}", ButtonStyle.Secondary, disabled: currentPage <= 1);
+            builder.WithButton($"Page {currentPage}/{totalPages}", "admin_page_info", ButtonStyle.Primary, disabled: true);
+            builder.WithButton("Next ▶️", $"admin_history_nav:{userId}:{currentPage + 1}:{(isAdminRequest ? "admin" : "self")}", ButtonStyle.Secondary, disabled: currentPage >= totalPages);
+
+            return builder.Build();
+        }
+
+        [ComponentInteraction("admin_history_nav:*:*:*", true)]
+        public async Task NavigateAdminHistory(string userId, string pageStr, string requestType)
+        {
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            if (!int.TryParse(pageStr, out var page))
+            {
+                await Context.Interaction.FollowupAsync("❌ Invalid page number.", ephemeral: true);
+                return;
+            }
+
+            var isAdminRequest = requestType == "admin";
+            SocketGuildUser? targetUser = null;
+            if (isAdminRequest && userId != "all" && ulong.TryParse(userId, out var targetUserId))
+            {
+                targetUser = Context.Guild.GetUser(targetUserId);
+            }
+
+            await DisplayAdminTransactionHistory(userId: userId == "all" ? null : userId, page: page, targetUser: targetUser, isInitialCall: false);
+        }
     }
 
     [Group("bday", "Birthday administration commands")]
