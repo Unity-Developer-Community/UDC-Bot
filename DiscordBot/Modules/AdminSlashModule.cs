@@ -113,6 +113,152 @@ public class AdminSlashModule : InteractionModuleBase
                 await LoggingService.LogChannelAndFile($"Admin Token Add: {Context.User.Username} added {amount} tokens to {targetUser.Username}");
             }
 
+            [SlashCommand("reset", "Reset all casino data - REQUIRES CONFIRMATION")]
+            [RequireUserPermission(GuildPermission.Administrator)]
+            public async Task ResetCasino()
+            {
+                if (!await CheckChannelPermissions()) return;
+
+                await LoggingService.LogChannelAndFile($"Casino: ResetCasino called by {Context.User.Username} (ID: {Context.User.Id})");
+
+                var embed = new EmbedBuilder()
+                    .WithTitle("⚠️ Casino Reset Confirmation")
+                    .WithDescription("**WARNING:** This will permanently delete:\n"
+                        + "• All user token balances\n"
+                        + "• All transaction history\n"
+                        + "• All active games\n\n"
+                        + "This action **CANNOT** be undone!\n\n"
+                        + "This confirmation will expire in 30 seconds.")
+                    .WithColor(Color.Red)
+                    .Build();
+
+                var components = new ComponentBuilder()
+                    .WithButton("❌ Cancel", $"admin_casino_reset_cancel:{Context.User.Id}", ButtonStyle.Secondary)
+                    .WithButton("⚠️ CONFIRM RESET", $"admin_casino_reset_confirm:{Context.User.Id}", ButtonStyle.Danger)
+                    .Build();
+
+                await Context.Interaction.RespondAsync(embed: embed, components: components, ephemeral: true);
+
+                _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(async _ =>
+                {
+                    try
+                    {
+                        var expiredEmbed = new EmbedBuilder()
+                            .WithTitle("⏰ Reset Confirmation Expired")
+                            .WithDescription("The reset confirmation has expired. No changes were made.")
+                            .WithColor(Color.Orange)
+                            .Build();
+
+                        await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+                        {
+                            msg.Embed = expiredEmbed;
+                            msg.Components = new ComponentBuilder().Build();
+                        });
+                    }
+                    catch
+                    {
+                        // Ignore if already modified
+                    }
+                });
+            }
+
+            [ComponentInteraction("admin_casino_reset_confirm:*", true)]
+            public async Task ConfirmReset(string userId)
+            {
+                try
+                {
+                    await Context.Interaction.DeferAsync(ephemeral: true);
+
+                    if (Context.User.Id.ToString() != userId)
+                    {
+                        await Context.Interaction.RespondAsync("🚫 You are not authorized to confirm this action.", ephemeral: true);
+                        return;
+                    }
+
+                    await CasinoService.ResetAllCasinoData();
+
+                    var embed = new EmbedBuilder()
+                        .WithTitle("🔄 Casino Reset Complete")
+                        .WithDescription("All casino data has been permanently deleted.")
+                        .WithColor(Color.Green)
+                        .Build();
+
+                    await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+                    await LoggingService.LogChannelAndFile($"Casino: ConfirmReset completed successfully by admin {Context.User.Username}");
+                }
+                catch (Exception ex)
+                {
+                    await LoggingService.LogChannelAndFile($"Casino: ERROR in ConfirmReset for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+                    await LoggingService.LogChannelAndFile($"Casino: ConfirmReset Exception Details: {ex}");
+
+                    try
+                    {
+                        if (!Context.Interaction.HasResponded)
+                        {
+                            await Context.Interaction.RespondAsync("❌ An error occurred while resetting casino data. Please try again.", ephemeral: true);
+                        }
+                        else
+                        {
+                            await Context.Interaction.FollowupAsync("❌ An error occurred while resetting casino data. Please try again.", ephemeral: true);
+                        }
+                    }
+                    catch
+                    {
+                        await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in ConfirmReset");
+                    }
+                }
+            }
+
+            [ComponentInteraction("admin_casino_reset_cancel:*", true)]
+            public async Task CancelReset(string userId)
+            {
+                try
+                {
+                    await Context.Interaction.DeferAsync(ephemeral: true);
+
+                    if (Context.User.Id.ToString() != userId)
+                    {
+                        await Context.Interaction.RespondAsync("🚫 You are not authorized to cancel this action.", ephemeral: true);
+                        return;
+                    }
+
+                    var embed = new EmbedBuilder()
+                        .WithTitle("❌ Reset Cancelled")
+                        .WithDescription("Casino reset has been cancelled. No changes were made.")
+                        .WithColor(Color.LightGrey)
+                        .Build();
+
+                    await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+                    {
+                        msg.Embed = embed;
+                        msg.Components = new ComponentBuilder().Build();
+                    });
+
+                    await LoggingService.LogChannelAndFile($"Casino: CancelReset completed by admin {Context.User.Username}");
+                }
+                catch (Exception ex)
+                {
+                    await LoggingService.LogChannelAndFile($"Casino: ERROR in CancelReset for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
+                    await LoggingService.LogChannelAndFile($"Casino: CancelReset Exception Details: {ex}");
+
+                    try
+                    {
+                        if (!Context.Interaction.HasResponded)
+                        {
+                            await Context.Interaction.RespondAsync("❌ An error occurred while cancelling the reset. Please try again.", ephemeral: true);
+                        }
+                        else
+                        {
+                            await Context.Interaction.FollowupAsync("❌ An error occurred while cancelling the reset. Please try again.", ephemeral: true);
+                        }
+                    }
+                    catch
+                    {
+                        await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in CancelReset");
+                    }
+                }
+            }
+
             private async Task DisplayAdminTransactionHistory(string? userId = null, int page = 1, SocketGuildUser? targetUser = null, bool isInitialCall = false)
             {
                 try
@@ -263,151 +409,6 @@ public class AdminSlashModule : InteractionModuleBase
             }
         }
 
-        [SlashCommand("reset", "Reset all casino data - REQUIRES CONFIRMATION")]
-        [RequireUserPermission(GuildPermission.Administrator)]
-        public async Task ResetCasino()
-        {
-            if (!await CheckChannelPermissions()) return;
-
-            await LoggingService.LogChannelAndFile($"Casino: ResetCasino called by {Context.User.Username} (ID: {Context.User.Id})");
-
-            var embed = new EmbedBuilder()
-                .WithTitle("⚠️ Casino Reset Confirmation")
-                .WithDescription("**WARNING:** This will permanently delete:\n"
-                    + "• All user token balances\n"
-                    + "• All transaction history\n"
-                    + "• All active games\n\n"
-                    + "This action **CANNOT** be undone!\n\n"
-                    + "This confirmation will expire in 30 seconds.")
-                .WithColor(Color.Red)
-                .Build();
-
-            var components = new ComponentBuilder()
-                .WithButton("❌ Cancel", $"admin_casino_reset_cancel:{Context.User.Id}", ButtonStyle.Secondary)
-                .WithButton("⚠️ CONFIRM RESET", $"admin_casino_reset_confirm:{Context.User.Id}", ButtonStyle.Danger)
-                .Build();
-
-            await Context.Interaction.RespondAsync(embed: embed, components: components, ephemeral: true);
-
-            _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(async _ =>
-            {
-                try
-                {
-                    var expiredEmbed = new EmbedBuilder()
-                        .WithTitle("⏰ Reset Confirmation Expired")
-                        .WithDescription("The reset confirmation has expired. No changes were made.")
-                        .WithColor(Color.Orange)
-                        .Build();
-
-                    await Context.Interaction.ModifyOriginalResponseAsync(msg =>
-                    {
-                        msg.Embed = expiredEmbed;
-                        msg.Components = new ComponentBuilder().Build();
-                    });
-                }
-                catch
-                {
-                    // Ignore if already modified
-                }
-            });
-        }
-
-        [ComponentInteraction("admin_casino_reset_confirm:*", true)]
-        public async Task ConfirmReset(string userId)
-        {
-            try
-            {
-                await Context.Interaction.DeferAsync(ephemeral: true);
-
-                if (Context.User.Id.ToString() != userId)
-                {
-                    await Context.Interaction.RespondAsync("🚫 You are not authorized to confirm this action.", ephemeral: true);
-                    return;
-                }
-
-                await CasinoService.ResetAllCasinoData();
-
-                var embed = new EmbedBuilder()
-                    .WithTitle("🔄 Casino Reset Complete")
-                    .WithDescription("All casino data has been permanently deleted.")
-                    .WithColor(Color.Green)
-                    .Build();
-
-                await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
-                await LoggingService.LogChannelAndFile($"Casino: ConfirmReset completed successfully by admin {Context.User.Username}");
-            }
-            catch (Exception ex)
-            {
-                await LoggingService.LogChannelAndFile($"Casino: ERROR in ConfirmReset for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
-                await LoggingService.LogChannelAndFile($"Casino: ConfirmReset Exception Details: {ex}");
-
-                try
-                {
-                    if (!Context.Interaction.HasResponded)
-                    {
-                        await Context.Interaction.RespondAsync("❌ An error occurred while resetting casino data. Please try again.", ephemeral: true);
-                    }
-                    else
-                    {
-                        await Context.Interaction.FollowupAsync("❌ An error occurred while resetting casino data. Please try again.", ephemeral: true);
-                    }
-                }
-                catch
-                {
-                    await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in ConfirmReset");
-                }
-            }
-        }
-
-        [ComponentInteraction("admin_casino_reset_cancel:*", true)]
-        public async Task CancelReset(string userId)
-        {
-            try
-            {
-                await Context.Interaction.DeferAsync(ephemeral: true);
-
-                if (Context.User.Id.ToString() != userId)
-                {
-                    await Context.Interaction.RespondAsync("🚫 You are not authorized to cancel this action.", ephemeral: true);
-                    return;
-                }
-
-                var embed = new EmbedBuilder()
-                    .WithTitle("❌ Reset Cancelled")
-                    .WithDescription("Casino reset has been cancelled. No changes were made.")
-                    .WithColor(Color.LightGrey)
-                    .Build();
-
-                await Context.Interaction.ModifyOriginalResponseAsync(msg =>
-                {
-                    msg.Embed = embed;
-                    msg.Components = new ComponentBuilder().Build();
-                });
-
-                await LoggingService.LogChannelAndFile($"Casino: CancelReset completed by admin {Context.User.Username}");
-            }
-            catch (Exception ex)
-            {
-                await LoggingService.LogChannelAndFile($"Casino: ERROR in CancelReset for user {Context.User.Username} (ID: {Context.User.Id}): {ex.Message}", ExtendedLogSeverity.Error);
-                await LoggingService.LogChannelAndFile($"Casino: CancelReset Exception Details: {ex}");
-
-                try
-                {
-                    if (!Context.Interaction.HasResponded)
-                    {
-                        await Context.Interaction.RespondAsync("❌ An error occurred while cancelling the reset. Please try again.", ephemeral: true);
-                    }
-                    else
-                    {
-                        await Context.Interaction.FollowupAsync("❌ An error occurred while cancelling the reset. Please try again.", ephemeral: true);
-                    }
-                }
-                catch
-                {
-                    await LoggingService.LogChannelAndFile($"Casino: Failed to send error response to user {Context.User.Username} in CancelReset");
-                }
-            }
-        }
     }
 
     [Group("bday", "Birthday administration commands")]
