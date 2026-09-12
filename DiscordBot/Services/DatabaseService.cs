@@ -100,6 +100,13 @@ public class DatabaseService
                     await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.DefaultCity}' to table '{UserProps.TableName}'.",
                         ExtendedLogSeverity.Positive);
                 }
+                var birthdayExists = await c.ColumnExists(UserProps.TableName, UserProps.Birthday);
+                if (!birthdayExists)
+                {
+                    c.ExecuteSql($"ALTER TABLE {UserProps.TableName} ADD COLUMN {UserProps.Birthday} timestamp DEFAULT NULL");
+                    await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.Birthday}' to table '{UserProps.TableName}'.",
+                        ExtendedLogSeverity.Positive);
+                }
 
                 // Initialize badge tables
                 await InitializeBadgeTables(c);
@@ -121,7 +128,8 @@ public class DatabaseService
                         $"{UserProps.KarmaGiven} integer NOT NULL DEFAULT 0, " +
                         $"{UserProps.Exp} bigint NOT NULL DEFAULT 0, " +
                         $"{UserProps.Level} integer NOT NULL DEFAULT 0, " +
-                        $"{UserProps.DefaultCity} varchar(64) DEFAULT NULL)");
+                        $"{UserProps.DefaultCity} varchar(64) DEFAULT NULL, " +
+                        $"{UserProps.Birthday} timestamp DEFAULT NULL)");
                 }
                 catch (Exception e)
                 {
