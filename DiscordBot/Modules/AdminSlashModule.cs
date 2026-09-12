@@ -393,7 +393,7 @@ public class AdminSlashModule : InteractionModuleBase
 
                 if (Context.User.Id.ToString() != userId)
                 {
-                    await Context.Interaction.RespondAsync("🚫 You are not authorized to confirm this action.", ephemeral: true);
+                    await Context.Interaction.FollowupAsync("🚫 You are not authorized to confirm this action.", ephemeral: true);
                     return;
                 }
 
@@ -440,7 +440,7 @@ public class AdminSlashModule : InteractionModuleBase
 
                 if (Context.User.Id.ToString() != userId)
                 {
-                    await Context.Interaction.RespondAsync("🚫 You are not authorized to cancel this action.", ephemeral: true);
+                    await Context.Interaction.FollowupAsync("🚫 You are not authorized to cancel this action.", ephemeral: true);
                     return;
                 }
 
@@ -632,7 +632,7 @@ public class AdminSlashModule : InteractionModuleBase
     }
 
     [Group("bday", "Birthday administration commands")]
-    public class BirthdayAdminCommands : InteractionModuleBase
+    public class BirthdayAdminCommands : InteractionModuleBase<SocketInteractionContext>
     {
         public DatabaseService DatabaseService { get; set; } = null!;
         public ILoggingService LoggingService { get; set; } = null!;
@@ -766,7 +766,7 @@ public class AdminSlashModule : InteractionModuleBase
             }
             else
             {
-                var guildUser = await Context.Guild.GetUserAsync(userId);
+                var guildUser = Context.Guild.GetUser(userId);
                 displayName = guildUser?.DisplayName ?? $"Unknown User ({entry.UserID})";
             }
 
