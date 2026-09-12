@@ -16,7 +16,7 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <PackageReference Include="System.ServiceModel.Syndication" Version="9.0.6" />
+    <PackageReference Include="System.ServiceModel.Syndication" Version="10.0.12" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="SERVER\images\profiles" />
