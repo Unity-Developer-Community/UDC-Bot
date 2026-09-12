@@ -54,13 +54,13 @@ public class ServerSlashModule : InteractionModuleBase
     private (int, Embed) HelpEmbed(int page, string search = "")
     {
         EmbedBuilder embedBuilder = new();
-        embedBuilder.Title = "User Module Commands";
+        embedBuilder.Title = "Server Module Commands";
         embedBuilder.Color = Color.LighterGrey;
 
         List<string>? helpMessages = null;
         if (search == string.Empty)
         {
-            helpMessages = CommandHandlingService.GetCommandListMessages("UserModule", false, true, false);
+            helpMessages = CommandHandlingService.GetCommandListMessages("ServerModule", false, true, false);
 
             if (page >= helpMessages.Count)
                 page = 0;
@@ -73,7 +73,7 @@ public class ServerSlashModule : InteractionModuleBase
         else
         {
             page = -1;
-            helpMessages = CommandHandlingService.SearchForCommand(("UserModule", false, true, false), search);
+            helpMessages = CommandHandlingService.SearchForCommand(("ServerModule", false, true, false), search);
             if (helpMessages[0].Length > 0)
             {
                 embedBuilder.WithFooter(text: $"Search results for {search}");

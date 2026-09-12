@@ -18,7 +18,7 @@ public class ConvertModule : ModuleBase
     }
 
     [Command("CtoF"), Priority(28)]
-    [Summary("Converts a temperature in celsius to fahrenheit. Syntax : !ftoc temperature")]
+    [Summary("Converts a temperature in celsius to fahrenheit. Syntax : !ctof temperature")]
     public async Task CelsiusToFahrenheit(float c)
     {
         await ReplyAsync($"{Context.User.Mention}  {c}°C is {MathUtility.CelsiusToFahrenheit(c)}°F");
@@ -80,8 +80,8 @@ public class ConvertModule : ModuleBase
         from = from.ToLower();
         to = to.ToLower();
 
-        bool fromValid = await CurrencyService.IsCurrency(from.ToLower());
-        bool toValid = await CurrencyService.IsCurrency(to.ToLower());
+        bool fromValid = await CurrencyService.IsCurrency(from);
+        bool toValid = await CurrencyService.IsCurrency(to);
 
         if (!fromValid || !toValid)
         {

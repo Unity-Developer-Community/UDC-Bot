@@ -22,7 +22,6 @@ public class ProfileModule : ModuleBase
     [Summary("Display date you joined the server.")]
     public async Task JoinDate()
     {
-        var userId = Context.User.Id;
         var joinDate = ((IGuildUser)Context.User).JoinedAt;
         await ReplyAsync($"{Context.User.Mention} you joined **{joinDate:dddd dd/MM/yyy HH:mm:ss}**");
         await Context.Message.DeleteAsync();
