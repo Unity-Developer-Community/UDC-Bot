@@ -169,7 +169,7 @@ public class AdminSlashModule : InteractionModuleBase
             {
                 var embed = new EmbedBuilder()
                     .WithTitle("🏆 Badge Assigned Successfully")
-                    .WithDescription($"Assigned **{badge.Title}** to {user.Mention}")
+                    .WithDescription($"Assigned **{badge.Title}** to **{user.DisplayName}**")
                     .AddField("Badge Description", badge.Description)
                     .AddField("Assigned By", Context.User.Mention)
                     .AddField("Assigned At", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC"))
