@@ -126,7 +126,12 @@ public interface IBadgeRepo
     Task RemoveBadgeFromUser(string userId, int badgeId);
 
     [Sql($@"
-    SELECT ub.*, b.{BadgeProps.Title}, b.{BadgeProps.Description}, b.{BadgeProps.GroupKey}, b.{BadgeProps.IsPublic}, b.{BadgeProps.CreatedAt}
+        SELECT ub.*, 
+            b.{BadgeProps.Title} AS {nameof(UserBadge.BadgeTitle)}, 
+            b.{BadgeProps.Description} AS {nameof(UserBadge.BadgeDescription)}, 
+            b.{BadgeProps.GroupKey} AS {nameof(UserBadge.BadgeGroupKey)}, 
+            b.{BadgeProps.IsPublic} AS {nameof(UserBadge.BadgeIsPublic)}, 
+            b.{BadgeProps.CreatedAt} AS {nameof(UserBadge.BadgeCreatedAt)}
     FROM {UserBadgeProps.TableName} ub
     JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
     WHERE ub.{UserBadgeProps.UserID} = @userId
@@ -134,7 +139,12 @@ public interface IBadgeRepo
     Task<IList<UserBadge>> GetUserBadges(string userId);
 
     [Sql($@"
-    SELECT ub.*, b.{BadgeProps.Title}, b.{BadgeProps.Description}, b.{BadgeProps.GroupKey}, b.{BadgeProps.IsPublic}, b.{BadgeProps.CreatedAt}
+        SELECT ub.*, 
+            b.{BadgeProps.Title} AS {nameof(UserBadge.BadgeTitle)}, 
+            b.{BadgeProps.Description} AS {nameof(UserBadge.BadgeDescription)}, 
+            b.{BadgeProps.GroupKey} AS {nameof(UserBadge.BadgeGroupKey)}, 
+            b.{BadgeProps.IsPublic} AS {nameof(UserBadge.BadgeIsPublic)}, 
+            b.{BadgeProps.CreatedAt} AS {nameof(UserBadge.BadgeCreatedAt)}
     FROM {UserBadgeProps.TableName} ub
     JOIN {BadgeProps.TableName} b ON ub.{UserBadgeProps.BadgeId} = b.{BadgeProps.Id}
     WHERE ub.{UserBadgeProps.UserID} = @userId AND b.{BadgeProps.IsPublic} = TRUE
