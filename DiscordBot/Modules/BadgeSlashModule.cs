@@ -9,6 +9,10 @@ namespace DiscordBot.Modules;
 [Group("badge", "Badge management commands")]
 public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
 {
+    private const int BadgeListPageSize = 24;
+    private const int EmbedFieldNameMaxLength = 256;
+    private const int EmbedFieldValueMaxLength = 1024;
+
     #region Dependency Injection
 
     public BadgeService BadgeService { get; set; }
@@ -23,7 +27,10 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
 
         var user = Context.User as SocketGuildUser;
         var isAdmin = BadgeService.IsUserAdmin(user);
-        var badges = await BadgeService.GetAllBadges(isAdmin);
+        var badges = (await BadgeService.GetAllBadges(isAdmin))
+            .OrderBy(b => b.Title, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(b => b.Id)
+            .ToList();
 
         if (!badges.Any())
         {
@@ -31,46 +38,129 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             return;
         }
 
+        const int initialPage = 1;
+        var totalPages = GetBadgeListTotalPages(badges.Count);
+        var embed = BuildBadgeListEmbed(badges, isAdmin, initialPage, totalPages);
+        var components = BuildBadgeListNavigationComponents(user?.Id ?? Context.User.Id, initialPage, totalPages);
+
+        await Context.Interaction.FollowupAsync(embed: embed, components: components, ephemeral: true);
+    }
+
+    [ComponentInteraction("badge_list_nav:*:*", true)]
+    public async Task NavigateBadgeList(string requesterId, string pageRaw)
+    {
+        await Context.Interaction.DeferAsync(ephemeral: true);
+
+        if (!ulong.TryParse(requesterId, out var expectedUserId) || Context.User.Id != expectedUserId)
+        {
+            await Context.Interaction.FollowupAsync("🚫 You are not authorized to use these controls.", ephemeral: true);
+            return;
+        }
+
+        if (!int.TryParse(pageRaw, out var requestedPage))
+        {
+            await Context.Interaction.FollowupAsync("❌ Invalid page number.", ephemeral: true);
+            return;
+        }
+
+        var user = Context.User as SocketGuildUser;
+        var isAdmin = BadgeService.IsUserAdmin(user);
+        var badges = (await BadgeService.GetAllBadges(isAdmin))
+            .OrderBy(b => b.Title, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(b => b.Id)
+            .ToList();
+
+        if (!badges.Any())
+        {
+            await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+            {
+                msg.Content = "📭 No badges have been created yet.";
+                msg.Embeds = Array.Empty<Embed>();
+                msg.Components = new ComponentBuilder().Build();
+            });
+            return;
+        }
+
+        var totalPages = GetBadgeListTotalPages(badges.Count);
+        var page = Math.Clamp(requestedPage, 1, totalPages);
+        var embed = BuildBadgeListEmbed(badges, isAdmin, page, totalPages);
+        var components = BuildBadgeListNavigationComponents(expectedUserId, page, totalPages);
+
+        await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+        {
+            msg.Content = null;
+            msg.Embed = embed;
+            msg.Components = components;
+        });
+    }
+
+    private Embed BuildBadgeListEmbed(IReadOnlyList<Badge> badges, bool isAdmin, int page, int totalPages)
+    {
         var embed = new EmbedBuilder()
             .WithTitle("🏆 Available Badges")
             .WithColor(Color.Blue)
             .WithTimestamp(DateTimeOffset.UtcNow);
 
-        const int maxFieldValue = 1024;
-        var description = string.Empty;
-
-        foreach (var badge in badges)
-        {
-            var visibilityIndicator = isAdmin && !badge.IsPublic ? " 🔒" : "";
-            var groupInfo = string.IsNullOrEmpty(badge.GroupKey) ? string.Empty : $"\n*Group: `{badge.GroupKey}`*";
-            var badgeInfo = $"**{badge.Title}**{visibilityIndicator} (ID: {badge.Id})\n{badge.Description}{groupInfo}\n\n";
-
-            if (description.Length + badgeInfo.Length > maxFieldValue)
-            {
-                embed.AddField("Badges", description.TrimEnd(), false);
-                description = badgeInfo;
-            }
-            else
-            {
-                description += badgeInfo;
-            }
-        }
-
-        if (!string.IsNullOrEmpty(description))
-        {
-            embed.AddField("Badges", description.TrimEnd(), false);
-        }
-
-        var footerText = $"Total badges: {badges.Count}";
+        var footerText = $"Total badges: {badges.Count} | Page {page}/{totalPages}";
         if (isAdmin)
         {
             var publicCount = badges.Count(b => b.IsPublic);
             var privateCount = badges.Count - publicCount;
             footerText += $" (Public: {publicCount}, Private: {privateCount})";
         }
+
+        var startIndex = (page - 1) * BadgeListPageSize;
+        var pageBadges = badges.Skip(startIndex).Take(BadgeListPageSize);
+        const int maxEmbedTotalLength = 6000;
+        var usedEmbedCharacters = "🏆 Available Badges".Length + footerText.Length;
+
+        foreach (var badge in pageBadges)
+        {
+            var visibilityIndicator = isAdmin && !badge.IsPublic ? " 🔒" : string.Empty;
+            var badgeIdInfo = isAdmin ? $" (ID: {badge.Id})" : string.Empty;
+            var fieldName = $"{badge.Title}{visibilityIndicator}{badgeIdInfo}";
+            var fieldValue = string.IsNullOrEmpty(badge.GroupKey)
+                ? badge.Description
+                : $"{badge.Description}\n*Group: `{badge.GroupKey}`*";
+
+            if (fieldName.Length > EmbedFieldNameMaxLength)
+            {
+                fieldName = fieldName[..(EmbedFieldNameMaxLength - 3)] + "...";
+            }
+
+            if (fieldValue.Length > EmbedFieldValueMaxLength)
+            {
+                fieldValue = fieldValue[..(EmbedFieldValueMaxLength - 3)] + "...";
+            }
+
+            var fieldCharacters = fieldName.Length + fieldValue.Length;
+            if (usedEmbedCharacters + fieldCharacters > maxEmbedTotalLength)
+            {
+                break;
+            }
+
+            embed.AddField(fieldName, fieldValue, true);
+            usedEmbedCharacters += fieldCharacters;
+        }
+
         embed.WithFooter(footerText);
 
-        await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: true);
+        return embed.Build();
+    }
+
+    private MessageComponent BuildBadgeListNavigationComponents(ulong requesterId, int page, int totalPages)
+    {
+        var builder = new ComponentBuilder()
+            .WithButton("◀️ Previous", $"badge_list_nav:{requesterId}:{page - 1}", ButtonStyle.Secondary, disabled: page <= 1)
+            .WithButton($"Page {page}/{totalPages}", "badge_list_page_info", ButtonStyle.Primary, disabled: true)
+            .WithButton("Next ▶️", $"badge_list_nav:{requesterId}:{page + 1}", ButtonStyle.Secondary, disabled: page >= totalPages);
+
+        return builder.Build();
+    }
+
+    private int GetBadgeListTotalPages(int badgeCount)
+    {
+        return Math.Max(1, (int)Math.Ceiling(badgeCount / (double)BadgeListPageSize));
     }
 
     [SlashCommand("view", "View badges of a specific user")]
