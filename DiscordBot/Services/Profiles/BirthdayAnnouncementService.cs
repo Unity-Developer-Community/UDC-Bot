@@ -114,7 +114,7 @@ public class BirthdayAnnouncementService
                 await channel.SendMessageAsync(message);
 
                 _announcedToday.Add(announcementKey);
-                _loggingService.LogAction($"[{ServiceName}] Announced birthday for {birthday.Name} (ID: {birthday.UserId})", ExtendedLogSeverity.Info);
+                _ = _loggingService.LogAction($"[{ServiceName}] Announced birthday for {birthday.Name} (ID: {birthday.UserId})", ExtendedLogSeverity.Info);
             }
         }
         catch (Exception e)
@@ -243,5 +243,5 @@ public class BirthdayInfo
     public DateTime BirthDate { get; set; }
     public int? Age { get; set; }
     public ulong UserId { get; set; }
-    public string UserMention { get; set; }
+    public string UserMention { get; set; } = string.Empty;
 }

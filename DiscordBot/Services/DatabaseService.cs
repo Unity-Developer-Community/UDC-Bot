@@ -46,6 +46,22 @@ public class DatabaseService
     public IServerUserRepo? Query => CreateQuery();
     public ICasinoRepo? CasinoQuery => CreateCasinoQuery();
 
+    private IBadgeRepo? CreateBadgeQuery()
+    {
+        try
+        {
+            var c = new NpgsqlConnection(ConnectionString);
+            return c.As<IBadgeRepo>();
+        }
+        catch (Exception e)
+        {
+            _logging.LogChannelAndFile($"SQL Exception: Failed to create badge query.\nMessage: {e}", ExtendedLogSeverity.Critical);
+            return null;
+        }
+    }
+
+    public IBadgeRepo? BadgeQuery => CreateBadgeQuery();
+
     public DatabaseService(ILoggingService logging, BotSettings settings)
     {
         PostgreSQLInsightDbProvider.RegisterProvider();
@@ -84,7 +100,6 @@ public class DatabaseService
                     await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.DefaultCity}' to table '{UserProps.TableName}'.",
                         ExtendedLogSeverity.Positive);
                 }
-                
                 var birthdayExists = await c.ColumnExists(UserProps.TableName, UserProps.Birthday);
                 if (!birthdayExists)
                 {
@@ -92,6 +107,9 @@ public class DatabaseService
                     await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.Birthday}' to table '{UserProps.TableName}'.",
                         ExtendedLogSeverity.Positive);
                 }
+
+                // Initialize badge tables
+                await InitializeBadgeTables(c);
             }
             catch
             {
@@ -299,5 +317,76 @@ public class DatabaseService
         var query = Query;
         if (query == null) return false;
         return (await query.GetUser(id.ToString()) != null);
+    }
+
+    private async Task InitializeBadgeTables(DbConnection c)
+    {
+        try
+        {
+            // Test badge connection, if it fails we create the tables
+            var badgeQuery = BadgeQuery;
+            if (badgeQuery == null) return;
+
+            var badgeCount = await badgeQuery.TestBadgeConnection();
+            await _logging.LogAction(
+                $"DatabaseService: Connected to badge tables successfully. {badgeCount} badges in database.",
+                ExtendedLogSeverity.Positive);
+
+            var isPublicExists = await c.ColumnExists(BadgeProps.TableName, BadgeProps.IsPublic);
+            if (!isPublicExists)
+            {
+                await _logging.LogAction("DatabaseService: Adding IsPublic column to badges table.",
+                    ExtendedLogSeverity.LowWarning);
+                c.ExecuteSql($"ALTER TABLE {BadgeProps.TableName} ADD COLUMN {BadgeProps.IsPublic} boolean NOT NULL DEFAULT TRUE");
+                await _logging.LogAction("DatabaseService: IsPublic column added successfully.",
+                    ExtendedLogSeverity.Positive);
+            }
+
+            var groupKeyExists = await c.ColumnExists(BadgeProps.TableName, BadgeProps.GroupKey);
+            if (!groupKeyExists)
+            {
+                await _logging.LogAction("DatabaseService: Adding GroupKey column to badges table.",
+                    ExtendedLogSeverity.LowWarning);
+                c.ExecuteSql($"ALTER TABLE {BadgeProps.TableName} ADD COLUMN {BadgeProps.GroupKey} varchar(64) DEFAULT NULL");
+                await _logging.LogAction("DatabaseService: GroupKey column added successfully.",
+                    ExtendedLogSeverity.Positive);
+            }
+        }
+        catch
+        {
+            await _logging.LogAction($"DatabaseService: Badge tables do not exist, attempting to generate tables.",
+                ExtendedLogSeverity.LowWarning);
+            try
+            {
+                // Create badges table
+                c.ExecuteSql(
+                    $"CREATE TABLE {BadgeProps.TableName} (" +
+                    $"{BadgeProps.Id} SERIAL PRIMARY KEY, " +
+                    $"{BadgeProps.Title} varchar(100) NOT NULL UNIQUE, " +
+                    $"{BadgeProps.Description} text NOT NULL, " +
+                    $"{BadgeProps.GroupKey} varchar(64) DEFAULT NULL, " +
+                    $"{BadgeProps.IsPublic} boolean NOT NULL DEFAULT TRUE, " +
+                    $"{BadgeProps.CreatedAt} timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+
+                // Create user_badges table
+                c.ExecuteSql(
+                    $"CREATE TABLE {UserBadgeProps.TableName} (" +
+                    $"{UserBadgeProps.Id} SERIAL PRIMARY KEY, " +
+                    $"{UserBadgeProps.UserID} varchar(32) NOT NULL, " +
+                    $"{UserBadgeProps.BadgeId} integer NOT NULL REFERENCES {BadgeProps.TableName} ({BadgeProps.Id}) ON DELETE CASCADE, " +
+                    $"{UserBadgeProps.AwardedAt} timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                    $"{UserBadgeProps.AwardedBy} varchar(32) NOT NULL, " +
+                    $"UNIQUE ({UserBadgeProps.UserID}, {UserBadgeProps.BadgeId}))");
+
+                await _logging.LogAction("DatabaseService: Badge tables generated without errors.",
+                    ExtendedLogSeverity.Positive);
+            }
+            catch (Exception e)
+            {
+                await _logging.LogAction(
+                    $"SQL Exception: Failed to generate badge tables.\nMessage: {e}",
+                    ExtendedLogSeverity.Critical);
+            }
+        }
     }
 }

@@ -47,6 +47,7 @@ public class FunModule : ModuleBase
             return;
         }
 
+        // Legacy easter egg: these specific users always end up slapping themselves.
         if (Context.User.Id == 162189038965489664 ||
             Context.User.Id == 178201477280563200)
         {
