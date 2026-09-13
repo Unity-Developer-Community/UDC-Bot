@@ -249,6 +249,122 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
     {
         await Context.Interaction.DeferAsync(ephemeral: true);
 
+        await ShowUserBadgesForTarget(user);
+    }
+
+    [UserCommand("View Badges")]
+    public async Task ViewUserBadgesContext(IUser user)
+    {
+        await Context.Interaction.DeferAsync(ephemeral: true);
+
+        if (user is not SocketGuildUser guildUser)
+        {
+            await Context.Interaction.FollowupAsync("❌ User not found.", ephemeral: true);
+            return;
+        }
+
+        await ShowUserBadgesForTarget(guildUser);
+    }
+
+    [UserCommand("Assign Badge")]
+    [DefaultMemberPermissions(GuildPermission.Administrator)]
+    [RequireUserPermission(GuildPermission.Administrator)]
+    public async Task AssignBadgeContext(IUser user)
+    {
+        if (user is not SocketGuildUser guildUser)
+        {
+            await Context.Interaction.RespondAsync("❌ User not found.", ephemeral: true);
+            return;
+        }
+
+        if (guildUser.IsBot)
+        {
+            await Context.Interaction.RespondAsync("❌ Cannot assign badges to bots.", ephemeral: true);
+            return;
+        }
+
+        await Context.Interaction.RespondWithModalAsync<AssignBadgeModal>($"{AssignBadgeModalCustomIdPrefix}:{guildUser.Id}");
+    }
+
+    [ModalInteraction("badge_assign_user:*", true)]
+    [RequireUserPermission(GuildPermission.Administrator)]
+    public async Task HandleAssignBadgeModal(string targetUserIdRaw, AssignBadgeModal modal)
+    {
+        await Context.Interaction.DeferAsync(ephemeral: true);
+
+        if (!ulong.TryParse(targetUserIdRaw, out var targetUserId))
+        {
+            await Context.Interaction.FollowupAsync("❌ Invalid user selection.", ephemeral: true);
+            return;
+        }
+
+        var guildUser = Context.Guild?.GetUser(targetUserId);
+        if (guildUser == null)
+        {
+            await Context.Interaction.FollowupAsync("❌ User not found.", ephemeral: true);
+            return;
+        }
+
+        if (guildUser.IsBot)
+        {
+            await Context.Interaction.FollowupAsync("❌ Cannot assign badges to bots.", ephemeral: true);
+            return;
+        }
+
+        var badgeIdentifier = modal.BadgeIdentifier?.Trim();
+        if (string.IsNullOrWhiteSpace(badgeIdentifier))
+        {
+            await Context.Interaction.FollowupAsync("❌ Badge identifier cannot be empty.", ephemeral: true);
+            return;
+        }
+
+        var badge = await ResolveBadgeByIdentifier(badgeIdentifier);
+        if (badge == null)
+        {
+            await Context.Interaction.FollowupAsync($"❌ Badge '{badgeIdentifier}' not found.", ephemeral: true);
+            return;
+        }
+
+        var awardedBy = Context.User as SocketGuildUser;
+        if (awardedBy == null)
+        {
+            await Context.Interaction.FollowupAsync("❌ This command can only be used in a server.", ephemeral: true);
+            return;
+        }
+
+        var success = await BadgeService.AssignBadgeToUser(guildUser, badge, awardedBy);
+
+        if (success)
+        {
+            var embed = new EmbedBuilder()
+                .WithTitle("🏆 Badge Assigned Successfully")
+                .WithDescription($"Assigned **{badge.Title}** to **{guildUser.DisplayName}**")
+                .AddField("Badge Description", badge.Description)
+                .AddField("Assigned By", Context.User.Mention)
+                .AddField("Assigned At", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC"))
+                .WithColor(Color.Gold)
+                .WithTimestamp(DateTimeOffset.UtcNow)
+                .Build();
+
+            await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+            return;
+        }
+
+        await Context.Interaction.FollowupAsync("❌ Failed to assign badge. The user may already have this badge.", ephemeral: true);
+    }
+
+    public class AssignBadgeModal : IModal
+    {
+        public string Title => "Assign Badge";
+
+        [InputLabel("Badge ID or title")]
+        [ModalTextInput("badge_identifier", TextInputStyle.Short, placeholder: "e.g. 12 or Helpful Member", maxLength: BadgeIdentifierMaxLength)]
+        public string BadgeIdentifier { get; set; } = string.Empty;
+    }
+
+    private async Task ShowUserBadgesForTarget(SocketGuildUser user)
+    {
+
         if (user == null)
         {
             await Context.Interaction.FollowupAsync("❌ User not found.", ephemeral: true);
@@ -348,6 +464,22 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         embed.WithFooter(footerText);
 
         await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: true);
+    }
+
+    private async Task<Badge?> ResolveBadgeByIdentifier(string badgeIdentifier)
+    {
+        var normalizedIdentifier = badgeIdentifier.Trim();
+
+        if (int.TryParse(normalizedIdentifier, out var badgeId))
+        {
+            var badgeById = await BadgeService.GetBadge(badgeId);
+            if (badgeById != null)
+            {
+                return badgeById;
+            }
+        }
+
+        return await BadgeService.GetBadgeByTitle(normalizedIdentifier);
     }
 
     [SlashCommand("leaderboard", "Show the badge leaderboard")]
