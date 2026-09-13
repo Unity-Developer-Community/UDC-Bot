@@ -101,7 +101,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             .WithColor(Color.Blue)
             .WithTimestamp(DateTimeOffset.UtcNow);
 
-        var footerText = $"Total badges: {badges.Count} | Page {page}/{totalPages}";
+        var footerText = $"Total badges: {badges.Count}";
         if (isAdmin)
         {
             var publicCount = badges.Count(b => b.IsPublic);
