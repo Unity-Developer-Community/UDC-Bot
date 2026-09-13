@@ -191,8 +191,9 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             .WithColor(Color.Gold)
             .WithTimestamp(DateTimeOffset.UtcNow);
 
-        const int maxFieldValue = 1024;
-        var description = string.Empty;
+        const int maxEmbedTotalLength = 6000;
+        var usedEmbedCharacters = $"🏆 {user.DisplayName}'s Badges".Length;
+        var displayedBadges = 0;
 
         foreach (var userBadge in userBadges)
         {
@@ -202,6 +203,11 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
                 continue;
             }
 
+            if (displayedBadges >= BadgeListPageSize)
+            {
+                break;
+            }
+
             var awardedByName = "Unknown";
             if (ulong.TryParse(userBadge.AwardedBy, out var awardedById))
             {
@@ -209,24 +215,37 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
                 awardedByName = awardedBy?.DisplayName ?? "Unknown";
             }
 
-            var visibilityIndicator = isAdmin && !badge.IsPublic ? " 🔒" : "";
+            var visibilityIndicator = isAdmin && !badge.IsPublic ? " 🔒" : string.Empty;
+            var badgeIdInfo = isAdmin ? $" (ID: {badge.Id})" : string.Empty;
+            var fieldName = $"{badge.Title}{visibilityIndicator}{badgeIdInfo}";
             var groupInfo = string.IsNullOrEmpty(badge.GroupKey) ? string.Empty : $"\n*Group: `{badge.GroupKey}`*";
-            var badgeInfo = $"**{badge.Title}**{visibilityIndicator}\n{badge.Description}{groupInfo}\n*Awarded by {awardedByName} on {userBadge.AwardedAt:yyyy-MM-dd}*\n\n";
+            var fieldValue = $"{badge.Description}{groupInfo}\n*Awarded by {awardedByName} on {userBadge.AwardedAt:yyyy-MM-dd}*";
 
-            if (description.Length + badgeInfo.Length > maxFieldValue)
+            if (fieldName.Length > EmbedFieldNameMaxLength)
             {
-                embed.AddField("Badges", description.TrimEnd(), false);
-                description = badgeInfo;
+                fieldName = fieldName[..(EmbedFieldNameMaxLength - 3)] + "...";
             }
-            else
+
+            if (fieldValue.Length > EmbedFieldValueMaxLength)
             {
-                description += badgeInfo;
+                fieldValue = fieldValue[..(EmbedFieldValueMaxLength - 3)] + "...";
             }
+
+            var fieldCharacters = fieldName.Length + fieldValue.Length;
+            if (usedEmbedCharacters + fieldCharacters > maxEmbedTotalLength)
+            {
+                break;
+            }
+
+            embed.AddField(fieldName, fieldValue, true);
+            usedEmbedCharacters += fieldCharacters;
+            displayedBadges++;
         }
 
-        if (!string.IsNullOrEmpty(description))
+        if (displayedBadges == 0)
         {
-            embed.AddField("Badges", description.TrimEnd(), false);
+            await Context.Interaction.FollowupAsync($"📭 {user.Mention} has no displayable badges.", ephemeral: true);
+            return;
         }
 
         var footerText = $"Total badges: {userBadges.Count}";
@@ -239,6 +258,12 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
                 footerText += $" (Public: {publicCount}, Private: {privateCount})";
             }
         }
+
+        if (userBadges.Count > displayedBadges)
+        {
+            footerText += $" | Showing first {displayedBadges}";
+        }
+
         embed.WithFooter(footerText);
 
         await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: true);
