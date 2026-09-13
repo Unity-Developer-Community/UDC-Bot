@@ -19,7 +19,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
     [SlashCommand("list", "List all available badges")]
     public async Task ListBadges()
     {
-        await Context.Interaction.DeferAsync(ephemeral: false);
+        await Context.Interaction.DeferAsync(ephemeral: true);
 
         var user = Context.User as SocketGuildUser;
         var isAdmin = BadgeService.IsUserAdmin(user);
@@ -27,7 +27,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
 
         if (!badges.Any())
         {
-            await Context.Interaction.FollowupAsync("📭 No badges have been created yet.", ephemeral: false);
+            await Context.Interaction.FollowupAsync("📭 No badges have been created yet.", ephemeral: true);
             return;
         }
 
@@ -70,18 +70,18 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
         embed.WithFooter(footerText);
 
-        await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: false);
+        await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: true);
     }
 
     [SlashCommand("view", "View badges of a specific user")]
     public async Task ViewUserBadges(
         [Summary("user", "The user whose badges you want to view")] SocketGuildUser user)
     {
-        await Context.Interaction.DeferAsync(ephemeral: false);
+        await Context.Interaction.DeferAsync(ephemeral: true);
 
         if (user == null)
         {
-            await Context.Interaction.FollowupAsync("❌ User not found.", ephemeral: false);
+            await Context.Interaction.FollowupAsync("❌ User not found.", ephemeral: true);
             return;
         }
 
@@ -91,7 +91,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
 
         if (!userBadges.Any())
         {
-            await Context.Interaction.FollowupAsync($"📭 {user.Mention} has no badges yet.", ephemeral: false);
+            await Context.Interaction.FollowupAsync($"📭 {user.Mention} has no badges yet.", ephemeral: true);
             return;
         }
 
@@ -151,7 +151,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
         embed.WithFooter(footerText);
 
-        await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: false);
+        await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: true);
     }
 
     [SlashCommand("leaderboard", "Show the badge leaderboard")]
@@ -167,8 +167,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         }
 
         var requestingUser = Context.User as SocketGuildUser;
-        var isAdmin = BadgeService.IsUserAdmin(requestingUser);
-        var leaderboard = await BadgeService.GetBadgeLeaderboard(isAdmin, normalizedGroup);
+        var leaderboard = await BadgeService.GetBadgeLeaderboard(false, normalizedGroup);
 
         if (!leaderboard.Any())
         {
@@ -190,7 +189,6 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             .WithDescription(string.Join('\n', lines))
             .WithColor(Color.Purple)
             .WithTimestamp(DateTimeOffset.UtcNow)
-            .WithFooter(isAdmin ? "Admins see public and private badges." : "Only public badges are counted.")
             .Build();
 
         await Context.Interaction.FollowupAsync(embed: embed, ephemeral: false);
