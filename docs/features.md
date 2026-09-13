@@ -4,7 +4,7 @@
 
 | Feature | Description | Module(s) | Service(s) | Criticality |
 | --------- | ------------- | ----------- | ------------ | ------------- |
-| **User Profiles** | XP/level system, karma tracking, profile cards with customizable skins | `ProfileModule`, `RankModule` | `XpService`, `KarmaService`, `ProfileCardService`, `UserExtendedService` | Core |
+| **User Profiles** | XP/level system, karma tracking, profile cards with customizable skins (`/profile [user]` or the **View Profile** user context-menu command) | `ProfileModule`, `ProfileSlashModule`, `RankModule` | `XpService`, `KarmaService`, `ProfileCardService`, `UserExtendedService` | Core |
 | **Command Handling** | Text command + slash command routing, history tracking, prefix config | — | `CommandHandlingService` | Core |
 | **Logging** | Multi-destination logging (console, file, Discord channel) with severity levels | — | `LoggingService` | Core |
 | **Database** | PostgreSQL connection pooling, user/casino repositories | — | `DatabaseService` | Core |
