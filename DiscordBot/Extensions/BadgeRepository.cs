@@ -55,6 +55,12 @@ public class BadgeLeaderboardEntry
     public long BadgeCount { get; set; }
 }
 
+public class BadgeHolderCountEntry
+{
+    public int BadgeId { get; set; }
+    public long HolderCount { get; set; }
+}
+
 /// <summary>
 /// Table Properties for Badge. Intended to be used with IBadgeRepo and enforce consistency.
 /// </summary>
@@ -201,6 +207,13 @@ public interface IBadgeRepo
     WHERE ub.{UserBadgeProps.BadgeId} = @badgeId
     ORDER BY ub.{UserBadgeProps.AwardedAt} DESC")]
     Task<IList<UserBadge>> GetBadgeHolders(int badgeId);
+
+        [Sql($@"
+        SELECT ub.{UserBadgeProps.BadgeId} AS {nameof(BadgeHolderCountEntry.BadgeId)},
+            COUNT(DISTINCT ub.{UserBadgeProps.UserID}) AS {nameof(BadgeHolderCountEntry.HolderCount)}
+        FROM {UserBadgeProps.TableName} ub
+        GROUP BY ub.{UserBadgeProps.BadgeId}")]
+        Task<IList<BadgeHolderCountEntry>> GetBadgeHolderCounts();
 
     #endregion // User Badge Management
 

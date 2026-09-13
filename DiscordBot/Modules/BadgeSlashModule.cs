@@ -3,6 +3,7 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Extensions;
 using DiscordBot.Services;
+using System.Text.RegularExpressions;
 
 namespace DiscordBot.Modules;
 
@@ -12,6 +13,9 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
     private const int BadgeListPageSize = 24;
     private const int EmbedFieldNameMaxLength = 256;
     private const int EmbedFieldValueMaxLength = 1024;
+    private const int BadgeIdentifierMaxLength = 100;
+    private const string AssignBadgeModalCustomIdPrefix = "badge_assign_user";
+    private static readonly IComparer<string> BadgeTitleNaturalComparer = new NaturalBadgeTitleComparer();
 
     #region Dependency Injection
 
@@ -28,9 +32,12 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         var user = Context.User as SocketGuildUser;
         var isAdmin = BadgeService.IsUserAdmin(user);
         var badges = (await BadgeService.GetAllBadges(isAdmin))
-            .OrderBy(b => b.Title, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(b => b.Title, BadgeTitleNaturalComparer)
             .ThenBy(b => b.Id)
             .ToList();
+        var badgeHolderCounts = isAdmin
+            ? await BadgeService.GetBadgeHolderCounts()
+            : null;
 
         if (!badges.Any())
         {
@@ -40,7 +47,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
 
         const int initialPage = 1;
         var totalPages = GetBadgeListTotalPages(badges.Count);
-        var embed = BuildBadgeListEmbed(badges, isAdmin, initialPage, totalPages);
+        var embed = BuildBadgeListEmbed(badges, isAdmin, badgeHolderCounts, initialPage, totalPages);
         var components = BuildBadgeListNavigationComponents(user?.Id ?? Context.User.Id, initialPage, totalPages);
 
         await Context.Interaction.FollowupAsync(embed: embed, components: components, ephemeral: true);
@@ -66,9 +73,12 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         var user = Context.User as SocketGuildUser;
         var isAdmin = BadgeService.IsUserAdmin(user);
         var badges = (await BadgeService.GetAllBadges(isAdmin))
-            .OrderBy(b => b.Title, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(b => b.Title, BadgeTitleNaturalComparer)
             .ThenBy(b => b.Id)
             .ToList();
+        var badgeHolderCounts = isAdmin
+            ? await BadgeService.GetBadgeHolderCounts()
+            : null;
 
         if (!badges.Any())
         {
@@ -83,7 +93,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
 
         var totalPages = GetBadgeListTotalPages(badges.Count);
         var page = Math.Clamp(requestedPage, 1, totalPages);
-        var embed = BuildBadgeListEmbed(badges, isAdmin, page, totalPages);
+        var embed = BuildBadgeListEmbed(badges, isAdmin, badgeHolderCounts, page, totalPages);
         var components = BuildBadgeListNavigationComponents(expectedUserId, page, totalPages);
 
         await Context.Interaction.ModifyOriginalResponseAsync(msg =>
@@ -94,7 +104,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         });
     }
 
-    private Embed BuildBadgeListEmbed(IReadOnlyList<Badge> badges, bool isAdmin, int page, int totalPages)
+    private Embed BuildBadgeListEmbed(IReadOnlyList<Badge> badges, bool isAdmin, IReadOnlyDictionary<int, long>? badgeHolderCounts, int page, int totalPages)
     {
         var embed = new EmbedBuilder()
             .WithTitle("🏆 Available Badges")
@@ -118,10 +128,17 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         {
             var visibilityIndicator = isAdmin && !badge.IsPublic ? " 🔒" : string.Empty;
             var badgeIdInfo = isAdmin ? $" (ID: {badge.Id})" : string.Empty;
+            var holderCount = 0L;
+            if (isAdmin && badgeHolderCounts != null && badgeHolderCounts.TryGetValue(badge.Id, out var count))
+            {
+                holderCount = count;
+            }
+
             var fieldName = $"{badge.Title}{visibilityIndicator}{badgeIdInfo}";
+            var holderInfo = isAdmin ? $"\n*Holders: {holderCount}*" : string.Empty;
             var fieldValue = string.IsNullOrEmpty(badge.GroupKey)
-                ? badge.Description
-                : $"{badge.Description}\n*Group: `{badge.GroupKey}`*";
+                ? $"{badge.Description}{holderInfo}"
+                : $"{badge.Description}\n*Group: `{badge.GroupKey}`*{holderInfo}";
 
             if (fieldName.Length > EmbedFieldNameMaxLength)
             {
@@ -146,6 +163,69 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         embed.WithFooter(footerText);
 
         return embed.Build();
+    }
+
+    private sealed class NaturalBadgeTitleComparer : IComparer<string>
+    {
+        private static readonly Regex TokenRegex = new(@"\d+|\D+", RegexOptions.Compiled);
+
+        public int Compare(string? x, string? y)
+        {
+            if (ReferenceEquals(x, y))
+                return 0;
+            if (x == null)
+                return -1;
+            if (y == null)
+                return 1;
+
+            var xTokens = TokenRegex.Matches(x);
+            var yTokens = TokenRegex.Matches(y);
+            var minCount = Math.Min(xTokens.Count, yTokens.Count);
+
+            for (var i = 0; i < minCount; i++)
+            {
+                var xPart = xTokens[i].Value;
+                var yPart = yTokens[i].Value;
+                var xIsNumber = char.IsDigit(xPart[0]);
+                var yIsNumber = char.IsDigit(yPart[0]);
+
+                if (xIsNumber && yIsNumber)
+                {
+                    var numericComparison = CompareNumberParts(xPart, yPart);
+                    if (numericComparison != 0)
+                        return numericComparison;
+
+                    continue;
+                }
+
+                var textComparison = StringComparer.OrdinalIgnoreCase.Compare(xPart, yPart);
+                if (textComparison != 0)
+                    return textComparison;
+            }
+
+            return xTokens.Count.CompareTo(yTokens.Count);
+        }
+
+        private static int CompareNumberParts(string xPart, string yPart)
+        {
+            var xTrimmed = xPart.TrimStart('0');
+            var yTrimmed = yPart.TrimStart('0');
+
+            if (xTrimmed.Length == 0)
+                xTrimmed = "0";
+            if (yTrimmed.Length == 0)
+                yTrimmed = "0";
+
+            var lengthComparison = xTrimmed.Length.CompareTo(yTrimmed.Length);
+            if (lengthComparison != 0)
+                return lengthComparison;
+
+            var lexicalComparison = string.CompareOrdinal(xTrimmed, yTrimmed);
+            if (lexicalComparison != 0)
+                return lexicalComparison;
+
+            return xPart.Length.CompareTo(yPart.Length);
+        }
     }
 
     private MessageComponent BuildBadgeListNavigationComponents(ulong requesterId, int page, int totalPages)

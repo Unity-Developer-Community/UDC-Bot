@@ -389,6 +389,25 @@ public class BadgeService
         }
     }
 
+    public async Task<IReadOnlyDictionary<int, long>> GetBadgeHolderCounts()
+    {
+        try
+        {
+            var badgeQuery = _databaseService.BadgeQuery;
+            if (badgeQuery == null)
+                return new Dictionary<int, long>();
+
+            var rows = await badgeQuery.GetBadgeHolderCounts();
+            return rows.ToDictionary(row => row.BadgeId, row => row.HolderCount);
+        }
+        catch (Exception e)
+        {
+            await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
+                $"Error retrieving badge holder counts: {e}", ExtendedLogSeverity.Error);
+            return new Dictionary<int, long>();
+        }
+    }
+
     /// <summary>
     /// Checks if the user has administrator permissions.
     /// </summary>
