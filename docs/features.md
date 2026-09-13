@@ -27,7 +27,7 @@
 | **Server Utilities** | Help, ping, member count, and server info | `ServerModule`, `ServerSlashModule` | `ServerService` | Feature |
 | **Tickets** | Private complaint/support ticket channels | `TicketModule` | — | Feature |
 | **Embed Builder** | Generate embeds from messages or hastebin URLs | `EmbedModule` | `EmbedParsingService` | Feature |
-| **Birthday Announcements** | Scheduled birthday notifications (configurable interval), plus birthday command management (`/bday set`, `/bday del`, admin-only `/admin bday set-user`, `/admin bday del-user`, `/admin bday list`) | `BirthdayModule`, `BirthdaySlashModule`, `AdminSlashModule` | `BirthdayAnnouncementService` | Feature |
+| **Birthday Announcements** | Scheduled birthday notifications (configurable interval), plus birthday command management (`/bday show [count] [user]` lists upcoming birthdays or a specific member's birthday, `/bday set`, `/bday del`, the **View Birthday** user context-menu command, admin-only `/admin bday set-user`, `/admin bday del-user`, `/admin bday list`) | `BirthdayModule`, `BirthdaySlashModule`, `AdminSlashModule` | `BirthdayAnnouncementService` | Feature |
 | **Recruitment** | Configurable recruitment workflow (toggleable) | — | `RecruitService` | Feature |
 | **Release Feeds** | RSS feed parsing and Unity release-notes tracking | — | `FeedService`, `ReleaseNotesParser` | Feature |
 | **@everyone Scold** | Warns users who use `@everyone`/`@here` without permission | — | `EveryoneScoldService` | Feature |

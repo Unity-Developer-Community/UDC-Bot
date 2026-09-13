@@ -13,14 +13,22 @@ public class BirthdaySlashModule : InteractionModuleBase
     public DatabaseService DatabaseService { get; set; }
     public ILoggingService LoggingService { get; set; }
 
-    [SlashCommand("show", "Shows the next upcoming birthday date(s)")]
-    public async Task ShowNextBirthday(
-        [Summary(description: "Number of upcoming birthday dates to show (min 1, max 10)")]
+    [SlashCommand("show", "Shows upcoming birthdays, or a specific user's birthday")]
+    public async Task ShowBirthday(
+        [Summary(description: "Number of upcoming birthday dates to show (min 1, max 10). Ignored when a user is specified.")]
         [MinValue(1)]
         [MaxValue(10)]
-        int count = 3)
+        int count = 3,
+        [Summary(description: "Show this user's birthday instead of the upcoming birthdays")]
+        IUser? user = null)
     {
         await Context.Interaction.DeferAsync();
+
+        if (user != null)
+        {
+            await ShowUserBirthdayAsync(user);
+            return;
+        }
 
         try
         {
@@ -73,12 +81,16 @@ public class BirthdaySlashModule : InteractionModuleBase
         }
     }
 
-    [SlashCommand("user", "Shows a specific user's birthday")]
-    public async Task ShowUserBirthday(
-        [Summary(description: "The user whose birthday you want to see")] IUser user)
+    [UserCommand("View Birthday")]
+    public async Task ViewUserBirthdayContext(IUser user)
     {
-        await Context.Interaction.DeferAsync();
+        await Context.Interaction.DeferAsync(ephemeral: true);
 
+        await ShowUserBirthdayAsync(user);
+    }
+
+    private async Task ShowUserBirthdayAsync(IUser user)
+    {
         try
         {
             var searchUser = await DatabaseService.GetOrAddUser(user as SocketGuildUser);
