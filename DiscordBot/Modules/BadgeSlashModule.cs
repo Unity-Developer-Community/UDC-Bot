@@ -219,7 +219,8 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             var badgeIdInfo = isAdmin ? $" (ID: {badge.Id})" : string.Empty;
             var fieldName = $"{badge.Title}{visibilityIndicator}{badgeIdInfo}";
             var groupInfo = string.IsNullOrEmpty(badge.GroupKey) ? string.Empty : $"\n*Group: `{badge.GroupKey}`*";
-            var fieldValue = $"{badge.Description}{groupInfo}\n*Awarded by {awardedByName} on {userBadge.AwardedAt:yyyy-MM-dd}*";
+            var sourceInfo = $"\n*Awarded by {awardedByName} on {userBadge.AwardedAt:yyyy-MM-dd}*";
+            var fieldValue = $"{badge.Description}{groupInfo}{(isAdmin ? sourceInfo : string.Empty)}";
 
             if (fieldName.Length > EmbedFieldNameMaxLength)
             {
