@@ -5,6 +5,7 @@ using Discord.WebSocket;
 using DiscordBot.Domain;
 using DiscordBot.Services;
 using DiscordBot.Settings;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DiscordBot.Modules;
 
@@ -15,7 +16,35 @@ public class AdminSlashModule : InteractionModuleBase
     [Group("badge", "Badge administration commands")]
     public class BadgeAdminCommands : InteractionModuleBase<SocketInteractionContext>
     {
+        private const int BadgeAutocompleteLimit = 25;
+
         public BadgeService BadgeService { get; set; } = null!;
+
+        public class BadgeIdentifierAutocompleteHandler : AutocompleteHandler
+        {
+            public override async Task<AutocompletionResult> GenerateSuggestionsAsync(
+                IInteractionContext context,
+                IAutocompleteInteraction autocompleteInteraction,
+                IParameterInfo parameter,
+                IServiceProvider services)
+            {
+                var badgeService = services.GetRequiredService<BadgeService>();
+                var query = autocompleteInteraction.Data.Current.Value?.ToString()?.Trim() ?? string.Empty;
+
+                var badges = await badgeService.GetAllBadges(isAdmin: true);
+
+                var matches = badges
+                    .OrderBy(b => b.Title, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(b => b.Id)
+                    .Where(b => string.IsNullOrWhiteSpace(query)
+                        || b.Id.ToString().Contains(query, StringComparison.OrdinalIgnoreCase)
+                        || b.Title.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    .Take(BadgeAutocompleteLimit)
+                    .Select(b => new AutocompleteResult($"{b.Id} | {b.Title}", b.Id.ToString()));
+
+                return AutocompletionResult.FromSuccess(matches);
+            }
+        }
 
         [SlashCommand("create", "Create a new badge")]
         [RequireUserPermission(GuildPermission.Administrator)]
@@ -72,31 +101,43 @@ public class AdminSlashModule : InteractionModuleBase
         [SlashCommand("edit", "Edit an existing badge")]
         [RequireUserPermission(GuildPermission.Administrator)]
         public async Task EditBadge(
-            [Summary("badge", "The title of the badge to edit")] string badgeTitle,
-            [Summary("title", "New title for the badge")] string newTitle,
-            [Summary("description", "New description for the badge")] string newDescription,
-            [Summary("public", "Whether the badge should be public")] bool isPublic = true,
+            [Autocomplete(typeof(BadgeIdentifierAutocompleteHandler))]
+            [Summary("badge", "The badge ID or title to edit")] string badgeIdentifier,
+            [Summary("title", "New title for the badge")] string? newTitle = null,
+            [Summary("description", "New description for the badge")] string? newDescription = null,
+            [Summary("public", "Set visibility (leave unset to keep current)")] bool? isPublic = null,
             [Summary("group", "Optional new group key (leave unset to keep the current group)")] string? group = null,
             [Summary("clear-group", "Clear the badge's current group")] bool clearGroup = false)
         {
+            var hasTitleChange = !string.IsNullOrWhiteSpace(newTitle);
+            var hasDescriptionChange = !string.IsNullOrWhiteSpace(newDescription);
+            var hasVisibilityChange = isPublic.HasValue;
+            var hasGroupChange = clearGroup || !string.IsNullOrWhiteSpace(group);
+
+            if (!hasTitleChange && !hasDescriptionChange && !hasVisibilityChange && !hasGroupChange)
+            {
+                await Context.Interaction.RespondAsync("No changes provided.", ephemeral: true);
+                return;
+            }
+
             await Context.Interaction.DeferAsync(ephemeral: true);
 
-            if (string.IsNullOrWhiteSpace(newTitle) || newTitle.Length > 100)
+            var existingBadge = await ResolveBadgeByIdentifier(badgeIdentifier);
+            if (existingBadge == null)
+            {
+                await Context.Interaction.FollowupAsync($"❌ Badge '{badgeIdentifier}' not found.", ephemeral: true);
+                return;
+            }
+
+            if (hasTitleChange && newTitle!.Length > 100)
             {
                 await Context.Interaction.FollowupAsync("Badge title must be between 1 and 100 characters.", ephemeral: true);
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(newDescription) || newDescription.Length > 500)
+            if (hasDescriptionChange && newDescription!.Length > 500)
             {
                 await Context.Interaction.FollowupAsync("Badge description must be between 1 and 500 characters.", ephemeral: true);
-                return;
-            }
-
-            var existingBadge = await BadgeService.GetBadgeByTitle(badgeTitle);
-            if (existingBadge == null)
-            {
-                await Context.Interaction.FollowupAsync($"❌ Badge '{badgeTitle}' not found.", ephemeral: true);
                 return;
             }
 
@@ -108,11 +149,11 @@ public class AdminSlashModule : InteractionModuleBase
 
             var updatedBadge = await BadgeService.UpdateBadge(
                 existingBadge.Id,
-                newTitle,
-                newDescription,
-                isPublic,
+                hasTitleChange ? newTitle! : existingBadge.Title,
+                hasDescriptionChange ? newDescription! : existingBadge.Description,
+                isPublic ?? existingBadge.IsPublic,
                 clearGroup ? null : normalizedGroup,
-                clearGroup || group != null);
+                hasGroupChange);
 
             if (updatedBadge != null)
             {
@@ -140,7 +181,8 @@ public class AdminSlashModule : InteractionModuleBase
         [RequireUserPermission(GuildPermission.Administrator)]
         public async Task AssignBadge(
             [Summary("user", "The user to assign the badge to")] SocketGuildUser user,
-            [Summary("badge", "The title of the badge to assign")] string badgeTitle)
+            [Autocomplete(typeof(BadgeIdentifierAutocompleteHandler))]
+            [Summary("badge", "The badge ID or title to assign")] string badgeIdentifier)
         {
             await Context.Interaction.DeferAsync(ephemeral: true);
 
@@ -156,10 +198,10 @@ public class AdminSlashModule : InteractionModuleBase
                 return;
             }
 
-            var badge = await BadgeService.GetBadgeByTitle(badgeTitle);
+            var badge = await ResolveBadgeByIdentifier(badgeIdentifier);
             if (badge == null)
             {
-                await Context.Interaction.FollowupAsync($"❌ Badge '{badgeTitle}' not found.", ephemeral: true);
+                await Context.Interaction.FollowupAsync($"❌ Badge '{badgeIdentifier}' not found.", ephemeral: true);
                 return;
             }
 
@@ -189,7 +231,8 @@ public class AdminSlashModule : InteractionModuleBase
         [RequireUserPermission(GuildPermission.Administrator)]
         public async Task RemoveBadge(
             [Summary("user", "The user to remove the badge from")] SocketGuildUser user,
-            [Summary("badge", "The title of the badge to remove")] string badgeTitle)
+            [Autocomplete(typeof(BadgeIdentifierAutocompleteHandler))]
+            [Summary("badge", "The badge ID or title to remove")] string badgeIdentifier)
         {
             await Context.Interaction.DeferAsync(ephemeral: true);
 
@@ -199,10 +242,10 @@ public class AdminSlashModule : InteractionModuleBase
                 return;
             }
 
-            var badge = await BadgeService.GetBadgeByTitle(badgeTitle);
+            var badge = await ResolveBadgeByIdentifier(badgeIdentifier);
             if (badge == null)
             {
-                await Context.Interaction.FollowupAsync($"❌ Badge '{badgeTitle}' not found.", ephemeral: true);
+                await Context.Interaction.FollowupAsync($"❌ Badge '{badgeIdentifier}' not found.", ephemeral: true);
                 return;
             }
 
@@ -226,6 +269,58 @@ public class AdminSlashModule : InteractionModuleBase
             {
                 await Context.Interaction.FollowupAsync("❌ Failed to remove badge. The user may not have this badge.", ephemeral: true);
             }
+        }
+
+        [SlashCommand("delete", "Delete an existing badge")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task DeleteBadge(
+            [Autocomplete(typeof(BadgeIdentifierAutocompleteHandler))]
+            [Summary("badge", "The badge ID or title to delete")] string badgeIdentifier)
+        {
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            var badge = await ResolveBadgeByIdentifier(badgeIdentifier);
+            if (badge == null)
+            {
+                await Context.Interaction.FollowupAsync($"❌ Badge '{badgeIdentifier}' not found.", ephemeral: true);
+                return;
+            }
+
+            var deletedBadge = await BadgeService.DeleteBadge(badge.Id);
+            if (deletedBadge == null)
+            {
+                await Context.Interaction.FollowupAsync("❌ Failed to delete badge.", ephemeral: true);
+                return;
+            }
+
+            var embed = new EmbedBuilder()
+                .WithTitle("🗑️ Badge Deleted Successfully")
+                .WithDescription($"Deleted **{deletedBadge.Title}**")
+                .AddField("Badge ID", deletedBadge.Id.ToString())
+                .AddField("Description", deletedBadge.Description)
+                .AddField("Deleted By", Context.User.Mention)
+                .AddField("Deleted At", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC"))
+                .WithColor(Color.Red)
+                .WithTimestamp(DateTimeOffset.UtcNow)
+                .Build();
+
+            await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
+        }
+
+        private async Task<Badge?> ResolveBadgeByIdentifier(string badgeIdentifier)
+        {
+            badgeIdentifier = badgeIdentifier.Trim();
+
+            if (int.TryParse(badgeIdentifier, out var badgeId))
+            {
+                var badgeById = await BadgeService.GetBadge(badgeId);
+                if (badgeById != null)
+                {
+                    return badgeById;
+                }
+            }
+
+            return await BadgeService.GetBadgeByTitle(badgeIdentifier);
         }
 
         private bool TryNormalizeGroupKey(string? group, out string? normalizedGroup, out string? errorMessage)

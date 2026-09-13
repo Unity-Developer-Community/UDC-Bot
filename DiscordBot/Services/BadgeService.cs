@@ -7,7 +7,7 @@ namespace DiscordBot.Services;
 public class BadgeService
 {
     private const string ServiceName = "BadgeService";
-    
+
     private readonly ILoggingService _logging;
     private readonly DatabaseService _databaseService;
 
@@ -54,10 +54,10 @@ public class BadgeService
             };
 
             var createdBadge = await badgeQuery.CreateBadge(badge);
-            
+
             await _logging.Log(LogBehaviour.File,
                 $"Badge '{title}' created successfully with ID {createdBadge.Id} (Public: {isPublic}, Group: {createdBadge.GroupKey ?? "none"}).", ExtendedLogSeverity.Positive);
-            
+
             return createdBadge;
         }
         catch (Exception e)
@@ -106,16 +106,50 @@ public class BadgeService
             existingBadge.IsPublic = isPublic;
 
             await badgeQuery.UpdateBadge(existingBadge);
-            
+
             await _logging.Log(LogBehaviour.File,
                 $"Badge ID {badgeId} updated successfully: '{title}' (Public: {isPublic}, Group: {existingBadge.GroupKey ?? "none"}).", ExtendedLogSeverity.Positive);
-            
+
             return existingBadge;
         }
         catch (Exception e)
         {
             await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
                 $"Error updating badge ID {badgeId}: {e}", ExtendedLogSeverity.Error);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Deletes a badge by ID.
+    /// </summary>
+    public async Task<Badge?> DeleteBadge(int badgeId)
+    {
+        try
+        {
+            var badgeQuery = _databaseService.BadgeQuery;
+            if (badgeQuery == null)
+                return null;
+
+            var existingBadge = await badgeQuery.GetBadge(badgeId);
+            if (existingBadge == null)
+            {
+                await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
+                    $"Badge deletion failed: Badge with ID {badgeId} not found.", ExtendedLogSeverity.Warning);
+                return null;
+            }
+
+            await badgeQuery.DeleteBadge(badgeId);
+
+            await _logging.Log(LogBehaviour.File,
+                $"Badge ID {badgeId} ('{existingBadge.Title}') deleted successfully.", ExtendedLogSeverity.Positive);
+
+            return existingBadge;
+        }
+        catch (Exception e)
+        {
+            await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
+                $"Error deleting badge ID {badgeId}: {e}", ExtendedLogSeverity.Error);
             return null;
         }
     }
@@ -214,11 +248,11 @@ public class BadgeService
             };
 
             var result = await badgeQuery.AssignBadgeToUser(userBadge);
-            
+
             if (result != null)
             {
                 await _logging.Log(LogBehaviour.File,
-                    $"Badge '{badge.Title}' assigned to user {user.GetPreferredAndUsername()} by {awardedBy.GetPreferredAndUsername()}.", 
+                    $"Badge '{badge.Title}' assigned to user {user.GetPreferredAndUsername()} by {awardedBy.GetPreferredAndUsername()}.",
                     ExtendedLogSeverity.Positive);
                 return true;
             }
@@ -228,7 +262,7 @@ public class BadgeService
         catch (Exception e)
         {
             await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
-                $"Error assigning badge '{badge.Title}' to user {user.GetPreferredAndUsername()}: {e}", 
+                $"Error assigning badge '{badge.Title}' to user {user.GetPreferredAndUsername()}: {e}",
                 ExtendedLogSeverity.Error);
             return false;
         }
@@ -258,17 +292,17 @@ public class BadgeService
             }
 
             await badgeQuery.RemoveBadgeFromUser(user.Id.ToString(), badge.Id);
-            
+
             await _logging.Log(LogBehaviour.File,
-                $"Badge '{badge.Title}' removed from user {user.GetPreferredAndUsername()}.", 
+                $"Badge '{badge.Title}' removed from user {user.GetPreferredAndUsername()}.",
                 ExtendedLogSeverity.Positive);
-            
+
             return true;
         }
         catch (Exception e)
         {
             await _logging.Log(LogBehaviour.ConsoleChannelAndFile,
-                $"Error removing badge '{badge.Title}' from user {user.GetPreferredAndUsername()}: {e}", 
+                $"Error removing badge '{badge.Title}' from user {user.GetPreferredAndUsername()}: {e}",
                 ExtendedLogSeverity.Error);
             return false;
         }
