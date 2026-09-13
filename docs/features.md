@@ -13,7 +13,7 @@
 | **Welcome** | New-member welcome messages | — | `WelcomeService` | Core |
 | **Code Assistance** | Code-block formatting checks/reminders and code tips | `CodeTipModule` | `CodeCheckService` | Feature |
 | **Tips** | Searchable tip database with image support, keyword lookups | `TipModule` | `TipService` | Feature |
-| **Casino** | Token economy, Blackjack, Poker, Rock Paper Scissors, daily rewards, leaderboards, plus admin moderation commands under `/admin casino` (`tokens-history`, `tokens-set`, `tokens-add`, `reset`) | `CasinoSlashModule`, `AdminSlashModule` | `CasinoService`, `GameService`, `TransactionFormatter` | Feature |
+| **Casino** | Token economy, token gifting (`/casino tokens gift` or the **Gift Tokens** user context-menu command, which prompts for the amount), Blackjack, Poker, Rock Paper Scissors, daily rewards, leaderboards, plus admin moderation commands under `/admin casino` (`tokens-history`, `tokens-set`, `tokens-add`, `reset`) | `CasinoSlashModule`, `AdminSlashModule` | `CasinoService`, `GameService`, `TransactionFormatter` | Feature |
 | **Badges** | Badge catalog, per-user badge viewing, leaderboard, and admin assignment/removal workflows including user context commands (`View Badges`, `Assign Badge`) | `BadgeSlashModule`, `AdminSlashModule` | `BadgeService` | Feature |
 | **Duels** | Player-vs-player duels with configurable stakes, available as `/duel` or the **Duel** user context-menu command (non-mute only) | `DuelSlashModule` | `DuelService` | Feature |
 | **Fun** | Slap, coin flip, dice rolls (including D&D format) | `FunModule` | — | Feature |
