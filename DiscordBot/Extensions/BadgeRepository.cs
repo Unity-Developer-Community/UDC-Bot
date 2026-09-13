@@ -15,13 +15,38 @@ public class Badge
 public class UserBadge
 {
     public int Id { get; set; }
-    public string UserID { get; set; }
+    public string UserID { get; set; } = string.Empty;
     public int BadgeId { get; set; }
     public DateTime AwardedAt { get; set; }
-    public string AwardedBy { get; set; }
-    
-    // Navigation properties for joined queries
-    public Badge Badge { get; set; }
+    public string AwardedBy { get; set; } = string.Empty;
+
+    // Flattened fields returned by joined badge queries.
+    public string? BadgeTitle { get; set; }
+    public string? BadgeDescription { get; set; }
+    public string? BadgeGroupKey { get; set; }
+    public bool BadgeIsPublic { get; set; } = true;
+    public DateTime? BadgeCreatedAt { get; set; }
+
+    // Navigation property used by code that expects a fully hydrated badge.
+    public Badge Badge { get; set; } = new();
+
+    public Badge EnsureBadgeDetails()
+    {
+        if (Badge != null && !string.IsNullOrWhiteSpace(Badge.Title) && !string.IsNullOrWhiteSpace(Badge.Description))
+            return Badge;
+
+        Badge = new Badge
+        {
+            Id = BadgeId,
+            Title = BadgeTitle ?? string.Empty,
+            Description = BadgeDescription ?? string.Empty,
+            GroupKey = BadgeGroupKey,
+            IsPublic = BadgeIsPublic,
+            CreatedAt = BadgeCreatedAt ?? AwardedAt
+        };
+
+        return Badge;
+    }
 }
 
 public class BadgeLeaderboardEntry
@@ -36,7 +61,7 @@ public class BadgeLeaderboardEntry
 public static class BadgeProps
 {
     public const string TableName = "badges";
-    
+
     public const string Id = nameof(Badge.Id);
     public const string Title = nameof(Badge.Title);
     public const string Description = nameof(Badge.Description);
@@ -51,7 +76,7 @@ public static class BadgeProps
 public static class UserBadgeProps
 {
     public const string TableName = "user_badges";
-    
+
     public const string Id = nameof(UserBadge.Id);
     public const string UserID = nameof(UserBadge.UserID);
     public const string BadgeId = nameof(UserBadge.BadgeId);
@@ -62,44 +87,44 @@ public static class UserBadgeProps
 public interface IBadgeRepo
 {
     #region Badge Management
-    
+
     [Sql($@"
     INSERT INTO {BadgeProps.TableName} ({BadgeProps.Title}, {BadgeProps.Description}, {BadgeProps.GroupKey}, {BadgeProps.IsPublic}, {BadgeProps.CreatedAt}) 
     VALUES (@{BadgeProps.Title}, @{BadgeProps.Description}, @{BadgeProps.GroupKey}, @{BadgeProps.IsPublic}, @{BadgeProps.CreatedAt})
     RETURNING *")]
     Task<Badge> CreateBadge(Badge badge);
-    
+
     [Sql($"SELECT * FROM {BadgeProps.TableName} ORDER BY {BadgeProps.Title}")]
     Task<IList<Badge>> GetAllBadges();
-    
+
     [Sql($"SELECT * FROM {BadgeProps.TableName} WHERE {BadgeProps.IsPublic} = TRUE ORDER BY {BadgeProps.Title}")]
     Task<IList<Badge>> GetPublicBadges();
-    
+
     [Sql($"SELECT * FROM {BadgeProps.TableName} WHERE {BadgeProps.Id} = @badgeId")]
     Task<Badge> GetBadge(int badgeId);
-    
+
     [Sql($"SELECT * FROM {BadgeProps.TableName} WHERE {BadgeProps.Title} = @title")]
     Task<Badge> GetBadgeByTitle(string title);
-    
+
     [Sql($"UPDATE {BadgeProps.TableName} SET {BadgeProps.Title} = @{BadgeProps.Title}, {BadgeProps.Description} = @{BadgeProps.Description}, {BadgeProps.GroupKey} = @{BadgeProps.GroupKey}, {BadgeProps.IsPublic} = @{BadgeProps.IsPublic} WHERE {BadgeProps.Id} = @{BadgeProps.Id}")]
     Task UpdateBadge(Badge badge);
-    
+
     [Sql($"DELETE FROM {BadgeProps.TableName} WHERE {BadgeProps.Id} = @badgeId")]
     Task DeleteBadge(int badgeId);
-    
+
     #endregion // Badge Management
-    
+
     #region User Badge Management
-    
+
     [Sql($@"
     INSERT INTO {UserBadgeProps.TableName} ({UserBadgeProps.UserID}, {UserBadgeProps.BadgeId}, {UserBadgeProps.AwardedAt}, {UserBadgeProps.AwardedBy}) 
     VALUES (@{UserBadgeProps.UserID}, @{UserBadgeProps.BadgeId}, @{UserBadgeProps.AwardedAt}, @{UserBadgeProps.AwardedBy})
     RETURNING *")]
     Task<UserBadge> AssignBadgeToUser(UserBadge userBadge);
-    
+
     [Sql($"DELETE FROM {UserBadgeProps.TableName} WHERE {UserBadgeProps.UserID} = @userId AND {UserBadgeProps.BadgeId} = @badgeId")]
     Task RemoveBadgeFromUser(string userId, int badgeId);
-    
+
     [Sql($@"
     SELECT ub.*, b.{BadgeProps.Title}, b.{BadgeProps.Description}, b.{BadgeProps.GroupKey}, b.{BadgeProps.IsPublic}, b.{BadgeProps.CreatedAt}
     FROM {UserBadgeProps.TableName} ub
@@ -107,7 +132,7 @@ public interface IBadgeRepo
     WHERE ub.{UserBadgeProps.UserID} = @userId
     ORDER BY ub.{UserBadgeProps.AwardedAt} DESC")]
     Task<IList<UserBadge>> GetUserBadges(string userId);
-    
+
     [Sql($@"
     SELECT ub.*, b.{BadgeProps.Title}, b.{BadgeProps.Description}, b.{BadgeProps.GroupKey}, b.{BadgeProps.IsPublic}, b.{BadgeProps.CreatedAt}
     FROM {UserBadgeProps.TableName} ub
@@ -154,21 +179,21 @@ public interface IBadgeRepo
     ORDER BY BadgeCount DESC, ub.{UserBadgeProps.UserID}
     LIMIT @limit")]
     Task<IList<BadgeLeaderboardEntry>> GetPublicBadgeLeaderboardByGroup(string groupKey, int limit);
-    
+
     [Sql($@"
     SELECT COUNT(*) FROM {UserBadgeProps.TableName}
     WHERE {UserBadgeProps.UserID} = @userId AND {UserBadgeProps.BadgeId} = @badgeId")]
     Task<long> CheckUserHasBadge(string userId, int badgeId);
-    
+
     [Sql($@"
     SELECT ub.{UserBadgeProps.UserID}, ub.{UserBadgeProps.AwardedAt}, ub.{UserBadgeProps.AwardedBy}
     FROM {UserBadgeProps.TableName} ub
     WHERE ub.{UserBadgeProps.BadgeId} = @badgeId
     ORDER BY ub.{UserBadgeProps.AwardedAt} DESC")]
     Task<IList<UserBadge>> GetBadgeHolders(int badgeId);
-    
+
     #endregion // User Badge Management
-    
+
     /// <summary>Returns a count of badges in the Table, used for testing connection. </summary>
     [Sql($"SELECT COUNT(*) FROM {BadgeProps.TableName}")]
     Task<long> TestBadgeConnection();

@@ -24,7 +24,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         var user = Context.User as SocketGuildUser;
         var isAdmin = BadgeService.IsUserAdmin(user);
         var badges = await BadgeService.GetAllBadges(isAdmin);
-        
+
         if (!badges.Any())
         {
             await Context.Interaction.FollowupAsync("📭 No badges have been created yet.", ephemeral: false);
@@ -44,7 +44,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             var visibilityIndicator = isAdmin && !badge.IsPublic ? " 🔒" : "";
             var groupInfo = string.IsNullOrEmpty(badge.GroupKey) ? string.Empty : $"\n*Group: `{badge.GroupKey}`*";
             var badgeInfo = $"**{badge.Title}**{visibilityIndicator} (ID: {badge.Id})\n{badge.Description}{groupInfo}\n\n";
-            
+
             if (description.Length + badgeInfo.Length > maxFieldValue)
             {
                 embed.AddField("Badges", description.TrimEnd(), false);
@@ -88,7 +88,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         var requestingUser = Context.User as SocketGuildUser;
         var isAdmin = BadgeService.IsUserAdmin(requestingUser);
         var userBadges = await BadgeService.GetUserBadges(user, isAdmin);
-        
+
         if (!userBadges.Any())
         {
             await Context.Interaction.FollowupAsync($"📭 {user.Mention} has no badges yet.", ephemeral: false);
@@ -106,13 +106,23 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
 
         foreach (var userBadge in userBadges)
         {
-            var awardedBy = Context.Guild.GetUser(Convert.ToUInt64(userBadge.AwardedBy));
-            var awardedByName = awardedBy?.DisplayName ?? "Unknown";
-            
-            var visibilityIndicator = isAdmin && !userBadge.Badge.IsPublic ? " 🔒" : "";
-            var groupInfo = string.IsNullOrEmpty(userBadge.Badge.GroupKey) ? string.Empty : $"\n*Group: `{userBadge.Badge.GroupKey}`*";
-            var badgeInfo = $"**{userBadge.Badge.Title}**{visibilityIndicator}\n{userBadge.Badge.Description}{groupInfo}\n*Awarded by {awardedByName} on {userBadge.AwardedAt:yyyy-MM-dd}*\n\n";
-            
+            var badge = userBadge.EnsureBadgeDetails();
+            if (string.IsNullOrWhiteSpace(badge.Title) || string.IsNullOrWhiteSpace(badge.Description))
+            {
+                continue;
+            }
+
+            var awardedByName = "Unknown";
+            if (ulong.TryParse(userBadge.AwardedBy, out var awardedById))
+            {
+                var awardedBy = Context.Guild.GetUser(awardedById);
+                awardedByName = awardedBy?.DisplayName ?? "Unknown";
+            }
+
+            var visibilityIndicator = isAdmin && !badge.IsPublic ? " 🔒" : "";
+            var groupInfo = string.IsNullOrEmpty(badge.GroupKey) ? string.Empty : $"\n*Group: `{badge.GroupKey}`*";
+            var badgeInfo = $"**{badge.Title}**{visibilityIndicator}\n{badge.Description}{groupInfo}\n*Awarded by {awardedByName} on {userBadge.AwardedAt:yyyy-MM-dd}*\n\n";
+
             if (description.Length + badgeInfo.Length > maxFieldValue)
             {
                 embed.AddField("Badges", description.TrimEnd(), false);
@@ -132,7 +142,7 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         var footerText = $"Total badges: {userBadges.Count}";
         if (isAdmin)
         {
-            var publicCount = userBadges.Count(ub => ub.Badge.IsPublic);
+            var publicCount = userBadges.Count(ub => ub.EnsureBadgeDetails().IsPublic);
             var privateCount = userBadges.Count - publicCount;
             if (privateCount > 0)
             {
