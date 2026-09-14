@@ -502,6 +502,10 @@ public class AdminSlashModule : InteractionModuleBase
         public BotSettings BotSettings { get; set; } = null!;
         public TransactionFormatter TransactionFormatter { get; set; } = null!;
 
+        private const string TokenAmountModeSet = "set";
+        private const string TokenAmountModeAdd = "add";
+        private const string TokenAmountModalCustomIdPrefix = "admin_casino_tokens";
+
         private async Task<bool> CheckChannelPermissions()
         {
             if (!CasinoService.IsChannelAllowed(Context.Channel.Id))
@@ -527,6 +531,24 @@ public class AdminSlashModule : InteractionModuleBase
             await DisplayAdminTransactionHistory(userId: null, page: 1, targetUser: targetUser, isInitialCall: true);
         }
 
+        [UserCommand("View Casino History")]
+        [DefaultMemberPermissions(GuildPermission.Administrator)]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task ViewCasinoHistoryContext(IUser user)
+        {
+            if (!await CheckChannelPermissions()) return;
+
+            if (user is not SocketGuildUser targetUser)
+            {
+                await Context.Interaction.RespondAsync("❌ User not found.", ephemeral: true);
+                return;
+            }
+
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            await DisplayAdminTransactionHistory(userId: null, page: 1, targetUser: targetUser, isInitialCall: true);
+        }
+
         [SlashCommand("tokens-set", "Set a user's token balance")]
         [RequireUserPermission(GuildPermission.Administrator)]
         public async Task SetTokens(
@@ -537,6 +559,113 @@ public class AdminSlashModule : InteractionModuleBase
 
             await Context.Interaction.DeferAsync(ephemeral: true);
 
+            await SetTokensAsync(targetUser, amount);
+        }
+
+        [UserCommand("Set Tokens")]
+        [DefaultMemberPermissions(GuildPermission.Administrator)]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public Task SetTokensContext(IUser user) => ShowTokenAmountModalAsync(user, TokenAmountModeSet);
+
+        [SlashCommand("tokens-add", "Add tokens to a user's balance")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task AddTokens(
+            [Summary("user", "User to add tokens to")] SocketGuildUser targetUser,
+            [Summary("amount", "Amount of tokens to add")] int amount)
+        {
+            if (!await CheckChannelPermissions()) return;
+
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            await AddTokensAsync(targetUser, amount);
+        }
+
+        [UserCommand("Add Tokens")]
+        [DefaultMemberPermissions(GuildPermission.Administrator)]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public Task AddTokensContext(IUser user) => ShowTokenAmountModalAsync(user, TokenAmountModeAdd);
+
+        // The amount cannot travel in a context command, so it is collected with a modal. One modal
+        // serves both actions; the mode is carried in the custom id.
+        private async Task ShowTokenAmountModalAsync(IUser user, string mode)
+        {
+            if (!await CheckChannelPermissions()) return;
+
+            if (user is not SocketGuildUser targetUser)
+            {
+                await Context.Interaction.RespondAsync("❌ User not found.", ephemeral: true);
+                return;
+            }
+
+            if (targetUser.IsBot)
+            {
+                await Context.Interaction.RespondAsync("❌ Cannot change the token balance of bots.", ephemeral: true);
+                return;
+            }
+
+            await Context.Interaction.RespondWithModalAsync<TokenAmountModal>(
+                $"{TokenAmountModalCustomIdPrefix}:{mode}:{Context.User.Id}:{targetUser.Id}");
+        }
+
+        public class TokenAmountModal : IModal
+        {
+            public string Title => "Token Amount";
+
+            [InputLabel("Amount")]
+            [ModalTextInput("token_amount", TextInputStyle.Short, placeholder: "e.g. 500", maxLength: 10)]
+            public string Amount { get; set; } = string.Empty;
+        }
+
+        [ModalInteraction(TokenAmountModalCustomIdPrefix + ":*:*:*", true)]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task HandleTokenAmountModal(string mode, string requesterIdRaw, string targetUserIdRaw, TokenAmountModal modal)
+        {
+            if (!await CheckChannelPermissions()) return;
+
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            if (!ulong.TryParse(requesterIdRaw, out var requesterId) || Context.User.Id != requesterId)
+            {
+                await Context.Interaction.FollowupAsync("🚫 You are not authorized to use these controls.", ephemeral: true);
+                return;
+            }
+
+            if (!ulong.TryParse(targetUserIdRaw, out var targetUserId) || Context.Guild?.GetUser(targetUserId) is not { } targetUser)
+            {
+                await Context.Interaction.FollowupAsync("❌ User not found.", ephemeral: true);
+                return;
+            }
+
+            if (!TryParseTokenAmount(modal.Amount, out var amount))
+            {
+                await Context.Interaction.FollowupAsync("❌ Enter a whole number using digits only (e.g. 500).", ephemeral: true);
+                return;
+            }
+
+            if (mode is not (TokenAmountModeSet or TokenAmountModeAdd))
+            {
+                await Context.Interaction.FollowupAsync("❌ Unknown token action.", ephemeral: true);
+                return;
+            }
+
+            if (mode == TokenAmountModeAdd && amount <= 0)
+            {
+                await Context.Interaction.FollowupAsync("🚫 Enter an amount greater than 0.", ephemeral: true);
+                return;
+            }
+
+            if (mode == TokenAmountModeSet)
+            {
+                await SetTokensAsync(targetUser, amount);
+            }
+            else
+            {
+                await AddTokensAsync(targetUser, amount);
+            }
+        }
+
+        private async Task SetTokensAsync(SocketGuildUser targetUser, int amount)
+        {
             await CasinoService.SetUserTokens(targetUser.Id.ToString(), amount, Context.User.Id.ToString());
 
             var embed = new EmbedBuilder()
@@ -549,16 +678,8 @@ public class AdminSlashModule : InteractionModuleBase
             await LoggingService.LogChannelAndFile($"Admin Token Set: {Context.User.Username} set {targetUser.Username}'s tokens to {amount}");
         }
 
-        [SlashCommand("tokens-add", "Add tokens to a user's balance")]
-        [RequireUserPermission(GuildPermission.Administrator)]
-        public async Task AddTokens(
-            [Summary("user", "User to add tokens to")] SocketGuildUser targetUser,
-            [Summary("amount", "Amount of tokens to add")] int amount)
+        private async Task AddTokensAsync(SocketGuildUser targetUser, int amount)
         {
-            if (!await CheckChannelPermissions()) return;
-
-            await Context.Interaction.DeferAsync(ephemeral: true);
-
             await CasinoService.UpdateUserTokens(targetUser.Id.ToString(), amount, TransactionKind.Admin, new Dictionary<string, string>
             {
                 ["admin"] = Context.User.Id.ToString(),
@@ -573,6 +694,17 @@ public class AdminSlashModule : InteractionModuleBase
 
             await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
             await LoggingService.LogChannelAndFile($"Admin Token Add: {Context.User.Username} added {amount} tokens to {targetUser.Username}");
+        }
+
+        private static bool TryParseTokenAmount(string? raw, out int amount)
+        {
+            amount = 0;
+            if (string.IsNullOrWhiteSpace(raw))
+                return false;
+
+            // NumberStyles.None rejects signs and separators, so a negative entry cannot invert the
+            // meaning of "add" or write a negative balance through "set".
+            return int.TryParse(raw.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out amount);
         }
 
         [SlashCommand("reset", "Reset all casino data - REQUIRES CONFIRMATION")]
