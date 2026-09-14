@@ -14,7 +14,7 @@
 | **Code Assistance** | Code-block formatting checks/reminders and code tips | `CodeTipModule` | `CodeCheckService` | Feature |
 | **Tips** | Searchable tip database with image support, keyword lookups | `TipModule` | `TipService` | Feature |
 | **Casino** | Token economy, token gifting (`/casino tokens gift` or the **Gift Tokens** user context-menu command, which prompts for the amount), Blackjack, Poker, Rock Paper Scissors, daily rewards, leaderboards, plus admin moderation commands under `/admin casino` (`tokens-history`, `tokens-set`, `tokens-add`, `reset`) | `CasinoSlashModule`, `AdminSlashModule` | `CasinoService`, `GameService`, `TransactionFormatter` | Feature |
-| **Badges** | Badge catalog, per-user badge viewing, leaderboard, and admin assignment/removal workflows including user context commands (`View Badges`, `Assign Badge`) | `BadgeSlashModule`, `AdminSlashModule` | `BadgeService` | Feature |
+| **Badges** | Badge catalog, per-user badge viewing, leaderboard, and admin assignment/removal workflows including user context commands (`View Badges`, `Assign Badge`, and `Remove Badge`, which picks one or more of the target's badges from a multi-select menu) | `BadgeSlashModule`, `AdminSlashModule` | `BadgeService` | Feature |
 | **Duels** | Player-vs-player duels with configurable stakes, available as `/duel` or the **Duel** user context-menu command (non-mute only) | `DuelSlashModule` | `DuelService` | Feature |
 | **Fun** | Slap, coin flip, dice rolls (including D&D format) | `FunModule` | — | Feature |
 | **Search** | Documentation, manual, and wiki lookups | `SearchModule` | `SearchService` | Feature |
@@ -27,7 +27,7 @@
 | **Server Utilities** | Help, ping, member count, and server info | `ServerModule`, `ServerSlashModule` | `ServerService` | Feature |
 | **Tickets** | Private complaint/support ticket channels | `TicketModule` | — | Feature |
 | **Embed Builder** | Generate embeds from messages or hastebin URLs | `EmbedModule` | `EmbedParsingService` | Feature |
-| **Birthday Announcements** | Scheduled birthday notifications (configurable interval), plus birthday command management (`/bday show [count] [user]` lists upcoming birthdays or a specific member's birthday, `/bday set`, `/bday del`, the **View Birthday** user context-menu command, admin-only `/admin bday set-user`, `/admin bday del-user`, `/admin bday list`) | `BirthdayModule`, `BirthdaySlashModule`, `AdminSlashModule` | `BirthdayAnnouncementService` | Feature |
+| **Birthday Announcements** | Scheduled birthday notifications (configurable interval), plus birthday command management (`/bday show [count] [user]` lists upcoming birthdays or a specific member's birthday, `/bday set`, `/bday del`, the **View Birthday**, **Set Birthday**, and **Remove Birthday** user context-menu commands — removal asks for confirmation via buttons, admin-only `/admin bday set-user`, `/admin bday del-user`, `/admin bday list`) | `BirthdayModule`, `BirthdaySlashModule`, `AdminSlashModule` | `BirthdayAnnouncementService` | Feature |
 | **Recruitment** | Configurable recruitment workflow (toggleable) | — | `RecruitService` | Feature |
 | **Release Feeds** | RSS feed parsing and Unity release-notes tracking | — | `FeedService`, `ReleaseNotesParser` | Feature |
 | **@everyone Scold** | Warns users who use `@everyone`/`@here` without permission | — | `EveryoneScoldService` | Feature |

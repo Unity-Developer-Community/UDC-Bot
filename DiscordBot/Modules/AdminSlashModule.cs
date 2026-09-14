@@ -17,6 +17,8 @@ public class AdminSlashModule : InteractionModuleBase
     public class BadgeAdminCommands : InteractionModuleBase<SocketInteractionContext>
     {
         private const int BadgeAutocompleteLimit = 25;
+        private const int BadgeSelectMaxOptions = 25;
+        private const string RemoveBadgeSelectCustomIdPrefix = "admin_badge_remove_select";
 
         public BadgeService BadgeService { get; set; } = null!;
 
@@ -269,6 +271,149 @@ public class AdminSlashModule : InteractionModuleBase
             {
                 await Context.Interaction.FollowupAsync("❌ Failed to remove badge. The user may not have this badge.", ephemeral: true);
             }
+        }
+
+        [UserCommand("Remove Badge")]
+        [DefaultMemberPermissions(GuildPermission.Administrator)]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task RemoveBadgeContext(IUser user)
+        {
+            if (user is not SocketGuildUser guildUser)
+            {
+                await Context.Interaction.RespondAsync("❌ User not found.", ephemeral: true);
+                return;
+            }
+
+            if (guildUser.IsBot)
+            {
+                await Context.Interaction.RespondAsync("❌ Cannot remove badges from bots.", ephemeral: true);
+                return;
+            }
+
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            var userBadges = (await BadgeService.GetUserBadges(guildUser, isAdmin: true))
+                .Select(userBadge => userBadge.EnsureBadgeDetails())
+                .Where(badge => !string.IsNullOrWhiteSpace(badge.Title))
+                .OrderBy(badge => badge.Title, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(badge => badge.Id)
+                .ToList();
+
+            if (userBadges.Count == 0)
+            {
+                await Context.Interaction.FollowupAsync($"📭 {guildUser.Mention} has no badges to remove.", ephemeral: true);
+                return;
+            }
+
+            var options = userBadges.Take(BadgeSelectMaxOptions).Select(badge =>
+            {
+                var option = new SelectMenuOptionBuilder()
+                    .WithLabel(SanitizeSelectText(badge.Title))
+                    .WithValue(badge.Id.ToString());
+
+                var description = SanitizeSelectText(badge.Description);
+                return string.IsNullOrEmpty(description) ? option : option.WithDescription(description);
+            }).ToList();
+
+            // The badge list is per-user, so it cannot be presented in a modal: modal select menu
+            // options are declared as attributes at compile time. A message select menu is built at
+            // runtime instead, and picking the entries doubles as the confirmation step.
+            var selectMenu = new SelectMenuBuilder()
+                .WithCustomId($"{RemoveBadgeSelectCustomIdPrefix}:{Context.User.Id}:{guildUser.Id}")
+                .WithPlaceholder("Select the badge(s) to remove")
+                .WithMinValues(1)
+                .WithMaxValues(options.Count)
+                .WithOptions(options);
+
+            var components = new ComponentBuilder().WithSelectMenu(selectMenu).Build();
+            var truncationNotice = userBadges.Count > BadgeSelectMaxOptions
+                ? $"\n⚠️ Showing the first {BadgeSelectMaxOptions} of {userBadges.Count} badges — use `/admin badge remove` for the rest."
+                : string.Empty;
+
+            await Context.Interaction.FollowupAsync(
+                $"Select which badge(s) to remove from **{guildUser.DisplayName}**:{truncationNotice}",
+                components: components,
+                ephemeral: true);
+        }
+
+        [ComponentInteraction(RemoveBadgeSelectCustomIdPrefix + ":*:*", true)]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task HandleRemoveBadgeSelect(string requesterIdRaw, string targetUserIdRaw, string[] selectedBadgeIds)
+        {
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            if (!ulong.TryParse(requesterIdRaw, out var requesterId) || Context.User.Id != requesterId)
+            {
+                await Context.Interaction.FollowupAsync("🚫 You are not authorized to use these controls.", ephemeral: true);
+                return;
+            }
+
+            if (!ulong.TryParse(targetUserIdRaw, out var targetUserId) || Context.Guild?.GetUser(targetUserId) is not { } targetUser)
+            {
+                await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+                {
+                    msg.Content = "❌ User not found.";
+                    msg.Components = new ComponentBuilder().Build();
+                });
+                return;
+            }
+
+            var removedBadges = new List<string>();
+            var failedBadges = new List<string>();
+
+            foreach (var selectedBadgeId in selectedBadgeIds)
+            {
+                var badge = int.TryParse(selectedBadgeId, out var badgeId)
+                    ? await BadgeService.GetBadge(badgeId)
+                    : null;
+
+                if (badge == null)
+                {
+                    failedBadges.Add($"`{selectedBadgeId}`");
+                    continue;
+                }
+
+                if (await BadgeService.RemoveBadgeFromUser(targetUser, badge))
+                {
+                    removedBadges.Add(badge.Title);
+                }
+                else
+                {
+                    failedBadges.Add(badge.Title);
+                }
+            }
+
+            var summary = new StringBuilder();
+            if (removedBadges.Count > 0)
+            {
+                var badgeWord = removedBadges.Count == 1 ? "badge" : "badges";
+                summary.AppendLine($"🗑️ Removed {removedBadges.Count} {badgeWord} from **{targetUser.DisplayName}**: {string.Join(", ", removedBadges.Select(title => $"**{title}**"))}");
+            }
+
+            if (failedBadges.Count > 0)
+            {
+                summary.AppendLine($"⚠️ Could not remove: {string.Join(", ", failedBadges.Select(title => $"**{title}**"))}");
+            }
+
+            var result = summary.Length > 0 ? summary.ToString().TrimEnd() : "❌ No badges were removed.";
+
+            await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+            {
+                msg.Content = result;
+                msg.Components = new ComponentBuilder().Build();
+            });
+        }
+
+        /// <summary>
+        /// Flattens text to a single line and caps it at Discord's 100 character select option limit.
+        /// </summary>
+        private static string SanitizeSelectText(string value, int maxLength = 100)
+        {
+            var singleLine = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+            return singleLine.Length <= maxLength
+                ? singleLine
+                : singleLine[..(maxLength - 1)] + "…";
         }
 
         [SlashCommand("delete", "Delete an existing badge")]
@@ -729,6 +874,11 @@ public class AdminSlashModule : InteractionModuleBase
     [Group("bday", "Birthday administration commands")]
     public class BirthdayAdminCommands : InteractionModuleBase<SocketInteractionContext>
     {
+        private const int BirthdayInputMaxLength = 20;
+        private const string SetBirthdayModalCustomIdPrefix = "admin_bday_set_user";
+        private const string RemoveBirthdayConfirmCustomIdPrefix = "admin_bday_del_confirm";
+        private const string RemoveBirthdayCancelCustomIdPrefix = "admin_bday_del_cancel";
+
         public DatabaseService DatabaseService { get; set; } = null!;
         public ILoggingService LoggingService { get; set; } = null!;
 
@@ -740,6 +890,64 @@ public class AdminSlashModule : InteractionModuleBase
         {
             await Context.Interaction.DeferAsync(ephemeral: true);
 
+            await SetUserBirthdayAsync(targetUser, date);
+        }
+
+        // A context command inside a nested [Group] module still registers at the top level, so this
+        // appears in the member right-click menu as "Set Birthday", not "admin bday set-user".
+        [UserCommand("Set Birthday")]
+        [DefaultMemberPermissions(GuildPermission.Administrator)]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task SetUserBirthdayContext(IUser user)
+        {
+            if (user is not SocketGuildUser targetUser)
+            {
+                await Context.Interaction.RespondAsync("❌ User not found.", ephemeral: true);
+                return;
+            }
+
+            if (targetUser.IsBot)
+            {
+                await Context.Interaction.RespondAsync("🤖 You cannot set a birthday for a bot.", ephemeral: true);
+                return;
+            }
+
+            await Context.Interaction.RespondWithModalAsync<SetBirthdayModal>($"{SetBirthdayModalCustomIdPrefix}:{targetUser.Id}");
+        }
+
+        [ModalInteraction(SetBirthdayModalCustomIdPrefix + ":*", true)]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task HandleSetUserBirthdayModal(string targetUserIdRaw, SetBirthdayModal modal)
+        {
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            if (!ulong.TryParse(targetUserIdRaw, out var targetUserId))
+            {
+                await Context.Interaction.FollowupAsync("❌ Invalid user selection.", ephemeral: true);
+                return;
+            }
+
+            var targetUser = Context.Guild?.GetUser(targetUserId);
+            if (targetUser == null)
+            {
+                await Context.Interaction.FollowupAsync("❌ User not found.", ephemeral: true);
+                return;
+            }
+
+            await SetUserBirthdayAsync(targetUser, modal.Date);
+        }
+
+        public class SetBirthdayModal : IModal
+        {
+            public string Title => "Set Birthday";
+
+            [InputLabel("Birthday (DD/MM/YYYY or DD/MM)")]
+            [ModalTextInput("birthday_date", TextInputStyle.Short, placeholder: "e.g. 15/03/1990 or 15/03", maxLength: BirthdayInputMaxLength)]
+            public string Date { get; set; } = string.Empty;
+        }
+
+        private async Task SetUserBirthdayAsync(SocketGuildUser targetUser, string date)
+        {
             if (targetUser.IsBot)
             {
                 await Context.Interaction.FollowupAsync("🤖 You cannot set a birthday for a bot.", ephemeral: true);
@@ -783,34 +991,113 @@ public class AdminSlashModule : InteractionModuleBase
         {
             await Context.Interaction.DeferAsync(ephemeral: true);
 
+            await Context.Interaction.FollowupAsync(await RemoveUserBirthdayAsync(targetUser), ephemeral: true);
+        }
+
+        [UserCommand("Remove Birthday")]
+        [DefaultMemberPermissions(GuildPermission.Administrator)]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task RemoveUserBirthdayContext(IUser user)
+        {
+            if (user is not SocketGuildUser targetUser)
+            {
+                await Context.Interaction.RespondAsync("❌ User not found.", ephemeral: true);
+                return;
+            }
+
+            // A context command is a two-click destructive action, unlike the slash command where
+            // typing the target already signals intent, so it asks for confirmation first.
+            var components = new ComponentBuilder()
+                .WithButton("🗑️ Remove", $"{RemoveBirthdayConfirmCustomIdPrefix}:{Context.User.Id}:{targetUser.Id}", ButtonStyle.Danger)
+                .WithButton("Cancel", $"{RemoveBirthdayCancelCustomIdPrefix}:{Context.User.Id}", ButtonStyle.Secondary)
+                .Build();
+
+            await Context.Interaction.RespondAsync(
+                $"Remove **{targetUser.DisplayName}**'s birthday?",
+                components: components,
+                ephemeral: true);
+        }
+
+        [ComponentInteraction(RemoveBirthdayConfirmCustomIdPrefix + ":*:*", true)]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task HandleRemoveBirthdayConfirm(string requesterIdRaw, string targetUserIdRaw)
+        {
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            if (!ulong.TryParse(requesterIdRaw, out var requesterId) || Context.User.Id != requesterId)
+            {
+                await Context.Interaction.FollowupAsync("🚫 You are not authorized to use these controls.", ephemeral: true);
+                return;
+            }
+
+            if (!ulong.TryParse(targetUserIdRaw, out var targetUserId) || Context.Guild?.GetUser(targetUserId) is not { } targetUser)
+            {
+                await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+                {
+                    msg.Content = "❌ User not found.";
+                    msg.Components = new ComponentBuilder().Build();
+                });
+                return;
+            }
+
+            var result = await RemoveUserBirthdayAsync(targetUser);
+
+            await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+            {
+                msg.Content = result;
+                msg.Components = new ComponentBuilder().Build();
+            });
+        }
+
+        [ComponentInteraction(RemoveBirthdayCancelCustomIdPrefix + ":*", true)]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task HandleRemoveBirthdayCancel(string requesterIdRaw)
+        {
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            if (!ulong.TryParse(requesterIdRaw, out var requesterId) || Context.User.Id != requesterId)
+            {
+                await Context.Interaction.FollowupAsync("🚫 You are not authorized to use these controls.", ephemeral: true);
+                return;
+            }
+
+            await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+            {
+                msg.Content = "❌ Cancelled — no changes made.";
+                msg.Components = new ComponentBuilder().Build();
+            });
+        }
+
+        private async Task<string> RemoveUserBirthdayAsync(SocketGuildUser targetUser)
+        {
             try
             {
                 var user = await DatabaseService.GetOrAddUser(targetUser);
                 if (user == null)
                 {
-                    await Context.Interaction.FollowupAsync("Failed to access user data.", ephemeral: true);
-                    return;
+                    return "Failed to access user data.";
                 }
 
                 var currentBirthday = await DatabaseService.Query.GetBirthday(user.UserID);
                 if (currentBirthday == null)
                 {
-                    await Context.Interaction.FollowupAsync($"**{targetUser.DisplayName}** doesn't have a birthday set.", ephemeral: true);
-                    return;
+                    return $"**{targetUser.DisplayName}** doesn't have a birthday set.";
                 }
 
                 await DatabaseService.Query.UpdateBirthday(user.UserID, null);
-                await Context.Interaction.FollowupAsync($"Removed **{targetUser.DisplayName}**'s birthday.", ephemeral: true);
                 await LoggingService.LogAction(
                     $"[BirthdayAdminDelete] actor={Context.User.Id} target={targetUser.Id}",
                     ExtendedLogSeverity.Info);
+
+                return $"Removed **{targetUser.DisplayName}**'s birthday.";
             }
             catch (Exception e)
             {
                 await LoggingService.LogAction(
                     $"Error removing birthday for target {targetUser.Id} by actor {Context.User.Id}: {e.Message}",
                     ExtendedLogSeverity.Warning);
-                await Context.Interaction.FollowupAsync("An error occurred while removing the birthday.", ephemeral: true);
+
+                return "An error occurred while removing the birthday.";
             }
         }
 
