@@ -16,7 +16,7 @@
 | **Casino** | Token economy, token gifting (`/casino tokens gift` or the **Gift Tokens** user context-menu command, which prompts for the amount), Blackjack, Poker, Rock Paper Scissors, daily rewards, leaderboards, plus admin moderation commands under `/admin casino` (`tokens-history`, `tokens-set`, `tokens-add`, `reset`) with user context-menu counterparts (**View Casino History**, and **Set Tokens** / **Add Tokens**, which prompt for the amount) | `CasinoSlashModule`, `AdminSlashModule` | `CasinoService`, `GameService`, `TransactionFormatter` | Feature |
 | **Badges** | Badge catalog, per-user badge viewing, leaderboard, and admin assignment/removal workflows including user context commands (`View Badges`, `Assign Badge`, and `Remove Badge`, which picks one or more of the target's badges from a multi-select menu) | `BadgeSlashModule`, `AdminSlashModule` | `BadgeService` | Feature |
 | **Duels** | Player-vs-player duels with configurable stakes, available as `/duel` or the **Duel** user context-menu command (non-mute only) | `DuelSlashModule` | `DuelService` | Feature |
-| **Fun** | Slap, coin flip, dice rolls (including D&D format) | `FunModule` | — | Feature |
+| **Fun** | Slap (`/slap` with up to 5 targets), coin flip (`/coinflip`), and dice rolls (`/roll`, including additive D&D notation such as `2d6+4` and `1d20+1d4-1`) | `FunSlashModule` | — | Feature |
 | **Search** | Documentation, manual, and wiki lookups | `SearchModule` | `SearchService` | Feature |
 | **Weather** | Temperature, conditions, air quality, local time via OpenWeatherMap | `WeatherModule` | `WeatherService` | Feature |
 | **Conversion** | Currency, temperature, and unit conversion | `ConvertModule` | `CurrencyService` | Feature |
