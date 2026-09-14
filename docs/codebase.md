@@ -73,7 +73,8 @@ DiscordBot/
 │   │   └── Casino/          # Casino slash commands
 │   ├── Utils/               # Search, conversion, flights, weather
 │   │   ├── SearchModule.cs
-│   │   ├── ConvertModule.cs
+│   │   ├── ConvertSlashModule.cs
+│   │   ├── CurrencyAutocompleteHandler.cs
 │   │   ├── AirportModule.cs
 │   │   └── Weather/         # Weather commands
 │   └── Code/                # Coding tips, Unity help
@@ -144,7 +145,7 @@ DiscordBot/
 | **Profiles** | ProfileModule, ProfileSlashModule, RankModule, BirthdayModule | ProfileCardService, XpService, KarmaService, KarmaResetService, UserExtendedService, BirthdayAnnouncementService |
 | **Server** | ServerModule, ServerSlashModule, TicketModule, RulesModule, EmbedModule, QuoteModule, ReminderModule | ServerService, WelcomeService, AuditLogService, EveryoneScoldService, EmbedParsingService, ReminderService, RecruitService |
 | **Fun** | FunSlashModule, DuelSlashModule, Casino/ | DuelService, MikuService, Casino/ |
-| **Utils** | SearchModule, ConvertModule, AirportModule, Weather/ | SearchService, AirportService, CurrencyService, Weather/ |
+| **Utils** | SearchModule, ConvertSlashModule, AirportModule, Weather/ | SearchService, AirportService, CurrencyService, Weather/ |
 | **Code** | CodeTipModule, TipModule, Unity/UnityHelp/ | CodeCheckService, Tips/, Unity/ (feeds, docs, UnityHelp/) |
 
 ### Testing

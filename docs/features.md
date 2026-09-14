@@ -19,7 +19,7 @@
 | **Fun** | Slap (`/slap` with up to 5 targets), coin flip (`/coinflip`), and dice rolls (`/roll`, including additive D&D notation such as `2d6+4` and `1d20+1d4-1`) | `FunSlashModule` | — | Feature |
 | **Search** | Documentation, manual, and wiki lookups | `SearchModule` | `SearchService` | Feature |
 | **Weather** | Temperature, conditions, air quality, local time via OpenWeatherMap | `WeatherModule` | `WeatherService` | Feature |
-| **Conversion** | Currency, temperature, and unit conversion | `ConvertModule` | `CurrencyService` | Feature |
+| **Conversion** | Temperature (`/ftoc`, `/ctof`) and currency conversion (`/curr`, with code autocomplete) | `ConvertSlashModule` | `CurrencyService` | Feature |
 | **Flight Data** | Airport and flight lookups | `AirportModule` | `AirportService` | Feature |
 | **Reminders** | Persistent scheduled reminders with natural time parsing | `ReminderModule` | `ReminderService` | Feature |
 | **Quotes** | Quote a message by ID into the current channel | `QuoteModule` | — | Feature |
