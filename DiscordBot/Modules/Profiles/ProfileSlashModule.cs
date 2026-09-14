@@ -1,4 +1,5 @@
 using Discord.Interactions;
+using Discord.WebSocket;
 
 namespace DiscordBot.Modules.Profiles;
 
@@ -22,6 +23,29 @@ public class ProfileSlashModule : InteractionModuleBase<SocketInteractionContext
         await Context.Interaction.DeferAsync(ephemeral: true);
 
         await SendProfileCardAsync(user);
+    }
+
+    [SlashCommand("join-date", "Show when you, or another member, joined the server")]
+    public async Task JoinDate(
+        [Summary("user", "The user whose join date you want to see (defaults to you)")] IUser? user = null)
+    {
+        var target = user ?? Context.User;
+        if (target is not SocketGuildUser guildUser || guildUser.JoinedAt is not { } joinedAt)
+        {
+            await Context.Interaction.RespondAsync("❌ Could not determine the join date for that user.",
+                ephemeral: true);
+            return;
+        }
+
+        await Context.Interaction.RespondAsync($"{guildUser.Mention} joined **{joinedAt:dddd dd/MM/yyyy HH:mm:ss}**");
+    }
+
+    [SlashCommand("karma", "Explain what karma is")]
+    public async Task Karma()
+    {
+        await Context.Interaction.RespondAsync(
+            "Karma is tracked on your `/profile` which helps indicate how much you've helped others " +
+            "and provides a small increase in EXP gain.");
     }
 
     private async Task SendProfileCardAsync(IUser user)

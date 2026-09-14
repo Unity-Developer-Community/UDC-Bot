@@ -55,9 +55,9 @@ DiscordBot/
 │
 ├── Modules/                 # Discord command handlers (text + slash)
 │   ├── Profiles/            # User profile, rank & birthday commands
-│   │   ├── ProfileModule.cs
 │   │   ├── ProfileSlashModule.cs
-│   │   ├── RankModule.cs
+│   │   ├── RankSlashModule.cs
+│   │   ├── RankEmbedFormatter.cs
 │   │   └── BirthdayModule.cs
 │   ├── Server/              # Server management, embeds, quotes, reminders, tickets
 │   │   ├── ServerModule.cs / ServerSlashModule.cs
@@ -142,7 +142,7 @@ DiscordBot/
 
 | Domain | Modules | Services |
 |--------|---------|----------|
-| **Profiles** | ProfileModule, ProfileSlashModule, RankModule, BirthdayModule | ProfileCardService, XpService, KarmaService, KarmaResetService, UserExtendedService, BirthdayAnnouncementService |
+| **Profiles** | ProfileSlashModule, RankSlashModule, BirthdayModule | ProfileCardService, XpService, KarmaService, KarmaResetService, UserExtendedService, BirthdayAnnouncementService |
 | **Server** | ServerModule, ServerSlashModule, TicketModule, RulesModule, EmbedModule, QuoteModule, ReminderModule | ServerService, WelcomeService, AuditLogService, EveryoneScoldService, EmbedParsingService, ReminderService, RecruitService |
 | **Fun** | FunSlashModule, DuelSlashModule, Casino/ | DuelService, MikuService, Casino/ |
 | **Utils** | SearchModule, ConvertSlashModule, AirportModule, Weather/ | SearchService, AirportService, CurrencyService, Weather/ |

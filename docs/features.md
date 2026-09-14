@@ -4,7 +4,7 @@
 
 | Feature | Description | Module(s) | Service(s) | Criticality |
 | --------- | ------------- | ----------- | ------------ | ------------- |
-| **User Profiles** | XP/level system, karma tracking, profile cards with customizable skins (`/profile [user]` or the **View Profile** user context-menu command) | `ProfileModule`, `ProfileSlashModule`, `RankModule` | `XpService`, `KarmaService`, `ProfileCardService`, `UserExtendedService` | Core |
+| **User Profiles** | XP/level system, karma tracking, profile cards with customizable skins (`/profile [user]` or the **View Profile** user context-menu command), join dates (`/join-date [user]`), karma explainer (`/karma`), and level/karma leaderboards (`/top`, `/top-karma [interval]`) | `ProfileSlashModule`, `RankSlashModule` | `ProfileCardService`, `XpService`, `KarmaService`, `UserExtendedService` | Core |
 | **Command Handling** | Text command + slash command routing, history tracking, prefix config | — | `CommandHandlingService` | Core |
 | **Logging** | Multi-destination logging (console, file, Discord channel) with severity levels | — | `LoggingService` | Core |
 | **Database** | PostgreSQL connection pooling, user/casino repositories | — | `DatabaseService` | Core |
@@ -24,7 +24,7 @@
 | **Reminders** | Persistent scheduled reminders with natural time parsing | `ReminderModule` | `ReminderService` | Feature |
 | **Quotes** | Quote a message by ID into the current channel | `QuoteModule` | — | Feature |
 | **Rules** | Server/global rules and channel listings | `RulesModule` | — | Feature |
-| **Server Utilities** | Help, ping, member count, and server info | `ServerModule`, `ServerSlashModule` | `ServerService` | Feature |
+| **Server Utilities** | Help, ping, member count (`/members`), and server info | `ServerModule`, `ServerSlashModule` | `ServerService` | Feature |
 | **Tickets** | Private complaint/support ticket channels | `TicketModule` | — | Feature |
 | **Embed Builder** | Generate embeds from messages or hastebin URLs | `EmbedModule` | `EmbedParsingService` | Feature |
 | **Birthday Announcements** | Scheduled birthday notifications (configurable interval), plus birthday command management (`/bday show [count] [user]` lists upcoming birthdays or a specific member's birthday, `/bday set`, `/bday del`, the **View Birthday**, **Set Birthday**, and **Remove Birthday** user context-menu commands — removal asks for confirmation via buttons, admin-only `/admin bday set-user`, `/admin bday del-user`, `/admin bday list`) | `BirthdayModule`, `BirthdaySlashModule`, `AdminSlashModule` | `BirthdayAnnouncementService` | Feature |

@@ -111,4 +111,13 @@ public class ServerSlashModule : InteractionModuleBase
     {
         await Context.Interaction.RespondAsync(text: BotSettings.Invite, ephemeral: true);
     }
+
+    [SlashCommand("members", "Current member count")]
+    public async Task MemberCount()
+    {
+        var members = await Context.Guild.GetUsersAsync();
+
+        await Context.Interaction.RespondAsync(
+            $"We currently have {members.Count - 1} members. Let's keep on growing as the strong community we are :muscle:");
+    }
 }
