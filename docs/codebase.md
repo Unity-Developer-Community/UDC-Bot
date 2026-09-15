@@ -42,8 +42,9 @@ DiscordBot/
 ├── Domain/                  # Domain models and game logic
 │   ├── ProfileData.cs
 │   ├── RectangleD.cs
-│   └── Casino/              # Casino game abstractions and implementations
-│       └── Games/           # Blackjack, Poker, RPS game logic
+│   ├── Casino/              # Casino game abstractions and implementations
+│   │   └── Games/           # Blackjack, Poker, RPS game logic
+│   └── Dice/                # Dice notation parsing and rolling
 │
 ├── Extensions/              # Extension methods and repository helpers
 │   ├── CasinoRepository.cs  # Casino DB queries
@@ -54,8 +55,9 @@ DiscordBot/
 │
 ├── Modules/                 # Discord command handlers (text + slash)
 │   ├── Profiles/            # User profile, rank & birthday commands
-│   │   ├── ProfileModule.cs
-│   │   ├── RankModule.cs
+│   │   ├── ProfileSlashModule.cs
+│   │   ├── RankSlashModule.cs
+│   │   ├── RankEmbedFormatter.cs
 │   │   └── BirthdayModule.cs
 │   ├── Server/              # Server management, embeds, quotes, reminders, tickets
 │   │   ├── ServerModule.cs / ServerSlashModule.cs
@@ -65,12 +67,14 @@ DiscordBot/
 │   │   ├── QuoteModule.cs
 │   │   └── ReminderModule.cs
 │   ├── Fun/                 # Entertainment & games
-│   │   ├── FunModule.cs
+│   │   ├── FunSlashModule.cs
+│   │   ├── FunRollFormatter.cs
 │   │   ├── DuelSlashModule.cs
 │   │   └── Casino/          # Casino slash commands
 │   ├── Utils/               # Search, conversion, flights, weather
 │   │   ├── SearchModule.cs
-│   │   ├── ConvertModule.cs
+│   │   ├── ConvertSlashModule.cs
+│   │   ├── CurrencyAutocompleteHandler.cs
 │   │   ├── AirportModule.cs
 │   │   └── Weather/         # Weather commands
 │   └── Code/                # Coding tips, Unity help
@@ -138,10 +142,10 @@ DiscordBot/
 
 | Domain | Modules | Services |
 |--------|---------|----------|
-| **Profiles** | ProfileModule, RankModule, BirthdayModule | ProfileCardService, XpService, KarmaService, KarmaResetService, UserExtendedService, BirthdayAnnouncementService |
+| **Profiles** | ProfileSlashModule, RankSlashModule, BirthdayModule | ProfileCardService, XpService, KarmaService, KarmaResetService, UserExtendedService, BirthdayAnnouncementService |
 | **Server** | ServerModule, ServerSlashModule, TicketModule, RulesModule, EmbedModule, QuoteModule, ReminderModule | ServerService, WelcomeService, AuditLogService, EveryoneScoldService, EmbedParsingService, ReminderService, RecruitService |
-| **Fun** | FunModule, DuelSlashModule, Casino/ | DuelService, MikuService, Casino/ |
-| **Utils** | SearchModule, ConvertModule, AirportModule, Weather/ | SearchService, AirportService, CurrencyService, Weather/ |
+| **Fun** | FunSlashModule, DuelSlashModule, Casino/ | DuelService, MikuService, Casino/ |
+| **Utils** | SearchModule, ConvertSlashModule, AirportModule, Weather/ | SearchService, AirportService, CurrencyService, Weather/ |
 | **Code** | CodeTipModule, TipModule, Unity/UnityHelp/ | CodeCheckService, Tips/, Unity/ (feeds, docs, UnityHelp/) |
 
 ### Testing

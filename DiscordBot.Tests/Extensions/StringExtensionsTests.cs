@@ -16,6 +16,54 @@ public class StringExtensionsTests
     }
 
     [Fact]
+    public void ToSelectOptionText_LeavesShortTextUnchanged()
+    {
+        Assert.Equal("Helpful Member", "Helpful Member".ToSelectOptionText());
+    }
+
+    [Theory]
+    [InlineData("a\n b", "a b")]
+    [InlineData("a\t\tb", "a b")]
+    [InlineData("  a   b  ", "a b")]
+    [InlineData("a\r\nb", "a b")]
+    public void ToSelectOptionText_FlattensOntoSingleLine(string input, string expected)
+    {
+        Assert.Equal(expected, input.ToSelectOptionText());
+    }
+
+    [Fact]
+    public void ToSelectOptionText_TextAtTheLimitIsNotTruncated()
+    {
+        var text = new string('a', 100);
+
+        Assert.Equal(text, text.ToSelectOptionText());
+    }
+
+    [Fact]
+    public void ToSelectOptionText_TruncatesToTheLimitWithAnEllipsis()
+    {
+        var result = new string('a', 101).ToSelectOptionText();
+
+        Assert.Equal(100, result.Length);
+        Assert.EndsWith("…", result);
+    }
+
+    [Fact]
+    public void ToSelectOptionText_HonoursACustomLimit()
+    {
+        var result = new string('a', 20).ToSelectOptionText(maxLength: 10);
+
+        Assert.Equal(10, result.Length);
+        Assert.EndsWith("…", result);
+    }
+
+    [Fact]
+    public void ToSelectOptionText_WhitespaceOnlyBecomesEmpty()
+    {
+        Assert.Equal(string.Empty, "   \n\t ".ToSelectOptionText());
+    }
+
+    [Fact]
     public void CalculateLevenshteinDistance_IdenticalStrings_ReturnsZero()
     {
         Assert.Equal(0, "kitten".CalculateLevenshteinDistance("kitten"));

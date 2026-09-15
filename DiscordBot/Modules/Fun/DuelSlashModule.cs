@@ -16,6 +16,18 @@ public class DuelSlashModule : InteractionModuleBase
         [Choice("Mute", "mute")]
         string type = "normal")
     {
+        await StartDuel(opponent, type);
+    }
+
+    [UserCommand("Duel")]
+    public async Task DuelContext(IUser opponent)
+    {
+        // The context menu has no room for the duel type, so always start a non-mute duel.
+        await StartDuel(opponent, "normal");
+    }
+
+    private async Task StartDuel(IUser opponent, string type)
+    {
         if (opponent.Id == Context.User.Id)
         {
             await Context.Interaction.RespondAsync("You cannot duel yourself!", ephemeral: true);

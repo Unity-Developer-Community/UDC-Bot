@@ -1,3 +1,4 @@
+using System.Globalization;
 using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Domain;
@@ -77,6 +78,8 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
         }
 
+        private const string GiftTokensModalCustomIdPrefix = "casino_gift_tokens";
+
         [SlashCommand("gift", "Gift tokens to another user")]
         public async Task GiftTokens(
             [Summary("user", "User to gift tokens to")] SocketGuildUser targetUser,
@@ -86,6 +89,71 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
 
             await Context.Interaction.DeferAsync(ephemeral: true);
 
+            await GiftTokensAsync(targetUser, amount);
+        }
+
+        // Context commands always register at the top level, even inside a nested group,
+        // so this lives here to reuse the gift validation helper.
+        [UserCommand("Gift Tokens")]
+        public async Task GiftTokensContext(SocketGuildUser targetUser)
+        {
+            if (!await CheckChannelPermissions()) return;
+
+            if (targetUser.IsBot)
+            {
+                await Context.Interaction.RespondAsync("🤖 You cannot gift tokens to bots.", ephemeral: true);
+                return;
+            }
+
+            if (targetUser.Id == Context.User.Id)
+            {
+                await Context.Interaction.RespondAsync("🚫 You cannot gift tokens to yourself.", ephemeral: true);
+                return;
+            }
+
+            await Context.Interaction.RespondWithModalAsync<GiftTokensModal>($"{GiftTokensModalCustomIdPrefix}:{targetUser.Id}");
+        }
+
+        public class GiftTokensModal : IModal
+        {
+            public string Title => "Gift Tokens";
+
+            [InputLabel("Amount")]
+            [ModalTextInput("gift_amount", TextInputStyle.Short, placeholder: "e.g. 100", maxLength: 10)]
+            public string Amount { get; set; } = string.Empty;
+        }
+
+        [ModalInteraction("casino_gift_tokens:*", true)]
+        public async Task HandleGiftTokensModal(string targetUserIdRaw, GiftTokensModal modal)
+        {
+            if (!await CheckChannelPermissions()) return;
+
+            await Context.Interaction.DeferAsync(ephemeral: true);
+
+            if (!ulong.TryParse(targetUserIdRaw, out var targetUserId))
+            {
+                await Context.Interaction.FollowupAsync("❌ Invalid user selection.", ephemeral: true);
+                return;
+            }
+
+            var targetUser = Context.Guild?.GetUser(targetUserId);
+            if (targetUser == null)
+            {
+                await Context.Interaction.FollowupAsync("❌ User not found.", ephemeral: true);
+                return;
+            }
+
+            if (!TryParseGiftAmount(modal.Amount, out var amount))
+            {
+                await Context.Interaction.FollowupAsync("❌ Enter a whole number of tokens greater than 0.", ephemeral: true);
+                return;
+            }
+
+            await GiftTokensAsync(targetUser, amount);
+        }
+
+        private async Task GiftTokensAsync(SocketGuildUser targetUser, int amount)
+        {
             if (targetUser.IsBot)
             {
                 await Context.Interaction.FollowupAsync("🤖 You cannot gift tokens to bots.", ephemeral: true);
@@ -98,7 +166,7 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
                 return;
             }
 
-            if (amount == 0)
+            if (amount <= 0)
             {
                 await Context.Interaction.FollowupAsync("🚫 You must gift at least 1 token.", ephemeral: true);
                 return;
@@ -122,6 +190,17 @@ public partial class CasinoSlashModule : InteractionModuleBase<SocketInteraction
             {
                 await Context.Interaction.FollowupAsync("💸 Insufficient tokens for this gift.", ephemeral: true);
             }
+        }
+
+        private static bool TryParseGiftAmount(string? raw, out int amount)
+        {
+            amount = 0;
+            if (string.IsNullOrWhiteSpace(raw))
+                return false;
+
+            // NumberStyles.None rejects signs and separators, so a negative entry
+            // can never reverse the transfer direction in TransferTokens.
+            return int.TryParse(raw.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out amount) && amount > 0;
         }
 
         [SlashCommand("leaderboard", "View the top token holders")]

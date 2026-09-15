@@ -160,6 +160,19 @@ public static class StringExtensions
         return $"**{text}**";
     }
 
+    /// <summary>
+    /// Flattens text onto a single line and caps it at Discord's 100 character select option limit,
+    /// so it is safe to use as a select menu label or description.
+    /// </summary>
+    public static string ToSelectOptionText(this string value, int maxLength = 100)
+    {
+        var singleLine = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        return singleLine.Length <= maxLength
+            ? singleLine
+            : singleLine[..(maxLength - 1)] + "…";
+    }
+
     public static string[] ToBoldArray(this string[] texts)
     {
         var bolds = new string[texts.Length];

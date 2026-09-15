@@ -58,7 +58,12 @@ public class Program
             // so we need to make sure we only initialize commands and such for the bot once if it manages to re-establish connection
             if (Interlocked.CompareExchange(ref _isInitialized, 1, 0) != 0) return Task.CompletedTask;
 
-            _interactionService = new InteractionService(_client);
+            // Slash command option autocomplete relies on EnableAutocompleteHandlers, which defaults to
+            // true. It is set explicitly so a library default change cannot silently disable it.
+            _interactionService = new InteractionService(_client, new InteractionServiceConfig
+            {
+                EnableAutocompleteHandlers = true
+            });
             _commandService = new CommandService(new CommandServiceConfig
             {
                 CaseSensitiveCommands = false,
