@@ -308,10 +308,10 @@ public class AdminSlashModule : InteractionModuleBase
             var options = userBadges.Take(BadgeSelectMaxOptions).Select(badge =>
             {
                 var option = new SelectMenuOptionBuilder()
-                    .WithLabel(SanitizeSelectText(badge.Title))
+                    .WithLabel(badge.Title.ToSelectOptionText())
                     .WithValue(badge.Id.ToString());
 
-                var description = SanitizeSelectText(badge.Description);
+                var description = badge.Description.ToSelectOptionText();
                 return string.IsNullOrEmpty(description) ? option : option.WithDescription(description);
             }).ToList();
 
@@ -402,18 +402,6 @@ public class AdminSlashModule : InteractionModuleBase
                 msg.Content = result;
                 msg.Components = new ComponentBuilder().Build();
             });
-        }
-
-        /// <summary>
-        /// Flattens text to a single line and caps it at Discord's 100 character select option limit.
-        /// </summary>
-        private static string SanitizeSelectText(string value, int maxLength = 100)
-        {
-            var singleLine = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-
-            return singleLine.Length <= maxLength
-                ? singleLine
-                : singleLine[..(maxLength - 1)] + "…";
         }
 
         [SlashCommand("delete", "Delete an existing badge")]

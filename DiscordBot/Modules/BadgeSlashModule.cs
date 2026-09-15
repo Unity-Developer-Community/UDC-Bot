@@ -3,6 +3,7 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Extensions;
 using DiscordBot.Services;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace DiscordBot.Modules;
@@ -13,8 +14,10 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
     private const int BadgeListPageSize = 24;
     private const int EmbedFieldNameMaxLength = 256;
     private const int EmbedFieldValueMaxLength = 1024;
-    private const int BadgeIdentifierMaxLength = 100;
-    private const string AssignBadgeModalCustomIdPrefix = "badge_assign_user";
+
+    /// <summary>Discord caps a select menu at 25 options.</summary>
+    private const int BadgeSelectMaxOptions = 25;
+    private const string AssignBadgeSelectCustomIdPrefix = "badge_assign_select";
     private static readonly IComparer<string> BadgeTitleNaturalComparer = new NaturalBadgeTitleComparer();
 
     #region Dependency Injection
@@ -283,83 +286,137 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
             return;
         }
 
-        await Context.Interaction.RespondWithModalAsync<AssignBadgeModal>($"{AssignBadgeModalCustomIdPrefix}:{guildUser.Id}");
+        await Context.Interaction.DeferAsync(ephemeral: true);
+
+        var assignableBadges = await GetAssignableBadgesAsync(guildUser);
+        if (assignableBadges.Count == 0)
+        {
+            await Context.Interaction.FollowupAsync($"📭 {guildUser.Mention} already has every badge.", ephemeral: true);
+            return;
+        }
+
+        var options = assignableBadges.Take(BadgeSelectMaxOptions).Select(badge =>
+        {
+            var option = new SelectMenuOptionBuilder()
+                .WithLabel(badge.Title.ToSelectOptionText())
+                .WithValue(badge.Id.ToString());
+
+            var description = badge.Description.ToSelectOptionText();
+            return string.IsNullOrEmpty(description) ? option : option.WithDescription(description);
+        }).ToList();
+
+        // The assignable badge list is per-user, so it cannot be presented in a modal: modal select menu
+        // options are declared as attributes at compile time. A message select menu is built at runtime
+        // instead, and picking the entries doubles as the confirmation step.
+        var selectMenu = new SelectMenuBuilder()
+            .WithCustomId($"{AssignBadgeSelectCustomIdPrefix}:{Context.User.Id}:{guildUser.Id}")
+            .WithPlaceholder("Select the badge(s) to assign")
+            .WithMinValues(1)
+            .WithMaxValues(options.Count)
+            .WithOptions(options);
+
+        var components = new ComponentBuilder().WithSelectMenu(selectMenu).Build();
+        var truncationNotice = assignableBadges.Count > BadgeSelectMaxOptions
+            ? $"\n⚠️ Showing the first {BadgeSelectMaxOptions} of {assignableBadges.Count} badges — use `/admin badge assign` for the rest."
+            : string.Empty;
+
+        await Context.Interaction.FollowupAsync(
+            $"Select which badge(s) to assign to **{guildUser.DisplayName}**:{truncationNotice}",
+            components: components,
+            ephemeral: true);
     }
 
-    [ModalInteraction("badge_assign_user:*", true)]
+    /// <summary>Badges the target does not already hold, ordered the way the badge list is.</summary>
+    private async Task<List<Badge>> GetAssignableBadgesAsync(SocketGuildUser guildUser)
+    {
+        var ownedIds = (await BadgeService.GetUserBadges(guildUser, isAdmin: true))
+            .Select(userBadge => userBadge.EnsureBadgeDetails().Id)
+            .ToHashSet();
+
+        return (await BadgeService.GetAllBadges(isAdmin: true))
+            .Where(badge => !ownedIds.Contains(badge.Id))
+            .OrderBy(badge => badge.Title, BadgeTitleNaturalComparer)
+            .ThenBy(badge => badge.Id)
+            .ToList();
+    }
+
+    [ComponentInteraction(AssignBadgeSelectCustomIdPrefix + ":*:*", true)]
     [RequireUserPermission(GuildPermission.Administrator)]
-    public async Task HandleAssignBadgeModal(string targetUserIdRaw, AssignBadgeModal modal)
+    public async Task HandleAssignBadgeSelect(string requesterIdRaw, string targetUserIdRaw, string[] selectedBadgeIds)
     {
         await Context.Interaction.DeferAsync(ephemeral: true);
 
-        if (!ulong.TryParse(targetUserIdRaw, out var targetUserId))
+        if (!ulong.TryParse(requesterIdRaw, out var requesterId) || Context.User.Id != requesterId)
         {
-            await Context.Interaction.FollowupAsync("❌ Invalid user selection.", ephemeral: true);
+            await Context.Interaction.FollowupAsync("🚫 You are not authorized to use these controls.", ephemeral: true);
             return;
         }
 
-        var guildUser = Context.Guild?.GetUser(targetUserId);
-        if (guildUser == null)
+        if (!ulong.TryParse(targetUserIdRaw, out var targetUserId) || Context.Guild?.GetUser(targetUserId) is not { } targetUser)
         {
-            await Context.Interaction.FollowupAsync("❌ User not found.", ephemeral: true);
-            return;
-        }
-
-        if (guildUser.IsBot)
-        {
-            await Context.Interaction.FollowupAsync("❌ Cannot assign badges to bots.", ephemeral: true);
-            return;
-        }
-
-        var badgeIdentifier = modal.BadgeIdentifier?.Trim();
-        if (string.IsNullOrWhiteSpace(badgeIdentifier))
-        {
-            await Context.Interaction.FollowupAsync("❌ Badge identifier cannot be empty.", ephemeral: true);
-            return;
-        }
-
-        var badge = await ResolveBadgeByIdentifier(badgeIdentifier);
-        if (badge == null)
-        {
-            await Context.Interaction.FollowupAsync($"❌ Badge '{badgeIdentifier}' not found.", ephemeral: true);
+            await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+            {
+                msg.Content = "❌ User not found.";
+                msg.Components = new ComponentBuilder().Build();
+            });
             return;
         }
 
         var awardedBy = Context.User as SocketGuildUser;
         if (awardedBy == null)
         {
-            await Context.Interaction.FollowupAsync("❌ This command can only be used in a server.", ephemeral: true);
+            await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+            {
+                msg.Content = "❌ This command can only be used in a server.";
+                msg.Components = new ComponentBuilder().Build();
+            });
             return;
         }
 
-        var success = await BadgeService.AssignBadgeToUser(guildUser, badge, awardedBy);
+        var assignedBadges = new List<string>();
+        var failedBadges = new List<string>();
 
-        if (success)
+        foreach (var selectedBadgeId in selectedBadgeIds)
         {
-            var embed = new EmbedBuilder()
-                .WithTitle("🏆 Badge Assigned Successfully")
-                .WithDescription($"Assigned **{badge.Title}** to **{guildUser.DisplayName}**")
-                .AddField("Badge Description", badge.Description)
-                .AddField("Assigned By", Context.User.Mention)
-                .AddField("Assigned At", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC"))
-                .WithColor(Color.Gold)
-                .WithTimestamp(DateTimeOffset.UtcNow)
-                .Build();
+            var badge = int.TryParse(selectedBadgeId, out var badgeId)
+                ? await BadgeService.GetBadge(badgeId)
+                : null;
 
-            await Context.Interaction.FollowupAsync(embed: embed, ephemeral: true);
-            return;
+            if (badge == null)
+            {
+                failedBadges.Add($"`{selectedBadgeId}`");
+                continue;
+            }
+
+            if (await BadgeService.AssignBadgeToUser(targetUser, badge, awardedBy))
+            {
+                assignedBadges.Add(badge.Title);
+            }
+            else
+            {
+                failedBadges.Add(badge.Title);
+            }
         }
 
-        await Context.Interaction.FollowupAsync("❌ Failed to assign badge. The user may already have this badge.", ephemeral: true);
-    }
+        var summary = new StringBuilder();
+        if (assignedBadges.Count > 0)
+        {
+            var badgeWord = assignedBadges.Count == 1 ? "badge" : "badges";
+            summary.AppendLine($"🏆 Assigned {assignedBadges.Count} {badgeWord} to **{targetUser.DisplayName}**: {string.Join(", ", assignedBadges.Select(title => $"**{title}**"))}");
+        }
 
-    public class AssignBadgeModal : IModal
-    {
-        public string Title => "Assign Badge";
+        if (failedBadges.Count > 0)
+        {
+            summary.AppendLine($"⚠️ Could not assign: {string.Join(", ", failedBadges.Select(title => $"**{title}**"))}");
+        }
 
-        [InputLabel("Badge ID or title")]
-        [ModalTextInput("badge_identifier", TextInputStyle.Short, placeholder: "e.g. 12 or Helpful Member", maxLength: BadgeIdentifierMaxLength)]
-        public string BadgeIdentifier { get; set; } = string.Empty;
+        var result = summary.Length > 0 ? summary.ToString().TrimEnd() : "❌ No badges were assigned.";
+
+        await Context.Interaction.ModifyOriginalResponseAsync(msg =>
+        {
+            msg.Content = result;
+            msg.Components = new ComponentBuilder().Build();
+        });
     }
 
     private async Task ShowUserBadgesForTarget(SocketGuildUser user)
@@ -464,22 +521,6 @@ public class BadgeSlashModule : InteractionModuleBase<SocketInteractionContext>
         embed.WithFooter(footerText);
 
         await Context.Interaction.FollowupAsync(embed: embed.Build(), ephemeral: true);
-    }
-
-    private async Task<Badge?> ResolveBadgeByIdentifier(string badgeIdentifier)
-    {
-        var normalizedIdentifier = badgeIdentifier.Trim();
-
-        if (int.TryParse(normalizedIdentifier, out var badgeId))
-        {
-            var badgeById = await BadgeService.GetBadge(badgeId);
-            if (badgeById != null)
-            {
-                return badgeById;
-            }
-        }
-
-        return await BadgeService.GetBadgeByTitle(normalizedIdentifier);
     }
 
     [SlashCommand("leaderboard", "Show the badge leaderboard")]
