@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Discord.Interactions;
 using DiscordBot.Services;
 using DiscordBot.Settings;
@@ -101,9 +102,29 @@ public class ServerSlashModule : InteractionModuleBase
     [SlashCommand("ping", "Bot latency")]
     public async Task Ping()
     {
+        // A reply cannot report its own round trip, so it is sent first and read back afterwards.
+        var createWatch = Stopwatch.StartNew();
         await Context.Interaction.RespondAsync("Bot latency: ...", ephemeral: true);
+        createWatch.Stop();
+
+        // Both timestamps come from Discord, so local clock drift cannot skew the result. The figure
+        // spans Discord receiving the command to Discord creating the reply, which is this bot's whole
+        // path but excludes the invoking client's send and render.
+        var interactionPart = "interaction n/a (readback failed)";
+        try
+        {
+            var response = await Context.Interaction.GetOriginalResponseAsync();
+            var roundTrip = response.CreatedAt.Subtract(Context.Interaction.CreatedAt);
+            interactionPart =
+                $"{roundTrip.TotalMilliseconds:F0}ms interaction (Discord-side) / bot POST {createWatch.Elapsed.TotalMilliseconds:F0}ms";
+        }
+        catch (Exception e)
+        {
+            LoggingService.LogToConsole($"[Ping] Failed to read the original response: {e.Message}", ExtendedLogSeverity.LowWarning);
+        }
+
         await Context.Interaction.ModifyOriginalResponseAsync(m =>
-            m.Content = $"Bot latency: {ServerService.GetGatewayPing().ToString()}ms");
+            m.Content = $"Bot latency: {interactionPart} / {ServerService.GetGatewayPing()}ms gateway");
     }
 
     [SlashCommand("invite", "Returns the invite link for the server.")]
