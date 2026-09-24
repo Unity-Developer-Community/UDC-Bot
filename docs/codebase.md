@@ -145,7 +145,7 @@ DiscordBot/
 | **Profiles** | ProfileSlashModule, RankSlashModule, BirthdayModule | ProfileCardService, XpService, KarmaService, KarmaResetService, UserExtendedService, BirthdayAnnouncementService |
 | **Server** | ServerModule, ServerSlashModule, TicketModule, RulesModule, EmbedModule, QuoteModule, ReminderModule | ServerService, WelcomeService, AuditLogService, EveryoneScoldService, EmbedParsingService, ReminderService, RecruitService |
 | **Fun** | FunSlashModule, DuelSlashModule, Casino/ | DuelService, MikuService, Casino/ |
-| **Utils** | SearchModule, ConvertSlashModule, AirportModule, Weather/ | SearchService, AirportService, CurrencyService, Weather/ |
+| **Utils** | SearchModule, ConvertSlashModule, ConvertModule, AirportModule, Weather/ | SearchService, AirportService, CurrencyService, Weather/ |
 | **Code** | CodeTipModule, TipModule, Unity/UnityHelp/ | CodeCheckService, Tips/, Unity/ (feeds, docs, UnityHelp/) |
 
 ### Testing
