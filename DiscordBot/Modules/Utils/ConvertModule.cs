@@ -21,7 +21,7 @@ public class ConvertModule : ModuleBase
     }
 
     [Command("Currency"), Priority(29)]
-    [Summary("Converts a currency. Syntax : !curr amount fromCurrency toCurrency")]
+    [Summary("Converts a currency. Syntax : !curr amount fromCurrency toCurrency (the amount may be in any position)")]
     [Alias("curr")]
     public async Task ConvertCurrency(double amount, string from, string to = DefaultCurrency)
     {
@@ -54,8 +54,9 @@ public class ConvertModule : ModuleBase
         await Context.Message.ReplyAsync($"**{amount} {from.ToUpperInvariant()}** = **{totalAmount} {to.ToUpperInvariant()}**");
     }
 
-    // Ranked below the amount-first overload so an input both can parse (`!curr 100 usd eur`) keeps
-    // resolving to it; this overload only wins when it is the sole one that parses.
+    // Discord.Net parses every overload and keeps the highest scoring one, so both alternative orders are
+    // ranked below the amount-first overload: it wins whenever it can parse, and an alternative is only
+    // reached when it cannot (between themselves, 28 outranks 27).
     [Command("Currency"), HideFromHelp, Priority(28)]
     [Summary("Converts a currency. Syntax : !curr fromCurrency toCurrency amount")]
     [Alias("curr")]
@@ -65,7 +66,7 @@ public class ConvertModule : ModuleBase
     }
 
     [Command("Currency"), HideFromHelp, Priority(27)]
-    [Summary("Converts a currency. Syntax : !curr fromCurrency toCurrency amount")]
+    [Summary("Converts a currency. Syntax : !curr fromCurrency amount toCurrency")]
     [Alias("curr")]
     public async Task ConvertCurrency(string from, double amount, string to)
     {
