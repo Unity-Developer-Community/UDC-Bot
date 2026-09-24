@@ -53,4 +53,22 @@ public class ConvertModule : ModuleBase
         var totalAmount = Math.Round(amount * rate, 2);
         await Context.Message.ReplyAsync($"**{amount} {from.ToUpperInvariant()}** = **{totalAmount} {to.ToUpperInvariant()}**");
     }
+
+    // Ranked below the amount-first overload so an input both can parse (`!curr 100 usd eur`) keeps
+    // resolving to it; this overload only wins when it is the sole one that parses.
+    [Command("Currency"), HideFromHelp, Priority(28)]
+    [Summary("Converts a currency. Syntax : !curr fromCurrency toCurrency amount")]
+    [Alias("curr")]
+    public async Task ConvertCurrency(string from, string to, double amount)
+    {
+        await ConvertCurrency(amount, from, to);
+    }
+
+    [Command("Currency"), HideFromHelp, Priority(27)]
+    [Summary("Converts a currency. Syntax : !curr fromCurrency toCurrency amount")]
+    [Alias("curr")]
+    public async Task ConvertCurrency(string from, double amount, string to)
+    {
+        await ConvertCurrency(amount, from, to);
+    }
 }
