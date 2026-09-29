@@ -3,6 +3,7 @@ using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Services;
+using DiscordBot.Services.Recruitment;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,7 @@ public class Program
     private CommandService _commandService = null!;
     private InteractionService _interactionService = null!;
     private IServiceProvider _services = null!;
+    private Task _recruitmentStart = Task.CompletedTask;
 
     private readonly CancellationTokenSource _cts = new();
 
@@ -49,9 +51,6 @@ public class Program
         });
         _client.Log += LoggingService.DiscordNetLogger;
 
-        await _client.LoginAsync(TokenType.Bot, _settings.Token);
-        await _client.StartAsync();
-
         _client.Ready += () =>
         {
             // Ready can be called additional times if the bot disconnects for long enough,
@@ -75,12 +74,11 @@ public class Program
 
             // Announce, and Log bot started to track issues a bit easier
             var logger = _services.GetRequiredService<ILoggingService>();
-            logger.LogChannelAndFile("Bot Started.", ExtendedLogSeverity.Positive);
+            _ = logger.LogChannelAndFile("Bot Started.", ExtendedLogSeverity.Positive);
 
             LoggingService.LogToConsole("Bot is connected.", ExtendedLogSeverity.Positive);
 
             _services.GetRequiredService<UnityHelpService>();
-            _services.GetRequiredService<RecruitService>();
             _services.GetRequiredService<BirthdayAnnouncementService>();
             _services.GetRequiredService<AuditLogService>();
             _services.GetRequiredService<WelcomeService>();
@@ -91,8 +89,13 @@ public class Program
             _services.GetRequiredService<MikuService>();
             _services.GetRequiredService<KarmaResetService>();
 
+            // The worker owns startup I/O; do not block the gateway event dispatcher during inventory.
+            _recruitmentStart = _services.GetRequiredService<RecruitmentService>().StartAsync();
             return Task.CompletedTask;
         };
+
+        await _client.LoginAsync(TokenType.Bot, _settings.Token);
+        await _client.StartAsync();
 
         try
         {
@@ -101,6 +104,14 @@ public class Program
         catch (TaskCanceledException) { }
 
         LoggingService.LogToConsole("Shutdown signal received, stopping...", ExtendedLogSeverity.Warning);
+        if (_services is not null)
+        {
+            using var recruitmentTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await _services.GetRequiredService<RecruitmentService>().StopAsync(recruitmentTimeout.Token);
+            try { await _recruitmentStart; }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { LoggingService.LogToConsole($"Recruitment startup failed ({ex.GetType().Name}).", ExtendedLogSeverity.Warning); }
+        }
         using var shutdownTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         try { await _client.StopAsync().WaitAsync(shutdownTimeout.Token); }
         catch (OperationCanceledException) { LoggingService.LogToConsole("Client stop timed out.", ExtendedLogSeverity.Warning); }
@@ -135,7 +146,7 @@ public class Program
             .AddSingleton<ReleaseNotesParser>()
             .AddSingleton<FeedService>()
             .AddSingleton<UnityHelpService>()
-            .AddSingleton<RecruitService>()
+            .AddSingleton<RecruitmentService>()
             .AddSingleton<UpdateService>()
             .AddSingleton<SearchService>()
             .AddSingleton<CurrencyService>()

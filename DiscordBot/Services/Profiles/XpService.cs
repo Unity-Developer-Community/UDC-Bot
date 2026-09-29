@@ -11,6 +11,7 @@ public class XpService
     private readonly Dictionary<ulong, DateTime> _xpCooldown;
     private readonly List<ulong> _noXpChannels;
     private readonly Random _rand;
+    private readonly RecruitmentForums _recruitmentForums;
 
     private readonly int _xpMinPerMessage;
     private readonly int _xpMaxPerMessage;
@@ -21,6 +22,7 @@ public class XpService
         BotSettings settings, UserSettings userSettings)
     {
         _databaseService = databaseService;
+        _recruitmentForums = settings.Recruitment.Forums;
         _loggingService = loggingService;
         _rand = new Random();
         _xpCooldown = new Dictionary<ulong, DateTime>();
@@ -40,7 +42,8 @@ public class XpService
         if (messageParam.Author.IsBot)
             return Task.CompletedTask;
 
-        if (_noXpChannels.Contains(messageParam.Channel.Id))
+        if (_recruitmentForums.Contains(messageParam.Channel.Id, (messageParam.Channel as SocketThreadChannel)?.ParentChannel.Id) ||
+            _noXpChannels.Contains(messageParam.Channel.Id))
             return Task.CompletedTask;
 
         var userId = messageParam.Author.Id;

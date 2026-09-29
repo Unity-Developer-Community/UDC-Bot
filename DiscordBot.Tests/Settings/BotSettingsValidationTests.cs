@@ -20,7 +20,6 @@ public class BotSettingsValidationTests
             UnityNews = new ChannelInfo { Id = 5 },
             UnityReleases = new ChannelInfo { Id = 6 },
             Rules = new ChannelInfo { Id = 7 },
-            Recruitment = new ChannelInfo { Id = 8 },
             GenericHelp = new ChannelInfo { Id = 9 },
             BirthdayAnnouncement = new ChannelInfo { Id = 10 },
             Meme = new ChannelInfo { Id = 11 },
@@ -98,24 +97,23 @@ public class BotSettingsValidationTests
     }
 
     [Fact]
-    public void RecruitmentEnabled_MissingTags_Warnings()
+    public void RecruitmentEnabled_MissingForums_WarningsWithoutFatalErrors()
     {
         var settings = CreateValid();
         settings.Recruitment = new RecruitmentSettings { Enabled = true };
-        var (_, warnings) = settings.Validate();
-        Assert.Contains(warnings, w => w.Contains("TagLookingToHire"));
-        Assert.Contains(warnings, w => w.Contains("TagLookingForWork"));
-        Assert.Contains(warnings, w => w.Contains("TagUnpaidCollab"));
-        Assert.Contains(warnings, w => w.Contains("TagPositionFilled"));
+        var (errors, warnings) = settings.Validate();
+        Assert.Empty(errors);
+        Assert.Contains(warnings, w => w.Contains("four named forum IDs"));
+        Assert.Contains(warnings, w => w.Contains("FeedChannelId"));
     }
 
     [Fact]
-    public void RecruitmentDisabled_NoTagWarnings()
+    public void RecruitmentDisabled_NoRecruitmentWarnings()
     {
         var settings = CreateValid();
         settings.Recruitment = new RecruitmentSettings { Enabled = false };
         var (_, warnings) = settings.Validate();
-        Assert.DoesNotContain(warnings, w => w.Contains("TagLooking"));
+        Assert.DoesNotContain(warnings, w => w.Contains("Recruitment"));
     }
 
     [Fact]

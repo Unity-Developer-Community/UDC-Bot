@@ -21,4 +21,8 @@
   <ItemGroup>
     <Folder Include="SERVER\images\profiles" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Assets/recruitment/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Assets/fonts/OpenSans-Regular.ttf" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
