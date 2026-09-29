@@ -7,6 +7,37 @@ namespace DiscordBot.Tests.Recruitment;
 public class RecruitmentStorageAndSetupTests
 {
     [Fact]
+    public void ShippedGuidelinesFitBudgetWithMaximumDurations()
+    {
+        using var rig = new RecruitmentRig();
+        var settings = rig.Settings.Recruitment;
+        settings.AcknowledgementMinutes = 1440;
+        settings.CooldownDays = settings.UnansweredDays = 365;
+        var assets = new RecruitmentAssets(rig.Settings.AssetsRootPath, settings);
+        foreach (var purpose in settings.Forums.Mapping().Keys)
+        {
+            var text = assets.Render(purpose, "ABCDE", settings);
+            Assert.InRange(text.Length, 1, 1000);
+            Assert.Contains("pinned moderator/admin post", text);
+            Assert.Contains("ABCDE", text);
+        }
+    }
+
+    [Theory]
+    [InlineData(1000)]
+    [InlineData(1001)]
+    public void GuidelinesBudgetChecksRenderedLength(int length)
+    {
+        using var rig = new RecruitmentRig();
+        var assets = new RecruitmentAssets(rig.Settings.AssetsRootPath, rig.Settings.Recruitment);
+        assets.Templates["paid-recruiting"] = new string('x', length - 5) + "{{code}}";
+        if (length == 1000)
+            Assert.Equal(length, assets.Render("paid-recruiting", "ABCDE", rig.Settings.Recruitment).Length);
+        else
+            Assert.Throws<InvalidDataException>(() => assets.Render("paid-recruiting", "ABCDE", rig.Settings.Recruitment));
+    }
+
+    [Fact]
     public async Task StoreRoundTripsCooldownAndRefusesSecondWriter()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post(); await rig.Ack();

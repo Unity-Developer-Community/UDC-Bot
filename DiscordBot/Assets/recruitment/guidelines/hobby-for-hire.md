@@ -1,13 +1,13 @@
 # Hobby for hire
 
-Describe the skills you offer, examples of your work and your available time. State that you are offering unpaid collaboration and explain your expectations.
+Describe your skills, examples, availability and expectations for unpaid collaboration.
 
-Use an accurate title and relevant discipline and engagement tags. Missing pricing or recommended tags will receive advice; they are not proof of misconduct.
+Read the pinned moderator/admin post at the top of this forum for fuller guidance. Use relevant tags; verify claims and agree terms in writing.
 
-You may have **one open listing total across all four recruitment forums**. If you both recruit and offer your services, combine them in a for-hire listing. An accepted listing starts a **{{cooldownDays}}-day** creation cooldown. Closing or deleting it does not reset or shorten that deadline. Unaccepted attempts do not start a cooldown.
+You may have **one open listing total across all four recruitment forums**. Combine hiring and offering services in a for-hire listing.
 
-Read these Guidelines, then use the bot's **Acknowledge** button and enter **{{code}}** within **{{acknowledgementMinutes}} minutes of the bot's prompt**. Unacknowledged posts are removed. Acknowledged duplicates or posts still on cooldown are closed when that window ends.
+Enter **{{code}}** using **Acknowledge** within **{{acknowledgementMinutes}} minutes of the bot's prompt**. Unacknowledged posts are removed; acknowledged posts still blocked by another listing or cooldown are closed.
 
-Use **Closed** when your listing is filled or no longer needed. The bot locks and archives closed listings. Accepted listings without a qualifying community reply are closed after **{{unansweredDays}} days**; ordinary auto-archive does not free your listing slot.
+Only accepted listings start a **{{cooldownDays}}-day cooldown from creation**. Closing/deleting does not change it; unaccepted attempts add none.
 
-Be respectful. Agree on scope and terms in writing, verify claims independently, and avoid sharing sensitive information. The bot's facts are context, not an endorsement. Contact moderators about concerns.
+Mark finished listings **Closed** to lock/archive them. Accepted listings with no qualifying community reply close after **{{unansweredDays}} days**. Natural auto-archive does not free your slot.

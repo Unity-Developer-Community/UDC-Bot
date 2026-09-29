@@ -15,6 +15,8 @@ public sealed class TagDefinition
 
 public sealed class RecruitmentAssets
 {
+    public const int GuidelinesMaxLength = 1000;
+
     public Dictionary<string, string> Templates { get; }
     public Dictionary<string, List<TagDefinition>> Tags { get; }
     public RecruitmentAssets(string root, RecruitmentSettings settings)
@@ -47,7 +49,9 @@ public sealed class RecruitmentAssets
             .Replace("{{acknowledgementMinutes}}", settings.AcknowledgementMinutes.ToString())
             .Replace("{{cooldownDays}}", settings.CooldownDays.ToString())
             .Replace("{{unansweredDays}}", settings.UnansweredDays.ToString()).Trim();
-        if (text.Length > 4096 || text.Contains("{{")) throw new InvalidDataException($"Invalid Guidelines length/placeholders for {purpose}.");
+        if (text.Length > GuidelinesMaxLength)
+            throw new InvalidDataException($"Guidelines for {purpose} exceed the {GuidelinesMaxLength}-character budget after rendering.");
+        if (text.Contains("{{")) throw new InvalidDataException($"Invalid Guidelines placeholders for {purpose}.");
         return text;
     }
 
