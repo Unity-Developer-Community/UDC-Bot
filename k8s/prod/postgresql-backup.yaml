@@ -1,7 +1,9 @@
-# PostgreSQL backup using eeshugerman/postgres-backup-s3 — pg_dump directly to S3.
-# Dumps go to S3 bucket "udc-bot-postgresql-backups/prod" with 90-day retention.
-apiVersion: apps/v1
-kind: Deployment
+# Daily PostgreSQL backup: an init container dumps the database to a scratch volume,
+# then the main container uploads the dump to S3 ("udc-bot-postgresql-backups/prod").
+# Retention is handled by an S3 lifecycle rule on the bucket, not by this job.
+# A failed dump or upload fails the Job, which the PrometheusRule below alerts on.
+apiVersion: batch/v1
+kind: CronJob
 metadata:
   name: postgresql-backup
   namespace: udc-bot-prod
@@ -10,65 +12,147 @@ metadata:
     app.kubernetes.io/part-of: udc-bot
     environment: prod
 spec:
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: postgresql-backup
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: postgresql-backup
-        app.kubernetes.io/part-of: udc-bot
-        environment: prod
+  schedule: "0 0 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
     spec:
-      # Runs as the image's root user: backup.sh writes db.dump into the image's
-      # root-owned working directory, which a non-root UID cannot do.
-      containers:
-        - name: postgresql-backup
-          image: eeshugerman/postgres-backup-s3:16@sha256:59e6cef8459fafc73a5383e103309f23be84bd0bceb89c08b49ffc43780efd01
-          env:
-            - name: POSTGRES_HOST
-              value: postgresql
-            - name: POSTGRES_DATABASE
-              value: udcbot
-            - name: POSTGRES_USER
-              value: udcbot
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgresql-credentials
-                  key: password
-            - name: S3_REGION
-              value: eu-west-3
-            - name: S3_BUCKET
-              value: udc-bot-postgresql-backups
-            - name: S3_PREFIX
-              value: prod
-            - name: S3_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: postgresql-backup-credentials
-                  key: AWS_ACCESS_KEY_ID
-            - name: S3_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: postgresql-backup-credentials
-                  key: AWS_SECRET_ACCESS_KEY
-            - name: SCHEDULE
-              value: "@daily"
-            - name: BACKUP_KEEP_DAYS
-              value: "90"
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              cpu: 100m
-              memory: 128Mi
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: postgresql-backup
+            app.kubernetes.io/part-of: udc-bot
+            environment: prod
+        spec:
+          restartPolicy: Never
           securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: dump
+              image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+              command: ["pg_dump", "--format=custom", "--file=/work/udcbot.dump"]
+              env:
+                - name: PGHOST
+                  value: postgresql
+                - name: PGDATABASE
+                  value: udcbot
+                - name: PGUSER
+                  value: udcbot
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgresql-credentials
+                      key: password
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 64Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+          containers:
+            - name: upload
+              image: amazon/aws-cli:2.27.50@sha256:48c3d4212e2f5b0e24bdc6af7708f9412ce65425a79575e0f78b8f8c0dcd70ab
+              command:
+                - /bin/sh
+                - -c
+                - aws s3 cp /work/udcbot.dump "s3://udc-bot-postgresql-backups/prod/udcbot_$(date -u +%Y%m%dT%H%M%SZ).dump"
+              env:
+                - name: HOME
+                  value: /work
+                - name: AWS_DEFAULT_REGION
+                  value: eu-west-3
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgresql-backup-credentials
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgresql-backup-credentials
+                      key: AWS_SECRET_ACCESS_KEY
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 64Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+          volumes:
+            - name: work
+              emptyDir:
+                sizeLimit: 2Gi
+---
+# Alerts when the latest scheduled backup did not succeed, or none succeeded for 36h
+# (or ever, for a CronJob that never ran).
+# The "release: monitoring" label is what the monitoring stack's rule selector matches.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: postgresql-backup
+  namespace: udc-bot-prod
+  labels:
+    release: monitoring
+    app.kubernetes.io/name: postgresql-backup
+    app.kubernetes.io/part-of: udc-bot
+    environment: prod
+spec:
+  groups:
+    - name: udc-bot-backup
+      rules:
+        - alert: UdcBotBackupFailed
+          expr: |
+            kube_cronjob_status_last_schedule_time{namespace="udc-bot-prod", cronjob="postgresql-backup"}
+            unless on (namespace, cronjob)
+            (kube_cronjob_status_last_successful_time{namespace="udc-bot-prod", cronjob="postgresql-backup"}
+              >= kube_cronjob_status_last_schedule_time{namespace="udc-bot-prod", cronjob="postgresql-backup"})
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PostgreSQL backup failed in udc-bot-prod"
+            description: "The latest scheduled run of CronJob postgresql-backup has not succeeded for 30 minutes. Check the Job logs."
+        - alert: UdcBotBackupStale
+          expr: |
+            time() - kube_cronjob_status_last_successful_time{namespace="udc-bot-prod", cronjob="postgresql-backup"} > 36 * 3600
+          labels:
+            severity: critical
+          annotations:
+            summary: "No PostgreSQL backup in udc-bot-prod for 36 hours"
+            description: "CronJob postgresql-backup has not completed successfully for over 36 hours (suspended, unscheduled or failing)."
+        - alert: UdcBotBackupMissing
+          expr: |
+            absent(kube_cronjob_status_last_successful_time{namespace="udc-bot-prod", cronjob="postgresql-backup"})
+          for: 36h
+          labels:
+            severity: critical
+          annotations:
+            summary: "No PostgreSQL backup has ever succeeded in udc-bot-prod"
+            description: "CronJob postgresql-backup has no recorded success for 36 hours (never scheduled, suspended, or deleted)."
