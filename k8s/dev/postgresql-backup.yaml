@@ -23,10 +23,8 @@ spec:
         app.kubernetes.io/part-of: udc-bot
         environment: dev
     spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 65534
-        fsGroup: 65534
+      # Runs as the image's root user: backup.sh writes db.dump into the image's
+      # root-owned working directory, which a non-root UID cannot do.
       containers:
         - name: postgresql-backup
           image: eeshugerman/postgres-backup-s3:16@sha256:59e6cef8459fafc73a5383e103309f23be84bd0bceb89c08b49ffc43780efd01
