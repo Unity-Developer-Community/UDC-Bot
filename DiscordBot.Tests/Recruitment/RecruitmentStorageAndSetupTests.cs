@@ -17,7 +17,7 @@ public class RecruitmentStorageAndSetupTests
         {
             var text = assets.Render(purpose, "ABCDE", settings);
             Assert.InRange(text.Length, 1, 1000);
-            Assert.Contains("pinned moderator/admin post", text);
+            Assert.Contains("pinned information post", text);
             Assert.Contains("ABCDE", text);
         }
     }
@@ -78,14 +78,19 @@ public class RecruitmentStorageAndSetupTests
         using var reader = new Newtonsoft.Json.JsonTextReader(new StringReader(File.ReadAllText(path))) { DateParseHandling = Newtonsoft.Json.DateParseHandling.None };
         var json = JObject.Load(reader);
         json.Remove("Overview"); json.Remove("RecoveryFault");
-        foreach (var forum in json["Forums"]!.Children<JProperty>()) ((JObject)forum.Value).Remove("Fault");
-        foreach (var listing in json["Listings"]!.Children<JProperty>()) ((JObject)listing.Value).Remove("Fault");
+        foreach (var forum in json["Forums"]!.Children<JProperty>()) { ((JObject)forum.Value).Remove("Fault"); ((JObject)forum.Value).Remove("Reference"); }
+        foreach (var listing in json["Listings"]!.Children<JProperty>())
+        {
+            ((JObject)listing.Value).Remove("Fault");
+            ((JObject)listing.Value["Facts"]!).Remove("MemberRoleCount"); ((JObject)listing.Value["Facts"]!).Remove("Portfolio");
+        }
         File.WriteAllText(path, json.ToString());
         await rig.Restart();
         Assert.True(rig.Engine.State is not null, rig.Engine.Status);
         Assert.Equal(accepted, rig.State.Authors["200"].LastAcceptedCreation);
         Assert.NotNull(rig.State.Overview);
         Assert.NotNull(rig.State.Listings["100"].AcceptedAt);
+        Assert.Equal(4, rig.Discord.ReferenceCreates); // Existing bot references recovered from their marker.
     }
 
     [Fact]

@@ -43,6 +43,7 @@ public sealed class ForumReceipt
     public string ForumId { get; set; } = "";
     public RecruitmentFault? Fault { get; set; }
     public ArchiveCursor? ArchiveCursor { get; set; }
+    public ReferenceReceipt Reference { get; set; } = new();
     public string ConfirmedTopic { get; set; } = "";
     public string VisibleCode { get; set; } = "";
     public Dictionary<string, ManagedTag> Tags { get; set; } = new();
@@ -51,6 +52,16 @@ public sealed class ForumReceipt
     public string? PendingTopic { get; set; }
     public string? PendingCode { get; set; }
     public List<TagDefinition>? PendingTags { get; set; }
+}
+
+/// <summary>A forum's reference thread, separate from member listings and the private feed overview.</summary>
+public sealed class ReferenceReceipt
+{
+    public string? ThreadId { get; set; }
+    public bool BotOwned { get; set; }
+    public bool CreatePending { get; set; }
+    public DateTimeOffset? CreateStartedAt { get; set; }
+    public RecruitmentFault? Fault { get; set; }
 }
 
 public sealed class ManagedTag

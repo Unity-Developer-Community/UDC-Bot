@@ -2,7 +2,7 @@
 
 Describe the work, skills needed, budget, currency, payment schedule and contact details.
 
-Read the pinned moderator/admin post at the top of this forum for fuller guidance. Use relevant tags; verify claims and agree terms in writing.
+Read the pinned information post at the top of this forum for fuller guidance. Use relevant tags; verify claims and agree terms in writing.
 
 You may have **one open listing total across all four recruitment forums**. Combine hiring and offering services in a for-hire listing.
 

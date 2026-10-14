@@ -22,7 +22,7 @@ public sealed partial class RecruitmentEngine
         State?.Forums.Select(f => new ForumHealth(f.Key, f.Value.ForumId,
             f.Value.Fault is not null ? "held" : f.Value.PendingTopic is not null ? "publication pending" :
             f.Value.ConfirmedTopic.Length == 0 ? "not verified" : "Guidelines and tags verified",
-            f.Value.Fault?.Message, f.Value.Fault?.RetryAt)).ToArray() ?? Array.Empty<ForumHealth>(), State?.Overview.Fault?.Message);
+            f.Value.Fault?.Message, f.Value.Fault?.RetryAt, f.Value.Reference.ThreadId, f.Value.Reference.Fault?.Message)).ToArray() ?? Array.Empty<ForumHealth>(), State?.Overview.Fault?.Message);
 
     private DateTimeOffset? NextWorkAt
     {
@@ -32,7 +32,11 @@ public sealed partial class RecruitmentEngine
             var times = new List<DateTimeOffset>();
             if (_nextAudit != DateTimeOffset.MaxValue) times.Add(_nextAudit);
             if (State.RecoveryFault?.RetryAt is { } retry) times.Add(retry);
-            times.AddRange(State.Forums.Values.Where(f => f.Fault?.RetryAt is not null).Select(f => f.Fault!.RetryAt!.Value));
+            // Expired child retries cannot run through a parent hold; scheduling them would wake every second.
+            if (State.RecoveryFault is null)
+                times.AddRange(State.Forums.Values.Where(f => f.Fault?.RetryAt is not null).Select(f => f.Fault!.RetryAt!.Value));
+            if (_ready)
+                times.AddRange(State.Forums.Values.Where(f => f.Reference.Fault?.RetryAt is not null).Select(f => f.Reference.Fault!.RetryAt!.Value));
             if (_ready && EvidenceCurrent)
             {
                 times.Add(State.RotateAt);
@@ -68,7 +72,8 @@ public sealed partial class RecruitmentEngine
     {
         if (State is null) return;
         if (_nextAudit <= Now || State.RecoveryFault?.IsDue(Now) == true ||
-            State.Forums.Values.Any(f => f.Fault?.IsDue(Now) == true) || _ready && State.RotateAt <= Now)
+            State.RecoveryFault is null && State.Forums.Values.Any(f => f.Fault?.IsDue(Now) == true) ||
+            _ready && (State.Forums.Values.Any(f => f.Reference.Fault?.IsDue(Now) == true) || State.RotateAt <= Now))
         {
             await SweepAsync(ct, retryHeld: false);
             return;
@@ -91,6 +96,7 @@ public sealed partial class RecruitmentEngine
         State.RecoveryFault = null;
         State.Overview.Fault = null;
         foreach (var f in State.Forums.Values.Where(f => forum is null || f.ForumId == forum)) f.Fault = null;
+        foreach (var f in State.Forums.Values.Where(f => forum is null || f.ForumId == forum)) f.Reference.Fault = null;
         foreach (var post in State.Listings.Values.Where(p => forum is null || p.ForumId == forum)) post.Fault = null;
         _nextAudit = Now;
         MarkEvidenceGap();
@@ -99,12 +105,13 @@ public sealed partial class RecruitmentEngine
     public async Task ThreadChangedAsync(string id, CancellationToken ct)
     {
         _discord.InvalidateThread(id);
+        if (State?.Forums.Values.Any(f => f.Reference.ThreadId == id) == true) return;
         if (State is null || !_ready) return;
         if (!State.Listings.TryGetValue(id, out var post))
         {
             var live = await _discord.GetThreadAsync(id, ct);
             // ThreadCreated also signals access to an existing thread; it cannot certify reply coverage.
-            if (live is not null) await ObserveAsync(live, false, ct);
+            if (live is not null) { ObserveReferenceCandidate(live); await ObserveAsync(live, false, ct); }
             if (!State.Listings.TryGetValue(id, out post)) return;
         }
         post.Fault = null;
@@ -114,6 +121,12 @@ public sealed partial class RecruitmentEngine
     public async Task ThreadDeletedAsync(string id, CancellationToken ct)
     {
         _discord.InvalidateThread(id);
+        if (State?.Forums.Values.FirstOrDefault(f => f.Reference.ThreadId == id) is { } forum)
+        {
+            forum.Reference = new ReferenceReceipt(); _verifiedReferences.Remove(forum.ForumId);
+            _referenceCandidates.Remove(forum.ForumId); _ignoredThreads.Remove(id);
+            RequestRecovery(); Save();
+        }
         if (State?.Listings.GetValueOrDefault(id) is not { } post) return;
         RecordAbsence(post);
         if (_ready) await ReconcileThreadAsync(id, ct);
@@ -123,13 +136,6 @@ public sealed partial class RecruitmentEngine
     {
         _discord.InvalidateFacts(id);
         return ThreadChangedAsync(id, ct);
-    }
-
-    public async Task MemberChangedAsync(string owner, CancellationToken ct)
-    {
-        if (State is null) return;
-        foreach (var post in State.Listings.Values.Where(p => p.OwnerId == owner && p.Status == ListingStatus.Open).ToArray())
-            await FactsChangedAsync(post.Id, ct);
     }
 
     public async Task MessageDeletedAsync(string channel, IReadOnlySet<string> ids, CancellationToken ct)

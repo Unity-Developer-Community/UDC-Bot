@@ -1,6 +1,6 @@
 namespace DiscordBot.Services.Recruitment;
 
-public sealed record ForumHealth(string Purpose, string Id, string Setup, string? Fault, DateTimeOffset? RetryAt);
+public sealed record ForumHealth(string Purpose, string Id, string Setup, string? Fault, DateTimeOffset? RetryAt, string? ReferenceId = null, string? ReferenceFault = null);
 
 /// <summary>Detached from mutable state so moderators can inspect progress while the worker awaits Discord.</summary>
 public sealed record RecruitmentHealth(string Status, string Work, DateTimeOffset ObservedAt,
@@ -21,7 +21,9 @@ public sealed record RecruitmentHealth(string Status, string Work, DateTimeOffse
     public string Text()
     {
         var forums = string.Join("\n", Forums.Select(f => $"• <#{f.Id}> · {f.Purpose}: {f.Setup}" +
-            (f.Fault is null ? "" : $" — {f.Fault}" + (f.RetryAt.HasValue ? $"; retry {RecruitmentPresentation.Timestamp(f.RetryAt.Value)}" : "; preview and repair required"))));
+            (f.Fault is null ? "" : $" — {RecruitmentPresentation.Safe(f.Fault, 250)}" + (f.RetryAt.HasValue ? $"; retry {RecruitmentPresentation.Timestamp(f.RetryAt.Value)}" : "; preview and repair required")) +
+            (f.ReferenceId is null ? " · reference pending" : $" · reference <#{f.ReferenceId}>") +
+            (f.ReferenceFault is null ? "" : " · reference held: " + RecruitmentPresentation.Safe(f.ReferenceFault, 180))));
         return RecruitmentPresentation.Safe(Status, 400) + $"\nOpen: {Open} · awaiting acknowledgement: {Pending} · held: {Held}\n" +
             $"Inventory: {(InventoryComplete ? "complete" : "recovery needed")} · work: {Work}\n" +
             (LastRecovery.HasValue ? $"Last recovery: {RecruitmentPresentation.Timestamp(LastRecovery.Value)}\n" : "No completed recovery yet.\n") +

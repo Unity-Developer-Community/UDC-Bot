@@ -110,7 +110,9 @@ public sealed class RecruitmentStateStore : IDisposable
             overview.SendPending && (overview.SendStartedAt is null || overview.PendingMarker is null || !overview.PendingMarker.StartsWith($"recruitment:overview:{state.InstanceId}:")))
             throw new InvalidDataException("Recruitment overview receipt is invalid.");
         foreach (var f in state.Forums.Values)
-            if (f is null || f.Tags is null || f.ConfirmedTopic is null || f.VisibleCode is null ||
+            if (f is null || f.Tags is null || f.ConfirmedTopic is null || f.VisibleCode is null || f.Reference is null ||
+                f.Reference.ThreadId is not null && !Id(f.Reference.ThreadId) ||
+                f.Reference.CreatePending && (f.Reference.CreateStartedAt is null || f.Reference.ThreadId is not null) ||
                 f.Tags.Values.Any(t => t is null || !Id(t.Id) || string.IsNullOrWhiteSpace(t.Name)))
                 throw new InvalidDataException("Recruitment forum receipt is invalid.");
         foreach (var (id, p) in state.Listings)

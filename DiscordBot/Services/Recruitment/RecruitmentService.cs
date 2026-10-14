@@ -18,7 +18,7 @@ public sealed class RecruitmentService
     private readonly Dictionary<string, Func<CancellationToken, Task>> _coalesced = new();
     private readonly object _enqueueGate = new();
     private IReadOnlySet<string> _knownThreads = new HashSet<string>();
-    private IReadOnlySet<string> _listingOwners = new HashSet<string>();
+    private IReadOnlyDictionary<string, string[]> _listingOwners = new Dictionary<string, string[]>();
     private IReadOnlyDictionary<string, string> _messageOwners = new Dictionary<string, string>();
     private string? _overviewMessage;
     private readonly Channel<Work> _queue = Channel.CreateBounded<Work>(new BoundedChannelOptions(256)
@@ -99,8 +99,9 @@ public sealed class RecruitmentService
         var next = _engine.Health(_work) with { Job = _job };
         var before = Health;
         Volatile.Write(ref _health, next);
-        Volatile.Write(ref _knownThreads, _engine.State?.Listings.Keys.ToHashSet() ?? new HashSet<string>());
-        Volatile.Write(ref _listingOwners, _engine.State?.Listings.Values.Where(p => p.Status == ListingStatus.Open).Select(p => p.OwnerId).ToHashSet() ?? new HashSet<string>());
+        Volatile.Write(ref _knownThreads, _engine.State is { } state ? state.Listings.Keys.Concat(state.Forums.Values.Select(f => f.Reference.ThreadId).OfType<string>()).ToHashSet() : new HashSet<string>());
+        Volatile.Write(ref _listingOwners, _engine.State?.Listings.Values.Where(p => p.Status == ListingStatus.Open)
+            .GroupBy(p => p.OwnerId).ToDictionary(g => g.Key, g => g.Select(p => p.Id).ToArray()) ?? new Dictionary<string, string[]>());
         var owners = new Dictionary<string, string>();
         foreach (var post in _engine.State?.Listings.Values ?? Enumerable.Empty<Listing>())
         {
@@ -296,8 +297,8 @@ public sealed class RecruitmentService
     {
         if (after.Guild.Id != _settings.GuildId || before.HasValue && before.Value.Roles.Select(r => r.Id).SequenceEqual(after.Roles.Select(r => r.Id))) return Task.CompletedTask;
         if (after.Id == _client?.CurrentUser.Id) ScheduleRecovery();
-        else if (Volatile.Read(ref _listingOwners).Contains(after.Id.ToString()))
-            Enqueue("member:" + after.Id, ct => _engine.MemberChangedAsync(after.Id.ToString(), ct));
+        else if (Volatile.Read(ref _listingOwners).TryGetValue(after.Id.ToString(), out var threads))
+            foreach (var id in threads) NotifyFactsChanged(id);
         return Task.CompletedTask;
     }
 

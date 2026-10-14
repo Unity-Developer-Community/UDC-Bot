@@ -80,4 +80,16 @@ public class RecruitmentFollowUpTests
 
     private static ThreadSnapshot Thread(RecruitmentRig rig) => new("100", "11", "200", "Reference", rig.Clock.Now,
         false, false, false, false, Array.Empty<string>(), "Read the information below", rig.Clock.Now.AddYears(-2), rig.Clock.Now.AddMonths(-3));
+
+    [Fact]
+    public async Task QueuedEvidenceCancelsClosureBeforeAppendingAnActionAudit()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post();
+        rig.Discord.Threads[post.Id] = rig.Discord.Threads[post.Id] with { Tags = new[] { rig.State.Forums["paid-recruiting"].Tags["closed"].Id } };
+        rig.PendingThreadWork.Add(post.Id);
+        await rig.Engine.ThreadChangedAsync(post.Id, default);
+        Assert.DoesNotContain(post.Audit, a => a.Reason == "Closed tag applied"); Assert.Empty(rig.Discord.Actions);
+        rig.PendingThreadWork.Clear(); await rig.Engine.ThreadChangedAsync(post.Id, default);
+        Assert.Single(post.Audit, a => a.Reason == "Closed tag applied"); Assert.Equal(ListingStatus.Closed, post.Status);
+    }
 }

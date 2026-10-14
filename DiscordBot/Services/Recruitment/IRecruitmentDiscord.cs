@@ -27,6 +27,8 @@ public interface IRecruitmentDiscord
     Task<ForumSnapshot> PublishForumAsync(ForumSnapshot expected, string? topic, IReadOnlyList<LiveTag>? tags, bool requireTag, CancellationToken ct);
     Task<ThreadInventory> InventoryAsync(DateTimeOffset floor, IReadOnlySet<string> knownIds, IReadOnlyDictionary<string, ArchiveCursor> cursors, CancellationToken ct);
     Task<ThreadSnapshot?> GetThreadAsync(string threadId, CancellationToken ct, bool refresh = false);
+    Task<string> CreateReferenceAsync(string forumId, string closedTagId, string marker, CancellationToken ct);
+    Task<bool> SecureReferenceAsync(string forumId, string threadId, bool botOwned, string marker, CancellationToken ct);
     void InvalidateThread(string threadId);
     void InvalidateFacts(string threadId);
     void InvalidateCache();

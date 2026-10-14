@@ -63,7 +63,7 @@ public class RecruitmentPresentationTests
         await rig.Engine.FactsChangedAsync(post.Id, default);
         Assert.Equal(writes, rig.Discord.Upserts);
         rig.Discord.Threads[post.Id] = rig.Discord.Threads[post.Id] with { MemberRoleCount = 0 };
-        await rig.Engine.MemberChangedAsync(post.OwnerId, default);
+        await rig.Engine.FactsChangedAsync(post.Id, default);
         Assert.Contains(rig.Discord.Messages["100:recruitment:100:public"].Message.Embed!.Fields, f => f.Name == "⚠ Server roles");
     }
 }

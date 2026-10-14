@@ -60,6 +60,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         _accessInvalid = true;
         if (invalidateAccess) _feedReady = false;
         _discord.InvalidateCache();
+        _verifiedReferences.Clear(); _referenceCandidates.Clear(); _ignoredThreads.Clear();
         foreach (var post in State.Listings.Values.Where(p => p.Status == ListingStatus.Open))
         {
             post.ResponseCoverageComplete = false;
@@ -115,6 +116,7 @@ public sealed partial class RecruitmentEngine : IDisposable
                 await ProcessSafelyAsync(post, ct, verifyHeld: true);
             }
             if (batch.Length > 0) State.SweepAfterId = batch[^1].Id;
+            await ReconcileReferencesAsync(ct, retryHeld);
             RecruitmentPolicy.Prune(State, Now, _settings.PostRetentionMonths, _settings.AuthorRetentionMonths, _settings.CooldownDays);
             if (EvidenceCurrent) State.LastSweepAt = Now;
             else _nextAudit = Now.AddSeconds(10);
@@ -139,12 +141,23 @@ public sealed partial class RecruitmentEngine : IDisposable
     {
         var state = State!;
         var generation = _evidenceGeneration();
-        var cursors = state.Forums.Values.ToDictionary(f => f.ForumId, f => f.ArchiveCursor ?? new ArchiveCursor(state.DiscoveryFloor));
-        var inventory = await _discord.InventoryAsync(state.DiscoveryFloor, state.Listings.Keys.ToHashSet(), cursors, ct);
+        var cursors = state.Forums.Values.ToDictionary(f => f.ForumId, f =>
+        {
+            var cursor = f.ArchiveCursor ?? new ArchiveCursor(state.DiscoveryFloor);
+            return f.Reference.CreatePending && f.Reference.CreateStartedAt is { } started && cursor.Since > started.AddMinutes(-5)
+                ? new ArchiveCursor(started.AddMinutes(-5)) : cursor;
+        });
+        foreach (var id in _ignoredThreads.Where(p => p.Value < state.DiscoveryFloor).Select(p => p.Key).ToArray()) _ignoredThreads.Remove(id);
+        var known = state.Listings.Keys.Concat(_ignoredThreads.Keys).Concat(state.Forums.Values.Select(f => f.Reference.ThreadId).OfType<string>()).ToHashSet();
+        var inventory = await _discord.InventoryAsync(state.DiscoveryFloor, known, cursors, ct);
         _inventoryComplete = inventory.Complete;
         _inventoryGeneration = generation;
+        _unreadableReferenceForums.Clear();
         foreach (var live in inventory.Threads.OrderBy(t => t.CreatedAt).ThenBy(t => ulong.Parse(t.Id)))
+        {
+            ObserveReferenceCandidate(live);
             await ObserveAsync(live, false, ct);
+        }
         if (inventory.Cursors is not null)
             foreach (var forum in state.Forums.Values) forum.ArchiveCursor = inventory.Cursors[forum.ForumId];
         if (!_inventoryComplete)
@@ -217,6 +230,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         }
         if (live.OwnerIsBot || live.OwnerIsStaff)
         {
+            ObserveReferenceCandidate(live);
             // Retire records made by older versions without editing staff content or erasing accepted history.
             post.Status = ListingStatus.Reference; post.PendingAction = null; post.Deadline = null;
             post.Hold = null; post.Fault = null; post.ValidCodes.Clear(); _recoverWindows.Remove(post.Id);
@@ -435,7 +449,8 @@ public sealed partial class RecruitmentEngine : IDisposable
         if (post.PendingAction is not null) throw new InvalidOperationException("An earlier action still needs reconciliation.");
         post.PendingAction = new RecruitmentAction { Kind = kind, ActorId = actor, Reason = reason, Condition = condition,
             Automatic = automatic, RequiresModerator = requiresModerator, GuidelineTimeout = condition == "timeout", CreatedAt = Now };
-        Audit(post, actor, reason); Save();
+        if (!automatic) Audit(post, actor, reason);
+        Save();
         await ExecuteActionAsync(post, ct);
     }
 
@@ -493,6 +508,9 @@ public sealed partial class RecruitmentEngine : IDisposable
         // Gateway facts and timely owner interactions already queued must be applied before an automatic action.
         if (action.Automatic && (!EvidenceCurrent || _pendingThreadWork(post.Id)))
         { post.PendingAction = null; Save(); return; }
+        // The pending action is already visible to staff. Do not append an automatic-action audit
+        // for a request cancelled by newer evidence before it reaches the write boundary.
+        if (action.Automatic && !action.CallStarted) Audit(post, action.ActorId, action.Reason);
         action.CallStarted = true; Save();
         switch (action.Kind)
         {
@@ -547,6 +565,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         {
             if (target.Length > 0 && !State.Forums.ContainsKey(target)) return "Unknown recruitment forum purpose.";
             State.Overview.Fault = null;
+            _verifiedReferences.Clear();
             State.SetupAudit.Add(new RecruitmentAudit(Now, actor, "Repair forum setup: " + reason));
             if (State.SetupAudit.Count > 30) State.SetupAudit.RemoveAt(0);
             Save();
@@ -558,6 +577,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         if (operation == "reconcile")
         {
             State.Overview.Fault = null;
+            _verifiedReferences.Clear();
             State.SetupAudit.Add(new RecruitmentAudit(Now, actor, "Reconcile: " + reason));
             if (State.SetupAudit.Count > 30) State.SetupAudit.RemoveAt(0);
             Save(); await SweepAsync(ct); return Status;

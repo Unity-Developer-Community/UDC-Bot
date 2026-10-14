@@ -118,6 +118,10 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
     public string? FailForum { get; set; }
     public bool? FailForumRequireTag { get; set; }
     public bool LoseNextForumResponse { get; set; }
+    public bool LoseNextReferenceResponse { get; set; }
+    public bool FailReferencePin { get; set; }
+    public int ReferenceCreates { get; private set; }
+    public int ReferenceChecks { get; private set; }
     public List<(string Id, bool Tags, bool RequireTag)> ForumPublications { get; } = new();
     public Action? BeforeDelete { get; set; }
     public int Sends { get; private set; }
@@ -146,12 +150,32 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
         if (LoseNextForumResponse) { LoseNextForumResponse = false; throw new TimeoutException("Forum response lost"); }
         return Task.FromResult(Forums[id]);
     }
-    public Task<ThreadInventory> InventoryAsync(DateTimeOffset floor, IReadOnlySet<string> knownIds, IReadOnlyDictionary<string, ArchiveCursor> cursors, CancellationToken ct) { Inventories++; return Task.FromResult(new ThreadInventory(Threads.Values.Where(t => t.CreatedAt >= floor).ToArray(), InventoryComplete)); }
+    public Task<ThreadInventory> InventoryAsync(DateTimeOffset floor, IReadOnlySet<string> knownIds, IReadOnlyDictionary<string, ArchiveCursor> cursors, CancellationToken ct) { Inventories++; return Task.FromResult(new ThreadInventory(Threads.Values.Where(t => t.CreatedAt >= floor && !knownIds.Contains(t.Id)).ToArray(), InventoryComplete)); }
     public Task<ThreadSnapshot?> GetThreadAsync(string id, CancellationToken ct, bool refresh = false)
     { ThreadReads++; return UnknownThreads.Contains(id) ? Task.FromException<ThreadSnapshot?>(new InvalidOperationException("Forbidden")) : Task.FromResult(Threads.GetValueOrDefault(id)); }
     public void InvalidateThread(string id) { }
     public void InvalidateCache() { }
     public void InvalidateFacts(string id) { }
+    public Task<string> CreateReferenceAsync(string forum, string closedTagId, string marker, CancellationToken ct)
+    {
+        ReferenceCreates++;
+        var id = (++_nextId).ToString();
+        Threads[id] = new ThreadSnapshot(id, forum, "999", "Read first · Recruitment information", DateTimeOffset.UtcNow,
+            true, false, false, false, new[] { closedTagId }, DiscordRecruitmentAdapter.ReferenceIntroduction(marker), null, null);
+        if (LoseNextReferenceResponse) { LoseNextReferenceResponse = false; throw new TimeoutException("Reference response lost"); }
+        return Task.FromResult(id);
+    }
+    public Task<bool> SecureReferenceAsync(string forum, string id, bool botOwned, string marker, CancellationToken ct)
+    {
+        ReferenceChecks++;
+        if (FailReferencePin) throw new TimeoutException("Reference pin failed");
+        if (UnknownThreads.Contains(id)) throw new InvalidOperationException("Forbidden");
+        if (!Threads.TryGetValue(id, out var thread)) return Task.FromResult(false);
+        if (thread.ForumId != forum || (botOwned ? thread.OwnerId != "999" || thread.Starter?.Contains(marker) != true : !thread.OwnerIsStaff))
+            throw new InvalidOperationException("Reference identity mismatch");
+        Threads[id] = thread with { Pinned = true, Locked = true, Archived = true };
+        return Task.FromResult(true);
+    }
     public Task<bool?> HasReplyAsync(ThreadSnapshot thread, CancellationToken ct) { ReplyReads++; return Task.FromResult<bool?>(Replies.Contains(thread.Id)); }
     public Task<Delivery> UpsertAsync(string channelId, string? messageId, bool recovering, DateTimeOffset since, RecruitmentMessage message, Action beforeWrite, CancellationToken ct)
     {

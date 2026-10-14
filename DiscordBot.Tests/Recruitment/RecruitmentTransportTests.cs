@@ -10,6 +10,7 @@ using Newtonsoft.Json.Linq;
 
 namespace DiscordBot.Tests.Recruitment;
 
+[Collection("Recruitment transport")]
 public class RecruitmentTransportTests
 {
     [Fact]
