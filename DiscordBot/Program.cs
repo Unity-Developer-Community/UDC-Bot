@@ -39,6 +39,7 @@ public class Program
 
         _client = new DiscordSocketClient(new DiscordSocketConfig
         {
+            RestClientProvider = RecruitmentForumTransport.Wrap(Discord.Net.Rest.DefaultRestClientProvider.Create()),
             LogLevel = LogSeverity.Verbose,
             AlwaysDownloadUsers = true,
             MessageCacheSize = 1024,

@@ -7,11 +7,13 @@ using DiscordBot.Settings;
 
 namespace DiscordBot.Services.Recruitment;
 
+/// <summary>Discord I/O and authoritative pre-action checks for the serialized recruitment engine.</summary>
 public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
 {
     private readonly DiscordSocketClient _client;
     private readonly BotSettings _settings;
     private readonly DatabaseService _database;
+    private readonly Dictionary<string, (ForumSnapshot Snapshot, RestForumChannel Channel)> _forums = new();
     public DiscordRecruitmentAdapter(DiscordSocketClient client, BotSettings settings, DatabaseService database)
         => (_client, _settings, _database) = (client, settings, database);
     private static RequestOptions Options(CancellationToken ct) => new() { CancelToken = ct, Timeout = 15000 };
@@ -68,24 +70,42 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
     public async Task<ForumSnapshot> GetForumAsync(string forumId, CancellationToken ct)
     {
         var forum = await ForumAsync(forumId, ct);
-        return new ForumSnapshot(forumId, forum.Topic ?? "", (forum.Flags & ChannelFlags.RequireTag) != 0,
-            forum.Tags.Select(t => new LiveTag(t.Id.ToString(), t.Name, t.IsModerated, t.Emoji)).ToArray());
+        var snapshot = Snapshot(forum);
+        _forums[forumId] = (snapshot, forum);
+        return snapshot;
     }
 
-    public async Task PublishForumAsync(string forumId, string topic, IReadOnlyList<LiveTag> tags, CancellationToken ct)
+    private static ForumSnapshot Snapshot(RestForumChannel forum) => new(forum.Id.ToString(), forum.Topic ?? "",
+        (forum.Flags & ChannelFlags.RequireTag) != 0,
+        forum.Tags.Select(t => new LiveTag(t.Id.ToString(), t.Name, t.IsModerated, t.Emoji)).ToArray(), forum.Flags);
+
+    public async Task<ForumSnapshot> PublishForumAsync(ForumSnapshot expected, string? topic, IReadOnlyList<LiveTag>? tags, bool requireTag, CancellationToken ct)
     {
-        var forum = await ForumAsync(forumId, ct);
+        if (!_forums.TryGetValue(expected.Id, out var observed) || !ReferenceEquals(observed.Snapshot, expected))
+            throw new InvalidOperationException("Forum publication needs a current pre-write observation.");
+        var snapshot = await ModifyForumAsync(observed.Channel, topic, tags, requireTag, Options(ct));
+        _forums[expected.Id] = (snapshot, observed.Channel);
+        return snapshot;
+    }
+
+    internal static async Task<ForumSnapshot> ModifyForumAsync(RestForumChannel forum, string? topic,
+        IReadOnlyList<LiveTag>? tags, bool requireTag, RequestOptions options)
+    {
+        using var scope = tags is null ? null : RecruitmentForumTransport.PreserveTags(forum.Id, tags);
+        if (tags is not null) options.AuditLogReason = RecruitmentForumTransport.TagWriteReason;
         await forum.ModifyAsync(p =>
         {
-            p.Topic = topic;
-            p.Flags = forum.Flags | ChannelFlags.RequireTag;
-            p.Tags = tags.Select(t =>
+            if (topic is not null) p.Topic = topic;
+            // Discord.Net 3.20.1 sends flags:0 when Flags is omitted, even for a topic-only edit.
+            p.Flags = requireTag ? forum.Flags | ChannelFlags.RequireTag : forum.Flags & ~ChannelFlags.RequireTag;
+            if (tags is not null) p.Tags = tags.Select(t =>
             {
                 var builder = new ForumTagBuilder(t.Name, string.IsNullOrEmpty(t.Id) ? null : ulong.Parse(t.Id), t.Moderated);
                 if (t.Emoji is not null) builder.WithEmoji(t.Emoji);
                 return builder.Build();
             }).ToArray();
-        }, Options(ct));
+        }, options);
+        return Snapshot(forum);
     }
 
     public async Task<ThreadInventory> InventoryAsync(DateTimeOffset floor, IReadOnlySet<string> knownIds,

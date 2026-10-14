@@ -63,6 +63,9 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
     public bool LoseNextDeleteResponse { get; set; }
     public bool FailPermissions { get; set; }
     public string? FailForum { get; set; }
+    public bool? FailForumRequireTag { get; set; }
+    public bool LoseNextForumResponse { get; set; }
+    public List<(string Id, bool Tags, bool RequireTag)> ForumPublications { get; } = new();
     public Action? BeforeDelete { get; set; }
     public int Sends { get; private set; }
     public int ForumWrites { get; private set; }
@@ -70,12 +73,17 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
     public Task ValidateAccessAsync(CancellationToken ct) => FailPermissions ? Task.FromException(new InvalidOperationException("Missing permissions")) : Task.CompletedTask;
     public Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct) => Task.FromResult(guildId == "1" && userId == "900");
     public Task<ForumSnapshot> GetForumAsync(string id, CancellationToken ct) => Task.FromResult(Forums[id]);
-    public Task PublishForumAsync(string id, string topic, IReadOnlyList<LiveTag> tags, CancellationToken ct)
+    public Task<ForumSnapshot> PublishForumAsync(ForumSnapshot expected, string? topic, IReadOnlyList<LiveTag>? tags, bool requireTag, CancellationToken ct)
     {
-        if (FailForum == id) throw new InvalidOperationException("Forum write failed");
+        var id = expected.Id;
+        if (FailForum == id && (FailForumRequireTag is null || FailForumRequireTag == requireTag)) throw new InvalidOperationException("Forum write failed");
         ForumWrites++;
-        Forums[id] = new ForumSnapshot(id, topic, true, tags.Select(t => t with { Id = t.Id == "" ? (++_nextId).ToString() : t.Id }).ToArray());
-        return Task.CompletedTask;
+        ForumPublications.Add((id, tags is not null, requireTag));
+        Forums[id] = expected with { Topic = topic ?? expected.Topic, RequireTag = requireTag,
+            Flags = requireTag ? expected.Flags | Discord.ChannelFlags.RequireTag : expected.Flags & ~Discord.ChannelFlags.RequireTag,
+            Tags = tags?.Select(t => t with { Id = t.Id == "" ? (++_nextId).ToString() : t.Id }).ToArray() ?? expected.Tags };
+        if (LoseNextForumResponse) { LoseNextForumResponse = false; throw new TimeoutException("Forum response lost"); }
+        return Task.FromResult(Forums[id]);
     }
     public Task<ThreadInventory> InventoryAsync(DateTimeOffset floor, IReadOnlySet<string> knownIds, IReadOnlyDictionary<string, ArchiveCursor> cursors, CancellationToken ct) => Task.FromResult(new ThreadInventory(Threads.Values.Where(t => t.CreatedAt >= floor).ToArray(), InventoryComplete));
     public Task<ThreadSnapshot?> GetThreadAsync(string id, CancellationToken ct) => UnknownThreads.Contains(id)

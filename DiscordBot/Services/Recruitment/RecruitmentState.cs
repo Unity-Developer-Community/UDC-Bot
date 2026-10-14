@@ -34,10 +34,12 @@ public sealed class RecruitmentState
     public Dictionary<string, AuthorHistory> Authors { get; set; } = new();
 }
 
+/// <summary>Verified forum publication and any unfinished desired state; never contains an inferred success.</summary>
 public sealed class ForumReceipt
 {
     [JsonProperty(Required = Required.AllowNull)]
     public string ForumId { get; set; } = "";
+    public RecruitmentFault? Fault { get; set; }
     public ArchiveCursor? ArchiveCursor { get; set; }
     public string ConfirmedTopic { get; set; } = "";
     public string VisibleCode { get; set; } = "";

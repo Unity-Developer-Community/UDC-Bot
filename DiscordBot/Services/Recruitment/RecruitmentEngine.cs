@@ -59,14 +59,16 @@ public sealed class RecruitmentEngine : IDisposable
         Save();
     }
 
-    public async Task SweepAsync(CancellationToken ct)
+    public async Task SweepAsync(CancellationToken ct, bool retryHeld = true)
     {
         if (_store is null || _setup is null) return;
         _ready = false;
         try
         {
             await _discord.ValidateAccessAsync(ct);
-            await _setup.ReconcileAsync(Now, false, ct);
+            await _setup.ReconcileAsync(Now, false, ct, retryHeld);
+            if (State!.Forums.Values.FirstOrDefault(f => f.Fault is not null) is { } failed)
+                throw new InvalidOperationException(failed.Fault!.Message);
             _ready = true;
             await DiscoverAsync(ct);
             var cursor = ulong.TryParse(State!.SweepAfterId, out var savedCursor) ? savedCursor : 0;

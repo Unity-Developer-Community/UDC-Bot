@@ -82,8 +82,8 @@ public class RecruitmentStorageAndSetupTests
     {
         using var rig = new RecruitmentRig(); await rig.Start();
         var ids = rig.State.Forums["paid-recruiting"].Tags.ToDictionary(t => t.Key, t => t.Value.Id);
-        Assert.Equal(4, rig.Discord.ForumWrites); await rig.Sweep(); await rig.Restart();
-        Assert.Equal(4, rig.Discord.ForumWrites);
+        Assert.Equal(8, rig.Discord.ForumWrites); await rig.Sweep(); await rig.Restart();
+        Assert.Equal(8, rig.Discord.ForumWrites);
         Assert.Equal(ids, rig.State.Forums["paid-recruiting"].Tags.ToDictionary(t => t.Key, t => t.Value.Id));
         Assert.All(rig.Discord.Forums.Values, f => Assert.True(f.RequireTag));
     }
@@ -118,7 +118,46 @@ public class RecruitmentStorageAndSetupTests
     {
         using var rig = new RecruitmentRig(); rig.Discord.Forums["11"] = rig.Discord.Forums["11"] with { Topic = "Existing Guidelines" };
         await rig.Start(); Assert.Contains("Guidelines changed", rig.Engine.Status);
-        Assert.Equal(0, rig.Discord.ForumWrites);
+        Assert.Equal(6, rig.Discord.ForumWrites); // Other forums can complete their independent setup.
+        Assert.NotNull(rig.State.Forums["paid-recruiting"].Fault);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task InterruptedSetupRecoversAssignedTagIdsBeforeEnablingRequireTag(bool lostResponse)
+    {
+        using var rig = new RecruitmentRig();
+        if (lostResponse) rig.Discord.LoseNextForumResponse = true;
+        else { rig.Discord.FailForum = "11"; rig.Discord.FailForumRequireTag = true; }
+        await rig.Start();
+        var ids = rig.Discord.Forums["11"].Tags.Select(t => t.Id).ToArray();
+        Assert.NotEmpty(ids);
+        Assert.False(rig.Discord.Forums["11"].RequireTag);
+        Assert.NotNull(rig.State.Forums["paid-recruiting"].PendingTopic);
+        rig.Discord.FailForum = null;
+        await rig.Restart();
+        Assert.Equal(ids, rig.Discord.Forums["11"].Tags.Select(t => t.Id));
+        Assert.True(rig.Discord.Forums["11"].RequireTag);
+        Assert.Null(rig.State.Forums["paid-recruiting"].PendingTopic);
+        Assert.Single(rig.Discord.ForumPublications, p => p.Id == "11" && p.Tags);
+    }
+
+    [Fact]
+    public async Task UnchangedPermanentSetupHoldDoesNotReadOrWriteUntilExplicitRecovery()
+    {
+        using var rig = new RecruitmentRig();
+        rig.Discord.FailForum = "11";
+        await rig.Start();
+        var fault = rig.State.Forums["paid-recruiting"].Fault;
+        Assert.Null(fault!.RetryAt);
+        var attempts = fault.Attempts;
+        rig.Discord.FailForum = null;
+        await rig.Engine.SweepAsync(default, retryHeld: false);
+        Assert.Equal(attempts, rig.State.Forums["paid-recruiting"].Fault!.Attempts);
+        Assert.False(rig.Discord.Forums["11"].RequireTag);
+        await rig.Staff("repair");
+        Assert.Null(rig.State.Forums["paid-recruiting"].Fault);
     }
 
     [Fact]
