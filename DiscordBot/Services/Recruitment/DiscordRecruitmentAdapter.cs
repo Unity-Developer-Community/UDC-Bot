@@ -20,7 +20,7 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
     private readonly Dictionary<string, ThreadSnapshot> _initialFacts = new();
     private readonly Dictionary<string, IMessageChannel> _messageChannels = new();
     public void InvalidateThread(string threadId) { _threads.Remove(threadId); _messageChannels.Remove(threadId); }
-    public void InvalidateCache() { _threads.Clear(); _messageChannels.Clear(); _forums.Clear(); }
+    public void InvalidateCache() { _threads.Clear(); _initialFacts.Clear(); _messageChannels.Clear(); _forums.Clear(); }
     public DiscordRecruitmentAdapter(DiscordSocketClient client, BotSettings settings, DatabaseService database)
         => (_client, _settings, _database) = (client, settings, database);
     private static RequestOptions Options(CancellationToken ct) => RecruitmentRequests.Options(ct);
@@ -207,7 +207,9 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
             var starter = await thread.GetMessageAsync(thread.Id, Options(ct));
             facts = new ThreadSnapshot(id, thread.ParentChannelId.ToString(), ownerId.ToString(), thread.Name,
                 thread.CreatedAt.ToUniversalTime(), user?.IsBot ?? starter?.Author.IsBot ?? false, false, false, false,
-                Array.Empty<string>(), starter?.Content, SnowflakeUtils.FromSnowflake(ownerId), user?.JoinedAt);
+                Array.Empty<string>(), starter?.Content, SnowflakeUtils.FromSnowflake(ownerId), user?.JoinedAt,
+                user is not null && (user.GuildPermissions.Administrator || user.RoleIds.Contains(_settings.Roles.Moderator)),
+                user?.RoleIds.Count(r => r != _settings.GuildId));
             // Missing starters remain retryable. Bound cached initial facts independently of retained history.
             if (starter is not null)
             {

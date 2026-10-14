@@ -170,8 +170,9 @@ public sealed class RecruitmentService
             {
                 Func<CancellationToken, Task>? latest;
                 lock (_enqueueGate) _coalesced.Remove(key, out latest);
-                try { if (latest is not null) await latest(ct); }
-                finally { finished(); }
+                // Only work still waiting in the queue fences automatic actions. This event must not fence itself.
+                finished();
+                if (latest is not null) await latest(ct);
             }, Cancel))) return true;
             Cancel(); EvidenceGap();
             SetTimer(TimeSpan.FromSeconds(1));
@@ -200,11 +201,14 @@ public sealed class RecruitmentService
     }
     private Task ThreadDeleted(Cacheable<SocketThreadChannel, ulong> thread)
     {
-        // An uncached unrelated deletion costs no REST call. Known identities can be checked on the worker.
-        if (!Volatile.Read(ref _knownThreads).Contains(thread.Id.ToString())) return Task.CompletedTask;
-        Enqueue("deleted:" + thread.Id, ct => _engine.State?.Listings.ContainsKey(thread.Id.ToString()) == true
-            ? _engine.ThreadChangedAsync(thread.Id.ToString(), ct) : Task.CompletedTask);
+        NotifyThreadDeletion(thread.Id.ToString());
         return Task.CompletedTask;
+    }
+    internal void NotifyThreadDeletion(string id)
+    {
+        // Discord's delete event proves absence even when setup or a listing write is held.
+        if (Volatile.Read(ref _knownThreads).Contains(id))
+            Enqueue("deleted:" + id, ct => _engine.ThreadDeletedAsync(id, ct), thread: id);
     }
     private bool IsRecruitment(SocketThreadChannel thread) => thread.Guild.Id == _settings.GuildId && _settings.Recruitment.Forums.Contains(thread.ParentChannel.Id);
     private Task MessageReceived(SocketMessage message)
@@ -319,9 +323,9 @@ public sealed class RecruitmentService
         var finished = TrackThread(ownerThread);
         var work = new Work(WorkKind.Command, async ct =>
         {
+            finished();
             try { completion.TrySetResult(await command(_engine, ct)); }
             catch (Exception ex) { completion.TrySetException(ex); }
-            finally { finished(); }
         }, () => { finished(); completion.TrySetCanceled(); });
         if (!_queue.Writer.TryWrite(work)) { finished(); throw new InvalidOperationException("Recruitment is busy. Please try again shortly."); }
         return await completion.Task;

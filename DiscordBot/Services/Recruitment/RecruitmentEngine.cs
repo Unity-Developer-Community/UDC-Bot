@@ -111,7 +111,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             {
                 ct.ThrowIfCancellationRequested();
                 if (retryHeld) post.Fault = null;
-                await ProcessSafelyAsync(post, ct);
+                await ProcessSafelyAsync(post, ct, verifyHeld: true);
             }
             if (batch.Length > 0) State.SweepAfterId = batch[^1].Id;
             RecruitmentPolicy.Prune(State, Now, _settings.PostRetentionMonths, _settings.AuthorRetentionMonths, _settings.CooldownDays);
@@ -162,7 +162,7 @@ public sealed partial class RecruitmentEngine : IDisposable
 
     public async Task ObserveAsync(ThreadSnapshot live, bool observedFromCreation, CancellationToken ct)
     {
-        if (State is null || !_ready || live.OwnerIsBot || !State.Forums.Values.Any(f => f.ForumId == live.ForumId)) return;
+        if (State is null || !_ready || live.OwnerIsBot || live.OwnerIsStaff || !State.Forums.Values.Any(f => f.ForumId == live.ForumId)) return;
         if (State.Listings.ContainsKey(live.Id) || live.CreatedAt < State.DiscoveryFloor) return;
         var purpose = Purpose(live.ForumId);
         var post = new Listing
@@ -194,6 +194,11 @@ public sealed partial class RecruitmentEngine : IDisposable
 
     private async Task ProcessAsync(Listing post, CancellationToken ct)
     {
+        if (post.Status == ListingStatus.Deleted)
+        {
+            if (post.PublicationPending || post.StaffSendPending) await PublishAsync(post, ct);
+            return;
+        }
         if (post.Status == ListingStatus.Reference)
         {
             if (post.PendingAction is not null) await ExecuteActionAsync(post, ct);
@@ -205,6 +210,15 @@ public sealed partial class RecruitmentEngine : IDisposable
             // Unknown Channel proves absence, not who deleted it or when. Never invent a timeout or cooldown.
             RecordAbsence(post);
             await PublishStaffAsync(post, ct); post.PublicationPending = false; Save();
+            return;
+        }
+        if (live.OwnerIsBot || live.OwnerIsStaff)
+        {
+            // Retire records made by older versions without editing staff content or erasing accepted history.
+            post.Status = ListingStatus.Reference; post.PendingAction = null; post.Deadline = null;
+            post.Hold = null; post.Fault = null; post.ValidCodes.Clear(); _recoverWindows.Remove(post.Id);
+            post.LastOutcome = "Staff or bot post; excluded from member recruitment"; post.Version++; Save();
+            await BeginActionAsync(post, RecruitmentActionKind.RemoveAdvisory, "system", post.LastOutcome, "", false, ct);
             return;
         }
         if (!post.PublicSendPending) post.PublicRestoreArchive = live.Archived && post.AcceptedAt.HasValue;
@@ -262,7 +276,8 @@ public sealed partial class RecruitmentEngine : IDisposable
     private void RecordAbsence(Listing post)
     {
         post.Status = ListingStatus.Deleted; post.PendingAction = null; post.UpdatedAt = Now;
-        post.PublicationPending = true; post.PublicSendPending = false; post.Hold = null;
+        post.PublicationPending = true; post.PublicSendPending = false; post.Hold = null; post.Fault = null;
+        post.AvailabilityUnknown = false; post.Deadline = null; _recoverWindows.Remove(post.Id);
         post.LastOutcome = "Thread absent; deletion actor unknown"; post.Version++;
         RecruitmentPolicy.Author(State!, post.OwnerId, Now);
         Save();

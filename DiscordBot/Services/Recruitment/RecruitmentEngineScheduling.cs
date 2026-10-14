@@ -111,6 +111,14 @@ public sealed partial class RecruitmentEngine
         await ReconcileThreadAsync(id, ct);
     }
 
+    public async Task ThreadDeletedAsync(string id, CancellationToken ct)
+    {
+        _discord.InvalidateThread(id);
+        if (State?.Listings.GetValueOrDefault(id) is not { } post) return;
+        RecordAbsence(post);
+        if (_ready) await ReconcileThreadAsync(id, ct);
+    }
+
     public async Task MessageDeletedAsync(string channel, IReadOnlySet<string> ids, CancellationToken ct)
     {
         if (State is null) return;
@@ -127,9 +135,20 @@ public sealed partial class RecruitmentEngine
         }
     }
 
-    private async Task ProcessSafelyAsync(Listing post, CancellationToken ct)
+    private async Task ProcessSafelyAsync(Listing post, CancellationToken ct, bool verifyHeld = false)
     {
-        if (post.Fault is { } fault && !fault.IsDue(Now)) return;
+        if (post.Fault is { } fault && !fault.IsDue(Now))
+        {
+            if (!verifyHeld || fault.RetryAt is not null) return;
+            // A permanent write hold must not hide a deletion during downtime. Probe once per bounded audit.
+            try
+            {
+                var live = await ReadAsync(post, ct, refresh: true);
+                if (live is null) RecordAbsence(post);
+                else if (!live.OwnerIsBot && !live.OwnerIsStaff) return;
+            }
+            catch (Exception ex) when (ex is not System.IO.IOException && ex is not OperationCanceledException) { return; }
+        }
         var previousFault = post.Fault;
         post.Fault = null;
         try

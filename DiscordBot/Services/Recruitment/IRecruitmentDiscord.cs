@@ -4,7 +4,7 @@ public sealed record LiveTag(string Id, string Name, bool Moderated, IEmote? Emo
 public sealed record ForumSnapshot(string Id, string Topic, bool RequireTag, IReadOnlyList<LiveTag> Tags, ChannelFlags Flags = ChannelFlags.None);
 public sealed record ThreadSnapshot(string Id, string ForumId, string OwnerId, string Title, DateTimeOffset CreatedAt,
     bool OwnerIsBot, bool Pinned, bool Archived, bool Locked, IReadOnlyList<string> Tags, string? Starter,
-    DateTimeOffset? AccountCreatedAt, DateTimeOffset? JoinedAt);
+    DateTimeOffset? AccountCreatedAt, DateTimeOffset? JoinedAt, bool OwnerIsStaff = false, int? MemberRoleCount = null);
 public sealed record ArchiveCursor(DateTimeOffset Since, DateTimeOffset? Before = null, DateTimeOffset? StartedAt = null);
 public sealed record ThreadInventory(IReadOnlyList<ThreadSnapshot> Threads, bool Complete, IReadOnlyDictionary<string, ArchiveCursor>? Cursors = null);
 public sealed record ReplyObservation(string ThreadId, string AuthorId, bool IsBot, bool IsWebhook, bool? IsStaff);
