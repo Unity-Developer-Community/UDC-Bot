@@ -4,7 +4,7 @@ using DiscordBot.Settings;
 namespace DiscordBot.Services.Recruitment;
 
 /// <summary>All entry points are serialized by RecruitmentService, including staff and owner commands.</summary>
-public sealed class RecruitmentEngine : IDisposable
+public sealed partial class RecruitmentEngine : IDisposable
 {
     private readonly BotSettings _bot;
     private readonly RecruitmentSettings _settings;
@@ -23,15 +23,19 @@ public sealed class RecruitmentEngine : IDisposable
     private DateTimeOffset Now => _time.GetUtcNow();
     private sealed record RemovalConfirmation(string Guild, string Thread, string Owner, long Version, DateTimeOffset Expires);
 
-    public RecruitmentEngine(BotSettings bot, IRecruitmentDiscord discord, TimeProvider? time = null, Func<string, bool>? pendingThreadWork = null)
+    public RecruitmentEngine(BotSettings bot, IRecruitmentDiscord discord, TimeProvider? time = null, Func<string, bool>? pendingThreadWork = null, Func<long>? evidenceGeneration = null, Func<bool>? gatewayReady = null, Func<bool>? pendingIdentities = null)
     {
         (_bot, _settings, _discord, _time) = (bot, bot.Recruitment, discord, time ?? TimeProvider.System);
         _pendingThreadWork = pendingThreadWork ?? (_ => false);
+        _evidenceGeneration = evidenceGeneration ?? (() => 0);
+        _gatewayReady = gatewayReady ?? (() => true);
+        _pendingIdentities = pendingIdentities ?? (() => false);
     }
 
     public async Task StartAsync(CancellationToken ct)
     {
         if (!_settings.Enabled) { Status = "Disabled"; return; }
+        Status = "Starting recruitment";
         var errors = _settings.Validate();
         if (errors.Count > 0) { Status = string.Join("; ", errors); return; }
         try
@@ -40,6 +44,7 @@ public sealed class RecruitmentEngine : IDisposable
             _store = new RecruitmentStateStore(_bot.ServerRootPath, _bot.GuildId.ToString(),
                 _settings.Forums.Mapping().ToDictionary(x => x.Key, x => x.Value.ToString()), Now);
             _setup = new RecruitmentSetup(_store, _assets, _settings, _discord);
+            _setup.Progress += () => Changed?.Invoke();
             MarkEvidenceGap();
             await SweepAsync(ct);
         }
@@ -47,10 +52,14 @@ public sealed class RecruitmentEngine : IDisposable
         { Status = $"Recruitment stopped: {ex.GetType().Name}: {ex.Message}"; _ready = false; }
     }
 
-    public void MarkEvidenceGap()
+    public void MarkEvidenceGap(bool invalidateAccess = true)
     {
         if (State is null) return;
         _inventoryComplete = false;
+        _inventoryGeneration = -1;
+        _accessInvalid = true;
+        if (invalidateAccess) _feedReady = false;
+        _discord.InvalidateCache();
         foreach (var post in State.Listings.Values.Where(p => p.Status == ListingStatus.Open))
         {
             post.ResponseCoverageComplete = false;
@@ -62,59 +71,77 @@ public sealed class RecruitmentEngine : IDisposable
     public async Task SweepAsync(CancellationToken ct, bool retryHeld = true)
     {
         if (_store is null || _setup is null) return;
-        _ready = false;
+        var previousFault = State!.RecoveryFault;
+        var auditDue = _nextAudit <= Now;
+        var held = !retryHeld && State.RecoveryFault is { } recovery && !recovery.IsDue(Now);
+        _nextAudit = Now.AddMinutes(15 + Random.Shared.NextDouble() * 3);
+        _publicRenders.Clear(); _staffRenders.Clear(); _replyScanned.Clear();
+        _discord.InvalidateCache();
         try
         {
-            await _discord.ValidateAccessAsync(ct);
+            if (_accessInvalid || auditDue || retryHeld)
+            {
+                _feedReady = false;
+                var feedGeneration = _evidenceGeneration();
+                _feedEmbeds = await _discord.ValidateFeedAsync(ct);
+                _feedGeneration = feedGeneration;
+                _feedReady = true;
+                if (State!.Overview.MessageId is not null && await _discord.LatestFeedMessageAsync(ct) is { } latest) FeedActivity(latest);
+                if (!held) await _discord.ValidateAccessAsync(ct);
+                _accessInvalid = false;
+            }
+            if (held) { Changed?.Invoke(); return; }
+            State!.RecoveryFault = null;
             await _setup.ReconcileAsync(Now, false, ct, retryHeld);
             if (State!.Forums.Values.FirstOrDefault(f => f.Fault is not null) is { } failed)
-                throw new InvalidOperationException(failed.Fault!.Message);
+            {
+                _ready = false;
+                Status = "Recruitment held: " + failed.Fault!.Message;
+                Changed?.Invoke();
+                return;
+            }
             _ready = true;
+            State.RecoveryFault = null;
             await DiscoverAsync(ct);
-            var cursor = ulong.TryParse(State!.SweepAfterId, out var savedCursor) ? savedCursor : 0;
+            var cursor = ulong.TryParse(State.SweepAfterId, out var savedCursor) ? savedCursor : 0;
             var batch = State.Listings.Values
                 .Where(p => p.Status == ListingStatus.Open || p.PendingAction is not null || p.StaffSendPending || p.PublicSendPending || p.PublicationPending)
-                .OrderBy(p => ulong.Parse(p.Id) <= cursor).ThenBy(p => ulong.Parse(p.Id)).Take(50).ToArray();
+                .OrderBy(p => ulong.Parse(p.Id) <= cursor).ThenBy(p => ulong.Parse(p.Id)).Take(10).ToArray();
             foreach (var post in batch)
             {
                 ct.ThrowIfCancellationRequested();
-                try { await ProcessAsync(post, ct); }
-                catch (Exception ex) when (ex is not OperationCanceledException && ex is not IOException)
-                {
-                    post.ResponseCoverageComplete = false;
-                    post.Hold = $"Discord operation incomplete ({ex.GetType().Name}); retrying reconciliation";
-                    if (!post.AcceptedAt.HasValue && post.Status == ListingStatus.Open) _recoverWindows.Add(post.Id);
-                    Save();
-                }
+                if (retryHeld) post.Fault = null;
+                await ProcessSafelyAsync(post, ct);
             }
             if (batch.Length > 0) State.SweepAfterId = batch[^1].Id;
             RecruitmentPolicy.Prune(State, Now, _settings.PostRetentionMonths, _settings.AuthorRetentionMonths, _settings.CooldownDays);
-            State.LastSweepAt = Now;
+            if (EvidenceCurrent) State.LastSweepAt = Now;
+            else _nextAudit = Now.AddSeconds(10);
             Save();
-            Status = _inventoryComplete ? $"Operating; {State.Listings.Count} retained listings; {State.Listings.Values.Count(p => p.Hold is not null)} held for recovery/review" : "Inventory incomplete; acceptance and automatic actions held";
+            Status = EvidenceCurrent ? $"Operating; {State.Listings.Count} retained listings; {State.Listings.Values.Count(p => p.Hold is not null)} held for recovery/review" : "Inventory incomplete; acceptance and automatic actions held";
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _ready = false; _inventoryComplete = false;
+            _ready = false;
+            try { MarkEvidenceGap(invalidateAccess: false); } catch (IOException) { return; }
             if (State is not null)
             {
-                foreach (var p in State.Listings.Values.Where(p => p.Status == ListingStatus.Open))
-                {
-                    p.ResponseCoverageComplete = false;
-                    if (!p.AcceptedAt.HasValue) _recoverWindows.Add(p.Id);
-                }
+                State.RecoveryFault = RecruitmentFault.From(ex, Now, previousFault);
                 try { Save(); } catch { return; }
             }
             Status = $"Recruitment held: {ex.GetType().Name}: {ex.Message}";
         }
+        Changed?.Invoke();
     }
 
     private async Task DiscoverAsync(CancellationToken ct)
     {
         var state = State!;
+        var generation = _evidenceGeneration();
         var cursors = state.Forums.Values.ToDictionary(f => f.ForumId, f => f.ArchiveCursor ?? new ArchiveCursor(state.DiscoveryFloor));
         var inventory = await _discord.InventoryAsync(state.DiscoveryFloor, state.Listings.Keys.ToHashSet(), cursors, ct);
         _inventoryComplete = inventory.Complete;
+        _inventoryGeneration = generation;
         foreach (var live in inventory.Threads.OrderBy(t => t.CreatedAt).ThenBy(t => ulong.Parse(t.Id)))
             await ObserveAsync(live, false, ct);
         if (inventory.Cursors is not null)
@@ -126,7 +153,11 @@ public sealed class RecruitmentEngine : IDisposable
 
     public async Task ReconcileThreadAsync(string thread, CancellationToken ct)
     {
-        if (_ready && State?.Listings.GetValueOrDefault(thread) is { } post) await ProcessAsync(post, ct);
+        if (!_ready || State?.Listings.GetValueOrDefault(thread) is not { } post) return;
+        await ProcessSafelyAsync(post, ct);
+        foreach (var waiting in State.Listings.Values.Where(p => p.Id != post.Id && p.OwnerId == post.OwnerId &&
+                     p.Status == ListingStatus.Open && !p.AcceptedAt.HasValue).OrderBy(p => p.CreatedAt).ToArray())
+            await ProcessSafelyAsync(waiting, ct);
     }
 
     public async Task ObserveAsync(ThreadSnapshot live, bool observedFromCreation, CancellationToken ct)
@@ -179,14 +210,18 @@ public sealed class RecruitmentEngine : IDisposable
         if (!post.PublicSendPending) post.PublicRestoreArchive = live.Archived && post.AcceptedAt.HasValue;
         post.Hold = null;
         if (live.Starter is null && !post.PromptDeliveredAt.HasValue && !post.AcceptedAt.HasValue)
-        { post.Hold = "Starter message is not available yet"; Save(); return; }
+        {
+            post.Hold = "Starter message is not available yet";
+            post.Fault = new RecruitmentFault(post.Hold, Now.AddSeconds(15));
+            _discord.InvalidateThread(post.Id); Save(); return;
+        }
         if (post.PendingAction is not null) { await ExecuteActionAsync(post, ct); return; }
         if (post.Status != ListingStatus.Open)
         {
             if (post.StaffSendPending || post.PublicSendPending || post.PublicationPending) await PublishAsync(post, ct);
             return;
         }
-        var reply = await _discord.HasReplyAsync(live, ct);
+        var reply = post.HasQualifyingReply ? true : _replyScanned.Add(post.Id) ? await _discord.HasReplyAsync(live, ct) : false;
         if (reply == true) post.HasQualifyingReply = true;
         if (reply is null) post.ResponseCoverageComplete = false;
         if (_recoverWindows.Remove(post.Id))
@@ -206,11 +241,11 @@ public sealed class RecruitmentEngine : IDisposable
             post.Version++; Save();
             await PublishAsync(post, ct);
         }
-        if (_inventoryComplete && post.AcknowledgedAt.HasValue && !post.AcceptedAt.HasValue)
+        if (EvidenceCurrent && post.AcknowledgedAt.HasValue && !post.AcceptedAt.HasValue)
             await RefreshBlockersAsync(post, ct);
-        if (_inventoryComplete && RecruitmentPolicy.TryAccept(State, post, Now, _settings.CooldownDays))
+        if (EvidenceCurrent && RecruitmentPolicy.TryAccept(State, post, Now, _settings.CooldownDays))
         { Save(); await PublishAsync(post, ct); }
-        if (!_inventoryComplete || post.Exempt || post.Pinned) return;
+        if (!EvidenceCurrent || post.Exempt || post.Pinned) return;
         if (live.Tags.Contains(ClosingTag(post)))
             await BeginActionAsync(post, RecruitmentActionKind.Close, "system", "Closed tag applied", "closed-tag", true, ct);
         else if (!post.AcceptedAt.HasValue && post.Deadline <= Now)
@@ -241,16 +276,21 @@ public sealed class RecruitmentEngine : IDisposable
             var id = RecruitmentPolicy.Evaluate(State!, candidate, Now, _settings.CooldownDays).BlockingListingId;
             if (id is null) return;
             var blocker = State!.Listings[id];
-            if (await ReadAsync(blocker, ct) is not null) return;
-            RecordAbsence(blocker);
+            try
+            {
+                if (await ReadAsync(blocker, ct, refresh: true) is not null) return;
+                RecordAbsence(blocker);
+            }
+            catch (Exception ex) when (ex is not IOException && ex is not OperationCanceledException)
+            { blocker.Hold = "Author capacity could not be verified; existing slot retained"; Save(); return; }
         }
     }
 
-    private async Task<ThreadSnapshot?> ReadAsync(Listing post, CancellationToken ct)
+    private async Task<ThreadSnapshot?> ReadAsync(Listing post, CancellationToken ct, bool refresh = false)
     {
         try
         {
-            var live = await _discord.GetThreadAsync(post.Id, ct);
+            var live = await _discord.GetThreadAsync(post.Id, ct, refresh);
             if (live is not null && (live.OwnerId != post.OwnerId || live.ForumId != post.ForumId))
                 throw new InvalidOperationException("Thread identity changed; staff review required.");
             post.AvailabilityUnknown = false;
@@ -262,15 +302,20 @@ public sealed class RecruitmentEngine : IDisposable
 
     private async Task PublishStaffAsync(Listing post, CancellationToken ct)
     {
+        var message = RecruitmentPresentation.Staff(State!, post, _settings);
+        if (!post.StaffSendPending && post.StaffMessageId is not null && _staffRenders.GetValueOrDefault(post.Id) == message.Content) return;
         var recovering = post.StaffSendPending;
         var delivery = await _discord.UpsertAsync(_settings.FeedChannelId.ToString(), post.StaffMessageId, recovering,
-            post.StaffSendStartedAt ?? post.CreatedAt, RecruitmentPresentation.Staff(State!, post, _settings), () =>
+            post.StaffSendStartedAt ?? post.CreatedAt, message, () =>
             {
+                GuardFeedWrite();
                 if (!recovering) post.StaffSendStartedAt = Now;
                 post.StaffSendPending = true; Save();
             }, ct);
         var changed = post.StaffMessageId != delivery.Id || post.StaffSendPending;
         post.StaffMessageId = delivery.Id; post.StaffSendPending = false;
+        _staffRenders[post.Id] = message.Content;
+        if (delivery.NewlySent) FeedActivity(delivery.Id);
         if (changed) Save();
     }
 
@@ -279,6 +324,8 @@ public sealed class RecruitmentEngine : IDisposable
         await PublishStaffAsync(post, ct);
         if (post.Status is ListingStatus.Deleted or ListingStatus.Reference)
         { post.PublicationPending = false; post.PublicSendPending = false; Save(); return; }
+        var message = RecruitmentPresentation.Public(State!, post, _settings, Now);
+        if (!post.PublicSendPending && !post.PublicationPending && post.PublicMessageId is not null && _publicRenders.GetValueOrDefault(post.Id) == message.Content) return;
         var recovering = post.PublicSendPending;
         var image = post.PublicMessageId is null ? RecruitmentPresentation.RenderBanner(post, _bot.AssetsRootPath) : null;
         var delivery = await _discord.UpsertAsync(post.Id, post.PublicMessageId, recovering, post.PublicSendStartedAt ?? post.CreatedAt,
@@ -290,6 +337,7 @@ public sealed class RecruitmentEngine : IDisposable
             }, ct);
         var changed = post.PublicMessageId != delivery.Id || post.PublicSendPending || post.PublicationPending;
         post.PublicMessageId = delivery.Id; post.PublicSendPending = false; post.PublicationPending = false;
+        _publicRenders[post.Id] = message.Content;
         if (delivery.NewlySent && post.Deadline.HasValue && !post.AcceptedAt.HasValue)
         { post.PromptDeliveredAt = null; post.Deadline = null; post.Version++; changed = true; }
         if (changed) Save();
@@ -299,9 +347,13 @@ public sealed class RecruitmentEngine : IDisposable
     {
         var post = Owner(guild, thread, owner);
         if (post is null) return "This control is unavailable or does not belong to you.";
-        await SweepAsync(ct); // Catch up cross-forum capacity before committing acceptance.
-        if (!_ready) return "Recruitment is waiting for recovery. Please try again shortly.";
+        // Startup/recovery establishes cross-forum identity coverage; ordinary acknowledgements only
+        // refresh the candidate and its blocking author records.
+        if (!_ready || !_feedReady || _feedGeneration != _evidenceGeneration()) return "Recruitment is waiting for recovery. Please try again shortly.";
+        _discord.InvalidateThread(post.Id);
+        post.Fault = null;
         await ProcessAsync(post, ct);
+        await RefreshBlockersAsync(post, ct);
         if (post.Status != ListingStatus.Open || post.AcceptedAt.HasValue) return "This listing no longer needs acknowledgement.";
         var submittedAt = receivedAt ?? Now;
         if (!post.Deadline.HasValue || post.Deadline < submittedAt || post.PromptDeliveredAt > submittedAt)
@@ -312,9 +364,9 @@ public sealed class RecruitmentEngine : IDisposable
         post.AcknowledgedAt = Now; post.Version++; post.UpdatedAt = Now;
         var author = RecruitmentPolicy.Author(State!, owner, Now);
         author.ConsecutiveTimeouts = 0; author.TimeoutAlerted = false;
-        var accepted = _inventoryComplete && RecruitmentPolicy.TryAccept(State!, post, Now, _settings.CooldownDays);
+        var accepted = EvidenceCurrent && RecruitmentPolicy.TryAccept(State!, post, Now, _settings.CooldownDays);
         Save(); await PublishAsync(post, ct);
-        return accepted ? "Guidelines acknowledged. Your listing is accepted." : !_inventoryComplete
+        return accepted ? "Guidelines acknowledged. Your listing is accepted." : !EvidenceCurrent
             ? "Guidelines acknowledged. Acceptance is waiting for inventory recovery."
             : "Guidelines acknowledged. The existing listing or creation cooldown still blocks acceptance; see the advisory.";
     }
@@ -374,7 +426,7 @@ public sealed class RecruitmentEngine : IDisposable
         }
         // Intent and staff evidence must exist before removing or changing member content.
         await PublishStaffAsync(post, ct);
-        var live = await ReadAsync(post, ct);
+        var live = await ReadAsync(post, ct, refresh: true);
         if (live is null)
         {
             RecordAbsence(post);
@@ -398,7 +450,7 @@ public sealed class RecruitmentEngine : IDisposable
             post.LastOutcome = "Closure confirmed after interrupted action"; post.UpdatedAt = Now; post.Version++;
             post.PublicationPending = true; Save(); await PublishAsync(post, ct); return;
         }
-        if (action.Automatic && (!_inventoryComplete || post.Exempt || post.Pinned || post.Status != ListingStatus.Open ||
+        if (action.Automatic && (!EvidenceCurrent || post.Exempt || post.Pinned || post.Status != ListingStatus.Open ||
             (action.Condition == "timeout" && (post.AcknowledgedAt.HasValue || post.AcceptedAt.HasValue || post.Deadline > Now || _recoverWindows.Contains(post.Id))) ||
             (action.Condition == "ineligible" && (post.AcceptedAt.HasValue || RecruitmentPolicy.Evaluate(State!, post, Now, _settings.CooldownDays).Allowed)) ||
             (action.Condition == "closed-tag" && !live.Tags.Contains(ClosingTag(post))) ||
@@ -416,13 +468,13 @@ public sealed class RecruitmentEngine : IDisposable
         if (action.Kind == RecruitmentActionKind.Reopen && State!.Listings.Values.Any(p => p.OwnerId == post.OwnerId && p.Id != post.Id && p.Status == ListingStatus.Open))
             throw new InvalidOperationException("Another listing occupies this author's slot.");
         // Gateway facts and timely owner interactions already queued must be applied before an automatic action.
-        if (action.Automatic && _pendingThreadWork(post.Id))
+        if (action.Automatic && (!EvidenceCurrent || _pendingThreadWork(post.Id)))
         { post.PendingAction = null; Save(); return; }
         action.CallStarted = true; Save();
         switch (action.Kind)
         {
             case RecruitmentActionKind.Delete:
-                await _discord.DeleteAsync(live, action.Reason, action.Automatic, ct);
+                await _discord.DeleteAsync(live, action.Reason, action.Automatic, ct, () => !action.Automatic || EvidenceCurrent && !_pendingThreadWork(post.Id));
                 post.Status = ListingStatus.Deleted;
                 if (action.GuidelineTimeout)
                 {
@@ -433,7 +485,7 @@ public sealed class RecruitmentEngine : IDisposable
                 }
                 break;
             case RecruitmentActionKind.Close:
-                await _discord.CloseAsync(live, ClosingTag(post), action.Automatic, ct);
+                await _discord.CloseAsync(live, ClosingTag(post), action.Automatic, ct, () => !action.Automatic || EvidenceCurrent && !_pendingThreadWork(post.Id));
                 post.Status = ListingStatus.Closed;
                 break;
             case RecruitmentActionKind.Reopen:
@@ -470,16 +522,19 @@ public sealed class RecruitmentEngine : IDisposable
         reason = RecruitmentPresentation.Safe(reason, 300);
         if (operation == "repair")
         {
+            if (target.Length > 0 && !State.Forums.ContainsKey(target)) return "Unknown recruitment forum purpose.";
+            State.Overview.Fault = null;
             State.SetupAudit.Add(new RecruitmentAudit(Now, actor, "Repair forum setup: " + reason));
             if (State.SetupAudit.Count > 30) State.SetupAudit.RemoveAt(0);
             Save();
             await _discord.ValidateAccessAsync(ct);
-            await _setup!.ReconcileAsync(Now, true, ct);
+            await _setup!.ReconcileAsync(Now, true, ct, target: string.IsNullOrEmpty(target) ? null : target);
             Status = "Setup repaired";
             await SweepAsync(ct); return Status;
         }
         if (operation == "reconcile")
         {
+            State.Overview.Fault = null;
             State.SetupAudit.Add(new RecruitmentAudit(Now, actor, "Reconcile: " + reason));
             if (State.SetupAudit.Count > 30) State.SetupAudit.RemoveAt(0);
             Save(); await SweepAsync(ct); return Status;
@@ -556,7 +611,7 @@ public sealed class RecruitmentEngine : IDisposable
     }
     private void Save()
     {
-        try { _store!.Save(); }
+        try { _store!.Save(); Changed?.Invoke(); }
         catch
         {
             _ready = false;

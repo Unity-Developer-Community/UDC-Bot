@@ -21,6 +21,8 @@ public sealed class RecruitmentState
     public DateTimeOffset InitializedAt { get; set; }
     [JsonProperty(Required = Required.AllowNull)]
     public DateTimeOffset DiscoveryFloor { get; set; }
+    public OverviewReceipt Overview { get; set; } = new();
+    public RecruitmentFault? RecoveryFault { get; set; }
     public List<RecruitmentAudit> SetupAudit { get; set; } = new();
     public string? SweepAfterId { get; set; }
     public DateTimeOffset? LastSweepAt { get; set; }
@@ -59,6 +61,7 @@ public sealed class ManagedTag
     public bool Moderated { get; set; }
 }
 
+/// <summary>A retained attempt, including delivery/action receipts and the evidence needed to enforce policy safely.</summary>
 public sealed class Listing
 {
     [JsonProperty(Required = Required.AllowNull)]
@@ -97,6 +100,7 @@ public sealed class Listing
     public bool ResponseCoverageComplete { get; set; }
     public bool AvailabilityUnknown { get; set; }
     public bool SuppressUnansweredClose { get; set; }
+    public RecruitmentFault? Fault { get; set; }
     public string? Hold { get; set; }
     public string LastOutcome { get; set; } = "Awaiting Guidelines acknowledgement";
     public string LastActor { get; set; } = "system";
@@ -108,6 +112,7 @@ public sealed class Listing
 
 public sealed record RecruitmentAudit(DateTimeOffset At, string Actor, string Reason);
 
+/// <summary>Informational facts captured once when a listing is first observed; missing data stays unknown.</summary>
 public sealed class InitialFacts
 {
     public DateTimeOffset? AccountCreatedAt { get; set; }
@@ -118,6 +123,7 @@ public sealed class InitialFacts
     public bool PriorAcceptedListing { get; set; }
 }
 
+/// <summary>Cross-forum cooldown and timeout history that survives removal of individual listings.</summary>
 public sealed class AuthorHistory
 {
     [JsonProperty(Required = Required.AllowNull)]
@@ -128,6 +134,7 @@ public sealed class AuthorHistory
     public bool TimeoutAlerted { get; set; }
 }
 
+/// <summary>Durable mutation intent. CallStarted may represent a successful write whose response was lost.</summary>
 public sealed class RecruitmentAction
 {
     [JsonProperty(Required = Required.AllowNull)]
@@ -200,4 +207,21 @@ public static class RecruitmentPolicy
                 !(author.LastAcceptedCreation?.AddDays(cooldownDays) > now) &&
                 !state.Listings.Values.Any(p => p.OwnerId == id)) state.Authors.Remove(id);
     }
+}
+
+/// <summary>The replacement is confirmed before the previous overview is retired; listing audit messages are separate.</summary>
+public sealed class OverviewReceipt
+{
+    public string? MessageId { get; set; }
+    public string? Marker { get; set; }
+    public long Sequence { get; set; }
+    public bool SendPending { get; set; }
+    public DateTimeOffset? SendStartedAt { get; set; }
+    public string? PendingMarker { get; set; }
+    public bool PendingReplacement { get; set; }
+    public string? RetiredMessageId { get; set; }
+    public string? RetiredMarker { get; set; }
+    public DateTimeOffset? LastPostedAt { get; set; }
+    public DateTimeOffset? LastEditedAt { get; set; }
+    public RecruitmentFault? Fault { get; set; }
 }

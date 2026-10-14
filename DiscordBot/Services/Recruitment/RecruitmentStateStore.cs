@@ -99,10 +99,16 @@ public sealed class RecruitmentStateStore : IDisposable
         static bool Id(string? id) => ulong.TryParse(id, out var value) && value != 0;
         if (state.Schema != RecruitmentState.Format || !Guid.TryParseExact(state.InstanceId, "N", out _) ||
             state.GuildId != guildId || !Id(guildId) || state.InitializedAt == default || state.DiscoveryFloor == default ||
-            state.Forums is null || state.Listings is null || state.Authors is null ||
+            state.Forums is null || state.Listings is null || state.Authors is null || state.Overview is null ||
             state.Forums.Count != 4 || forums.Count != 4 || forums.Values.Distinct().Count() != 4 ||
             forums.Any(f => !Id(f.Value) || !state.Forums.TryGetValue(f.Key, out var saved) || saved.ForumId != f.Value))
             throw new InvalidDataException("Recruitment state schema, identity or forum mapping is invalid.");
+        var overview = state.Overview;
+        if (overview.Sequence < 0 ||
+            overview.MessageId is not null && (!Id(overview.MessageId) || overview.Marker is null || !overview.Marker.StartsWith($"recruitment:overview:{state.InstanceId}:")) ||
+            overview.RetiredMessageId is not null && (!Id(overview.RetiredMessageId) || overview.RetiredMessageId == overview.MessageId || overview.RetiredMarker is null || !overview.RetiredMarker.StartsWith($"recruitment:overview:{state.InstanceId}:")) ||
+            overview.SendPending && (overview.SendStartedAt is null || overview.PendingMarker is null || !overview.PendingMarker.StartsWith($"recruitment:overview:{state.InstanceId}:")))
+            throw new InvalidDataException("Recruitment overview receipt is invalid.");
         foreach (var f in state.Forums.Values)
             if (f is null || f.Tags is null || f.ConfirmedTopic is null || f.VisibleCode is null ||
                 f.Tags.Values.Any(t => t is null || !Id(t.Id) || string.IsNullOrWhiteSpace(t.Name)))

@@ -70,6 +70,26 @@ public class RecruitmentStorageAndSetupTests
     }
 
     [Fact]
+    public async Task ExistingV2StateLoadsWithoutNewOptionalOperationalReceipts()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start(); await rig.Post(); await rig.Ack();
+        var accepted = rig.State.Authors["200"].LastAcceptedCreation;
+        rig.Engine.Dispose();
+        var path = Path.Combine(rig.Root, "recruitment/recruitment-state.json");
+        using var reader = new Newtonsoft.Json.JsonTextReader(new StringReader(File.ReadAllText(path))) { DateParseHandling = Newtonsoft.Json.DateParseHandling.None };
+        var json = JObject.Load(reader);
+        json.Remove("Overview"); json.Remove("RecoveryFault");
+        foreach (var forum in json["Forums"]!.Children<JProperty>()) ((JObject)forum.Value).Remove("Fault");
+        foreach (var listing in json["Listings"]!.Children<JProperty>()) ((JObject)listing.Value).Remove("Fault");
+        File.WriteAllText(path, json.ToString());
+        await rig.Restart();
+        Assert.True(rig.Engine.State is not null, rig.Engine.Status);
+        Assert.Equal(accepted, rig.State.Authors["200"].LastAcceptedCreation);
+        Assert.NotNull(rig.State.Overview);
+        Assert.NotNull(rig.State.Listings["100"].AcceptedAt);
+    }
+
+    [Fact]
     public async Task ChangedForumIdsCannotAdoptExistingHistory()
     {
         using var rig = new RecruitmentRig(); await rig.Start();

@@ -3,6 +3,7 @@ using DiscordBot.Services.Recruitment;
 
 namespace DiscordBot.Modules.Recruitment;
 
+/// <summary>Owner controls and moderator entry points; status reads a detached snapshot without joining the work queue.</summary>
 [Group("recruitment", "Recruitment moderation and recovery")]
 public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionContext>
 {
@@ -12,14 +13,23 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
     private string Thread => Context.Channel.Id.ToString();
 
     [SlashCommand("status", "Show recruitment availability")]
-    public Task Status() => Staff("status");
+    public async Task Status()
+    {
+        await DeferAsync(ephemeral: true);
+        if (!Recruitment.CanReadStatus(Guild, Actor))
+        { await FollowupAsync("Moderator access is required in the configured server.", ephemeral: true); return; }
+        await FollowupAsync(embed: Recruitment.Health.Embed(), ephemeral: true, allowedMentions: AllowedMentions.None);
+    }
+    [SlashCommand("help", "Show recruitment status and moderator commands")]
+    public Task Help() => Status();
     [SlashCommand("lookup", "Look up a managed thread or author ID")]
     public Task Lookup(string id) => Staff("lookup", id);
     [SlashCommand("preview", "Preview managed forum setup")]
     public Task Preview([Choice("Paid recruiting", "paid-recruiting"), Choice("Paid for hire", "paid-for-hire"),
         Choice("Hobby recruiting", "hobby-recruiting"), Choice("Hobby for hire", "hobby-for-hire")] string forum = "") => Staff("preview", forum);
     [SlashCommand("repair", "Publish and verify managed Guidelines and tags")]
-    public Task Repair(string reason) => Staff("repair", reason: reason);
+    public Task Repair(string reason, [Choice("All forums", ""), Choice("Paid recruiting", "paid-recruiting"), Choice("Paid for hire", "paid-for-hire"),
+        Choice("Hobby recruiting", "hobby-recruiting"), Choice("Hobby for hire", "hobby-for-hire")] string forum = "") => Staff("repair", forum, reason);
     [SlashCommand("reconcile", "Reconcile Discord state and pending actions")]
     public Task Reconcile(string reason) => Staff("reconcile", reason: reason);
     [SlashCommand("manage", "Change a listing or review uncertain evidence")]
@@ -35,6 +45,8 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
     private async Task Staff(string operation, string target = "", string reason = "")
     {
         await DeferAsync(ephemeral: true);
+        if (operation is "repair" or "reconcile")
+        { await FollowupAsync(Recruitment.QueueRecovery(Guild, Actor, operation, target, reason), ephemeral: true, allowedMentions: AllowedMentions.None); return; }
         await Reply(() => Recruitment.RunAsync((engine, ct) => engine.StaffAsync(Guild, Actor, operation, target, reason, ct)));
     }
 

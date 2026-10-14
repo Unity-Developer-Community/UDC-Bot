@@ -180,7 +180,7 @@ public class RecruitmentWorkflowTests
     public async Task IncompleteInventoryPreventsAcceptanceAndAutomaticActions()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post();
-        rig.Discord.InventoryComplete = false; await rig.Ack(); rig.Clock.Advance(TimeSpan.FromHours(1)); await rig.Sweep();
+        rig.Discord.InventoryComplete = false; rig.Engine.MarkEvidenceGap(); await rig.Ack(); rig.Clock.Advance(TimeSpan.FromHours(1)); await rig.Sweep();
         Assert.Null(post.AcceptedAt); Assert.Empty(rig.Discord.Actions);
     }
 

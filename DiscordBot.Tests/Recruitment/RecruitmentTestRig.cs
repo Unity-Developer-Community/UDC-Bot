@@ -6,8 +6,49 @@ namespace DiscordBot.Tests.Recruitment;
 internal sealed class ManualClock : TimeProvider
 {
     public DateTimeOffset Now { get; set; } = new(2026, 9, 29, 10, 0, 0, TimeSpan.Zero);
+    private readonly List<ManualTimer> _timers = new();
     public override DateTimeOffset GetUtcNow() => Now;
-    public void Advance(TimeSpan duration) => Now += duration;
+    public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+    {
+        var timer = new ManualTimer(this, callback, state);
+        lock (_timers) _timers.Add(timer);
+        timer.Change(dueTime, period);
+        return timer;
+    }
+    public void Advance(TimeSpan duration)
+    {
+        Now += duration;
+        ManualTimer[] timers;
+        lock (_timers) timers = _timers.ToArray();
+        foreach (var timer in timers) timer.Fire();
+    }
+    private sealed class ManualTimer(ManualClock clock, TimerCallback callback, object? state) : ITimer
+    {
+        private DateTimeOffset? _due;
+        private TimeSpan _period;
+        private bool _disposed;
+        public bool Change(TimeSpan dueTime, TimeSpan period)
+        {
+            lock (this)
+            {
+                if (_disposed) return false;
+                _due = dueTime == Timeout.InfiniteTimeSpan ? null : clock.Now + dueTime;
+                _period = period;
+                return true;
+            }
+        }
+        public void Fire()
+        {
+            lock (this)
+            {
+                if (_disposed || !_due.HasValue || _due > clock.Now) return;
+                _due = _period == Timeout.InfiniteTimeSpan ? null : clock.Now + _period;
+            }
+            callback(state);
+        }
+        public void Dispose() { lock (this) { _disposed = true; _due = null; } }
+        public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
+    }
 }
 
 internal sealed class RecruitmentRig : IDisposable
@@ -44,7 +85,7 @@ internal sealed class RecruitmentRig : IDisposable
     public Task<string> Ack(string id = "100", string owner = "200", string? code = null) =>
         Engine.AcknowledgeAsync("1", id, owner, code ?? State.Listings[id].ValidCodes.Last(), default);
     public Task<string> Staff(string operation, string target = "100", string reason = "Test recovery", string actor = "900") =>
-        Engine.StaffAsync("1", actor, operation, target, reason, default);
+        Engine.StaffAsync("1", actor, operation, operation == "repair" && target == "100" ? "" : target, reason, default);
     public void Dispose() { Engine.Dispose(); if (Directory.Exists(Root)) Directory.Delete(Root, true); }
 }
 
@@ -56,6 +97,18 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
     public List<(string Thread, string Kind)> Actions { get; } = new();
     public HashSet<string> UnknownThreads { get; } = new();
     public HashSet<string> Replies { get; } = new();
+    public int AccessReads { get; private set; }
+    public int ForumReads { get; private set; }
+    public int Inventories { get; private set; }
+    public int ReplyReads { get; private set; }
+    public int Upserts { get; private set; }
+    public int ThreadReads { get; private set; }
+    public Func<Task>? BeforeAccess { get; set; }
+    public bool FeedEmbeds { get; set; } = true;
+    public bool FailFeed { get; set; }
+    public bool FailOverview { get; set; }
+    public bool FailCleanup { get; set; }
+    public List<string> DeletedMessages { get; } = new();
     public bool InventoryComplete { get; set; } = true;
     public bool FailStaff { get; set; }
     public bool LoseNextSendResponse { get; set; }
@@ -70,9 +123,17 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
     public int Sends { get; private set; }
     public int ForumWrites { get; private set; }
     private int _nextId = 1000;
-    public Task ValidateAccessAsync(CancellationToken ct) => FailPermissions ? Task.FromException(new InvalidOperationException("Missing permissions")) : Task.CompletedTask;
+    public async Task ValidateAccessAsync(CancellationToken ct)
+    {
+        AccessReads++;
+        if (BeforeAccess is not null) await BeforeAccess().WaitAsync(ct);
+        if (FailPermissions) throw new InvalidOperationException("Missing permissions");
+    }
+    public Task<bool> ValidateFeedAsync(CancellationToken ct) => FailFeed ? Task.FromException<bool>(new InvalidOperationException("Feed privacy invalid")) : Task.FromResult(FeedEmbeds);
+    public Task<string?> LatestFeedMessageAsync(CancellationToken ct) => Task.FromResult(Messages.Where(m => m.Key.StartsWith("99:")).Select(m => m.Value.Id).OrderByDescending(ulong.Parse).FirstOrDefault());
     public Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct) => Task.FromResult(guildId == "1" && userId == "900");
-    public Task<ForumSnapshot> GetForumAsync(string id, CancellationToken ct) => Task.FromResult(Forums[id]);
+    public bool IsExpectedForumUpdate(ForumSnapshot snapshot) => Forums.GetValueOrDefault(snapshot.Id) == snapshot;
+    public Task<ForumSnapshot> GetForumAsync(string id, CancellationToken ct) { ForumReads++; return Task.FromResult(Forums[id]); }
     public Task<ForumSnapshot> PublishForumAsync(ForumSnapshot expected, string? topic, IReadOnlyList<LiveTag>? tags, bool requireTag, CancellationToken ct)
     {
         var id = expected.Id;
@@ -85,18 +146,22 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
         if (LoseNextForumResponse) { LoseNextForumResponse = false; throw new TimeoutException("Forum response lost"); }
         return Task.FromResult(Forums[id]);
     }
-    public Task<ThreadInventory> InventoryAsync(DateTimeOffset floor, IReadOnlySet<string> knownIds, IReadOnlyDictionary<string, ArchiveCursor> cursors, CancellationToken ct) => Task.FromResult(new ThreadInventory(Threads.Values.Where(t => t.CreatedAt >= floor).ToArray(), InventoryComplete));
-    public Task<ThreadSnapshot?> GetThreadAsync(string id, CancellationToken ct) => UnknownThreads.Contains(id)
-        ? Task.FromException<ThreadSnapshot?>(new InvalidOperationException("Forbidden")) : Task.FromResult(Threads.GetValueOrDefault(id));
-    public Task<bool?> HasReplyAsync(ThreadSnapshot thread, CancellationToken ct) => Task.FromResult<bool?>(Replies.Contains(thread.Id));
+    public Task<ThreadInventory> InventoryAsync(DateTimeOffset floor, IReadOnlySet<string> knownIds, IReadOnlyDictionary<string, ArchiveCursor> cursors, CancellationToken ct) { Inventories++; return Task.FromResult(new ThreadInventory(Threads.Values.Where(t => t.CreatedAt >= floor).ToArray(), InventoryComplete)); }
+    public Task<ThreadSnapshot?> GetThreadAsync(string id, CancellationToken ct, bool refresh = false)
+    { ThreadReads++; return UnknownThreads.Contains(id) ? Task.FromException<ThreadSnapshot?>(new InvalidOperationException("Forbidden")) : Task.FromResult(Threads.GetValueOrDefault(id)); }
+    public void InvalidateThread(string id) { }
+    public void InvalidateCache() { }
+    public Task<bool?> HasReplyAsync(ThreadSnapshot thread, CancellationToken ct) { ReplyReads++; return Task.FromResult<bool?>(Replies.Contains(thread.Id)); }
     public Task<string> GetActivityAsync(string userId, CancellationToken ct) => Task.FromResult("unknown");
     public Task<Delivery> UpsertAsync(string channelId, string? messageId, bool recovering, DateTimeOffset since, RecruitmentMessage message, Action beforeWrite, CancellationToken ct)
     {
+        Upserts++;
+        if (FailOverview && message.Marker.StartsWith("recruitment:overview:")) throw new TimeoutException("Overview unavailable");
         if (FailStaff && channelId == "99") throw new InvalidOperationException("Feed unavailable");
         var key = channelId + ":" + message.Marker;
         if (Messages.TryGetValue(key, out var existing))
         {
-            if (existing.Message.Content != message.Content) beforeWrite();
+            if (existing.Message.Content != message.Content || existing.Message.Embed?.Description != message.Embed?.Description) beforeWrite();
             Messages[key] = (existing.Id, message); return Task.FromResult(new Delivery(existing.Id, false));
         }
         beforeWrite();
@@ -104,21 +169,27 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
         if (LoseNextSendResponse) { LoseNextSendResponse = false; throw new InvalidOperationException("Ambiguous send"); }
         return Task.FromResult(new Delivery(id, true));
     }
-    public Task CloseAsync(ThreadSnapshot thread, string? closedTagId, bool protectPinned, CancellationToken ct)
+    public Task CloseAsync(ThreadSnapshot thread, string? closedTagId, bool protectPinned, CancellationToken ct, Func<bool>? allowWrite = null)
     {
+        if (allowWrite?.Invoke() == false) throw new InvalidOperationException("Evidence changed");
         Threads[thread.Id] = thread with { Archived = true, Locked = true }; Actions.Add((thread.Id, "close"));
         if (LoseNextCloseResponse) { LoseNextCloseResponse = false; throw new InvalidOperationException("Ambiguous close"); }
         return Task.CompletedTask;
     }
     public Task ReopenAsync(ThreadSnapshot thread, string? closedTagId, CancellationToken ct)
     { Threads[thread.Id] = thread with { Archived = false, Locked = false }; Actions.Add((thread.Id, "reopen")); return Task.CompletedTask; }
-    public Task DeleteAsync(ThreadSnapshot thread, string reason, bool protectPinned, CancellationToken ct)
+    public Task DeleteAsync(ThreadSnapshot thread, string reason, bool protectPinned, CancellationToken ct, Func<bool>? allowWrite = null)
     {
         var id = thread.Id;
-        BeforeDelete?.Invoke(); Threads.Remove(id); Actions.Add((id, "delete"));
+        BeforeDelete?.Invoke();
+        if (allowWrite?.Invoke() == false) throw new InvalidOperationException("Evidence changed");
+        Threads.Remove(id); Actions.Add((id, "delete"));
         if (LoseNextDeleteResponse) { LoseNextDeleteResponse = false; throw new InvalidOperationException("Ambiguous delete"); }
         return Task.CompletedTask;
     }
-    public Task DeleteAdvisoryAsync(string id, string messageId, CancellationToken ct)
-    { foreach (var key in Messages.Where(x => x.Value.Id == messageId).Select(x => x.Key).ToArray()) Messages.Remove(key); return Task.CompletedTask; }
+    public Task DeleteAdvisoryAsync(string id, string messageId, CancellationToken ct, string? marker = null)
+    {
+        if (FailCleanup) throw new TimeoutException("Cleanup delayed");
+        DeletedMessages.Add(messageId);
+        foreach (var key in Messages.Where(x => x.Value.Id == messageId && (marker is null || x.Value.Message.Content.Contains(marker))).Select(x => x.Key).ToArray()) Messages.Remove(key); return Task.CompletedTask; }
 }

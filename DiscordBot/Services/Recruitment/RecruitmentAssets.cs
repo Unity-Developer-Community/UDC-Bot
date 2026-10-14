@@ -73,6 +73,7 @@ public sealed class RecruitmentAssets
 /// <summary>Publishes native Guidelines and managed tags, retaining intent across partial Discord writes.</summary>
 public sealed class RecruitmentSetup
 {
+    public event Action? Progress;
     private readonly RecruitmentStateStore _store;
     private readonly RecruitmentAssets _assets;
     private readonly RecruitmentSettings _settings;
@@ -105,6 +106,7 @@ public sealed class RecruitmentSetup
                 receipt.Fault = RecruitmentFault.From(ex, now, receipt.Fault);
             }
             _store.Save();
+            Progress?.Invoke();
         }
     }
 

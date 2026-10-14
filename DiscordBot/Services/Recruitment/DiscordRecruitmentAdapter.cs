@@ -1,4 +1,5 @@
 using System.IO;
+using System.Collections.Concurrent;
 using System.Net;
 using Discord.Net;
 using Discord.Rest;
@@ -14,23 +15,34 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
     private readonly BotSettings _settings;
     private readonly DatabaseService _database;
     private readonly Dictionary<string, (ForumSnapshot Snapshot, RestForumChannel Channel)> _forums = new();
+    private readonly ConcurrentDictionary<string, ForumSnapshot> _expectedForums = new();
+    private readonly Dictionary<string, ThreadSnapshot> _threads = new();
+    private readonly Dictionary<string, ThreadSnapshot> _initialFacts = new();
+    private readonly Dictionary<string, IMessageChannel> _messageChannels = new();
+    public void InvalidateThread(string threadId) { _threads.Remove(threadId); _messageChannels.Remove(threadId); }
+    public void InvalidateCache() { _threads.Clear(); _messageChannels.Clear(); _forums.Clear(); }
     public DiscordRecruitmentAdapter(DiscordSocketClient client, BotSettings settings, DatabaseService database)
         => (_client, _settings, _database) = (client, settings, database);
-    private static RequestOptions Options(CancellationToken ct) => new() { CancelToken = ct, Timeout = 15000 };
+    private static RequestOptions Options(CancellationToken ct) => RecruitmentRequests.Options(ct);
     private SocketGuild Guild => _client.GetGuild(_settings.GuildId) ?? throw new InvalidOperationException("Configured guild is unavailable.");
 
-    public async Task ValidateAccessAsync(CancellationToken ct)
+    public Task ValidateAccessAsync(CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         if (_settings.Roles.Moderator == 0 || Guild.GetRole(_settings.Roles.Moderator) is null)
             throw new InvalidOperationException("The configured moderator role is unavailable.");
         foreach (var id in _settings.Recruitment.Forums.Mapping().Values)
         {
-            var forum = await ForumAsync(id.ToString(), ct);
-            var cached = Guild.GetChannel(id) ?? throw new InvalidOperationException("Forum permission cache unavailable.");
+            var cached = Guild.GetChannel(id) as SocketForumChannel ?? throw new InvalidOperationException("Forum permission cache unavailable.");
             var perms = Guild.CurrentUser.GetPermissions(cached);
             if (!perms.ViewChannel || !perms.ReadMessageHistory || !perms.SendMessagesInThreads || !perms.ManageThreads || !perms.ManageChannel)
                 throw new InvalidOperationException("Recruitment needs View Channel, Read Message History, Send Messages in Threads, Manage Threads and Manage Channels on each forum.");
         }
+        return Task.CompletedTask;
+    }
+
+    public async Task<bool> ValidateFeedAsync(CancellationToken ct)
+    {
         var feed = await _client.Rest.GetChannelAsync(_settings.Recruitment.FeedChannelId, Options(ct)) as RestTextChannel;
         if (feed is null || feed.GuildId != _settings.GuildId) throw new InvalidOperationException("Recruitment feed must be a text channel in the configured guild.");
         var cachedFeed = Guild.GetTextChannel(feed.Id) ?? throw new InvalidOperationException("Feed permission cache unavailable.");
@@ -51,6 +63,14 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
             else if (overwrite.TargetId == _client.CurrentUser.Id || await IsModeratorAsync(_settings.GuildId.ToString(), overwrite.TargetId.ToString(), ct)) continue;
             throw new InvalidOperationException("The recruitment feed grants access outside the configured moderator/admin roles.");
         }
+        _messageChannels[feed.Id.ToString()] = feed;
+        return access.EmbedLinks;
+    }
+
+    public async Task<string?> LatestFeedMessageAsync(CancellationToken ct)
+    {
+        var channel = await MessageChannelAsync(_settings.Recruitment.FeedChannelId.ToString(), ct);
+        return (await channel.GetMessagesAsync(1, CacheMode.AllowDownload, Options(ct)).FlattenAsync()).FirstOrDefault()?.Id.ToString();
     }
 
     public async Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct)
@@ -72,6 +92,7 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
         var forum = await ForumAsync(forumId, ct);
         var snapshot = Snapshot(forum);
         _forums[forumId] = (snapshot, forum);
+        _expectedForums[forumId] = snapshot;
         return snapshot;
     }
 
@@ -83,10 +104,19 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
     {
         if (!_forums.TryGetValue(expected.Id, out var observed) || !ReferenceEquals(observed.Snapshot, expected))
             throw new InvalidOperationException("Forum publication needs a current pre-write observation.");
+        _expectedForums[expected.Id] = expected with { Topic = topic ?? expected.Topic, Tags = tags ?? expected.Tags,
+            RequireTag = requireTag, Flags = requireTag ? expected.Flags | ChannelFlags.RequireTag : expected.Flags & ~ChannelFlags.RequireTag };
         var snapshot = await ModifyForumAsync(observed.Channel, topic, tags, requireTag, Options(ct));
         _forums[expected.Id] = (snapshot, observed.Channel);
         return snapshot;
     }
+
+    // Read by gateway callbacks; compare the prepared publication as well as completed REST observations
+    // so our own setup/rotation events cannot invalidate reply coverage or reset challenge windows.
+    public bool IsExpectedForumUpdate(ForumSnapshot actual) => _expectedForums.TryGetValue(actual.Id, out var expected) &&
+        expected.Topic == actual.Topic && expected.Flags == actual.Flags && expected.Tags.Count == actual.Tags.Count &&
+        expected.Tags.All(t => actual.Tags.Any(a => (t.Id.Length == 0 || t.Id == a.Id) && t.Name == a.Name &&
+            t.Moderated == a.Moderated && t.Emoji?.ToString() == a.Emoji?.ToString()));
 
     internal static async Task<ForumSnapshot> ModifyForumAsync(RestForumChannel forum, string? topic,
         IReadOnlyList<LiveTag>? tags, bool requireTag, RequestOptions options)
@@ -111,13 +141,21 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
     public async Task<ThreadInventory> InventoryAsync(DateTimeOffset floor, IReadOnlySet<string> knownIds,
         IReadOnlyDictionary<string, ArchiveCursor> cursors, CancellationToken ct)
     {
-        var found = new Dictionary<ulong, RestThreadChannel>();
+        var found = new Dictionary<ulong, RestThreadChannel?>();
         var progress = new Dictionary<string, ArchiveCursor>();
         var complete = true;
+        var firstId = _settings.Recruitment.Forums.Mapping().Values.First().ToString();
+        var firstForum = _forums.TryGetValue(firstId, out var first) ? first.Channel : await ForumAsync(firstId, ct);
+        using (var active = RecruitmentForumTransport.ObserveActiveInventory(_settings.GuildId))
+        {
+            foreach (var thread in await firstForum.GetActiveThreadsAsync(Options(ct))) found[thread.Id] = thread;
+            if (active.Identities is null) throw new InvalidOperationException("Active-thread inventory response was not observed; acceptance is held.");
+            foreach (var identity in active.Identities.Where(t => _settings.Recruitment.Forums.Contains(t.Parent)))
+                found.TryAdd(identity.Id, null);
+        }
         foreach (var id in _settings.Recruitment.Forums.Mapping().Values)
         {
-            var forum = await ForumAsync(id.ToString(), ct);
-            foreach (var thread in await forum.GetActiveThreadsAsync(Options(ct))) found[thread.Id] = thread;
+            var forum = _forums.TryGetValue(id.ToString(), out var observed) ? observed.Channel : await ForumAsync(id.ToString(), ct);
             var cursor = cursors[id.ToString()];
             var started = cursor.StartedAt ?? DateTimeOffset.UtcNow;
             var since = cursor.Since > floor ? cursor.Since : floor;
@@ -136,14 +174,19 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
             progress[id.ToString()] = finished ? new ArchiveCursor(started.AddMinutes(-5)) : new ArchiveCursor(since, before, started);
         }
         var snapshots = new List<ThreadSnapshot>();
-        var unseen = found.Values.Where(t => t.CreatedAt >= floor && !knownIds.Contains(t.Id.ToString())).ToArray();
-        foreach (var thread in unseen.Take(50)) snapshots.Add(await SnapshotAsync(thread, ct));
+        var unseen = found.Where(t => SnowflakeUtils.FromSnowflake(t.Key) >= floor && !knownIds.Contains(t.Key.ToString())).ToArray();
+        foreach (var thread in unseen.Take(50))
+        {
+            var snapshot = thread.Value is not null ? await SnapshotAsync(thread.Value, ct) : await GetThreadAsync(thread.Key.ToString(), ct);
+            if (snapshot is not null) snapshots.Add(snapshot);
+        }
         // Do not advance past an archive page until all its unknown identities have been retained.
         return unseen.Length > 50 ? new ThreadInventory(snapshots, false, cursors) : new ThreadInventory(snapshots, complete, progress);
     }
 
-    public async Task<ThreadSnapshot?> GetThreadAsync(string threadId, CancellationToken ct)
+    public async Task<ThreadSnapshot?> GetThreadAsync(string threadId, CancellationToken ct, bool refresh = false)
     {
+        if (!refresh && _threads.TryGetValue(threadId, out var cached)) return cached;
         try
         {
             var channel = await _client.Rest.GetChannelAsync(ulong.Parse(threadId), Options(ct));
@@ -151,19 +194,33 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
                 throw new InvalidOperationException("Thread is outside configured recruitment forums.");
             return await SnapshotAsync(thread, ct);
         }
-        catch (HttpException ex) when (ex.DiscordCode == DiscordErrorCode.UnknownChannel) { return null; }
+        catch (HttpException ex) when (ex.DiscordCode == DiscordErrorCode.UnknownChannel) { _threads.Remove(threadId); return null; }
     }
 
     private async Task<ThreadSnapshot> SnapshotAsync(RestThreadChannel thread, CancellationToken ct)
     {
         var ownerId = ((IThreadChannel)thread).OwnerId;
-        var user = await _client.Rest.GetGuildUserAsync(_settings.GuildId, ownerId, Options(ct));
-        var starter = await thread.GetMessageAsync(thread.Id, Options(ct));
-        return new ThreadSnapshot(thread.Id.ToString(), thread.ParentChannelId.ToString(), ownerId.ToString(), thread.Name,
-            thread.CreatedAt.ToUniversalTime(), user?.IsBot ?? starter?.Author.IsBot ?? false,
-            (thread.Flags & ChannelFlags.Pinned) != 0, thread.IsArchived, thread.IsLocked,
-            thread.AppliedTags.Select(t => t.ToString()).ToArray(), starter?.Content,
-            SnowflakeUtils.FromSnowflake(ownerId), user?.JoinedAt);
+        var id = thread.Id.ToString();
+        if (!_initialFacts.TryGetValue(id, out var facts))
+        {
+            var user = await _client.Rest.GetGuildUserAsync(_settings.GuildId, ownerId, Options(ct));
+            var starter = await thread.GetMessageAsync(thread.Id, Options(ct));
+            facts = new ThreadSnapshot(id, thread.ParentChannelId.ToString(), ownerId.ToString(), thread.Name,
+                thread.CreatedAt.ToUniversalTime(), user?.IsBot ?? starter?.Author.IsBot ?? false, false, false, false,
+                Array.Empty<string>(), starter?.Content, SnowflakeUtils.FromSnowflake(ownerId), user?.JoinedAt);
+            // Missing starters remain retryable. Bound cached initial facts independently of retained history.
+            if (starter is not null)
+            {
+                if (_initialFacts.Count >= 4096) _initialFacts.Remove(_initialFacts.Keys.First());
+                _initialFacts[id] = facts;
+            }
+        }
+        var snapshot = facts with { ForumId = thread.ParentChannelId.ToString(), OwnerId = ownerId.ToString(), Title = thread.Name,
+            Pinned = (thread.Flags & ChannelFlags.Pinned) != 0, Archived = thread.IsArchived, Locked = thread.IsLocked,
+            Tags = thread.AppliedTags.Select(t => t.ToString()).ToArray() };
+        _threads[id] = snapshot;
+        _messageChannels[id] = thread;
+        return snapshot;
     }
 
     public async Task<bool?> HasReplyAsync(ThreadSnapshot thread, CancellationToken ct)
@@ -197,9 +254,11 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
 
     private async Task<IMessageChannel> MessageChannelAsync(string id, CancellationToken ct)
     {
+        if (_messageChannels.TryGetValue(id, out var cached)) return cached;
         var channel = await _client.Rest.GetChannelAsync(ulong.Parse(id), Options(ct));
         if (channel is not IGuildChannel guildChannel || guildChannel.GuildId != _settings.GuildId || channel is not IMessageChannel messages)
             throw new InvalidOperationException("Recruitment message channel unavailable.");
+        _messageChannels[id] = messages;
         return messages;
     }
 
@@ -232,7 +291,8 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
         if (existing is not null)
         {
             var unarchivedForEdit = false;
-            var edit = existing.Content != message.Content || existing.Components.Count == 0 && message.OwnerControls || existing.Components.Count > 0 && !message.OwnerControls;
+            var edit = existing.Content != message.Content || existing.Embeds.FirstOrDefault()?.Description != message.Embed?.Description ||
+                existing.Embeds.FirstOrDefault()?.Title != message.Embed?.Title || existing.Components.Count == 0 && message.OwnerControls || existing.Components.Count > 0 && !message.OwnerControls;
             if (edit)
             {
                 beforeWrite();
@@ -242,7 +302,7 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
                     await archived.ModifyAsync(p => p.Archived = false, Options(ct));
                     unarchivedForEdit = true;
                 }
-                await existing.ModifyAsync(p => { p.Content = message.Content; p.Components = components; p.AllowedMentions = AllowedMentions.None; }, Options(ct));
+                await existing.ModifyAsync(p => { p.Content = message.Content; p.Components = components; p.Embeds = message.Embed is null ? Array.Empty<Embed>() : new[] { message.Embed }; p.AllowedMentions = AllowedMentions.None; }, Options(ct));
             }
             // The caller persists this restoration intent before publication, so a restart can finish it.
             if (message.RestoreArchive && channel is IThreadChannel thread && (unarchivedForEdit || !thread.IsArchived))
@@ -265,27 +325,29 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
             try
             {
                 sent = await channel.SendFileAsync(new FileAttachment(stream, "recruitment.png", message.ImageDescription), message.Content,
-                    options: Options(ct), allowedMentions: AllowedMentions.None, components: components);
+                    options: Options(ct), allowedMentions: AllowedMentions.None, components: components, embed: message.Embed);
             }
             catch (HttpException ex) when (ex.HttpCode == HttpStatusCode.BadRequest || ex.DiscordCode == DiscordErrorCode.MissingPermissions)
             {
                 // These are definitive rejections, so a text fallback cannot duplicate an ambiguous successful send.
-                sent = await channel.SendMessageAsync(message.Content, options: Options(ct), allowedMentions: AllowedMentions.None, components: components);
+                sent = await channel.SendMessageAsync(message.Content, options: Options(ct), allowedMentions: AllowedMentions.None, components: components, embed: message.Embed);
             }
         }
-        else sent = await channel.SendMessageAsync(message.Content, options: Options(ct), allowedMentions: AllowedMentions.None, components: components);
+        else sent = await channel.SendMessageAsync(message.Content, options: Options(ct), allowedMentions: AllowedMentions.None, components: components, embed: message.Embed);
         if (message.RestoreArchive && channel is IThreadChannel restoreThread)
             await restoreThread.ModifyAsync(p => p.Archived = true, Options(ct));
         return new Delivery(sent.Id.ToString(), true);
     }
 
-    public async Task CloseAsync(ThreadSnapshot thread, string? closedTagId, bool protectPinned, CancellationToken ct)
+    public async Task CloseAsync(ThreadSnapshot thread, string? closedTagId, bool protectPinned, CancellationToken ct, Func<bool>? allowWrite = null)
     {
         var live = await ThreadAsync(thread.Id, ct);
         GuardWrite(live, thread, protectPinned);
+        if (allowWrite?.Invoke() == false) throw new InvalidOperationException("New recruitment evidence requires reconciliation before this action.");
         var tags = live.AppliedTags.ToList();
         if (closedTagId is not null && tags.Count < 5 && !tags.Contains(ulong.Parse(closedTagId))) tags.Add(ulong.Parse(closedTagId));
         await live.ModifyAsync(p => { p.AppliedTags = tags; p.Locked = true; p.Archived = true; }, Options(ct));
+        InvalidateThread(thread.Id);
         var verified = await ThreadAsync(thread.Id, ct);
         if (!verified.IsLocked || !verified.IsArchived) throw new InvalidOperationException("Thread closure was not confirmed.");
     }
@@ -294,17 +356,20 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
         var live = await ThreadAsync(thread.Id, ct);
         GuardWrite(live, thread, false);
         await live.ModifyAsync(p => { p.AppliedTags = live.AppliedTags.Where(t => t.ToString() != closedTagId).ToArray(); p.Locked = false; p.Archived = false; }, Options(ct));
+        InvalidateThread(thread.Id);
         var verified = await ThreadAsync(thread.Id, ct);
         if (verified.IsLocked || verified.IsArchived) throw new InvalidOperationException("Thread reopening was not confirmed.");
     }
     private async Task<RestThreadChannel> ThreadAsync(string id, CancellationToken ct) =>
         await _client.Rest.GetChannelAsync(ulong.Parse(id), Options(ct)) as RestThreadChannel ?? throw new InvalidOperationException("Thread unavailable.");
-    public async Task DeleteAsync(ThreadSnapshot thread, string reason, bool protectPinned, CancellationToken ct)
+    public async Task DeleteAsync(ThreadSnapshot thread, string reason, bool protectPinned, CancellationToken ct, Func<bool>? allowWrite = null)
     {
         var live = await ThreadAsync(thread.Id, ct);
         GuardWrite(live, thread, protectPinned);
+        if (allowWrite?.Invoke() == false) throw new InvalidOperationException("New recruitment evidence requires reconciliation before this action.");
         var options = Options(ct); options.AuditLogReason = "Recruitment: " + RecruitmentPresentation.Safe(reason);
         await live.DeleteAsync(options);
+        InvalidateThread(thread.Id);
     }
     private void GuardWrite(RestThreadChannel live, ThreadSnapshot expected, bool protectPinned)
     {
@@ -313,10 +378,10 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
             protectPinned && (live.Flags & ChannelFlags.Pinned) != 0)
             throw new InvalidOperationException("Thread identity or protection changed before the action.");
     }
-    public async Task DeleteAdvisoryAsync(string threadId, string messageId, CancellationToken ct)
+    public async Task DeleteAdvisoryAsync(string threadId, string messageId, CancellationToken ct, string? marker = null)
     {
         var channel = await MessageChannelAsync(threadId, ct);
-        if (await channel.GetMessageAsync(ulong.Parse(messageId), CacheMode.AllowDownload, Options(ct)) is IUserMessage message && message.Author.Id == _client.CurrentUser.Id)
+        if (await channel.GetMessageAsync(ulong.Parse(messageId), CacheMode.AllowDownload, Options(ct)) is IUserMessage message && message.Author.Id == _client.CurrentUser.Id && (marker is null || message.Content.Contains(marker)))
             await message.DeleteAsync(Options(ct));
     }
 }
