@@ -58,7 +58,7 @@ public class RecruitmentTransportTests
         await client.LoginAsync(TokenType.Bot, "offline-placeholder-token", validateToken: false);
         var settings = new BotSettings { GuildId = 1, Recruitment = new RecruitmentSettings
         { Forums = new RecruitmentForums { PaidRecruitingId = 11, PaidForHireId = 12, HobbyRecruitingId = 13, HobbyForHireId = 14 } } };
-        var adapter = new DiscordRecruitmentAdapter(client, settings, null!);
+        var adapter = new DiscordRecruitmentAdapter(client, settings);
         ForumSnapshot? observed = null;
         foreach (var id in settings.Recruitment.Forums.Mapping().Values)
         {

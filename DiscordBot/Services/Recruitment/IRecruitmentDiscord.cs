@@ -8,7 +8,11 @@ public sealed record ThreadSnapshot(string Id, string ForumId, string OwnerId, s
 public sealed record ArchiveCursor(DateTimeOffset Since, DateTimeOffset? Before = null, DateTimeOffset? StartedAt = null);
 public sealed record ThreadInventory(IReadOnlyList<ThreadSnapshot> Threads, bool Complete, IReadOnlyDictionary<string, ArchiveCursor>? Cursors = null);
 public sealed record ReplyObservation(string ThreadId, string AuthorId, bool IsBot, bool IsWebhook, bool? IsStaff);
-public sealed record RecruitmentMessage(string Content, string Marker, bool OwnerControls, byte[]? Image = null, string? ImageDescription = null, bool RestoreArchive = false, Embed? Embed = null);
+public sealed record RecruitmentMessage(string Content, string Marker, bool OwnerControls, bool RestoreArchive = false, Embed? Embed = null, string? TextFallback = null)
+{
+    public string RenderKey => Content + "\n" + OwnerControls + "\n" + EmbedKey(Embed);
+    public static string EmbedKey(IEmbed? embed) => embed is null ? "" : Newtonsoft.Json.JsonConvert.SerializeObject(embed.ToEmbedBuilder().Build());
+}
 public sealed record Delivery(string Id, bool NewlySent);
 
 /// <summary>Null thread means confirmed Discord Unknown Channel, never a cache miss or permission failure.</summary>
@@ -24,9 +28,9 @@ public interface IRecruitmentDiscord
     Task<ThreadInventory> InventoryAsync(DateTimeOffset floor, IReadOnlySet<string> knownIds, IReadOnlyDictionary<string, ArchiveCursor> cursors, CancellationToken ct);
     Task<ThreadSnapshot?> GetThreadAsync(string threadId, CancellationToken ct, bool refresh = false);
     void InvalidateThread(string threadId);
+    void InvalidateFacts(string threadId);
     void InvalidateCache();
     Task<bool?> HasReplyAsync(ThreadSnapshot thread, CancellationToken ct);
-    Task<string> GetActivityAsync(string userId, CancellationToken ct);
     // Ambiguous sends must search the entire bounded recovery interval or hold; never blindly resend.
     Task<Delivery> UpsertAsync(string channelId, string? messageId, bool recovering, DateTimeOffset since,
         RecruitmentMessage message, Action beforeWrite, CancellationToken ct);

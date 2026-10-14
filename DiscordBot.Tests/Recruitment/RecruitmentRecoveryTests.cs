@@ -14,7 +14,7 @@ public class RecruitmentRecoveryTests
     {
         using var client = new DiscordSocketClient();
         using var interactions = new InteractionService(client);
-        var service = new RecruitmentService(client, new BotSettings(), null!);
+        var service = new RecruitmentService(client, new BotSettings());
         using var provider = new ServiceCollection().AddSingleton(service).BuildServiceProvider();
         var module = await interactions.AddModuleAsync<RecruitmentModule>(provider);
         Assert.Equal(8, module.SlashCommands.Count);

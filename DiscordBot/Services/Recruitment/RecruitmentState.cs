@@ -112,15 +112,17 @@ public sealed class Listing
 
 public sealed record RecruitmentAudit(DateTimeOffset At, string Actor, string Reason);
 
-/// <summary>Informational facts captured once when a listing is first observed; missing data stays unknown.</summary>
+/// <summary>Advisory member and starter-message facts, refreshed on edits and bounded recovery checks.</summary>
 public sealed class InitialFacts
 {
     public DateTimeOffset? AccountCreatedAt { get; set; }
     public DateTimeOffset? JoinedAt { get; set; }
-    public string Activity { get; set; } = "unknown";
+    public string Activity { get; set; } = "unknown"; // Retained for v2 history compatibility; no longer collected or displayed.
     public string Payment { get; set; } = "unknown";
     public string TagAdvice { get; set; } = "";
     public bool PriorAcceptedListing { get; set; }
+    public int? MemberRoleCount { get; set; }
+    public string Portfolio { get; set; } = "unknown";
 }
 
 /// <summary>Cross-forum cooldown and timeout history that survives removal of individual listings.</summary>

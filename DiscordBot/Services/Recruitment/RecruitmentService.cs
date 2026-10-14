@@ -18,6 +18,7 @@ public sealed class RecruitmentService
     private readonly Dictionary<string, Func<CancellationToken, Task>> _coalesced = new();
     private readonly object _enqueueGate = new();
     private IReadOnlySet<string> _knownThreads = new HashSet<string>();
+    private IReadOnlySet<string> _listingOwners = new HashSet<string>();
     private IReadOnlyDictionary<string, string> _messageOwners = new Dictionary<string, string>();
     private string? _overviewMessage;
     private readonly Channel<Work> _queue = Channel.CreateBounded<Work>(new BoundedChannelOptions(256)
@@ -34,8 +35,8 @@ public sealed class RecruitmentService
     private sealed record Work(WorkKind Kind, Func<CancellationToken, Task> Run, Action Cancel);
     public RecruitmentHealth Health => Volatile.Read(ref _health);
 
-    public RecruitmentService(DiscordSocketClient client, BotSettings settings, DatabaseService database)
-        : this(settings, new DiscordRecruitmentAdapter(client, settings, database), TimeProvider.System) => _client = client;
+    public RecruitmentService(DiscordSocketClient client, BotSettings settings)
+        : this(settings, new DiscordRecruitmentAdapter(client, settings), TimeProvider.System) => _client = client;
 
     internal RecruitmentService(BotSettings settings, IRecruitmentDiscord discord, TimeProvider time)
     {
@@ -99,6 +100,7 @@ public sealed class RecruitmentService
         var before = Health;
         Volatile.Write(ref _health, next);
         Volatile.Write(ref _knownThreads, _engine.State?.Listings.Keys.ToHashSet() ?? new HashSet<string>());
+        Volatile.Write(ref _listingOwners, _engine.State?.Listings.Values.Where(p => p.Status == ListingStatus.Open).Select(p => p.OwnerId).ToHashSet() ?? new HashSet<string>());
         var owners = new Dictionary<string, string>();
         foreach (var post in _engine.State?.Listings.Values ?? Enumerable.Empty<Listing>())
         {
@@ -187,6 +189,14 @@ public sealed class RecruitmentService
             if (_engine.State?.Listings.ContainsKey(reply.ThreadId) != true) await _engine.ThreadChangedAsync(reply.ThreadId, ct);
             _engine.ObserveReply(reply);
         }, thread: reply.ThreadId);
+    internal void NotifyFactsChanged(string id) => Enqueue("facts:" + id, ct => _engine.FactsChangedAsync(id, ct), thread: id);
+
+    private Task MessageUpdated(Cacheable<IMessage, ulong> before, SocketMessage after, ISocketMessageChannel channel)
+    {
+        if (channel is SocketThreadChannel thread && IsRecruitment(thread) && after.Id == thread.Id &&
+            (!before.HasValue || before.Value.Content != after.Content)) NotifyFactsChanged(thread.Id.ToString());
+        return Task.CompletedTask;
+    }
 
     private Task ThreadCreated(SocketThreadChannel thread)
     {
@@ -284,8 +294,10 @@ public sealed class RecruitmentService
     private Task RoleDeleted(SocketRole role) { if (role.Guild.Id == _settings.GuildId) ScheduleRecovery(); return Task.CompletedTask; }
     private Task MemberUpdated(Cacheable<SocketGuildUser, ulong> before, SocketGuildUser after)
     {
-        if (after.Guild.Id == _settings.GuildId && after.Id == _client?.CurrentUser.Id &&
-            (!before.HasValue || !before.Value.Roles.Select(r => r.Id).SequenceEqual(after.Roles.Select(r => r.Id)))) ScheduleRecovery();
+        if (after.Guild.Id != _settings.GuildId || before.HasValue && before.Value.Roles.Select(r => r.Id).SequenceEqual(after.Roles.Select(r => r.Id))) return Task.CompletedTask;
+        if (after.Id == _client?.CurrentUser.Id) ScheduleRecovery();
+        else if (Volatile.Read(ref _listingOwners).Contains(after.Id.ToString()))
+            Enqueue("member:" + after.Id, ct => _engine.MemberChangedAsync(after.Id.ToString(), ct));
         return Task.CompletedTask;
     }
 
@@ -338,6 +350,7 @@ public sealed class RecruitmentService
         {
             _client.ThreadCreated += ThreadCreated; _client.ThreadUpdated += ThreadUpdated; _client.ThreadDeleted += ThreadDeleted;
             _client.MessageReceived += MessageReceived; _client.MessageDeleted += MessageDeleted; _client.MessagesBulkDeleted += MessagesDeleted;
+            _client.MessageUpdated += MessageUpdated;
             _client.Disconnected += Disconnected; _client.Ready += Ready; _client.GuildAvailable += GuildAvailable; _client.GuildUnavailable += GuildUnavailable;
             _client.ChannelUpdated += ChannelUpdated; _client.ChannelDestroyed += ChannelDestroyed;
             _client.RoleUpdated += RoleUpdated; _client.RoleDeleted += RoleDeleted; _client.GuildMemberUpdated += MemberUpdated;
@@ -346,6 +359,7 @@ public sealed class RecruitmentService
         {
             _client.ThreadCreated -= ThreadCreated; _client.ThreadUpdated -= ThreadUpdated; _client.ThreadDeleted -= ThreadDeleted;
             _client.MessageReceived -= MessageReceived; _client.MessageDeleted -= MessageDeleted; _client.MessagesBulkDeleted -= MessagesDeleted;
+            _client.MessageUpdated -= MessageUpdated;
             _client.Disconnected -= Disconnected; _client.Ready -= Ready; _client.GuildAvailable -= GuildAvailable; _client.GuildUnavailable -= GuildUnavailable;
             _client.ChannelUpdated -= ChannelUpdated; _client.ChannelDestroyed -= ChannelDestroyed;
             _client.RoleUpdated -= RoleUpdated; _client.RoleDeleted -= RoleDeleted; _client.GuildMemberUpdated -= MemberUpdated;

@@ -1,6 +1,5 @@
 using System.IO;
 using System.Collections.Concurrent;
-using System.Net;
 using Discord.Net;
 using Discord.Rest;
 using Discord.WebSocket;
@@ -13,16 +12,16 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
 {
     private readonly DiscordSocketClient _client;
     private readonly BotSettings _settings;
-    private readonly DatabaseService _database;
     private readonly Dictionary<string, (ForumSnapshot Snapshot, RestForumChannel Channel)> _forums = new();
     private readonly ConcurrentDictionary<string, ForumSnapshot> _expectedForums = new();
     private readonly Dictionary<string, ThreadSnapshot> _threads = new();
     private readonly Dictionary<string, ThreadSnapshot> _initialFacts = new();
     private readonly Dictionary<string, IMessageChannel> _messageChannels = new();
     public void InvalidateThread(string threadId) { _threads.Remove(threadId); _messageChannels.Remove(threadId); }
+    public void InvalidateFacts(string threadId) { _initialFacts.Remove(threadId); InvalidateThread(threadId); }
     public void InvalidateCache() { _threads.Clear(); _initialFacts.Clear(); _messageChannels.Clear(); _forums.Clear(); }
-    public DiscordRecruitmentAdapter(DiscordSocketClient client, BotSettings settings, DatabaseService database)
-        => (_client, _settings, _database) = (client, settings, database);
+    public DiscordRecruitmentAdapter(DiscordSocketClient client, BotSettings settings)
+        => (_client, _settings) = (client, settings);
     private static RequestOptions Options(CancellationToken ct) => RecruitmentRequests.Options(ct);
     private SocketGuild Guild => _client.GetGuild(_settings.GuildId) ?? throw new InvalidOperationException("Configured guild is unavailable.");
 
@@ -240,20 +239,6 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
         return unknown ? null : false;
     }
 
-    public async Task<string> GetActivityAsync(string userId, CancellationToken ct)
-    {
-        try
-        {
-            var query = _database.Query;
-            if (query is null) return "unknown";
-            var user = await query.GetUser(userId).WaitAsync(TimeSpan.FromSeconds(5), ct);
-            if (user is null) return "unknown";
-            return user.Exp > 0 || user.Karma > 0 || user.KarmaGiven > 0 ? "recorded" : "none recorded";
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch { return "unknown"; }
-    }
-
     private async Task<IMessageChannel> MessageChannelAsync(string id, CancellationToken ct)
     {
         if (_messageChannels.TryGetValue(id, out var cached)) return cached;
@@ -267,6 +252,9 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
     public async Task<Delivery> UpsertAsync(string channelId, string? messageId, bool recovering, DateTimeOffset since, RecruitmentMessage message, Action beforeWrite, CancellationToken ct)
     {
         var channel = await MessageChannelAsync(channelId, ct);
+        if (message.Embed is not null && message.TextFallback is not null && channel is RestThreadChannel listing &&
+            !Guild.CurrentUser.GetPermissions(Guild.GetChannel(listing.ParentChannelId)).EmbedLinks)
+            message = message with { Content = message.TextFallback, Embed = null };
         IUserMessage? existing = null;
         if (messageId is not null) existing = await channel.GetMessageAsync(ulong.Parse(messageId), CacheMode.AllowDownload, Options(ct)) as IUserMessage;
         if (existing is not null && (existing.Author.Id != _client.CurrentUser.Id || !existing.Content.Contains(message.Marker)))
@@ -293,8 +281,8 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
         if (existing is not null)
         {
             var unarchivedForEdit = false;
-            var edit = existing.Content != message.Content || existing.Embeds.FirstOrDefault()?.Description != message.Embed?.Description ||
-                existing.Embeds.FirstOrDefault()?.Title != message.Embed?.Title || existing.Components.Count == 0 && message.OwnerControls || existing.Components.Count > 0 && !message.OwnerControls;
+            var edit = existing.Content != message.Content || RecruitmentMessage.EmbedKey(existing.Embeds.FirstOrDefault()) != RecruitmentMessage.EmbedKey(message.Embed) ||
+                existing.Embeds.Count > (message.Embed is null ? 0 : 1) || existing.Attachments.Count > 0 || existing.Components.Count == 0 && message.OwnerControls || existing.Components.Count > 0 && !message.OwnerControls;
             if (edit)
             {
                 beforeWrite();
@@ -304,7 +292,7 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
                     await archived.ModifyAsync(p => p.Archived = false, Options(ct));
                     unarchivedForEdit = true;
                 }
-                await existing.ModifyAsync(p => { p.Content = message.Content; p.Components = components; p.Embeds = message.Embed is null ? Array.Empty<Embed>() : new[] { message.Embed }; p.AllowedMentions = AllowedMentions.None; }, Options(ct));
+                await existing.ModifyAsync(p => { p.Content = message.Content; p.Components = components; p.Attachments = Array.Empty<FileAttachment>(); p.Embeds = message.Embed is null ? Array.Empty<Embed>() : new[] { message.Embed }; p.AllowedMentions = AllowedMentions.None; }, Options(ct));
             }
             // The caller persists this restoration intent before publication, so a restart can finish it.
             if (message.RestoreArchive && channel is IThreadChannel thread && (unarchivedForEdit || !thread.IsArchived))
@@ -320,22 +308,7 @@ public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
             if (archivedThread.IsLocked && !message.RestoreArchive) throw new InvalidOperationException("A locked thread needs moderator review before receiving a challenge.");
             await archivedThread.ModifyAsync(p => p.Archived = false, Options(ct));
         }
-        IUserMessage sent;
-        if (message.Image is not null)
-        {
-            using var stream = new MemoryStream(message.Image, false);
-            try
-            {
-                sent = await channel.SendFileAsync(new FileAttachment(stream, "recruitment.png", message.ImageDescription), message.Content,
-                    options: Options(ct), allowedMentions: AllowedMentions.None, components: components, embed: message.Embed);
-            }
-            catch (HttpException ex) when (ex.HttpCode == HttpStatusCode.BadRequest || ex.DiscordCode == DiscordErrorCode.MissingPermissions)
-            {
-                // These are definitive rejections, so a text fallback cannot duplicate an ambiguous successful send.
-                sent = await channel.SendMessageAsync(message.Content, options: Options(ct), allowedMentions: AllowedMentions.None, components: components, embed: message.Embed);
-            }
-        }
-        else sent = await channel.SendMessageAsync(message.Content, options: Options(ct), allowedMentions: AllowedMentions.None, components: components, embed: message.Embed);
+        var sent = await channel.SendMessageAsync(message.Content, options: Options(ct), allowedMentions: AllowedMentions.None, components: components, embed: message.Embed);
         if (message.RestoreArchive && channel is IThreadChannel restoreThread)
             await restoreThread.ModifyAsync(p => p.Archived = true, Options(ct));
         return new Delivery(sent.Id.ToString(), true);

@@ -111,6 +111,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             {
                 ct.ThrowIfCancellationRequested();
                 if (retryHeld) post.Fault = null;
+                _discord.InvalidateFacts(post.Id);
                 await ProcessSafelyAsync(post, ct, verifyHeld: true);
             }
             if (batch.Length > 0) State.SweepAfterId = batch[^1].Id;
@@ -160,10 +161,10 @@ public sealed partial class RecruitmentEngine : IDisposable
             await ProcessSafelyAsync(waiting, ct);
     }
 
-    public async Task ObserveAsync(ThreadSnapshot live, bool observedFromCreation, CancellationToken ct)
+    public Task ObserveAsync(ThreadSnapshot live, bool observedFromCreation, CancellationToken ct)
     {
-        if (State is null || !_ready || live.OwnerIsBot || live.OwnerIsStaff || !State.Forums.Values.Any(f => f.ForumId == live.ForumId)) return;
-        if (State.Listings.ContainsKey(live.Id) || live.CreatedAt < State.DiscoveryFloor) return;
+        if (State is null || !_ready || live.OwnerIsBot || live.OwnerIsStaff || !State.Forums.Values.Any(f => f.ForumId == live.ForumId)) return Task.CompletedTask;
+        if (State.Listings.ContainsKey(live.Id) || live.CreatedAt < State.DiscoveryFloor) return Task.CompletedTask;
         var purpose = Purpose(live.ForumId);
         var post = new Listing
         {
@@ -173,7 +174,8 @@ public sealed partial class RecruitmentEngine : IDisposable
             Facts = new InitialFacts
             {
                 AccountCreatedAt = live.AccountCreatedAt, JoinedAt = live.JoinedAt,
-                Activity = await _discord.GetActivityAsync(live.OwnerId, ct), Payment = RecruitmentContent.Payment(live.Starter),
+                Payment = RecruitmentContent.Payment(live.Starter), MemberRoleCount = live.MemberRoleCount,
+                Portfolio = RecruitmentContent.Portfolio(live.Starter),
                 TagAdvice = _assets!.TagAdvice(purpose, live.Tags, State.Forums[purpose]),
                 PriorAcceptedListing = State.Authors.GetValueOrDefault(live.OwnerId)?.LastAcceptedCreation is not null
             }
@@ -181,6 +183,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         State.Listings[post.Id] = post;
         RecruitmentPolicy.Author(State, post.OwnerId, Now);
         Save();
+        return Task.CompletedTask;
     }
 
     public void ObserveReply(ReplyObservation reply)
@@ -221,6 +224,12 @@ public sealed partial class RecruitmentEngine : IDisposable
             await BeginActionAsync(post, RecruitmentActionKind.RemoveAdvisory, "system", post.LastOutcome, "", false, ct);
             return;
         }
+        post.Title = RecruitmentPresentation.Safe(live.Title);
+        post.Facts.AccountCreatedAt = live.AccountCreatedAt; post.Facts.JoinedAt = live.JoinedAt;
+        post.Facts.MemberRoleCount = live.MemberRoleCount;
+        post.Facts.Payment = RecruitmentContent.Payment(live.Starter);
+        post.Facts.Portfolio = RecruitmentContent.Portfolio(live.Starter);
+        post.Facts.TagAdvice = _assets!.TagAdvice(Purpose(post.ForumId), live.Tags, State!.Forums[Purpose(post.ForumId)]);
         if (!post.PublicSendPending) post.PublicRestoreArchive = live.Archived && post.AcceptedAt.HasValue;
         post.Hold = null;
         if (live.Starter is null && !post.PromptDeliveredAt.HasValue && !post.AcceptedAt.HasValue)
@@ -340,11 +349,10 @@ public sealed partial class RecruitmentEngine : IDisposable
         if (post.Status is ListingStatus.Deleted or ListingStatus.Reference)
         { post.PublicationPending = false; post.PublicSendPending = false; Save(); return; }
         var message = RecruitmentPresentation.Public(State!, post, _settings, Now);
-        if (!post.PublicSendPending && !post.PublicationPending && post.PublicMessageId is not null && _publicRenders.GetValueOrDefault(post.Id) == message.Content) return;
+        if (!post.PublicSendPending && !post.PublicationPending && post.PublicMessageId is not null && _publicRenders.GetValueOrDefault(post.Id) == message.RenderKey) return;
         var recovering = post.PublicSendPending;
-        var image = post.PublicMessageId is null ? RecruitmentPresentation.RenderBanner(post, _bot.AssetsRootPath) : null;
         var delivery = await _discord.UpsertAsync(post.Id, post.PublicMessageId, recovering, post.PublicSendStartedAt ?? post.CreatedAt,
-            RecruitmentPresentation.Public(State!, post, _settings, Now, image) with
+            message with
             { RestoreArchive = post.PublicRestoreArchive || post.Status == ListingStatus.Closed }, () =>
             {
                 if (!recovering) post.PublicSendStartedAt = Now;
@@ -352,7 +360,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             }, ct);
         var changed = post.PublicMessageId != delivery.Id || post.PublicSendPending || post.PublicationPending;
         post.PublicMessageId = delivery.Id; post.PublicSendPending = false; post.PublicationPending = false;
-        _publicRenders[post.Id] = message.Content;
+        _publicRenders[post.Id] = message.RenderKey;
         if (delivery.NewlySent && post.Deadline.HasValue && !post.AcceptedAt.HasValue)
         { post.PromptDeliveredAt = null; post.Deadline = null; post.Version++; changed = true; }
         if (changed) Save();

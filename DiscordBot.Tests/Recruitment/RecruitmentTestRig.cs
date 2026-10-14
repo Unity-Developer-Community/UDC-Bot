@@ -151,8 +151,8 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
     { ThreadReads++; return UnknownThreads.Contains(id) ? Task.FromException<ThreadSnapshot?>(new InvalidOperationException("Forbidden")) : Task.FromResult(Threads.GetValueOrDefault(id)); }
     public void InvalidateThread(string id) { }
     public void InvalidateCache() { }
+    public void InvalidateFacts(string id) { }
     public Task<bool?> HasReplyAsync(ThreadSnapshot thread, CancellationToken ct) { ReplyReads++; return Task.FromResult<bool?>(Replies.Contains(thread.Id)); }
-    public Task<string> GetActivityAsync(string userId, CancellationToken ct) => Task.FromResult("unknown");
     public Task<Delivery> UpsertAsync(string channelId, string? messageId, bool recovering, DateTimeOffset since, RecruitmentMessage message, Action beforeWrite, CancellationToken ct)
     {
         Upserts++;
@@ -161,7 +161,7 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
         var key = channelId + ":" + message.Marker;
         if (Messages.TryGetValue(key, out var existing))
         {
-            if (existing.Message.Content != message.Content || existing.Message.Embed?.Description != message.Embed?.Description) beforeWrite();
+            if (existing.Message.RenderKey != message.RenderKey) beforeWrite();
             Messages[key] = (existing.Id, message); return Task.FromResult(new Delivery(existing.Id, false));
         }
         beforeWrite();

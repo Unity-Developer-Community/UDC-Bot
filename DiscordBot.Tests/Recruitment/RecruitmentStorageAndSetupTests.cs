@@ -1,5 +1,4 @@
 using DiscordBot.Services.Recruitment;
-using ImageMagick;
 using Newtonsoft.Json.Linq;
 
 namespace DiscordBot.Tests.Recruitment;
@@ -248,22 +247,10 @@ public class RecruitmentStorageAndSetupTests
     [InlineData("USD 2000", "concrete rate or budget stated")]
     [InlineData("$35/hour", "concrete rate or budget stated")]
     [InlineData("150 EUR per day", "concrete rate or budget stated")]
-    [InlineData("Revenue-share", "ambiguous / discuss payment terms")]
+    [InlineData("Revenue-share", "revenue-share stated")]
     [InlineData("Competitive rates", "ambiguous / discuss payment terms")]
     [InlineData("A Unity hobby project", "no concrete rate or budget found")]
     [InlineData(null, "unknown")]
     public void PaymentIsNeutralAndAdvisory(string? text, string expected) => Assert.Equal(expected, RecruitmentContent.Payment(text));
 
-    [Fact]
-    public async Task BannerUsesPackagedFontAndBoundedImage_WithEssentialTextFallback()
-    {
-        using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post();
-        var png = RecruitmentPresentation.RenderBanner(post, rig.Settings.AssetsRootPath);
-        Assert.NotNull(png); Assert.InRange(png.Length, 100, 512 * 1024);
-        using var image = new MagickImage(png); Assert.Equal(900u, image.Width); Assert.Equal(270u, image.Height);
-        Assert.Null(RecruitmentPresentation.RenderBanner(post, "/nonexistent/udc-assets"));
-        var fallback = RecruitmentPresentation.Public(rig.State, post, rig.Settings.Recruitment, rig.Clock.Now);
-        Assert.Contains("Community activity: unknown", fallback.Content); Assert.Contains("Initial snapshot", fallback.Content);
-        File.WriteAllBytes(Path.Combine(Path.GetTempPath(), "udc-recruitment-preview.png"), png);
-    }
 }

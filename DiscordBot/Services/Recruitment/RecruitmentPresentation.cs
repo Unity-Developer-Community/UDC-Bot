@@ -1,46 +1,88 @@
-using System.IO;
 using DiscordBot.Settings;
-using ImageMagick;
-using ImageMagick.Drawing;
 
 namespace DiscordBot.Services.Recruitment;
 
 public static class RecruitmentPresentation
 {
-    public static string Facts(Listing post) =>
-        $"Initial snapshot · account created {Date(post.Facts.AccountCreatedAt)} · joined {Date(post.Facts.JoinedAt)}\n" +
-        $"Community activity: {post.Facts.Activity}. Payment: {post.Facts.Payment}.\n" +
-        $"Earlier accepted listing: {(post.Facts.PriorAcceptedListing ? "recorded" : "none recorded")}. {post.Facts.TagAdvice}.";
-
-    private static string Date(DateTimeOffset? date) => date?.ToString("yyyy-MM-dd") ?? "unknown";
     public static string Timestamp(DateTimeOffset date) => $"<t:{date.ToUnixTimeSeconds()}:F>";
     public static string Safe(string value, int max = 180) => new string(value.Take(max)
         .Select(c => char.IsControl(c) || "`*_~|<>@".Contains(c) ? ' ' : c).ToArray());
 
-    public static RecruitmentMessage Public(RecruitmentState state, Listing post, RecruitmentSettings settings, DateTimeOffset now, byte[]? image = null)
+    public static RecruitmentMessage Public(RecruitmentState state, Listing post, RecruitmentSettings settings, DateTimeOffset now)
     {
         var eligibility = RecruitmentPolicy.Evaluate(state, post, now, settings.CooldownDays);
-        var status = post.Status != ListingStatus.Open ? post.Status.ToString() : post.AcceptedAt.HasValue ? "Accepted" :
-            post.AcknowledgedAt.HasValue ? "Guidelines acknowledged; waiting for eligibility" : "Read this forum's Guidelines and acknowledge the code";
-        var text = $"**{status}**\n";
+        var status = post.Status != ListingStatus.Open ? post.Status.ToString() : post.AcceptedAt.HasValue ? "Listing active" :
+            post.AcknowledgedAt.HasValue ? "Waiting for eligibility" : "Acknowledgement needed";
+        var instructions = new List<string>();
         if (post.Status == ListingStatus.Open && !post.AcceptedAt.HasValue)
         {
-            text += post.Deadline.HasValue ? $"Acknowledgement window ends {Timestamp(post.Deadline.Value)}.\n" : "Your full acknowledgement window starts when these controls are confirmed available.\n";
-            if (eligibility.BlockingListingId is not null)
-                text += $"Your other listing <#{eligibility.BlockingListingId}> occupies your one listing slot.\n";
-            if (eligibility.NextAllowedAt.HasValue) text += $"Creation cooldown ends {Timestamp(eligibility.NextAllowedAt.Value)}.\n";
+            if (!post.AcknowledgedAt.HasValue) instructions.Add("Read this forum's Guidelines and enter the code using **Acknowledge**.");
+            instructions.Add(post.Deadline.HasValue ? $"Deadline: {Timestamp(post.Deadline.Value)}." : "Your acknowledgement window starts when these controls are available.");
+            if (eligibility.BlockingListingId is not null) instructions.Add($"Your other listing <#{eligibility.BlockingListingId}> occupies your listing slot.");
+            if (eligibility.NextAllowedAt.HasValue) instructions.Add($"Creation cooldown ends {Timestamp(eligibility.NextAllowedAt.Value)}.");
         }
         if (post.AcceptedAt.HasValue)
         {
             var next = state.Authors.GetValueOrDefault(post.OwnerId)?.LastAcceptedCreation?.AddDays(settings.CooldownDays);
-            text += next.HasValue ? $"Replacement cooldown: {Timestamp(next.Value)}. Close this listing before replacing it.\n"
-                : "Creation cooldown waived. Close this listing before replacing it.\n";
+            if (next > now) instructions.Add($"Next listing: {Timestamp(next.Value)}." + (post.Status == ListingStatus.Open ? " Close this listing before replacing it." : ""));
+            else if (post.Status == ListingStatus.Open) instructions.Add("Close this listing before posting a replacement.");
         }
-        if (post.Exempt || post.Pinned) text += "Protected from automatic closure/removal.\n";
-        if (post.Hold is not null || post.AvailabilityUnknown) text += "Processing is waiting for moderator review or Discord recovery.\n";
-        text += "\n" + Facts(post) + "\nAgree on scope and payment in writing; verify claims independently. These facts are not an endorsement.";
+        if (post.Status == ListingStatus.Open && (post.Exempt || post.Pinned)) instructions.Add("This listing stays open until its owner or a moderator closes it.");
+        if (post.Hold is not null || post.AvailabilityUnknown) instructions.Add("Processing paused; moderator review or Discord recovery is needed.");
+
+        var purpose = state.Forums.First(f => f.Value.ForumId == post.ForumId).Key;
+        var paid = purpose.StartsWith("paid-");
+        var forHire = purpose.EndsWith("for-hire");
+        var embed = new EmbedBuilder().WithTitle("Recruitment · " + status).WithDescription(string.Join("\n", instructions));
+        var flagged = false;
+        void Field(string name, string value, bool flag, bool inline = true)
+        {
+            flagged |= flag;
+            embed.AddField((flag ? "⚠ " : "") + name, value, inline);
+        }
+        var accountAge = post.Facts.AccountCreatedAt.HasValue ? post.CreatedAt - post.Facts.AccountCreatedAt.Value : (TimeSpan?)null;
+        Field("Account age", accountAge.HasValue
+            ? $"{Age(accountAge.Value)} at posting\nCreated <t:{post.Facts.AccountCreatedAt!.Value.ToUnixTimeSeconds()}:d>" : "Unavailable",
+            !accountAge.HasValue || accountAge.Value.TotalDays < 30);
+        var joined = post.Facts.JoinedAt;
+        Field("Joined server", joined.HasValue ? $"<t:{joined.Value.ToUnixTimeSeconds()}:D>" +
+            (post.CreatedAt - joined.Value < TimeSpan.FromDays(7) ? "\nJoined less than 7 days before posting" : "") : "Unavailable",
+            !joined.HasValue || post.CreatedAt - joined.Value < TimeSpan.FromDays(7));
+        Field("Server roles", post.Facts.MemberRoleCount switch
+        {
+            null => "Unavailable",
+            0 => "None assigned. Add relevant skill roles.",
+            var count => $"{count} assigned"
+        }, post.Facts.MemberRoleCount is null or 0);
+        var concrete = post.Facts.Payment == "concrete rate or budget stated";
+        var unpaid = post.Facts.Payment == "unpaid collaboration stated";
+        var revenueShare = post.Facts.Payment == "revenue-share stated";
+        Field("Payment", concrete ? "Rate or budget detected; terms unverified." : revenueShare ? "Revenue share stated; no guaranteed payment detected." :
+            unpaid ? paid ? "Unpaid terms detected in a paid forum." : "Unpaid collaboration stated." :
+            post.Facts.Payment == "unknown" ? "Starter text unavailable." : paid ? "No concrete rate or budget detected." : "No clear unpaid, revenue-share or payment terms detected.",
+            !concrete && (paid || !unpaid), false);
+        if (forHire)
+            Field("Portfolio / work samples", post.Facts.Portfolio switch
+            {
+                "work-sample link detected" => "Link detected; authorship and contents unverified.",
+                "external link found; purpose unclear" => "External link found. Label your portfolio or work samples.",
+                "unknown" => "Starter text unavailable.",
+                _ => "No link detected. Add a portfolio, demo or work samples."
+            }, post.Facts.Portfolio != "work-sample link detected", false);
+        embed.AddField("Before moving to DMs", "Clarify scope, deliverables, timing and payment in this thread first. Verify work samples and agree terms in writing.")
+            .WithColor(flagged ? Color.Orange : Color.Blue)
+            .WithFooter("Checks use the starter post and server membership; they do not verify identity or endorse the listing.");
+        var built = embed.Build();
         var marker = $"recruitment:{post.Id}:public";
-        return new RecruitmentMessage(text + $"\n||{marker}||", marker, post.Status == ListingStatus.Open, image, Facts(post));
+        var fallback = $"**{built.Title}**\n{built.Description}\n" + string.Join("\n", built.Fields.Select(f => $"**{f.Name}**: {f.Value}")) + $"\n{built.Footer?.Text}\n||{marker}||";
+        return new RecruitmentMessage($"||{marker}||", marker, post.Status == ListingStatus.Open, Embed: built, TextFallback: fallback);
+    }
+
+    private static string Age(TimeSpan age)
+    {
+        var days = Math.Max(0, (int)age.TotalDays);
+        if (days >= 365) return $"{days / 365} {(days / 365 == 1 ? "year" : "years")}";
+        return $"{days} {(days == 1 ? "day" : "days")}";
     }
 
     public static RecruitmentMessage Staff(RecruitmentState state, Listing post, RecruitmentSettings settings)
@@ -64,26 +106,4 @@ public static class RecruitmentPresentation
         return new RecruitmentMessage(text + $"||{marker}||", marker, false);
     }
 
-    public static byte[]? RenderBanner(Listing post, string assetsRoot)
-    {
-        try
-        {
-            var font = Path.Combine(assetsRoot, "fonts", "OpenSans-Regular.ttf");
-            if (!File.Exists(font)) return null;
-            // Fixed size, local font and bounded, bot-generated text only. No remote images or member markup.
-            using var image = new MagickImage(new MagickColor("#17212D"), 900, 270);
-            var draw = new Drawables().Font(font).FillColor(new MagickColor("#F0F4F8")).FontPointSize(25)
-                .Text(28, 42, "RECRUITMENT · INITIAL SNAPSHOT").FontPointSize(19)
-                .Text(28, 84, $"Account: {Date(post.Facts.AccountCreatedAt)}     Joined: {Date(post.Facts.JoinedAt)}")
-                .Text(28, 121, $"Community activity: {post.Facts.Activity}")
-                .Text(28, 158, $"Payment: {post.Facts.Payment}")
-                .FontPointSize(17).FillColor(new MagickColor("#B8C8D9"))
-                .Text(28, 208, "Agree on scope and terms in writing. Verify claims independently.")
-                .Text(28, 239, "Context only; these facts are not an endorsement.");
-            draw.Draw(image);
-            var bytes = image.ToByteArray(MagickFormat.Png);
-            return bytes.Length <= 512 * 1024 ? bytes : null;
-        }
-        catch { return null; } // Rendering is cosmetic; essential information is also text.
-    }
 }

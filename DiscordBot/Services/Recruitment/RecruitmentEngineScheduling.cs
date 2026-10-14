@@ -119,6 +119,19 @@ public sealed partial class RecruitmentEngine
         if (_ready) await ReconcileThreadAsync(id, ct);
     }
 
+    public Task FactsChangedAsync(string id, CancellationToken ct)
+    {
+        _discord.InvalidateFacts(id);
+        return ThreadChangedAsync(id, ct);
+    }
+
+    public async Task MemberChangedAsync(string owner, CancellationToken ct)
+    {
+        if (State is null) return;
+        foreach (var post in State.Listings.Values.Where(p => p.OwnerId == owner && p.Status == ListingStatus.Open).ToArray())
+            await FactsChangedAsync(post.Id, ct);
+    }
+
     public async Task MessageDeletedAsync(string channel, IReadOnlySet<string> ids, CancellationToken ct)
     {
         if (State is null) return;
