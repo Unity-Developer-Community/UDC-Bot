@@ -20,6 +20,7 @@ The code is provided as-is and there will be no guaranteed support to help make 
 - [Compiling](#compiling)
   - [Dependencies](#dependencies)
 - [Running](#running)
+  - [Local Development](#local-development)
   - [Docker](#docker)
   - [Runtime Dependencies](#runtime-dependencies)
 - [Notes](#notes)
@@ -246,6 +247,35 @@ dotnet build
 > **Important:** Read the comments in `Settings.json` carefully - they explain which settings need to be changed and which are optional.
 
 _For production deployment, see the [Deployment Guide](docs/deployment.md)._
+
+### Local Development
+
+Install the .NET 8 SDK or a newer SDK, such as .NET 10. The projects compile for
+`net8.0`; NuGet restore downloads any missing targeting packs. The bot and tests
+use [major-version runtime roll-forward](https://learn.microsoft.com/en-us/dotnet/core/project-sdk/msbuild-props#rollforward):
+they prefer .NET 8 when installed and otherwise use the next installed newer
+major runtime. Older runtimes cannot run the bot, and newer major versions still
+need compatibility testing.
+
+**VS Code:** Install the Microsoft C# extension, open the repository root, select
+`.NET Core Launch (console)` in Run and Debug, and press **F5**. The build task
+writes Debug binaries to `DiscordBot/bin/vscode`, and the debugger launches from
+that stable path. Changing the project's target framework does not require
+editing `launch.json`. The working directory remains `DiscordBot`, so local
+settings and asset paths resolve there.
+
+**Command line:** Run from the bot directory so relative settings and asset paths
+resolve consistently with VS Code:
+
+```bash
+cd DiscordBot
+dotnet run
+# Or rebuild and restart when source files change:
+dotnet watch run
+```
+
+The VS Code `watch` task uses the same working directory. Run the tests from the
+repository root with `dotnet test`.
 
 ### Docker
 
