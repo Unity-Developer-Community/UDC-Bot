@@ -260,9 +260,9 @@ Secrets are refreshed every hour automatically.
 
 #### Using S3 Backups
 
-The repository includes a backup deployment using
-[eeshugerman/postgres-backup-s3](https://github.com/eeshugerman/postgres-backup-s3) that dumps
-PostgreSQL to an S3 bucket daily.
+The repository includes a backup `CronJob` that dumps PostgreSQL to an S3 bucket daily. An init
+container runs `pg_dump` into a scratch volume and the main container uploads the file with the
+AWS CLI, so a failure in either step fails the Job.
 
 **Prerequisites:**
 
@@ -277,7 +277,7 @@ kubectl -n udc-bot-prod create secret generic postgresql-backup-credentials \
   --from-literal=AWS_SECRET_ACCESS_KEY='YOUR_AWS_SECRET'
 ```
 
-**Step 2: Deploy the backup service**
+**Step 2: Deploy the backup job**
 
 Review `k8s/prod/postgresql-backup.yaml` and update the S3 bucket name and region if needed, then:
 
@@ -285,7 +285,16 @@ Review `k8s/prod/postgresql-backup.yaml` and update the S3 bucket name and regio
 kubectl apply -f k8s/prod/postgresql-backup.yaml
 ```
 
-The backup runs daily (`@daily`) with 90-day retention and stores dumps in the configured S3 bucket.
+The backup runs daily at 00:00 UTC and stores dumps as `udcbot_<timestamp>.dump` under the
+environment prefix of the bucket. Retention is not handled by the job: configure an S3 lifecycle
+rule on the bucket to expire old dumps.
+
+The manifest also contains a `PrometheusRule` that fires `UdcBotBackupFailed` (the latest run did
+not succeed) and `UdcBotBackupStale` (no success for 36 hours). It requires the Prometheus
+Operator CRDs and a rule selector matching the `release: monitoring` label; delete that document
+from the file if you do not run them.
+
+To test a backup immediately: `kubectl -n udc-bot-prod create job --from=cronjob/postgresql-backup backup-test`.
 
 ---
 
