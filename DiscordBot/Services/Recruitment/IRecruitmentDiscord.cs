@@ -2,6 +2,8 @@ namespace DiscordBot.Services.Recruitment;
 
 public sealed record LiveTag(string Id, string Name, bool Moderated, IEmote? Emoji = null);
 public sealed record ForumSnapshot(string Id, string Topic, bool RequireTag, IReadOnlyList<LiveTag> Tags, ChannelFlags Flags = ChannelFlags.None);
+public sealed record ThreadCreation(string Id, string ForumId, string OwnerId, string Title, DateTimeOffset CreatedAt);
+public sealed record RecruitmentAuthor(bool IsBot, bool IsStaff);
 public sealed record ThreadSnapshot(string Id, string ForumId, string OwnerId, string Title, DateTimeOffset CreatedAt,
     bool OwnerIsBot, bool Pinned, bool Archived, bool Locked, IReadOnlyList<string> Tags, string? Starter,
     DateTimeOffset? AccountCreatedAt, DateTimeOffset? JoinedAt, bool OwnerIsStaff = false, int? MemberRoleCount = null, bool? HasCustomAvatar = null, IReadOnlyList<StarterAttachment>? Attachments = null);
@@ -20,6 +22,7 @@ public interface IRecruitmentDiscord
     Task ValidateAccessAsync(CancellationToken ct);
     Task<bool> ValidateFeedAsync(CancellationToken ct);
     Task<bool> IsMemberAsync(string guildId, string userId, CancellationToken ct);
+    Task<RecruitmentAuthor?> GetAuthorAsync(string userId, CancellationToken ct);
     Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct);
     bool IsExpectedForumUpdate(ForumSnapshot snapshot);
     Task<ForumSnapshot> GetForumAsync(string forumId, CancellationToken ct);

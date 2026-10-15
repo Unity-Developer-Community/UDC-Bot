@@ -5,6 +5,54 @@ namespace DiscordBot.Tests.Recruitment;
 public class RecruitmentAttemptTests
 {
     [Fact]
+    public async Task RapidCreateDeleteCountsThroughServiceQueueAndSurvivesRestart()
+    {
+        using var rig = new RecruitmentRig();
+        var service = new RecruitmentService(rig.Settings, rig.Discord, rig.Clock);
+        try
+        {
+            await service.StartAsync();
+            for (var i = 0; i < 3; i++)
+                service.NotifyCreation(new ThreadCreation((100 + i).ToString(), (11 + i).ToString(), "200", "Brief attempt", rig.Clock.Now));
+            service.NotifyCreation(new ThreadCreation("102", "13", "200", "Duplicate gateway event", rig.Clock.Now));
+            await service.RunAsync((engine, _) =>
+            {
+                Assert.Equal(3, engine.State!.Authors["200"].RecentCreations.Count);
+                Assert.Equal(rig.Clock.Now.AddHours(1), engine.State.Authors["200"].AttemptPausedUntil);
+                Assert.All(engine.State.Listings.Values, p => Assert.Equal(ListingStatus.Deleted, p.Status));
+                Assert.Equal(0, engine.State.Authors["200"].ConsecutiveTimeouts);
+                return Task.FromResult(true);
+            });
+        }
+        finally { await service.StopAsync(default); }
+        await rig.Start();
+        Assert.Equal(3, rig.State.Authors["200"].RecentCreations.Count);
+        Assert.NotNull(rig.State.Authors["200"].AttemptPausedUntil);
+        Assert.Empty(rig.Discord.Actions);
+    }
+
+    [Theory]
+    [InlineData("900", false, 0)]
+    [InlineData("999", false, 0)]
+    [InlineData("200", true, 0)]
+    [InlineData("200", false, 90)]
+    public async Task AbsentCreationDoesNotCountStaffBotsUnknownMembersOrOldAccessEvents(string owner, bool missing, int ageMinutes)
+    {
+        using var rig = new RecruitmentRig(); await rig.Start();
+        if (missing) rig.Discord.MissingMembers.Add(owner);
+        await rig.Engine.ThreadCreatedAsync(new ThreadCreation("100", "11", owner, "Already absent", rig.Clock.Now.AddMinutes(-ageMinutes)), default);
+        Assert.Empty(rig.State.Listings); Assert.Empty(rig.State.Authors);
+    }
+
+    [Fact]
+    public async Task ExistingThreadCreationEventDoesNotDoubleCountDiscovery()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post();
+        await rig.Engine.ThreadCreatedAsync(new ThreadCreation(post.Id, post.ForumId, post.OwnerId, post.Title, post.CreatedAt), default);
+        Assert.Single(rig.State.Authors[post.OwnerId].RecentCreations);
+    }
+
+    [Fact]
     public async Task DeletedCreationsCountAcrossForumsAndRestartWithoutExtendingPause()
     {
         using var rig = new RecruitmentRig(); await rig.Start();

@@ -136,6 +136,8 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
     public Task<bool> ValidateFeedAsync(CancellationToken ct) => FailFeed ? Task.FromException<bool>(new InvalidOperationException("Feed privacy invalid")) : Task.FromResult(FeedEmbeds);
     public Task<string?> LatestFeedMessageAsync(CancellationToken ct) => Task.FromResult(Messages.Where(m => m.Key.StartsWith("99:")).Select(m => m.Value.Id).OrderByDescending(ulong.Parse).FirstOrDefault());
     public HashSet<string> MissingMembers { get; } = new();
+    public Task<RecruitmentAuthor?> GetAuthorAsync(string userId, CancellationToken ct) => Task.FromResult<RecruitmentAuthor?>(
+        MissingMembers.Contains(userId) ? null : new RecruitmentAuthor(userId == "999", userId == "900"));
     public Task<bool> IsMemberAsync(string guildId, string userId, CancellationToken ct) => Task.FromResult(guildId == "1" && !MissingMembers.Contains(userId));
     public Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct) => Task.FromResult(guildId == "1" && userId == "900");
     public bool IsExpectedForumUpdate(ForumSnapshot snapshot) => Forums.GetValueOrDefault(snapshot.Id) == snapshot;

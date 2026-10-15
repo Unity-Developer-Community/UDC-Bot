@@ -188,6 +188,7 @@ public sealed class RecruitmentService
     }
 
     internal void NotifyThread(string id) => Enqueue("thread:" + id, ct => _engine.ThreadChangedAsync(id, ct), thread: id);
+    internal void NotifyCreation(ThreadCreation thread) => Enqueue("created:" + thread.Id, ct => _engine.ThreadCreatedAsync(thread, ct), thread: thread.Id);
     internal void NotifyFactsChanged(string id) => Enqueue("facts:" + id, ct => _engine.FactsChangedAsync(id, ct), thread: id);
 
     private Task MessageUpdated(Cacheable<IMessage, ulong> before, SocketMessage after, ISocketMessageChannel channel)
@@ -200,7 +201,8 @@ public sealed class RecruitmentService
 
     private Task ThreadCreated(SocketThreadChannel thread)
     {
-        if (IsRecruitment(thread)) NotifyThread(thread.Id.ToString());
+        if (IsRecruitment(thread)) NotifyCreation(new ThreadCreation(thread.Id.ToString(), thread.ParentChannel.Id.ToString(),
+            ((IThreadChannel)thread).OwnerId.ToString(), thread.Name, thread.CreatedAt));
         return Task.CompletedTask;
     }
     private Task ThreadUpdated(Cacheable<SocketThreadChannel, ulong> before, SocketThreadChannel after)

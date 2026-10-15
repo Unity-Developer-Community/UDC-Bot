@@ -80,6 +80,13 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
         catch (HttpException ex) when (ex.DiscordCode == DiscordErrorCode.UnknownMember) { return null; }
     }
 
+    public async Task<RecruitmentAuthor?> GetAuthorAsync(string userId, CancellationToken ct)
+    {
+        var user = await MemberAsync(ulong.Parse(userId), ct);
+        return user is null ? null : new RecruitmentAuthor(user.IsBot,
+            user.GuildPermissions.Administrator || user.RoleIds.Contains(_settings.Roles.Moderator));
+    }
+
     public async Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct)
     {
         if (guildId != _settings.GuildId.ToString() || !ulong.TryParse(userId, out var id)) return false;
