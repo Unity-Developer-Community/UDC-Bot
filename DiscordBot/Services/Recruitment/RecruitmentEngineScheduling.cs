@@ -11,9 +11,10 @@ public sealed partial class RecruitmentEngine
     private readonly Dictionary<string, string> _publicRenders = new();
     private readonly Dictionary<string, string> _staffRenders = new();
     private bool EvidenceCurrent => _gatewayReady() && !_pendingIdentities() && _inventoryComplete && _inventoryGeneration == _evidenceGeneration();
+    private bool RoutinePendingIdentity => _ready && _gatewayReady() && _pendingIdentities() && _inventoryComplete && _inventoryGeneration == _evidenceGeneration();
     public event Action? Changed;
 
-    public RecruitmentHealth Health(string work = "Idle") => new(_ready ? EvidenceCurrent ? "Operating" : "Inventory incomplete; acceptance and automatic actions held" : Status, work, Now,
+    public RecruitmentHealth Health(string work = "Idle") => new(_ready ? EvidenceCurrent ? "Operating" : RoutinePendingIdentity ? "Processing new listing identities" : "Inventory incomplete; acceptance and automatic actions held" : Status, work, Now,
         State?.Listings.Values.Count(p => p.Status == ListingStatus.Open) ?? 0,
         State?.Listings.Values.Count(p => p.Status == ListingStatus.Open && !p.AcknowledgedAt.HasValue) ?? 0,
         State?.Listings.Values.Count(p => p.Hold is not null) ?? 0, EvidenceCurrent,
@@ -21,7 +22,7 @@ public sealed partial class RecruitmentEngine
         State?.Forums.Select(f => new ForumHealth(f.Key, f.Value.ForumId,
             f.Value.Fault is not null ? "held" : f.Value.PendingTopic is not null ? "publication pending" :
             f.Value.ConfirmedTopic.Length == 0 ? "not verified" : "Guidelines and tags verified",
-            f.Value.Fault?.Message, f.Value.Fault?.RetryAt, f.Value.Reference.ThreadId, f.Value.Reference.Fault?.Message)).ToArray() ?? Array.Empty<ForumHealth>(), State?.Overview.Fault?.Message);
+            f.Value.Fault?.Message, f.Value.Fault?.RetryAt, f.Value.Reference.ThreadId, f.Value.Reference.Fault?.Message)).ToArray() ?? Array.Empty<ForumHealth>(), State?.Overview.Fault?.Message, RoutinePendingIdentity: RoutinePendingIdentity, Attention: AttentionSummary(), Metrics: ActivitySummary());
 
     private DateTimeOffset? NextWorkAt
     {
@@ -49,10 +50,13 @@ public sealed partial class RecruitmentEngine
     {
         if (post.Fault is { } fault) return fault.RetryAt;
         if (post.PendingAction is not null || post.PublicSendPending || post.StaffSendPending || post.PublicationPending) return Now;
-        if (post.Status != ListingStatus.Open) return null;
+        var attention = post.Attention.Where(n => n.MessageId is null || n.SendPending)
+            .Select(n => n.Fault is null ? (DateTimeOffset?)Now : n.Fault.RetryAt).Where(t => t.HasValue).Min();
+        if (post.Status != ListingStatus.Open) return attention;
         if (_recoverWindows.Contains(post.Id)) return Now;
         if (!post.PromptDeliveredAt.HasValue && !post.AcceptedAt.HasValue) return Now;
         var dates = new List<DateTimeOffset>();
+        if (attention.HasValue) dates.Add(attention.Value);
         if (!post.Exempt && !post.Pinned)
         {
             if (!post.AcceptedAt.HasValue && post.Deadline.HasValue) dates.Add(post.Deadline.Value);

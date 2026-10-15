@@ -68,23 +68,22 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
         return access.EmbedLinks;
     }
 
-    public async Task<string?> LatestFeedMessageAsync(CancellationToken ct)
-    {
-        var channel = await MessageChannelAsync(_settings.Recruitment.FeedChannelId.ToString(), ct);
-        return (await channel.GetMessagesAsync(1, CacheMode.AllowDownload, Options(ct)).FlattenAsync()).FirstOrDefault()?.Id.ToString();
-    }
-
     public async Task<bool> IsMemberAsync(string guildId, string userId, CancellationToken ct)
     {
         if (guildId != _settings.GuildId.ToString() || !ulong.TryParse(userId, out var id)) return false;
-        try { return await _client.Rest.GetGuildUserAsync(_settings.GuildId, id, Options(ct)) is not null; }
-        catch (HttpException ex) when (ex.DiscordCode == DiscordErrorCode.UnknownMember) { return false; }
+        return await MemberAsync(id, ct) is not null;
+    }
+
+    private async Task<RestGuildUser?> MemberAsync(ulong userId, CancellationToken ct)
+    {
+        try { return await _client.Rest.GetGuildUserAsync(_settings.GuildId, userId, Options(ct)); }
+        catch (HttpException ex) when (ex.DiscordCode == DiscordErrorCode.UnknownMember) { return null; }
     }
 
     public async Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct)
     {
         if (guildId != _settings.GuildId.ToString() || !ulong.TryParse(userId, out var id)) return false;
-        var user = await _client.Rest.GetGuildUserAsync(_settings.GuildId, id, Options(ct));
+        var user = await MemberAsync(id, ct);
         return user is not null && (user.GuildPermissions.Administrator || user.RoleIds.Contains(_settings.Roles.Moderator));
     }
 
@@ -211,13 +210,14 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
         var id = thread.Id.ToString();
         if (!_initialFacts.TryGetValue(id, out var facts))
         {
-            var user = await _client.Rest.GetGuildUserAsync(_settings.GuildId, ownerId, Options(ct));
+            var user = await MemberAsync(ownerId, ct);
             var starter = await thread.GetMessageAsync(thread.Id, Options(ct));
             facts = new ThreadSnapshot(id, thread.ParentChannelId.ToString(), ownerId.ToString(), thread.Name,
                 thread.CreatedAt.ToUniversalTime(), user?.IsBot ?? starter?.Author.IsBot ?? false, false, false, false,
                 Array.Empty<string>(), starter?.Content, SnowflakeUtils.FromSnowflake(ownerId), user?.JoinedAt,
                 user is not null && (user.GuildPermissions.Administrator || user.RoleIds.Contains(_settings.Roles.Moderator)),
-                user?.RoleIds.Count(r => r != _settings.GuildId));
+                user?.RoleIds.Count(r => r != _settings.GuildId), user is null ? null : !string.IsNullOrEmpty(user.DisplayAvatarId),
+                starter?.Attachments.Take(10).Select(a => new StarterAttachment(a.Id.ToString(), RecruitmentPresentation.Safe(a.Filename, 120), a.ContentType?[..Math.Min(a.ContentType.Length, 80)])).ToArray());
             // Missing starters remain retryable. Bound cached initial facts independently of retained history.
             if (starter is not null)
             {
@@ -269,15 +269,17 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
             }
             if (existing is null && !covered) throw new InvalidOperationException("Message recovery history exceeds the scan bound; staff review required before resending.");
         }
-        var components = message.OwnerControls ? new ComponentBuilder()
-            .WithButton("Acknowledge", $"recruit:ack:{channelId}", ButtonStyle.Primary)
-            .WithButton("Close listing", $"recruit:close:{channelId}", ButtonStyle.Secondary)
-            .WithButton("Remove post", $"recruit:remove:{channelId}", ButtonStyle.Danger).Build() : new ComponentBuilder().Build();
+        var builder = new ComponentBuilder();
+        if (message.AcknowledgementRequired) builder.WithButton("Acknowledge", $"recruit:ack:{channelId}", ButtonStyle.Primary);
+        if (message.ReaderControls) builder.WithButton("Details", $"recruit:details:{channelId}", ButtonStyle.Secondary)
+            .WithButton("Report concern", $"recruit:report:{channelId}", ButtonStyle.Secondary);
+        if (message.OwnerControls) builder.WithButton("Your listing", $"recruit:owner:{channelId}", ButtonStyle.Secondary);
+        var components = builder.Build();
         if (existing is not null)
         {
             var unarchivedForEdit = false;
             var edit = existing.Content != message.Content || RecruitmentMessage.EmbedKey(existing.Embeds.FirstOrDefault()) != RecruitmentMessage.EmbedKey(message.Embed) ||
-                existing.Embeds.Count > (message.Embed is null ? 0 : 1) || existing.Attachments.Count > 0 || existing.Components.Count == 0 && message.OwnerControls || existing.Components.Count > 0 && !message.OwnerControls;
+                existing.Embeds.Count > (message.Embed is null ? 0 : 1) || existing.Attachments.Count > 0 || ComponentKey(existing.Components) != ComponentKey(components.Components);
             if (edit)
             {
                 beforeWrite();
@@ -308,6 +310,14 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
             await restoreThread.ModifyAsync(p => p.Archived = true, Options(ct));
         return new Delivery(sent.Id.ToString(), true);
     }
+
+    // Compare controls, not just presence, so acknowledgement disappears after acceptance.
+    private static string ComponentKey(IEnumerable<IMessageComponent> components) => string.Join("|", components.Select(c => c switch
+    {
+        ActionRowComponent row => "row:" + ComponentKey(row.Components),
+        ButtonComponent button => $"{button.CustomId}:{button.Label}:{button.Style}:{button.IsDisabled}:{button.Url}",
+        _ => c.Type.ToString()
+    }));
 
     public async Task CloseAsync(ThreadSnapshot thread, string? closedTagId, bool protectPinned, CancellationToken ct, Func<bool>? allowWrite = null)
     {

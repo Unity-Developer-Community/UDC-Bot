@@ -5,7 +5,7 @@ public sealed record ForumHealth(string Purpose, string Id, string Setup, string
 /// <summary>Detached from mutable state so moderators can inspect progress while the worker awaits Discord.</summary>
 public sealed record RecruitmentHealth(string Status, string Work, DateTimeOffset ObservedAt,
     int Open, int Pending, int Held, bool InventoryComplete, DateTimeOffset? LastRecovery,
-    DateTimeOffset? NextDue, IReadOnlyList<ForumHealth> Forums, string? OverviewFault = null, string? Job = null)
+    DateTimeOffset? NextDue, IReadOnlyList<ForumHealth> Forums, string? OverviewFault = null, string? Job = null, bool RoutinePendingIdentity = false, string? Attention = null, string? Metrics = null)
 {
     public static RecruitmentHealth Starting(DateTimeOffset now) => new("Starting", "Opening recruitment state", now,
         0, 0, 0, false, null, null, Array.Empty<ForumHealth>());
@@ -26,6 +26,8 @@ public sealed record RecruitmentHealth(string Status, string Work, DateTimeOffse
             (f.ReferenceFault is null ? "" : " · reference held: " + RecruitmentPresentation.Safe(f.ReferenceFault, 180))));
         return RecruitmentPresentation.Safe(Status, 400) + $"\nOpen: {Open} · awaiting acknowledgement: {Pending} · held: {Held}\n" +
             $"Inventory: {(InventoryComplete ? "complete" : "recovery needed")} · work: {Work}\n" +
+            (Attention is null ? "" : "**Needs review**\n" + Attention + "\n") +
+            (Metrics is null ? "" : Metrics + "\n") +
             (LastRecovery.HasValue ? $"Last recovery: {RecruitmentPresentation.Timestamp(LastRecovery.Value)}\n" : "No completed recovery yet.\n") +
             (NextDue.HasValue ? $"Next scheduled work: {RecruitmentPresentation.Timestamp(NextDue.Value)}\n" : "") + forums +
             (OverviewFault is null ? "" : "\nOverview: " + OverviewFault) +

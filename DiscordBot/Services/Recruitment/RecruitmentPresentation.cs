@@ -6,101 +6,82 @@ public static class RecruitmentPresentation
 {
     public static string Timestamp(DateTimeOffset date) => $"<t:{date.ToUnixTimeSeconds()}:F>";
     public static string Safe(string value, int max = 180) => new string(value.Take(max)
-        .Select(c => char.IsControl(c) || "`*_~|<>@".Contains(c) ? ' ' : c).ToArray());
+        .Select(c => char.IsControl(c) || "`*_~|<>@[]\\".Contains(c) ? ' ' : c).ToArray());
 
     public static RecruitmentMessage Public(RecruitmentState state, Listing post, RecruitmentSettings settings, DateTimeOffset now)
     {
-        var eligibility = RecruitmentPolicy.Evaluate(state, post, now, settings.CooldownDays);
-        var status = post.Status != ListingStatus.Open ? post.Status.ToString() : post.AcceptedAt.HasValue ? "Listing active" :
-            post.AcknowledgedAt.HasValue ? "Waiting for eligibility" : "Acknowledgement needed";
-        var instructions = new List<string>();
-        if (post.Status == ListingStatus.Open && !post.AcceptedAt.HasValue)
-        {
-            if (!post.AcknowledgedAt.HasValue) instructions.Add("Read this forum's Guidelines and enter the code using **Acknowledge**.");
-            instructions.Add(post.Deadline.HasValue ? $"Deadline: {Timestamp(post.Deadline.Value)}." : "Your acknowledgement window starts when these controls are available.");
-            if (eligibility.BlockingListingId is not null) instructions.Add($"Your other listing <#{eligibility.BlockingListingId}> occupies your listing slot.");
-            if (eligibility.NextAllowedAt.HasValue) instructions.Add($"Creation cooldown ends {Timestamp(eligibility.NextAllowedAt.Value)}.");
-        }
-        if (post.Status == ListingStatus.Closed && !post.AcceptedAt.HasValue) instructions.Add(Safe(post.LastOutcome, 400));
-        if (post.AcceptedAt.HasValue)
-        {
-            var next = state.Authors.GetValueOrDefault(post.OwnerId)?.LastAcceptedCreation?.AddDays(settings.CooldownDays);
-            if (next > now) instructions.Add($"Next listing: {Timestamp(next.Value)}." + (post.Status == ListingStatus.Open ? " Close this listing before replacing it." : ""));
-            else if (post.Status == ListingStatus.Open) instructions.Add("Close this listing before posting a replacement.");
-        }
-        if (post.Status == ListingStatus.Open && (post.Exempt || post.Pinned)) instructions.Add("This listing stays open until its owner or a moderator closes it.");
-        if (post.Hold is not null || post.AvailabilityUnknown) instructions.Add("Processing paused; moderator review or Discord recovery is needed.");
-
         var purpose = state.Forums.First(f => f.Value.ForumId == post.ForumId).Key;
-        var paid = purpose.StartsWith("paid-");
-        var forHire = purpose.EndsWith("for-hire");
-        var embed = new EmbedBuilder().WithTitle("Recruitment · " + status).WithDescription(string.Join("\n", instructions));
-        var flagged = false;
-        void Field(string name, string value, bool flag, bool inline = true)
+        var lines = new List<string>();
+        var accountAge = post.Facts.AccountCreatedAt is { } created ? Age(post.CreatedAt - created) : "unavailable";
+        var membership = post.Facts.JoinedAt is { } joined ? joined > post.CreatedAt ? "joined/rejoined after posting" : Age(post.CreatedAt - joined) : "unavailable";
+        lines.Add($"At posting · account age: **{accountAge}** · in this server: **{membership}**.");
+        var notes = new List<string>();
+        if (post.Facts.Payment == "unknown") notes.Add("Starter text is unavailable; payment details could not be checked.");
+        else if (purpose.StartsWith("paid-") && post.Facts.Payment != "concrete rate or budget stated" ||
+            post.Facts.Payment.StartsWith("mixed") || post.Facts.Payment == "revenue-share stated")
         {
-            flagged |= flag;
-            embed.AddField((flag ? "⚠ " : "") + name, value, inline);
-        }
-        var accountAge = post.Facts.AccountCreatedAt.HasValue ? post.CreatedAt - post.Facts.AccountCreatedAt.Value : (TimeSpan?)null;
-        Field("Account age", accountAge.HasValue
-            ? $"{Age(accountAge.Value)} at posting\nCreated <t:{post.Facts.AccountCreatedAt!.Value.ToUnixTimeSeconds()}:d>" : "Unavailable",
-            !accountAge.HasValue || accountAge.Value.TotalDays < 30);
-        var joined = post.Facts.JoinedAt;
-        Field("Joined server", joined.HasValue ? $"<t:{joined.Value.ToUnixTimeSeconds()}:D>" +
-            (post.CreatedAt - joined.Value < TimeSpan.FromDays(7) ? "\nJoined less than 7 days before posting" : "") : "Unavailable",
-            !joined.HasValue || post.CreatedAt - joined.Value < TimeSpan.FromDays(7));
-        Field("Server roles", post.Facts.MemberRoleCount switch
-        {
-            null => "Unavailable",
-            0 => "None assigned. Add relevant skill roles.",
-            var count => $"{count} assigned"
-        }, post.Facts.MemberRoleCount is null or 0);
-        var concrete = post.Facts.Payment == "concrete rate or budget stated";
-        var unpaid = post.Facts.Payment == "unpaid collaboration stated";
-        var revenueShare = post.Facts.Payment == "revenue-share stated";
-        Field("Payment", concrete ? "Rate or budget detected; terms unverified." : revenueShare ? "Revenue share stated; no guaranteed payment detected." :
-            unpaid ? paid ? "Unpaid terms detected in a paid forum." : "Unpaid collaboration stated." :
-            post.Facts.Payment == "unknown" ? "Starter text unavailable." : paid ? "No concrete rate or budget detected." : "No clear unpaid, revenue-share or payment terms detected.",
-            !concrete && (paid || !unpaid), false);
-        if (forHire)
-            Field("Portfolio / work samples", post.Facts.Portfolio switch
+            var summary = post.Facts.Payment switch
             {
-                "work-sample link detected" => "Link detected; authorship and contents unverified.",
-                "external link found; purpose unclear" => "External link found. Label your portfolio or work samples.",
-                "unknown" => "Starter text unavailable.",
-                _ => "No link detected. Add a portfolio, demo or work samples."
-            }, post.Facts.Portfolio != "work-sample link detected", false);
-        embed.AddField("Before moving to DMs", "Clarify scope, deliverables, timing and payment in this thread first. Verify work samples and agree terms in writing.")
-            .WithColor(flagged ? Color.Orange : Color.Blue)
-            .WithFooter("Checks use the starter post and server membership; they do not verify identity or endorse the listing.");
-        var built = embed.Build();
+                "unpaid collaboration stated" => "Unpaid terms appear in a paid forum",
+                "revenue-share stated" => "Revenue share is stated; guaranteed payment is unclear",
+                "mixed compensation terms; clarify what is guaranteed" => "Mixed compensation terms; clarify what is guaranteed",
+                _ => "A clear compensation rate or budget was not found"
+            };
+            notes.Add(summary + (post.Facts.PaymentEvidence.Length > 0 ? $": “{Safe(post.Facts.PaymentEvidence, 110)}”." : "."));
+        }
+        if (purpose.EndsWith("for-hire") && post.Facts.Portfolio is not ("work-sample link detected" or "media sample attached"))
+            notes.Add(post.Facts.Portfolio == "unknown" ? "Work-sample information is unavailable." :
+                post.Facts.Portfolio == "external link found; purpose unclear" ? "A link is supplied; its purpose as a work sample is unclear." : "No portfolio link or attached media sample was found.");
+        notes.AddRange(post.Facts.Observations.Take(3).Select(o => $"{o.Description}: “{Safe(o.Evidence, 110)}”."));
+        if (notes.Count > 0) lines.Add("\n**Things to check**\n" + string.Join("\n", notes.Select(n => "• " + n)));
+        lines.Add("\nClarify scope, work samples and payment terms here before moving to DMs.");
+        var needsAck = post.Status == ListingStatus.Open && !post.AcceptedAt.HasValue && !post.AcknowledgedAt.HasValue;
+        if (needsAck)
+            lines.Add("\n**Author:** Read this forum's Guidelines and enter its code with **Acknowledge**." +
+                (post.Deadline is { } deadline ? $" Due {Timestamp(deadline)}." : " Your window starts when these controls are available."));
+        if (post.Status == ListingStatus.Closed && !post.AcceptedAt.HasValue) lines.Add("\n**Closed:** " + Safe(post.LastOutcome, 220));
+        if (post.Hold is not null || post.AvailabilityUnknown) lines.Add("\nBot processing is paused; listing details may be incomplete.");
+        var embed = new EmbedBuilder().WithTitle(post.Status == ListingStatus.Closed ? "Recruitment · closed" : "Recruitment · reader notes")
+            .WithDescription(string.Join("\n", lines)).WithColor(new Color(0x747F8D))
+            .WithFooter("Automated observations; identity and work are unverified.").Build();
         var marker = $"recruitment:{post.Id}:public";
-        var fallback = $"**{built.Title}**\n{built.Description}\n" + string.Join("\n", built.Fields.Select(f => $"**{f.Name}**: {f.Value}")) + $"\n{built.Footer?.Text}\n||{marker}||";
-        return new RecruitmentMessage($"||{marker}||", marker, post.Status == ListingStatus.Open, Embed: built, TextFallback: fallback);
+        var fallback = $"**{embed.Title}**\n{embed.Description}\n{embed.Footer?.Text}\n||{marker}||";
+        return new RecruitmentMessage($"||{marker}||", marker, true, Embed: embed, TextFallback: fallback,
+            AcknowledgementRequired: needsAck, ReaderControls: true);
+    }
+
+    public static string Details(Listing post)
+    {
+        var facts = post.Facts;
+        return "**Listing details**\n" +
+            $"Account created: {(facts.AccountCreatedAt is { } created ? Timestamp(created) : "unavailable")}\n" +
+            $"Joined this server: {(facts.JoinedAt is { } joined ? Timestamp(joined) : "unavailable")}\n" +
+            $"Profile image: {facts.HasCustomAvatar switch { true => "custom global or server avatar", false => "default Discord avatar", _ => "unavailable" }}\n" +
+            $"Server roles (excluding everyone): {facts.MemberRoleCount?.ToString() ?? "unavailable"}. Roles and avatars do not establish trust.\n" +
+            $"Compensation: {Safe(facts.Payment)}" + (facts.PaymentEvidence.Length > 0 ? $" · “{Safe(facts.PaymentEvidence, 370)}”" : "") + "\n" +
+            $"Work samples: {Safe(facts.Portfolio)}. Links and attachments are not verified.\n{Safe(facts.TagAdvice)}\n" +
+            "Observations use the starter post and available membership data. Missing data is not evidence against the author. Reports go privately to moderators; the bot cannot inspect other people's DMs.";
     }
 
     private static string Age(TimeSpan age)
     {
         var days = Math.Max(0, (int)age.TotalDays);
         if (days >= 365) return $"{days / 365} {(days / 365 == 1 ? "year" : "years")}";
-        return $"{days} {(days == 1 ? "day" : "days")}";
+        return days == 0 ? "under 1 day" : $"{days} {(days == 1 ? "day" : "days")}";
     }
 
     public static RecruitmentMessage Staff(RecruitmentState state, Listing post, RecruitmentSettings settings)
     {
-        var author = state.Authors.GetValueOrDefault(post.OwnerId);
-        var next = author?.LastAcceptedCreation?.AddDays(settings.CooldownDays);
-        var text = $"**Recruitment · {post.Status}** · {Safe(post.Title)}\n" +
-            $"Author `{post.OwnerId}` · thread `{post.Id}` · forum `{post.ForumId}`\n" +
-            $"https://discord.com/channels/{state.GuildId}/{post.Id}\n" +
-            $"Created {Timestamp(post.CreatedAt)} · acknowledged {(post.AcknowledgedAt.HasValue ? "yes" : "no")} · accepted {(post.AcceptedAt.HasValue ? "yes" : "no")}\n" +
-            $"Next creation: {(next.HasValue ? Timestamp(next.Value) : "no accepted cooldown")}\n" +
-            $"Outcome: {Safe(post.LastOutcome)}\n";
-        if (post.PendingAction is { } action)
-            text += $"Pending {action.Kind}: {Safe(action.Reason)} · actor `{action.ActorId}` · action `{action.Id}`\n";
+        var text = $"**Recruitment · {post.Status}** · {Safe(post.Title, 100)}\n" +
+            $"<#{post.Id}> · author `{post.OwnerId}` · {(post.AcceptedAt.HasValue ? "acknowledged" : "unaccepted")}\n" +
+            $"{Safe(post.LastOutcome, 260)}\n";
+        if (post.PendingAction is { } action) text += $"Pending {action.Kind}: {Safe(action.Reason)}\n";
         if (post.Hold is not null) text += $"Hold: {Safe(post.Hold)}\n";
-        if (post.TimeoutAlertCount >= 3) text += $"**Moderator attention: {post.TimeoutAlertCount} consecutive confirmed Guidelines timeouts.**\n";
-        foreach (var audit in post.Audit.TakeLast(3)) text += $"{audit.At:yyyy-MM-dd HH:mm} · `{audit.Actor}` · {Safe(audit.Reason, 180)}\n";
+        if (post.TimeoutAlertCount >= 3) text += $"Moderator attention: {post.TimeoutAlertCount} confirmed Guidelines timeouts.\n";
+        if (post.Reports.Any(r => r.ResolvedAt is null)) text += "Private reports awaiting review.\n";
+        if (post.MaterialChanges > post.ReviewedMaterialChanges) text += "Material starter changes awaiting review.\n";
+        if (post.Audit.LastOrDefault() is { } audit) text += $"Latest action · `{audit.Actor}` · {Safe(audit.Reason)}\n";
+        text += $"Details: `/recruitment lookup {post.Id}`\n";
         var marker = $"recruitment:{post.Id}:staff";
         if (text.Length > 1900) text = text[..1880] + "\n… more in stored audit\n";
         return new RecruitmentMessage(text + $"||{marker}||", marker, false);

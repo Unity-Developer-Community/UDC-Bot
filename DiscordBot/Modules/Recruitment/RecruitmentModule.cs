@@ -42,6 +42,7 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
     [SlashCommand("manage", "Change a listing or review uncertain evidence")]
     public Task Manage(
         [Choice("Exempt", "exempt"), Choice("Remove exemption", "unexempt"), Choice("Reset acknowledgement/timeouts", "reset"), Choice("Reset timeout streak", "reset-timeouts"), Choice("Reset posting attempts", "reset-attempts"),
+         Choice("Resolve reader reports", "resolve-reports"), Choice("Mark material changes reviewed", "review-changes"),
          Choice("Close", "close"), Choice("Reopen", "reopen"), Choice("Designate reference post", "reference"),
          Choice("Confirm unavailable thread is absent", "review-absent")] string operation,
         string threadId, string reason) => Staff(operation, threadId, reason);
@@ -54,6 +55,51 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
         if (operation is "repair" or "reconcile")
         { await FollowupAsync(Recruitment.QueueRecovery(Guild, Actor, operation, target, reason), ephemeral: true, allowedMentions: AllowedMentions.None); return; }
         await Reply(() => Recruitment.RunAsync((engine, ct) => engine.StaffAsync(Guild, Actor, operation, target, reason, ct)));
+    }
+
+    [ComponentInteraction("recruit:details:*", true)]
+    public async Task Details(string thread)
+    {
+        await DeferAsync(ephemeral: true);
+        if (thread != Thread) { await FollowupAsync("This control belongs to another thread.", ephemeral: true); return; }
+        await Reply(() => Recruitment.RunAsync((engine, ct) => engine.DetailsAsync(Guild, thread, Actor, ct)));
+    }
+
+    [ComponentInteraction("recruit:owner:*", true)]
+    public async Task OwnerControls(string thread)
+    {
+        await DeferAsync(ephemeral: true);
+        if (thread != Thread) { await FollowupAsync("This control belongs to another thread.", ephemeral: true); return; }
+        try
+        {
+            var result = await Recruitment.RunAsync((engine, ct) => engine.OwnerDetailsAsync(Guild, thread, Actor, ct));
+            var controls = new ComponentBuilder();
+            if (result.Open) controls.WithButton("Close listing", $"recruit:close:{thread}", ButtonStyle.Secondary);
+            if (result.Removable) controls.WithButton("Remove post", $"recruit:remove:{thread}", ButtonStyle.Danger);
+            await FollowupAsync(result.Message, ephemeral: true, components: controls.Build(), allowedMentions: AllowedMentions.None);
+        }
+        catch { await FollowupAsync("Listing controls are unavailable. Please try again or contact a moderator.", ephemeral: true); }
+    }
+
+    [ComponentInteraction("recruit:report:*", true)]
+    public async Task Report(string thread)
+    {
+        if (thread != Thread || Context.Guild is null) { await RespondAsync("This control belongs to another thread.", ephemeral: true); return; }
+        await RespondWithModalAsync<ConcernModal>($"recruit:concern:{thread}");
+    }
+    public sealed class ConcernModal : IModal
+    {
+        public string Title => "Private report to moderators";
+        [InputLabel("Concern and relevant message links or context")]
+        [ModalTextInput("concern", TextInputStyle.Paragraph, minLength: 10, maxLength: 1000)]
+        public string Concern { get; set; } = "";
+    }
+    [ModalInteraction("recruit:concern:*", true)]
+    public async Task SubmitConcern(string thread, ConcernModal modal)
+    {
+        await DeferAsync(ephemeral: true);
+        if (thread != Thread) { await FollowupAsync("This control belongs to another thread.", ephemeral: true); return; }
+        await Reply(() => Recruitment.RunAsync((engine, ct) => engine.ReportAsync(Guild, thread, Actor, modal.Concern, ct)));
     }
 
     [ComponentInteraction("recruit:ack:*", true)]

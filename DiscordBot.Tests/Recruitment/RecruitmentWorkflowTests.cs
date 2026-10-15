@@ -158,6 +158,19 @@ public class RecruitmentWorkflowTests
     }
 
     [Fact]
+    public async Task LegacyExpiryAlreadyAppliedBeforeUpgradeStaysClosed()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post(); await rig.Ack();
+        post.PendingAction = new RecruitmentAction { Kind = RecruitmentActionKind.Close, Condition = "unanswered", Automatic = true,
+            CallStarted = true, CreatedAt = rig.Clock.Now };
+        rig.Discord.Threads[post.Id] = rig.Discord.Threads[post.Id] with { Locked = true, Archived = true };
+        File.WriteAllText(Path.Combine(rig.Root, "recruitment/recruitment-state.json"), Newtonsoft.Json.JsonConvert.SerializeObject(rig.State));
+        await rig.Restart();
+        Assert.Null(rig.State.Listings[post.Id].PendingAction); Assert.Equal(ListingStatus.Closed, rig.State.Listings[post.Id].Status);
+        Assert.Empty(rig.Discord.Actions);
+    }
+
+    [Fact]
     public async Task AccessFailureDoesNotFreeAcceptedSlot()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); await rig.Post(); await rig.Ack();

@@ -119,8 +119,12 @@ public sealed class RecruitmentService
                 forum.Fault is null ? ExtendedLogSeverity.Info : ExtendedLogSeverity.Warning);
         }
         if (before.Status != next.Status)
-            LoggingService.LogToConsole("Recruitment: " + next.Status,
+        {
+            if (next.RoutinePendingIdentity || before.RoutinePendingIdentity && next.Status == "Operating")
+                LoggingService.DebugLog("Recruitment: " + next.Status, ExtendedLogSeverity.Debug);
+            else LoggingService.LogToConsole("Recruitment: " + next.Status,
                 next.InventoryComplete ? ExtendedLogSeverity.Info : ExtendedLogSeverity.Warning);
+        }
     }
 
     private void ArmTimer()
@@ -189,7 +193,8 @@ public sealed class RecruitmentService
     private Task MessageUpdated(Cacheable<IMessage, ulong> before, SocketMessage after, ISocketMessageChannel channel)
     {
         if (channel is SocketThreadChannel thread && IsRecruitment(thread) && after.Id == thread.Id &&
-            (!before.HasValue || before.Value.Content != after.Content)) NotifyFactsChanged(thread.Id.ToString());
+            (!before.HasValue || before.Value.Content != after.Content ||
+                !before.Value.Attachments.Select(a => a.Id).SequenceEqual(after.Attachments.Select(a => a.Id)))) NotifyFactsChanged(thread.Id.ToString());
         return Task.CompletedTask;
     }
 
@@ -216,17 +221,6 @@ public sealed class RecruitmentService
             Enqueue("deleted:" + id, ct => _engine.ThreadDeletedAsync(id, ct), thread: id);
     }
     private bool IsRecruitment(SocketThreadChannel thread) => thread.Guild.Id == _settings.GuildId && _settings.Recruitment.Forums.Contains(thread.ParentChannel.Id);
-    private Task MessageReceived(SocketMessage message)
-    {
-        if (message.Channel.Id == _settings.Recruitment.FeedChannelId)
-        {
-            var overview = message.Author.Id == _client?.CurrentUser.Id && message.Content.Contains("recruitment:overview:");
-            if (overview) return Task.CompletedTask;
-            Enqueue("feed-activity", _ => { _engine.FeedActivity(message.Id.ToString(), false); return Task.CompletedTask; });
-            return Task.CompletedTask;
-        }
-        return Task.CompletedTask;
-    }
     private Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel) =>
         MessagesDeleted(new[] { message }, channel);
     private Task MessagesDeleted(IReadOnlyCollection<Cacheable<IMessage, ulong>> messages, Cacheable<IMessageChannel, ulong> channel)
@@ -282,9 +276,16 @@ public sealed class RecruitmentService
     private Task RoleUpdated(SocketRole before, SocketRole after)
     { if (after.Guild.Id == _settings.GuildId && !before.Permissions.Equals(after.Permissions)) ScheduleRecovery(); return Task.CompletedTask; }
     private Task RoleDeleted(SocketRole role) { if (role.Guild.Id == _settings.GuildId) ScheduleRecovery(); return Task.CompletedTask; }
+    private Task UserUpdated(SocketUser before, SocketUser after)
+    {
+        if (before.AvatarId != after.AvatarId && Volatile.Read(ref _listingOwners).TryGetValue(after.Id.ToString(), out var threads))
+            foreach (var id in threads) NotifyFactsChanged(id);
+        return Task.CompletedTask;
+    }
+
     private Task MemberUpdated(Cacheable<SocketGuildUser, ulong> before, SocketGuildUser after)
     {
-        if (after.Guild.Id != _settings.GuildId || before.HasValue && before.Value.Roles.Select(r => r.Id).SequenceEqual(after.Roles.Select(r => r.Id))) return Task.CompletedTask;
+        if (after.Guild.Id != _settings.GuildId || before.HasValue && before.Value.Roles.Select(r => r.Id).SequenceEqual(after.Roles.Select(r => r.Id)) && before.Value.DisplayAvatarId == after.DisplayAvatarId) return Task.CompletedTask;
         if (after.Id == _client?.CurrentUser.Id) ScheduleRecovery();
         else if (Volatile.Read(ref _listingOwners).TryGetValue(after.Id.ToString(), out var threads))
             foreach (var id in threads) NotifyFactsChanged(id);
@@ -339,20 +340,20 @@ public sealed class RecruitmentService
         if (subscribe)
         {
             _client.ThreadCreated += ThreadCreated; _client.ThreadUpdated += ThreadUpdated; _client.ThreadDeleted += ThreadDeleted;
-            _client.MessageReceived += MessageReceived; _client.MessageDeleted += MessageDeleted; _client.MessagesBulkDeleted += MessagesDeleted;
+            _client.MessageDeleted += MessageDeleted; _client.MessagesBulkDeleted += MessagesDeleted;
             _client.MessageUpdated += MessageUpdated;
             _client.Disconnected += Disconnected; _client.Ready += Ready; _client.GuildAvailable += GuildAvailable; _client.GuildUnavailable += GuildUnavailable;
             _client.ChannelUpdated += ChannelUpdated; _client.ChannelDestroyed += ChannelDestroyed;
-            _client.RoleUpdated += RoleUpdated; _client.RoleDeleted += RoleDeleted; _client.GuildMemberUpdated += MemberUpdated;
+            _client.RoleUpdated += RoleUpdated; _client.RoleDeleted += RoleDeleted; _client.GuildMemberUpdated += MemberUpdated; _client.UserUpdated += UserUpdated;
         }
         else
         {
             _client.ThreadCreated -= ThreadCreated; _client.ThreadUpdated -= ThreadUpdated; _client.ThreadDeleted -= ThreadDeleted;
-            _client.MessageReceived -= MessageReceived; _client.MessageDeleted -= MessageDeleted; _client.MessagesBulkDeleted -= MessagesDeleted;
+            _client.MessageDeleted -= MessageDeleted; _client.MessagesBulkDeleted -= MessagesDeleted;
             _client.MessageUpdated -= MessageUpdated;
             _client.Disconnected -= Disconnected; _client.Ready -= Ready; _client.GuildAvailable -= GuildAvailable; _client.GuildUnavailable -= GuildUnavailable;
             _client.ChannelUpdated -= ChannelUpdated; _client.ChannelDestroyed -= ChannelDestroyed;
-            _client.RoleUpdated -= RoleUpdated; _client.RoleDeleted -= RoleDeleted; _client.GuildMemberUpdated -= MemberUpdated;
+            _client.RoleUpdated -= RoleUpdated; _client.RoleDeleted -= RoleDeleted; _client.GuildMemberUpdated -= MemberUpdated; _client.UserUpdated -= UserUpdated;
         }
     }
     public async Task StopAsync(CancellationToken ct)

@@ -4,12 +4,12 @@ public sealed record LiveTag(string Id, string Name, bool Moderated, IEmote? Emo
 public sealed record ForumSnapshot(string Id, string Topic, bool RequireTag, IReadOnlyList<LiveTag> Tags, ChannelFlags Flags = ChannelFlags.None);
 public sealed record ThreadSnapshot(string Id, string ForumId, string OwnerId, string Title, DateTimeOffset CreatedAt,
     bool OwnerIsBot, bool Pinned, bool Archived, bool Locked, IReadOnlyList<string> Tags, string? Starter,
-    DateTimeOffset? AccountCreatedAt, DateTimeOffset? JoinedAt, bool OwnerIsStaff = false, int? MemberRoleCount = null);
+    DateTimeOffset? AccountCreatedAt, DateTimeOffset? JoinedAt, bool OwnerIsStaff = false, int? MemberRoleCount = null, bool? HasCustomAvatar = null, IReadOnlyList<StarterAttachment>? Attachments = null);
 public sealed record ArchiveCursor(DateTimeOffset Since, DateTimeOffset? Before = null, DateTimeOffset? StartedAt = null);
 public sealed record ThreadInventory(IReadOnlyList<ThreadSnapshot> Threads, bool Complete, IReadOnlyDictionary<string, ArchiveCursor>? Cursors = null);
-public sealed record RecruitmentMessage(string Content, string Marker, bool OwnerControls, bool RestoreArchive = false, Embed? Embed = null, string? TextFallback = null)
+public sealed record RecruitmentMessage(string Content, string Marker, bool OwnerControls, bool RestoreArchive = false, Embed? Embed = null, string? TextFallback = null, bool AcknowledgementRequired = false, bool ReaderControls = false)
 {
-    public string RenderKey => Content + "\n" + OwnerControls + "\n" + EmbedKey(Embed);
+    public string RenderKey => Content + "\n" + OwnerControls + "\n" + AcknowledgementRequired + "\n" + ReaderControls + "\n" + EmbedKey(Embed);
     public static string EmbedKey(IEmbed? embed) => embed is null ? "" : Newtonsoft.Json.JsonConvert.SerializeObject(embed.ToEmbedBuilder().Build());
 }
 public sealed record Delivery(string Id, bool NewlySent);
@@ -19,7 +19,6 @@ public interface IRecruitmentDiscord
 {
     Task ValidateAccessAsync(CancellationToken ct);
     Task<bool> ValidateFeedAsync(CancellationToken ct);
-    Task<string?> LatestFeedMessageAsync(CancellationToken ct);
     Task<bool> IsMemberAsync(string guildId, string userId, CancellationToken ct);
     Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct);
     bool IsExpectedForumUpdate(ForumSnapshot snapshot);

@@ -121,7 +121,35 @@ public sealed class Listing
     public RecruitmentAction? PendingAction { get; set; }
     public List<RecruitmentAudit> Audit { get; set; } = new();
     public InitialFacts Facts { get; set; } = new();
+    public StarterVersion? OriginalStarter { get; set; }
+    public StarterVersion? LatestStarter { get; set; }
+    public List<StarterVersion> EarlierMaterialVersions { get; set; } = new();
+    public int MaterialChanges { get; set; }
+    public int ReviewedMaterialChanges { get; set; }
+    public List<RecruitmentReport> Reports { get; set; } = new();
+    public List<AttentionNotice> Attention { get; set; } = new();
 }
+
+public sealed class RecruitmentReport
+{
+    public string ReporterId { get; set; } = "";
+    public DateTimeOffset At { get; set; }
+    public string Concern { get; set; } = "";
+    public DateTimeOffset? ResolvedAt { get; set; }
+}
+
+public sealed class AttentionNotice
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public DateTimeOffset At { get; set; }
+    public string Reason { get; set; } = "";
+    public string? MessageId { get; set; }
+    public bool SendPending { get; set; }
+    public RecruitmentFault? Fault { get; set; }
+}
+
+public sealed record StarterVersion(DateTimeOffset ObservedAt, string Content, bool Truncated, string Fingerprint,
+    string Payment, string PaymentEvidence, List<string> Links, List<StarterAttachment> Attachments, string? TermsFingerprint = null);
 
 public sealed record RecruitmentAudit(DateTimeOffset At, string Actor, string Reason);
 
@@ -136,6 +164,9 @@ public sealed class InitialFacts
     public bool PriorAcceptedListing { get; set; }
     public int? MemberRoleCount { get; set; }
     public string Portfolio { get; set; } = "unknown";
+    public bool? HasCustomAvatar { get; set; }
+    public string PaymentEvidence { get; set; } = "";
+    public List<ContentObservation> Observations { get; set; } = new();
 }
 
 /// <summary>Cross-forum cooldown and timeout history that survives removal of individual listings.</summary>
@@ -148,6 +179,7 @@ public sealed class AuthorHistory
     public int ConsecutiveTimeouts { get; set; }
     public bool TimeoutAlerted { get; set; }
     public List<DateTimeOffset> RecentCreations { get; set; } = new();
+    public List<DateTimeOffset> RecentReports { get; set; } = new();
     public DateTimeOffset? AttemptPausedUntil { get; set; }
 }
 

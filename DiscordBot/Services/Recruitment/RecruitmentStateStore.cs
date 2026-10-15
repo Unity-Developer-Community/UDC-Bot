@@ -60,6 +60,7 @@ public sealed class RecruitmentStateStore : IDisposable
             Validate(State, State.GuildId, State.Forums.ToDictionary(x => x.Key, x => x.Value.ForumId));
             var snapshot = JsonConvert.SerializeObject(State, Json);
             if (snapshot == _lastSnapshot) return;
+            if (Encoding.UTF8.GetByteCount(snapshot) > 32 * 1024 * 1024) throw new InvalidDataException("Recruitment state exceeds 32 MiB; operator review required.");
             WriteDurably(_path + ".tmp", snapshot);
             if (File.Exists(_path))
             {
@@ -119,16 +120,31 @@ public sealed class RecruitmentStateStore : IDisposable
             if (p is null || id != p.Id || !Id(id) || !Id(p.OwnerId) || !forums.Values.Contains(p.ForumId) ||
                 p.CreatedAt == default || p.CreatedAt.Offset != TimeSpan.Zero || p.UpdatedAt == default ||
                 !Enum.IsDefined(p.Status) || p.ValidCodes is null || p.Facts is null || p.Audit is null ||
-                !state.Authors.ContainsKey(p.OwnerId) ||
+                !state.Authors.ContainsKey(p.OwnerId) || p.Facts.Payment is null || p.Facts.Portfolio is null ||
+                p.Facts.Observations is null || p.Facts.Observations.Count > 3 ||
+                p.Facts.Observations.Any(o => o is null || o.Code is null || o.Description is null || o.Evidence is null || o.Evidence.Length > 180) ||
+                p.Facts.PaymentEvidence is null || p.Facts.PaymentEvidence.Length > 370 ||
+                p.EarlierMaterialVersions is null || p.EarlierMaterialVersions.Count > 3 ||
+                p.MaterialChanges < 0 || p.ReviewedMaterialChanges < 0 || p.ReviewedMaterialChanges > p.MaterialChanges ||
+                !VersionValid(p.OriginalStarter) || !VersionValid(p.LatestStarter) || p.EarlierMaterialVersions.Any(v => v is null || !VersionValid(v)) ||
+                p.Reports is null || p.Reports.Count > 20 || p.Reports.Any(r => r is null || !Id(r.ReporterId) || r.At == default || r.Concern is null || r.Concern.Length > 1000) ||
+                p.Attention is null || p.Attention.Count > 8 || p.Attention.Any(n => n is null || !Guid.TryParseExact(n.Id, "N", out _) || n.At == default || n.Reason is null || n.Reason.Length > 300 || n.MessageId is not null && !Id(n.MessageId)) ||
                 (p.AcceptedAt.HasValue && !p.AcknowledgedAt.HasValue) ||
                 (p.Deadline.HasValue && !p.PromptDeliveredAt.HasValue) ||
                 (p.PendingAction is not null && !Enum.IsDefined(p.PendingAction.Kind)))
                 throw new InvalidDataException("Recruitment listing state is invalid.");
         foreach (var (id, a) in state.Authors)
             if (!Id(id) || a is null || a.ConsecutiveTimeouts < 0 || a.UpdatedAt == default ||
-                a.RecentCreations is null || a.RecentCreations.Count > 21 || a.RecentCreations.Any(d => d == default))
+                a.RecentCreations is null || a.RecentCreations.Count > 21 || a.RecentCreations.Any(d => d == default) || a.RecentReports is null || a.RecentReports.Count > 3 || a.RecentReports.Any(d => d == default))
                 throw new InvalidDataException("Recruitment author history is invalid.");
     }
+
+    private static bool VersionValid(StarterVersion? version) => version is null ||
+        version.ObservedAt != default && version.Content is { Length: <= 2000 } && version.Fingerprint is { Length: 64 } &&
+        (version.TermsFingerprint is null || version.TermsFingerprint.Length == 64) &&
+        version.Payment is not null && version.PaymentEvidence is { Length: <= 370 } && version.Links is { Count: <= 8 } &&
+        version.Links.All(l => l is { Length: <= 300 }) && version.Attachments is { Count: <= 10 } &&
+        version.Attachments.All(a => a is not null && a.Name is { Length: <= 120 } && (a.ContentType is null || a.ContentType.Length <= 80));
 
     public void Dispose() => _lease.Dispose();
 }

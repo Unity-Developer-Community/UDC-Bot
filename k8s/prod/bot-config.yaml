@@ -62,7 +62,9 @@ data:
                 },
                 "AcknowledgementMinutes": 30,
                 "CooldownDays": 30,
-                "UnansweredDays": 30,
+                "AttemptLimit": 2,
+                "AttemptWindowMinutes": 60,
+                "AttemptPauseMinutes": 60,
                 "PostRetentionMonths": 12,
                 "AuthorRetentionMonths": 24
             },

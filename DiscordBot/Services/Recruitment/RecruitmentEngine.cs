@@ -86,7 +86,6 @@ public sealed partial class RecruitmentEngine : IDisposable
                 _feedEmbeds = await _discord.ValidateFeedAsync(ct);
                 _feedGeneration = feedGeneration;
                 _feedReady = true;
-                if (State!.Overview.MessageId is not null && await _discord.LatestFeedMessageAsync(ct) is { } latest) FeedActivity(latest);
                 if (!held) await _discord.ValidateAccessAsync(ct);
                 _accessInvalid = false;
             }
@@ -103,9 +102,11 @@ public sealed partial class RecruitmentEngine : IDisposable
             _ready = true;
             State.RecoveryFault = null;
             await DiscoverAsync(ct);
+            if (retryHeld)
+                foreach (var notice in State.Listings.Values.SelectMany(p => p.Attention).Where(n => n.MessageId is null || n.SendPending)) notice.Fault = null;
             var cursor = ulong.TryParse(State.SweepAfterId, out var savedCursor) ? savedCursor : 0;
             var batch = State.Listings.Values
-                .Where(p => p.Status == ListingStatus.Open || p.PendingAction is not null || p.StaffSendPending || p.PublicSendPending || p.PublicationPending)
+                .Where(p => p.Status == ListingStatus.Open || p.PendingAction is not null || p.StaffSendPending || p.PublicSendPending || p.PublicationPending || AttentionDue(p))
                 .OrderBy(p => ulong.Parse(p.Id) <= cursor).ThenBy(p => ulong.Parse(p.Id)).Take(10).ToArray();
             foreach (var post in batch)
             {
@@ -193,6 +194,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             }
         };
         State.Listings[post.Id] = post;
+        RefreshFacts(post, live);
         RecordCreation(post);
         Save();
         return Task.CompletedTask;
@@ -202,7 +204,7 @@ public sealed partial class RecruitmentEngine : IDisposable
     {
         if (post.Status == ListingStatus.Deleted)
         {
-            if (post.PublicationPending || post.StaffSendPending) await PublishAsync(post, ct);
+            if (post.PublicationPending || post.StaffSendPending || AttentionDue(post)) await PublishAsync(post, ct);
             return;
         }
         if (post.Status == ListingStatus.Reference)
@@ -229,10 +231,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             return;
         }
         post.Title = RecruitmentPresentation.Safe(live.Title);
-        post.Facts.AccountCreatedAt = live.AccountCreatedAt; post.Facts.JoinedAt = live.JoinedAt;
-        post.Facts.MemberRoleCount = live.MemberRoleCount;
-        post.Facts.Payment = RecruitmentContent.Payment(live.Starter);
-        post.Facts.Portfolio = RecruitmentContent.Portfolio(live.Starter);
+        RefreshFacts(post, live);
         post.Facts.TagAdvice = _assets!.TagAdvice(Purpose(post.ForumId), live.Tags, State!.Forums[Purpose(post.ForumId)]);
         if (!post.PublicSendPending) post.PublicRestoreArchive = live.Archived && post.AcceptedAt.HasValue;
         post.Hold = null;
@@ -245,7 +244,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         if (post.PendingAction is not null) { await ExecuteActionAsync(post, ct); return; }
         if (post.Status != ListingStatus.Open)
         {
-            if (post.StaffSendPending || post.PublicSendPending || post.PublicationPending) await PublishAsync(post, ct);
+            if (post.StaffSendPending || post.PublicSendPending || post.PublicationPending || AttentionDue(post)) await PublishAsync(post, ct);
             return;
         }
         if (EvidenceCurrent && !post.AcceptedAt.HasValue && !post.Exempt && !post.Pinned)
@@ -335,6 +334,7 @@ public sealed partial class RecruitmentEngine : IDisposable
 
     private async Task PublishStaffAsync(Listing post, CancellationToken ct)
     {
+        await PublishAttentionAsync(post, ct);
         var message = RecruitmentPresentation.Staff(State!, post, _settings);
         if (!post.StaffSendPending && post.StaffMessageId is not null && _staffRenders.GetValueOrDefault(post.Id) == message.Content) return;
         var recovering = post.StaffSendPending;
@@ -348,7 +348,6 @@ public sealed partial class RecruitmentEngine : IDisposable
         var changed = post.StaffMessageId != delivery.Id || post.StaffSendPending;
         post.StaffMessageId = delivery.Id; post.StaffSendPending = false;
         _staffRenders[post.Id] = message.Content;
-        if (delivery.NewlySent) FeedActivity(delivery.Id);
         if (changed) Save();
     }
 
@@ -457,9 +456,13 @@ public sealed partial class RecruitmentEngine : IDisposable
         var action = post.PendingAction!;
         if (action.Automatic && action.Condition == "unanswered")
         {
-            // Old state may contain an unsent expiry action. Listings now remain indefinitely.
+            // Cancel unsent legacy expiry; preserve a closure already applied before the upgrade.
+            var previous = action.CallStarted ? await ReadAsync(post, ct, refresh: true) : null;
+            if (action.CallStarted && previous is null) { RecordAbsence(post); return; }
+            var alreadyClosed = action.CallStarted && previous is { Locked: true, Archived: true };
+            if (alreadyClosed) post.Status = ListingStatus.Closed;
             post.PendingAction = null; post.PublicationPending = true;
-            post.LastOutcome = "Automatic expiry cancelled; listing remains open";
+            post.LastOutcome = alreadyClosed ? "Closure applied before upgrade confirmed" : "Automatic expiry cancelled; listing remains open";
             Save(); return;
         }
         if (action.RequiresModerator && !await _discord.IsModeratorAsync(State!.GuildId, action.ActorId, ct))
@@ -517,7 +520,7 @@ public sealed partial class RecruitmentEngine : IDisposable
                     var author = RecruitmentPolicy.Author(State!, post.OwnerId, Now);
                     author.ConsecutiveTimeouts++;
                     if (author.ConsecutiveTimeouts >= 3 && !author.TimeoutAlerted)
-                    { post.TimeoutAlertCount = author.ConsecutiveTimeouts; author.TimeoutAlerted = true; }
+                    { post.TimeoutAlertCount = author.ConsecutiveTimeouts; author.TimeoutAlerted = true; QueueAttention(post, "Three consecutive confirmed Guidelines timeouts"); }
                 }
                 break;
             case RecruitmentActionKind.Close:
@@ -550,7 +553,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         if (State is null || !_settings.Enabled) return "Recruitment is unavailable. Enable valid settings and restart first.";
         if (operation == "lookup")
         {
-            if (State.Listings.TryGetValue(target, out var found)) return RecruitmentPresentation.Staff(State, found, _settings).Content;
+            if (State.Listings.TryGetValue(target, out var found)) return EvidenceDetails(found);
             if (State.Authors.TryGetValue(target, out var history)) return $"Author `{target}` · next creation: {history.LastAcceptedCreation?.AddDays(_settings.CooldownDays).ToString("u") ?? "none"} · confirmed timeout streak: {history.ConsecutiveTimeouts}";
             return "No retained recruitment record for that thread or author.";
         }
@@ -594,6 +597,10 @@ public sealed partial class RecruitmentEngine : IDisposable
         {
             case "exempt": post.Exempt = true; break;
             case "unexempt": post.Exempt = false; _recoverWindows.Add(post.Id); break;
+            case "resolve-reports":
+                foreach (var report in post.Reports.Where(r => r.ResolvedAt is null)) report.ResolvedAt = Now;
+                break;
+            case "review-changes": post.ReviewedMaterialChanges = post.MaterialChanges; break;
             case "reset-attempts":
                 var attemptHistory = RecruitmentPolicy.Author(State, post.OwnerId, Now);
                 attemptHistory.RecentCreations.Clear(); attemptHistory.AttemptPausedUntil = null;

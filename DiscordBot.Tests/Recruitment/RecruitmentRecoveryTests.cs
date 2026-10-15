@@ -18,8 +18,8 @@ public class RecruitmentRecoveryTests
         using var provider = new ServiceCollection().AddSingleton(service).BuildServiceProvider();
         var module = await interactions.AddModuleAsync<RecruitmentModule>(provider);
         Assert.Equal(9, module.SlashCommands.Count);
-        Assert.Equal(4, module.ComponentCommands.Count);
-        Assert.Single(module.ModalCommands);
+        Assert.Equal(7, module.ComponentCommands.Count);
+        Assert.Equal(2, module.ModalCommands.Count);
     }
 
     [Fact]

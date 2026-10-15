@@ -249,7 +249,7 @@ public class RecruitmentStorageAndSetupTests
     }
 
     [Theory]
-    [InlineData("USD 2000", "concrete rate or budget stated")]
+    [InlineData("USD 2000", "amount mentioned; compensation unclear")]
     [InlineData("$35/hour", "concrete rate or budget stated")]
     [InlineData("150 EUR per day", "concrete rate or budget stated")]
     [InlineData("Revenue-share", "revenue-share stated")]

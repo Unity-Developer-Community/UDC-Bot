@@ -5,6 +5,22 @@ namespace DiscordBot.Tests.Recruitment;
 public class RecruitmentSchedulingTests
 {
     [Fact]
+    public async Task QueuedIdentityIsRoutineButStillFencesAutomaticActions()
+    {
+        using var rig = new RecruitmentRig();
+        var pending = false;
+        using var engine = new RecruitmentEngine(rig.Settings, rig.Discord, rig.Clock, pendingIdentities: () => pending);
+        await engine.StartAsync(default);
+        pending = true;
+        Assert.True(engine.Health().RoutinePendingIdentity); Assert.False(engine.Health().InventoryComplete);
+        Assert.Equal("Processing new listing identities", engine.Health().Status);
+        pending = false;
+        Assert.True(engine.Health().InventoryComplete); Assert.Equal("Operating", engine.Health().Status);
+        engine.MarkEvidenceGap();
+        Assert.False(engine.Health().RoutinePendingIdentity); Assert.False(engine.Health().InventoryComplete);
+    }
+
+    [Fact]
     public async Task AcknowledgementAndUnchangedThreadEventDoNotScanForumsOrRewriteMessages()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post();

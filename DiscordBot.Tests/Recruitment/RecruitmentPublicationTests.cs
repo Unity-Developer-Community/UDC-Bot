@@ -69,6 +69,51 @@ public class RecruitmentPublicationTests
         Assert.Equal(2, writes);
     }
 
+    [Theory]
+    [InlineData(null, null, false)]
+    [InlineData("global-hash", null, true)]
+    [InlineData(null, "server-hash", true)]
+    public async Task InstalledSdkUsesEffectiveAvatarAndMediaAttachments(string? globalAvatar, string? serverAvatar, bool custom)
+    {
+        var transport = new PublicationTransport { GlobalAvatar = globalAvatar, ServerAvatar = serverAvatar,
+            Attachments = new JArray(new JObject { ["id"] = "800", ["filename"] = "demo.mp4", ["content_type"] = "video/mp4", ["size"] = 100,
+                ["url"] = "https://cdn.discordapp.com/demo.mp4", ["proxy_url"] = "https://cdn.discordapp.com/demo.mp4" }) };
+        using var client = await Client(transport);
+        var thread = await new DiscordRecruitmentAdapter(client, Settings()).GetThreadAsync("100", default);
+        Assert.Equal(custom, thread!.HasCustomAvatar);
+        Assert.Equal("media sample attached", RecruitmentContent.Portfolio(thread.Starter, thread.Attachments));
+    }
+
+    [Fact]
+    public async Task InstalledSdkRemovesAcknowledgementButtonWhileKeepingReaderAndOwnerControls()
+    {
+        var transport = new PublicationTransport(); using var client = await Client(transport);
+        var adapter = new DiscordRecruitmentAdapter(client, Settings());
+        const string marker = "recruitment:100:public";
+        var message = new RecruitmentMessage($"||{marker}||", marker, true, AcknowledgementRequired: true, ReaderControls: true);
+        await adapter.UpsertAsync("100", "101", false, DateTimeOffset.UtcNow, message, () => { }, default);
+        Assert.Contains("recruit:ack:100", transport.MessageWrites.Last().ToString());
+        await adapter.UpsertAsync("100", "101", false, DateTimeOffset.UtcNow, message with { AcknowledgementRequired = false }, () => { }, default);
+        var controls = transport.MessageWrites.Last()["components"]!.ToString();
+        Assert.DoesNotContain("recruit:ack:", controls); Assert.Contains("recruit:report:100", controls);
+        Assert.Contains("recruit:details:100", controls); Assert.Contains("recruit:owner:100", controls);
+        Assert.DoesNotContain("recruit:remove:", controls);
+        var writes = transport.MessageWrites.Count;
+        await adapter.UpsertAsync("100", "101", false, DateTimeOffset.UtcNow, message with { AcknowledgementRequired = false }, () => { }, default);
+        Assert.Equal(writes, transport.MessageWrites.Count);
+    }
+
+    [Fact]
+    public async Task DepartedMemberLeavesProfileFactsUnavailableWithoutLosingStarter()
+    {
+        var transport = new PublicationTransport { MissingMember = true }; using var client = await Client(transport);
+        var adapter = new DiscordRecruitmentAdapter(client, Settings());
+        var thread = await adapter.GetThreadAsync("100", default);
+        Assert.NotNull(thread); Assert.NotNull(thread.Starter);
+        Assert.Null(thread.JoinedAt); Assert.Null(thread.HasCustomAvatar); Assert.Null(thread.MemberRoleCount);
+        Assert.False(await adapter.IsMemberAsync("1", "200", default));
+    }
+
     private static BotSettings Settings() => new() { GuildId = 1,
         Recruitment = new RecruitmentSettings { Forums = new RecruitmentForums { PaidRecruitingId = 11, PaidForHireId = 12, HobbyRecruitingId = 13, HobbyForHireId = 14 } },
         Roles = new() { Moderator = 50 } };
@@ -90,6 +135,10 @@ public class RecruitmentPublicationTests
     {
         public string Role { get; init; } = "52";
         public bool OwnerBot { get; init; }
+        public bool MissingMember { get; init; }
+        public string? GlobalAvatar { get; init; }
+        public string? ServerAvatar { get; init; }
+        public JArray Attachments { get; init; } = new();
         public string StarterContent { get; private set; } = "Example listing";
         public JObject? CreatePayload { get; private set; }
         public List<JObject> ChannelWrites { get; } = new();
@@ -105,9 +154,13 @@ public class RecruitmentPublicationTests
         private Task<RestResponse> Respond(string method, string endpoint, JObject? patch)
         {
             string body;
+            if (endpoint.StartsWith("guilds/1/members/200") && MissingMember)
+                return Task.FromResult(new RestResponse(HttpStatusCode.NotFound, new Dictionary<string, string>(), new MemoryStream(Encoding.UTF8.GetBytes("{\"code\":10007,\"message\":\"Unknown Member\"}"))));
             if (endpoint == "users/@me") body = """{"id":"999","username":"offline","discriminator":"0","bot":true}""";
             else if (endpoint == "oauth2/applications/@me") body = """{"id":"999","name":"offline","description":"","bot_public":true,"bot_require_code_grant":false,"verify_key":"00"}""";
-            else if (endpoint.StartsWith("guilds/1/members/200")) body = $$"""{"user":{"id":"200","username":"member","discriminator":"0","bot":{{OwnerBot.ToString().ToLowerInvariant()}}},"roles":["{{Role}}"],"joined_at":"2020-01-01T00:00:00Z"}""";
+            else if (endpoint.StartsWith("guilds/1/members/200")) body = new JObject {
+                ["user"] = new JObject { ["id"] = "200", ["username"] = "member", ["discriminator"] = "0", ["bot"] = OwnerBot, ["avatar"] = GlobalAvatar },
+                ["avatar"] = ServerAvatar, ["roles"] = new JArray(Role), ["joined_at"] = "2020-01-01T00:00:00Z" }.ToString();
             else if (endpoint.StartsWith("guilds/1")) body = """{"id":"1","name":"Offline","owner_id":"900","roles":[{"id":"1","name":"@everyone","permissions":"0"},{"id":"50","name":"Moderator","permissions":"0"},{"id":"51","name":"Admin","permissions":"8"},{"id":"52","name":"Artist","permissions":"0"}],"emojis":[],"features":[],"stickers":[],"afk_timeout":300,"preferred_locale":"en-US"}""";
             else if (endpoint == "channels/11") body = """{"id":"11","type":15,"guild_id":"1","name":"forum","flags":16,"available_tags":[{"id":"71","name":"Closed","moderated":false}]}""";
             else if (endpoint == "channels/11/threads" && method == "POST")
@@ -129,7 +182,7 @@ public class RecruitmentPublicationTests
                 body = Thread.ToString();
             }
             else if (endpoint == "channels/100/messages/100") body = new JObject { ["id"] = "100", ["channel_id"] = "100", ["type"] = 0,
-                ["content"] = StarterContent, ["timestamp"] = "2026-10-14T12:00:00Z", ["author"] = new JObject { ["id"] = Thread["owner_id"]!.ToString(), ["username"] = "owner", ["discriminator"] = "0", ["bot"] = (string?)Thread["owner_id"] == "999" || OwnerBot }, ["embeds"] = new JArray(), ["attachments"] = new JArray() }.ToString();
+                ["content"] = StarterContent, ["timestamp"] = "2026-10-14T12:00:00Z", ["author"] = new JObject { ["id"] = Thread["owner_id"]!.ToString(), ["username"] = "owner", ["discriminator"] = "0", ["bot"] = (string?)Thread["owner_id"] == "999" || OwnerBot }, ["embeds"] = new JArray(), ["attachments"] = Attachments }.ToString();
             else if (endpoint == "channels/100/messages/101")
             {
                 if (method == "PATCH") { MessageWrites.Add(patch!); foreach (var property in patch!.Properties()) _message[property.Name] = property.Value.DeepClone(); }

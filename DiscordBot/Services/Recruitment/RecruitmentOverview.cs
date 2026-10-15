@@ -7,8 +7,6 @@ public sealed partial class RecruitmentEngine
     private bool _feedEmbeds;
     private string? _overviewRender;
     private DateTimeOffset? _overviewDirtyAt;
-    private DateTimeOffset? _feedActivityFirst;
-    private DateTimeOffset? _feedActivityLast;
 
     private void GuardFeedWrite()
     {
@@ -28,25 +26,10 @@ public sealed partial class RecruitmentEngine
             var times = new List<DateTimeOffset>();
             if (_overviewDirtyAt is { } dirty)
                 times.Add(Max(dirty.AddSeconds(5), (receipt.LastEditedAt ?? DateTimeOffset.MinValue).AddSeconds(30)));
-            if (_feedActivityLast is { } activity)
-            {
-                var eligible = (receipt.LastPostedAt ?? Now).AddMinutes(5);
-                var quiet = activity.AddSeconds(10);
-                var bound = Max(_feedActivityFirst ?? activity, eligible).AddSeconds(60);
-                times.Add(Max(eligible, quiet < bound ? quiet : bound));
-            }
             return times.Count == 0 ? null : times.Min();
         }
     }
     private static DateTimeOffset Max(DateTimeOffset a, DateTimeOffset b) => a > b ? a : b;
-
-    public void FeedActivity(string messageId, bool overview = false)
-    {
-        if (State is null || overview || !ulong.TryParse(messageId, out var id)) return;
-        if (ulong.TryParse(State.Overview.MessageId, out var current) && id <= current) return;
-        _feedActivityFirst ??= Now;
-        _feedActivityLast = Now;
-    }
 
     public async Task RefreshOverviewAsync(CancellationToken ct)
     {
@@ -65,9 +48,7 @@ public sealed partial class RecruitmentEngine
                 receipt.RetiredMessageId = receipt.RetiredMarker = null;
                 Save();
             }
-            var replace = receipt.SendPending ? receipt.PendingReplacement : receipt.MessageId is null ||
-                _feedActivityLast.HasValue && (receipt.LastPostedAt?.AddMinutes(5) ?? Now) <= Now &&
-                (Now >= _feedActivityLast.Value.AddSeconds(10) || Now >= Max(_feedActivityFirst!.Value, receipt.LastPostedAt!.Value.AddMinutes(5)).AddSeconds(60));
+            var replace = receipt.SendPending ? receipt.PendingReplacement : receipt.MessageId is null;
             if (!receipt.SendPending)
             {
                 receipt.PendingReplacement = replace;
@@ -85,7 +66,7 @@ public sealed partial class RecruitmentEngine
             receipt.PendingMarker = null; receipt.PendingReplacement = false; receipt.Fault = null;
             receipt.LastEditedAt = Now;
             if (replace || delivery.NewlySent)
-            { receipt.LastPostedAt = Now; _feedActivityFirst = _feedActivityLast = null; }
+            { receipt.LastPostedAt = Now; }
             _overviewRender = render; _overviewDirtyAt = null;
             Save();
             if (receipt.RetiredMessageId is not null)

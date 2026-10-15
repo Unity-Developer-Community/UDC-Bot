@@ -19,7 +19,10 @@ public sealed partial class RecruitmentEngine
         history.RecentCreations.RemoveAll(d => d <= Now.AddMinutes(-_settings.AttemptWindowMinutes));
         history.RecentCreations.Add(post.CreatedAt);
         if (history.RecentCreations.Count > _settings.AttemptLimit)
+        {
             post.AttemptPausedUntil = history.AttemptPausedUntil = Now.AddMinutes(_settings.AttemptPauseMinutes);
+            QueueAttention(post, "Repeated creations triggered a posting pause");
+        }
     }
 
     private static string EligibilityReason(Eligibility eligibility)
