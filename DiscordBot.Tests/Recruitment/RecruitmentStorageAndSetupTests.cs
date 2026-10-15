@@ -17,7 +17,7 @@ public class RecruitmentStorageAndSetupTests
         {
             var text = assets.Render(purpose, "ABCDE", settings);
             Assert.InRange(text.Length, 1, 1000);
-            Assert.Contains("pinned information post", text);
+            Assert.Contains("pinned rules", text);
             Assert.Contains("ABCDE", text);
         }
     }
@@ -207,9 +207,9 @@ public class RecruitmentStorageAndSetupTests
         using var rig = new RecruitmentRig(); await rig.Start(); await rig.Post(); await rig.Ack();
         rig.Clock.Advance(TimeSpan.FromDays(31)); await rig.Restart();
         Assert.Equal(ListingStatus.Open, rig.State.Listings["100"].Status);
-        Assert.False(rig.State.Listings["100"].ResponseCoverageComplete);
-        await rig.Staff("review-no-reply"); await rig.Sweep();
-        Assert.Equal(ListingStatus.Closed, rig.State.Listings["100"].Status);
+        Assert.Contains("Unknown recruitment operation", await rig.Staff("review-no-reply"));
+        await rig.Sweep();
+        Assert.Equal(ListingStatus.Open, rig.State.Listings["100"].Status);
     }
 
     [Fact]

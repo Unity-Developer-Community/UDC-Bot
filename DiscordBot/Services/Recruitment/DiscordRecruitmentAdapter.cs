@@ -226,21 +226,6 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
         return snapshot;
     }
 
-    public async Task<bool?> HasReplyAsync(ThreadSnapshot thread, CancellationToken ct)
-    {
-        var channel = await MessageChannelAsync(thread.Id, ct);
-        var unknown = false;
-        // Positive evidence can be recovered; this scan never certifies complete historical coverage.
-        foreach (var message in await channel.GetMessagesAsync(100, CacheMode.AllowDownload, Options(ct)).FlattenAsync())
-        {
-            if (message.Id.ToString() == thread.Id || message.Author.Id.ToString() == thread.OwnerId || message.Author.IsBot || message.Source == MessageSource.Webhook) continue;
-            var user = await _client.Rest.GetGuildUserAsync(_settings.GuildId, message.Author.Id, Options(ct));
-            if (user is null) { unknown = true; continue; }
-            if (!user.GuildPermissions.Administrator && !user.RoleIds.Contains(_settings.Roles.Moderator)) return true;
-        }
-        return unknown ? null : false;
-    }
-
     private async Task<IMessageChannel> MessageChannelAsync(string id, CancellationToken ct)
     {
         if (_messageChannels.TryGetValue(id, out var cached)) return cached;

@@ -7,7 +7,6 @@ public sealed record ThreadSnapshot(string Id, string ForumId, string OwnerId, s
     DateTimeOffset? AccountCreatedAt, DateTimeOffset? JoinedAt, bool OwnerIsStaff = false, int? MemberRoleCount = null);
 public sealed record ArchiveCursor(DateTimeOffset Since, DateTimeOffset? Before = null, DateTimeOffset? StartedAt = null);
 public sealed record ThreadInventory(IReadOnlyList<ThreadSnapshot> Threads, bool Complete, IReadOnlyDictionary<string, ArchiveCursor>? Cursors = null);
-public sealed record ReplyObservation(string ThreadId, string AuthorId, bool IsBot, bool IsWebhook, bool? IsStaff);
 public sealed record RecruitmentMessage(string Content, string Marker, bool OwnerControls, bool RestoreArchive = false, Embed? Embed = null, string? TextFallback = null)
 {
     public string RenderKey => Content + "\n" + OwnerControls + "\n" + EmbedKey(Embed);
@@ -32,7 +31,6 @@ public interface IRecruitmentDiscord
     void InvalidateThread(string threadId);
     void InvalidateFacts(string threadId);
     void InvalidateCache();
-    Task<bool?> HasReplyAsync(ThreadSnapshot thread, CancellationToken ct);
     // Ambiguous sends must search the entire bounded recovery interval or hold; never blindly resend.
     Task<Delivery> UpsertAsync(string channelId, string? messageId, bool recovering, DateTimeOffset since,
         RecruitmentMessage message, Action beforeWrite, CancellationToken ct);

@@ -8,7 +8,6 @@ public sealed partial class RecruitmentEngine
     private long _inventoryGeneration = -1;
     private DateTimeOffset _nextAudit = DateTimeOffset.MaxValue;
     private bool _accessInvalid = true;
-    private readonly HashSet<string> _replyScanned = new();
     private readonly Dictionary<string, string> _publicRenders = new();
     private readonly Dictionary<string, string> _staffRenders = new();
     private bool EvidenceCurrent => _gatewayReady() && !_pendingIdentities() && _inventoryComplete && _inventoryGeneration == _evidenceGeneration();
@@ -57,8 +56,6 @@ public sealed partial class RecruitmentEngine
         if (!post.Exempt && !post.Pinned)
         {
             if (!post.AcceptedAt.HasValue && post.Deadline.HasValue) dates.Add(post.Deadline.Value);
-            if (post.AcceptedAt.HasValue && post.ResponseCoverageComplete && !post.HasQualifyingReply && !post.SuppressUnansweredClose)
-                dates.Add(post.CreatedAt.AddDays(_settings.UnansweredDays));
         }
         if (post.AcknowledgedAt.HasValue && !post.AcceptedAt.HasValue)
         {
@@ -177,7 +174,6 @@ public sealed partial class RecruitmentEngine
         }
         catch (Exception ex) when (ex is not OperationCanceledException && ex is not System.IO.IOException)
         {
-            post.ResponseCoverageComplete = false;
             _discord.InvalidateThread(post.Id);
             post.Fault = RecruitmentFault.From(ex, Now, previousFault);
             post.Hold = post.Fault.Message;

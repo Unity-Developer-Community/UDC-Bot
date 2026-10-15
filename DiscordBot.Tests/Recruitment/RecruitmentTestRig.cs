@@ -173,7 +173,7 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
         if (!Threads.TryGetValue(id, out var thread)) return Task.FromResult(false);
         if (thread.ForumId != forum || (botOwned ? thread.OwnerId != "999" || thread.Starter?.Contains(marker) != true : !thread.OwnerIsStaff))
             throw new InvalidOperationException("Reference identity mismatch");
-        Threads[id] = thread with { Pinned = true, Locked = true, Archived = true };
+        Threads[id] = thread with { Pinned = true, Locked = true, Archived = false };
         return Task.FromResult(true);
     }
     public Task<bool?> HasReplyAsync(ThreadSnapshot thread, CancellationToken ct) { ReplyReads++; return Task.FromResult<bool?>(Replies.Contains(thread.Id)); }

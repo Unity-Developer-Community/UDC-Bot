@@ -107,6 +107,7 @@ public sealed class Listing
     public bool StaffSendPending { get; set; }
     public bool Exempt { get; set; }
     public bool Pinned { get; set; }
+    // Legacy v2 fields remain readable; reply history no longer determines listing lifetime.
     public bool HasQualifyingReply { get; set; }
     public bool ResponseCoverageComplete { get; set; }
     public bool AvailabilityUnknown { get; set; }
@@ -202,11 +203,6 @@ public static class RecruitmentPolicy
         history.UpdatedAt = now;
         return history;
     }
-
-    public static bool CanCloseUnanswered(Listing post, DateTimeOffset now, int days) =>
-        post.Status == ListingStatus.Open && post.AcceptedAt.HasValue && !post.Exempt && !post.Pinned &&
-        !post.AvailabilityUnknown && post.ResponseCoverageComplete && !post.HasQualifyingReply &&
-        !post.SuppressUnansweredClose && post.CreatedAt.AddDays(days) <= now;
 
     public static void Prune(RecruitmentState state, DateTimeOffset now, int postMonths, int authorMonths, int cooldownDays)
     {

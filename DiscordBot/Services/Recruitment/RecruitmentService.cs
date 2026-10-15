@@ -184,12 +184,6 @@ public sealed class RecruitmentService
     }
 
     internal void NotifyThread(string id) => Enqueue("thread:" + id, ct => _engine.ThreadChangedAsync(id, ct), thread: id);
-    internal void NotifyReply(ReplyObservation reply) =>
-        Enqueue($"reply:{reply.ThreadId}:{reply.AuthorId}:{reply.IsStaff}", async ct =>
-        {
-            if (_engine.State?.Listings.ContainsKey(reply.ThreadId) != true) await _engine.ThreadChangedAsync(reply.ThreadId, ct);
-            _engine.ObserveReply(reply);
-        }, thread: reply.ThreadId);
     internal void NotifyFactsChanged(string id) => Enqueue("facts:" + id, ct => _engine.FactsChangedAsync(id, ct), thread: id);
 
     private Task MessageUpdated(Cacheable<IMessage, ulong> before, SocketMessage after, ISocketMessageChannel channel)
@@ -231,11 +225,6 @@ public sealed class RecruitmentService
             Enqueue("feed-activity", _ => { _engine.FeedActivity(message.Id.ToString(), false); return Task.CompletedTask; });
             return Task.CompletedTask;
         }
-        if (message.Channel is not SocketThreadChannel thread || !IsRecruitment(thread) || message.Author.IsBot || message.Source == MessageSource.Webhook ||
-            message.Author.Id == ((IThreadChannel)thread).OwnerId) return Task.CompletedTask;
-        var user = message.Author as SocketGuildUser;
-        NotifyReply(new ReplyObservation(thread.Id.ToString(), message.Author.Id.ToString(), false, false,
-            user is null ? null : user.GuildPermissions.Administrator || user.Roles.Any(r => r.Id == _settings.Roles.Moderator)));
         return Task.CompletedTask;
     }
     private Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel) =>

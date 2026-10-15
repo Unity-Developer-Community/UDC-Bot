@@ -36,7 +36,6 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
     public Task Manage(
         [Choice("Exempt", "exempt"), Choice("Remove exemption", "unexempt"), Choice("Reset acknowledgement/timeouts", "reset"), Choice("Reset timeout streak", "reset-timeouts"),
          Choice("Close", "close"), Choice("Reopen", "reopen"), Choice("Designate reference post", "reference"),
-         Choice("Confirm no qualifying reply", "review-no-reply"), Choice("Confirm qualifying reply", "review-reply"),
          Choice("Confirm unavailable thread is absent", "review-absent")] string operation,
         string threadId, string reason) => Staff(operation, threadId, reason);
     [SlashCommand("waive-cooldown", "Waive an author's creation cooldown without granting a second slot")]

@@ -17,13 +17,11 @@ public class RecruitmentSchedulingTests
     }
 
     [Fact]
-    public async Task PositiveReplyEvidenceDoesNotNeedFurtherHistoryScans()
+    public async Task AcceptedListingsNeverNeedReplyHistoryScans()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post(); await rig.Ack();
-        rig.Engine.ObserveReply(new ReplyObservation(post.Id, "201", false, false, false));
-        var reads = rig.Discord.ReplyReads;
         await rig.Sweep(); await rig.Engine.ThreadChangedAsync(post.Id, default);
-        Assert.Equal(reads, rig.Discord.ReplyReads);
+        Assert.Equal(0, rig.Discord.ReplyReads);
     }
 
     [Fact]

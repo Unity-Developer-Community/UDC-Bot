@@ -39,13 +39,13 @@ public sealed partial class DiscordRecruitmentAdapter
         }
         else if (!await IsModeratorAsync(_settings.GuildId.ToString(), ((IThreadChannel)thread).OwnerId.ToString(), ct))
             throw new InvalidOperationException("Existing reference is no longer owned by a moderator or administrator.");
-        if (thread.IsLocked && thread.IsArchived && thread.Flags.HasFlag(ChannelFlags.Pinned)) return true;
+        if (thread.IsLocked && !thread.IsArchived && thread.Flags.HasFlag(ChannelFlags.Pinned)) return true;
         // Forum threads inherit permissions. Locking is the supported member-posting restriction;
-        // staff with Manage Threads can reopen it to maintain their own messages below the introduction.
+        // Staff with Manage Threads can maintain it. Archiving would clear its forum pin.
         if (thread.IsArchived) await thread.ModifyAsync(p => { p.Archived = false; p.Flags = thread.Flags; }, Options(ct));
-        await thread.ModifyAsync(p => { p.Flags = thread.Flags | ChannelFlags.Pinned; p.Locked = true; p.Archived = true; }, Options(ct));
+        await thread.ModifyAsync(p => { p.Flags = thread.Flags | ChannelFlags.Pinned; p.Locked = true; p.Archived = false; }, Options(ct));
         var verified = await _client.Rest.GetChannelAsync(thread.Id, Options(ct)) as RestThreadChannel;
-        if (verified is null || !verified.IsArchived || !verified.IsLocked || !verified.Flags.HasFlag(ChannelFlags.Pinned))
+        if (verified is null || verified.IsArchived || !verified.IsLocked || !verified.Flags.HasFlag(ChannelFlags.Pinned))
             throw new InvalidOperationException("Reference pin/lock was not confirmed.");
         InvalidateFacts(threadId);
         return true;

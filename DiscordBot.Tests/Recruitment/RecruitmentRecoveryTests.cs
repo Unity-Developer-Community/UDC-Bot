@@ -27,7 +27,8 @@ public class RecruitmentRecoveryTests
     {
         using var rig = new RecruitmentRig(); await rig.Start(); await rig.Post(); await rig.Ack();
         rig.Discord.LoseNextCloseResponse = true;
-        rig.Clock.Advance(TimeSpan.FromDays(31)); await rig.Sweep(); await rig.Restart();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => rig.Staff("close"));
+        await rig.Restart();
         Assert.Equal(ListingStatus.Closed, rig.State.Listings["100"].Status);
         Assert.Single(rig.Discord.Actions);
         Assert.Null(rig.State.Listings["100"].PendingAction);
@@ -127,7 +128,7 @@ public class RecruitmentRecoveryTests
     {
         using var rig = new RecruitmentRig(); await rig.Start();
         var preview = await rig.Staff("preview", "paid-recruiting");
-        Assert.Contains("one open listing total", preview); Assert.Contains("Managed tags", preview);
+        Assert.Contains("One open listing", preview); Assert.Contains("Managed tags", preview);
         Assert.DoesNotContain(rig.State.RotationCode, preview);
     }
 

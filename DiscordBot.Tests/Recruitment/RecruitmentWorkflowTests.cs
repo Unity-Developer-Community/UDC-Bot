@@ -126,45 +126,34 @@ public class RecruitmentWorkflowTests
         rig.Clock.Advance(TimeSpan.FromHours(3)); await rig.Restart();
         var post = rig.State.Listings["100"];
         Assert.Equal(rig.Clock.Now.AddMinutes(30), post.Deadline);
-        Assert.False(post.ResponseCoverageComplete); Assert.Empty(rig.Discord.Actions);
-    }
-
-    [Fact]
-    public async Task UnansweredListingClosesOnlyWithContinuousEvidence()
-    {
-        using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post(); await rig.Ack();
-        rig.Clock.Advance(TimeSpan.FromDays(31)); await rig.Sweep();
-        Assert.Equal(ListingStatus.Closed, post.Status); Assert.Contains(("100", "close"), rig.Discord.Actions);
-    }
-
-    [Fact]
-    public async Task KnownReplySurvivesDeletionAndRestart()
-    {
-        using var rig = new RecruitmentRig(); await rig.Start(); await rig.Post(); await rig.Ack();
-        rig.Engine.ObserveReply(new ReplyObservation("100", "333", false, false, false));
-        await rig.Restart(); rig.Clock.Advance(TimeSpan.FromDays(31)); await rig.Sweep();
-        Assert.True(rig.State.Listings["100"].HasQualifyingReply); Assert.Empty(rig.Discord.Actions);
+        Assert.Equal(ListingStatus.Open, post.Status); Assert.Empty(rig.Discord.Actions);
     }
 
     [Theory]
-    [InlineData("200", false, false, false)]
-    [InlineData("333", true, false, false)]
-    [InlineData("333", false, true, false)]
-    [InlineData("333", false, false, true)]
-    public async Task OwnerBotWebhookAndModeratorDoNotCountAsCommunityReply(string author, bool bot, bool webhook, bool staff)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AcceptedListingsRemainOpenIndefinitelyAcrossRestart(bool legacyReplyCoverage)
     {
-        using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post();
-        rig.Engine.ObserveReply(new ReplyObservation(post.Id, author, bot, webhook, staff));
-        Assert.False(post.HasQualifyingReply);
+        using var rig = new RecruitmentRig(); await rig.Start();
+        var post = await rig.Post(live: false); await rig.Ack();
+        post.ResponseCoverageComplete = legacyReplyCoverage;
+        await rig.Sweep(); await rig.Restart();
+        rig.Clock.Advance(TimeSpan.FromDays(400)); await rig.Sweep();
+        Assert.Equal(ListingStatus.Open, rig.State.Listings[post.Id].Status);
+        Assert.Empty(rig.Discord.Actions); Assert.Equal(0, rig.Discord.ReplyReads);
     }
 
     [Fact]
-    public async Task UnknownRolesHoldUnansweredClosure()
+    public async Task LegacyPendingUnansweredClosureIsCancelledAfterRestart()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post(); await rig.Ack();
-        rig.Engine.ObserveReply(new ReplyObservation(post.Id, "333", false, false, null));
-        rig.Clock.Advance(TimeSpan.FromDays(31)); await rig.Sweep();
-        Assert.False(post.ResponseCoverageComplete); Assert.Equal(ListingStatus.Open, post.Status);
+        rig.Clock.Advance(TimeSpan.FromDays(31));
+        post.PendingAction = new RecruitmentAction { Kind = RecruitmentActionKind.Close, Condition = "unanswered", Automatic = true, CreatedAt = rig.Clock.Now };
+        File.WriteAllText(Path.Combine(rig.Root, "recruitment/recruitment-state.json"), Newtonsoft.Json.JsonConvert.SerializeObject(rig.State));
+        await rig.Restart();
+        Assert.Null(rig.State.Listings[post.Id].PendingAction);
+        Assert.Equal(ListingStatus.Open, rig.State.Listings[post.Id].Status);
+        Assert.Empty(rig.Discord.Actions);
     }
 
     [Fact]
@@ -249,11 +238,11 @@ public class RecruitmentWorkflowTests
     }
 
     [Fact]
-    public async Task ReopenChecksCapacityAndSuppressesImmediateRepeatClosure()
+    public async Task ReopenKeepsListingOpenWithoutAnExpiry()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); await rig.Post(); await rig.Ack();
         rig.Clock.Advance(TimeSpan.FromDays(31)); await rig.Sweep(); await rig.Staff("reopen"); await rig.Sweep();
         Assert.Equal(ListingStatus.Open, rig.State.Listings["100"].Status);
-        Assert.True(rig.State.Listings["100"].SuppressUnansweredClose);
+        Assert.Equal(ListingStatus.Open, rig.State.Listings["100"].Status);
     }
 }

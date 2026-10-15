@@ -39,7 +39,7 @@ public class RecruitmentPublicationTests
         var content = transport.StarterContent;
         Assert.True(await adapter.SecureReferenceAsync("11", id, true, marker, default));
         Assert.Equal(32770, (int)transport.Thread["flags"]!);
-        Assert.True((bool)transport.Thread["thread_metadata"]!["archived"]!);
+        Assert.False((bool)transport.Thread["thread_metadata"]!["archived"]!);
         Assert.True((bool)transport.Thread["thread_metadata"]!["locked"]!);
         Assert.Equal(content, transport.StarterContent);
         Assert.DoesNotContain(transport.ChannelWrites, w => w["permission_overwrites"] is not null);
@@ -123,6 +123,8 @@ public class RecruitmentPublicationTests
                     foreach (var property in patch!.Properties())
                         if (property.Name is "locked" or "archived") Thread["thread_metadata"]![property.Name] = property.Value.DeepClone();
                         else Thread[property.Name] = property.Value.DeepClone();
+                    // Discord clears the forum pin when archiving; do not allow an impossible fixture state.
+                    if ((bool)Thread["thread_metadata"]!["archived"]!) Thread["flags"] = (int)Thread["flags"]! & ~2;
                 }
                 body = Thread.ToString();
             }

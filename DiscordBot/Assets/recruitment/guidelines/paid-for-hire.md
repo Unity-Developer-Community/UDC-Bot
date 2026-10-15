@@ -1,13 +1,13 @@
 # Paid for hire
 
-Describe your services, portfolio, availability, rates, currency and contact details.
+State **services/deliverables**, **proof of work** (portfolio or samples), **availability**, **rates and currency**, and **contact method**. Vague “DM for details” posts or false claims may be removed.
 
-Read the pinned information post at the top of this forum for fuller guidance. Use relevant tags; verify claims and agree terms in writing.
+Read the pinned rules and use accurate tags. Verify claims; agree scope, deadlines, fees and payment terms in writing.
 
-You may have **one open listing total across all four recruitment forums**. Combine hiring and offering services in a for-hire listing.
+**One open listing total across all four recruitment forums.** Combine hiring and service offers here.
 
-Enter **{{code}}** using **Acknowledge** within **{{acknowledgementMinutes}} minutes of the bot's prompt**. Unacknowledged posts are removed; acknowledged posts still blocked by another listing or cooldown are closed.
+Enter **{{code}}** via **Acknowledge** within **{{acknowledgementMinutes}} minutes** of the bot prompt. Unacknowledged posts are removed; posts blocked by an existing listing or cooldown are closed.
 
-Only accepted listings start a **{{cooldownDays}}-day cooldown from creation**. Closing/deleting does not change it; unaccepted attempts add none.
+Only accepted listings start a **{{cooldownDays}}-day cooldown** from creation. Closing/deleting won't reset it; unaccepted attempts add none.
 
-Mark finished listings **Closed** to lock/archive them. Accepted listings with no qualifying community reply close after **{{unansweredDays}} days**. Natural auto-archive does not free your slot.
+Keep this listing updated or bump it when still looking; its history stays visible. Mark finished listings **Closed** to lock/archive. Auto-archive does not free your slot.

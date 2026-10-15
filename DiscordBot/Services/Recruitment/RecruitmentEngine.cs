@@ -63,7 +63,6 @@ public sealed partial class RecruitmentEngine : IDisposable
         _verifiedReferences.Clear(); _referenceCandidates.Clear(); _ignoredThreads.Clear();
         foreach (var post in State.Listings.Values.Where(p => p.Status == ListingStatus.Open))
         {
-            post.ResponseCoverageComplete = false;
             if (!post.AcceptedAt.HasValue) _recoverWindows.Add(post.Id);
         }
         Save();
@@ -76,7 +75,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         var auditDue = _nextAudit <= Now;
         var held = !retryHeld && State.RecoveryFault is { } recovery && !recovery.IsDue(Now);
         _nextAudit = Now.AddMinutes(15 + Random.Shared.NextDouble() * 3);
-        _publicRenders.Clear(); _staffRenders.Clear(); _replyScanned.Clear();
+        _publicRenders.Clear(); _staffRenders.Clear();
         _discord.InvalidateCache();
         try
         {
@@ -199,15 +198,6 @@ public sealed partial class RecruitmentEngine : IDisposable
         return Task.CompletedTask;
     }
 
-    public void ObserveReply(ReplyObservation reply)
-    {
-        if (State?.Listings.GetValueOrDefault(reply.ThreadId) is not { } post || post.Status != ListingStatus.Open ||
-            reply.AuthorId == post.OwnerId || reply.IsBot || reply.IsWebhook) return;
-        if (reply.IsStaff == false) post.HasQualifyingReply = true;
-        if (reply.IsStaff is null) post.ResponseCoverageComplete = false;
-        Save();
-    }
-
     private async Task ProcessAsync(Listing post, CancellationToken ct)
     {
         if (post.Status == ListingStatus.Deleted)
@@ -258,9 +248,6 @@ public sealed partial class RecruitmentEngine : IDisposable
             if (post.StaffSendPending || post.PublicSendPending || post.PublicationPending) await PublishAsync(post, ct);
             return;
         }
-        var reply = post.HasQualifyingReply ? true : _replyScanned.Add(post.Id) ? await _discord.HasReplyAsync(live, ct) : false;
-        if (reply == true) post.HasQualifyingReply = true;
-        if (reply is null) post.ResponseCoverageComplete = false;
         if (_recoverWindows.Remove(post.Id))
         {
             post.PromptDeliveredAt = post.Deadline = null;
@@ -292,8 +279,6 @@ public sealed partial class RecruitmentEngine : IDisposable
             else
                 await BeginActionAsync(post, RecruitmentActionKind.Close, "system", "Acknowledged but still ineligible at deadline", "ineligible", true, ct);
         }
-        else if (RecruitmentPolicy.CanCloseUnanswered(post, Now, _settings.UnansweredDays))
-            await BeginActionAsync(post, RecruitmentActionKind.Close, "system", "No qualifying reply within the listing lifetime", "unanswered", true, ct);
     }
 
     private void RecordAbsence(Listing post)
@@ -387,10 +372,6 @@ public sealed partial class RecruitmentEngine : IDisposable
         // Startup/recovery establishes cross-forum identity coverage; ordinary acknowledgements only
         // refresh the candidate and its blocking author records.
         if (!_ready || !_feedReady || _feedGeneration != _evidenceGeneration()) return "Recruitment is waiting for recovery. Please try again shortly.";
-        _discord.InvalidateThread(post.Id);
-        post.Fault = null;
-        await ProcessAsync(post, ct);
-        await RefreshBlockersAsync(post, ct);
         if (post.Status != ListingStatus.Open || post.AcceptedAt.HasValue) return "This listing no longer needs acknowledgement.";
         var submittedAt = receivedAt ?? Now;
         if (!post.Deadline.HasValue || post.Deadline < submittedAt || post.PromptDeliveredAt > submittedAt)
@@ -398,12 +379,19 @@ public sealed partial class RecruitmentEngine : IDisposable
         if (post.LastCodeAttemptAt?.AddSeconds(5) > Now) return "Please wait a few seconds before trying again.";
         post.LastCodeAttemptAt = Now; Save();
         if (!post.ValidCodes.Contains(code.Trim().ToUpperInvariant())) return "That code does not match. Read the native Guidelines for this forum and try again.";
-        post.AcknowledgedAt = Now; post.Version++; post.UpdatedAt = Now;
+        // Persist a timely valid submission before any processing can execute an overdue timeout.
+        // Invalid/late submissions never extend the window or fence the deadline worker.
+        post.AcknowledgedAt = submittedAt; post.Version++; post.UpdatedAt = Now;
         var author = RecruitmentPolicy.Author(State!, owner, Now);
         author.ConsecutiveTimeouts = 0; author.TimeoutAlerted = false;
-        var accepted = EvidenceCurrent && RecruitmentPolicy.TryAccept(State!, post, Now, _settings.CooldownDays);
-        Save(); await PublishAsync(post, ct);
-        return accepted ? "Guidelines acknowledged. Your listing is accepted." : !EvidenceCurrent
+        Save();
+        _discord.InvalidateThread(post.Id);
+        post.Fault = null;
+        await ProcessAsync(post, ct);
+        if (post.PendingAction is null && post.Status == ListingStatus.Open && !post.AcceptedAt.HasValue)
+            await ProcessAsync(post, ct); // A recovered timeout intent may have just been cancelled.
+        if (post.Status != ListingStatus.Open) return "This listing is no longer open. Use your listing controls to check its status.";
+        return post.AcceptedAt.HasValue ? "Guidelines acknowledged. Your listing is accepted." : !EvidenceCurrent
             ? "Guidelines acknowledged. Acceptance is waiting for inventory recovery."
             : "Guidelines acknowledged. The existing listing or creation cooldown still blocks acceptance; see the advisory.";
     }
@@ -457,6 +445,13 @@ public sealed partial class RecruitmentEngine : IDisposable
     private async Task ExecuteActionAsync(Listing post, CancellationToken ct)
     {
         var action = post.PendingAction!;
+        if (action.Automatic && action.Condition == "unanswered")
+        {
+            // Old state may contain an unsent expiry action. Listings now remain indefinitely.
+            post.PendingAction = null; post.PublicationPending = true;
+            post.LastOutcome = "Automatic expiry cancelled; listing remains open";
+            Save(); return;
+        }
         if (action.RequiresModerator && !await _discord.IsModeratorAsync(State!.GuildId, action.ActorId, ct))
         {
             post.PendingAction = null; post.LastOutcome = "Staff action cancelled: moderator access no longer present";
@@ -491,18 +486,8 @@ public sealed partial class RecruitmentEngine : IDisposable
         if (action.Automatic && (!EvidenceCurrent || post.Exempt || post.Pinned || post.Status != ListingStatus.Open ||
             (action.Condition == "timeout" && (post.AcknowledgedAt.HasValue || post.AcceptedAt.HasValue || post.Deadline > Now || _recoverWindows.Contains(post.Id))) ||
             (action.Condition == "ineligible" && (post.AcceptedAt.HasValue || RecruitmentPolicy.Evaluate(State!, post, Now, _settings.CooldownDays).Allowed)) ||
-            (action.Condition == "closed-tag" && !live.Tags.Contains(ClosingTag(post))) ||
-            (action.Condition == "unanswered" && !RecruitmentPolicy.CanCloseUnanswered(post, Now, _settings.UnansweredDays))))
+            (action.Condition == "closed-tag" && !live.Tags.Contains(ClosingTag(post)))))
         { post.PendingAction = null; Save(); return; }
-        if (action.Condition == "unanswered")
-        {
-            var reply = await _discord.HasReplyAsync(live, ct);
-            if (reply != false)
-            {
-                post.HasQualifyingReply |= reply == true; post.ResponseCoverageComplete &= reply.HasValue;
-                post.PendingAction = null; Save(); return;
-            }
-        }
         if (action.Kind == RecruitmentActionKind.Reopen && State!.Listings.Values.Any(p => p.OwnerId == post.OwnerId && p.Id != post.Id && p.Status == ListingStatus.Open))
             throw new InvalidOperationException("Another listing occupies this author's slot.");
         // Gateway facts and timely owner interactions already queued must be applied before an automatic action.
@@ -531,7 +516,7 @@ public sealed partial class RecruitmentEngine : IDisposable
                 break;
             case RecruitmentActionKind.Reopen:
                 await _discord.ReopenAsync(live, ClosingTag(post), ct);
-                post.Status = ListingStatus.Open; post.SuppressUnansweredClose = true;
+                post.Status = ListingStatus.Open;
                 if (!post.AcceptedAt.HasValue) _recoverWindows.Add(post.Id);
                 break;
         }
@@ -623,9 +608,7 @@ public sealed partial class RecruitmentEngine : IDisposable
                 if (State.Listings.Values.Any(p => p.OwnerId == post.OwnerId && p.Id != post.Id && p.Status == ListingStatus.Open))
                     return "Another listing occupies this author's slot.";
                 await BeginActionAsync(post, RecruitmentActionKind.Reopen, actor, reason, "", false, ct, requiresModerator: true); return post.Status == ListingStatus.Open
-                    ? "Listing reopened; automatic unanswered closure is suppressed for this listing." : "Reopening was cancelled or is awaiting reconciliation.";
-            case "review-no-reply": post.ResponseCoverageComplete = true; break;
-            case "review-reply": post.HasQualifyingReply = true; break;
+                    ? "Listing reopened. Update this thread to preserve its conversation history." : "Reopening was cancelled or is awaiting reconciliation.";
             case "review-absent":
                 if (!post.AvailabilityUnknown) return "Availability is known; use close or reconcile instead.";
                 post.Status = ListingStatus.Deleted; post.AvailabilityUnknown = false; post.PendingAction = null;

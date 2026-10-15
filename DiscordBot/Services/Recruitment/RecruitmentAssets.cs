@@ -29,7 +29,7 @@ public sealed class RecruitmentAssets
         {
             var template = File.ReadAllText(Path.Combine(directory, "guidelines", purpose + ".md"));
             if (template.Split("{{code}}").Length != 2 ||
-                new[] { "acknowledgementMinutes", "cooldownDays", "unansweredDays" }.Any(p => !template.Contains("{{" + p + "}}")))
+                new[] { "acknowledgementMinutes", "cooldownDays" }.Any(p => !template.Contains("{{" + p + "}}")))
                 throw new InvalidDataException($"Invalid Guidelines placeholders for {purpose}.");
             Templates[purpose] = template;
             if (!Tags.TryGetValue(purpose, out var tags) || tags.Count is < 1 or > 20 ||

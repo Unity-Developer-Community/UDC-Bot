@@ -94,7 +94,6 @@ public static class RecruitmentPresentation
             $"https://discord.com/channels/{state.GuildId}/{post.Id}\n" +
             $"Created {Timestamp(post.CreatedAt)} · acknowledged {(post.AcknowledgedAt.HasValue ? "yes" : "no")} · accepted {(post.AcceptedAt.HasValue ? "yes" : "no")}\n" +
             $"Next creation: {(next.HasValue ? Timestamp(next.Value) : "no accepted cooldown")}\n" +
-            $"Response: {(post.HasQualifyingReply ? "qualifying reply recorded" : post.ResponseCoverageComplete ? "none observed" : "history incomplete; unanswered closure held")}\n" +
             $"Outcome: {Safe(post.LastOutcome)}\n";
         if (post.PendingAction is { } action)
             text += $"Pending {action.Kind}: {Safe(action.Reason)} · actor `{action.ActorId}` · action `{action.Id}`\n";

@@ -13,7 +13,7 @@ public class RecruitmentReferenceTests
         foreach (var id in ids)
         {
             var reference = rig.Discord.Threads[id!];
-            Assert.True(reference.Pinned && reference.Locked && reference.Archived);
+            Assert.True(reference.Pinned && reference.Locked && !reference.Archived);
             Assert.Contains("information below", reference.Starter);
             Assert.DoesNotContain(rig.State.RotationCode, reference.Starter);
         }
