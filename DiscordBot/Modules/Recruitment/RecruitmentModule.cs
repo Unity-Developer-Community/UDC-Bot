@@ -12,6 +12,13 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
     private string Actor => Context.User.Id.ToString();
     private string Thread => Context.Channel.Id.ToString();
 
+    [SlashCommand("eligibility", "Check your posting slot, cooldown and attempt limit privately")]
+    public async Task Eligibility()
+    {
+        await DeferAsync(ephemeral: true);
+        await Reply(() => Recruitment.RunAsync((engine, ct) => engine.EligibilityAsync(Guild, Actor, ct)));
+    }
+
     [SlashCommand("status", "Show recruitment availability")]
     public async Task Status()
     {
@@ -34,7 +41,7 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
     public Task Reconcile(string reason) => Staff("reconcile", reason: reason);
     [SlashCommand("manage", "Change a listing or review uncertain evidence")]
     public Task Manage(
-        [Choice("Exempt", "exempt"), Choice("Remove exemption", "unexempt"), Choice("Reset acknowledgement/timeouts", "reset"), Choice("Reset timeout streak", "reset-timeouts"),
+        [Choice("Exempt", "exempt"), Choice("Remove exemption", "unexempt"), Choice("Reset acknowledgement/timeouts", "reset"), Choice("Reset timeout streak", "reset-timeouts"), Choice("Reset posting attempts", "reset-attempts"),
          Choice("Close", "close"), Choice("Reopen", "reopen"), Choice("Designate reference post", "reference"),
          Choice("Confirm unavailable thread is absent", "review-absent")] string operation,
         string threadId, string reason) => Staff(operation, threadId, reason);

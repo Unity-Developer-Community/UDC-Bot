@@ -96,6 +96,7 @@ public sealed class Listing
     public DateTimeOffset? Deadline { get; set; }
     public List<string> ValidCodes { get; set; } = new();
     public DateTimeOffset? LastCodeAttemptAt { get; set; }
+    public DateTimeOffset? AttemptPausedUntil { get; set; }
     public string? PublicMessageId { get; set; }
     public string? StaffMessageId { get; set; }
     public DateTimeOffset? PublicSendStartedAt { get; set; }
@@ -146,6 +147,8 @@ public sealed class AuthorHistory
     public DateTimeOffset UpdatedAt { get; set; }
     public int ConsecutiveTimeouts { get; set; }
     public bool TimeoutAlerted { get; set; }
+    public List<DateTimeOffset> RecentCreations { get; set; } = new();
+    public DateTimeOffset? AttemptPausedUntil { get; set; }
 }
 
 /// <summary>Durable mutation intent. CallStarted may represent a successful write whose response was lost.</summary>
@@ -165,9 +168,9 @@ public sealed class RecruitmentAction
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-public sealed record Eligibility(string? BlockingListingId, DateTimeOffset? NextAllowedAt)
+public sealed record Eligibility(string? BlockingListingId, DateTimeOffset? NextAllowedAt, DateTimeOffset? AttemptPausedUntil = null)
 {
-    public bool Allowed => BlockingListingId is null && NextAllowedAt is null;
+    public bool Allowed => BlockingListingId is null && NextAllowedAt is null && AttemptPausedUntil is null;
 }
 
 public static class RecruitmentPolicy
@@ -181,7 +184,7 @@ public static class RecruitmentPolicy
                 ulong.Parse(p.Id) < ulong.Parse(candidate.Id)))
             .OrderBy(p => p.CreatedAt).ThenBy(p => ulong.Parse(p.Id)).FirstOrDefault();
         var next = state.Authors.GetValueOrDefault(candidate.OwnerId)?.LastAcceptedCreation?.AddDays(cooldownDays);
-        return new Eligibility(blocker?.Id, next > now ? next : null);
+        return new Eligibility(blocker?.Id, next > now ? next : null, candidate.AttemptPausedUntil > now ? candidate.AttemptPausedUntil : null);
     }
 
     public static bool TryAccept(RecruitmentState state, Listing post, DateTimeOffset now, int cooldownDays)

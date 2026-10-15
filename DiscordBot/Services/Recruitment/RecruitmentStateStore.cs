@@ -125,7 +125,8 @@ public sealed class RecruitmentStateStore : IDisposable
                 (p.PendingAction is not null && !Enum.IsDefined(p.PendingAction.Kind)))
                 throw new InvalidDataException("Recruitment listing state is invalid.");
         foreach (var (id, a) in state.Authors)
-            if (!Id(id) || a is null || a.ConsecutiveTimeouts < 0 || a.UpdatedAt == default)
+            if (!Id(id) || a is null || a.ConsecutiveTimeouts < 0 || a.UpdatedAt == default ||
+                a.RecentCreations is null || a.RecentCreations.Count > 21 || a.RecentCreations.Any(d => d == default))
                 throw new InvalidDataException("Recruitment author history is invalid.");
     }
 

@@ -74,6 +74,13 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
         return (await channel.GetMessagesAsync(1, CacheMode.AllowDownload, Options(ct)).FlattenAsync()).FirstOrDefault()?.Id.ToString();
     }
 
+    public async Task<bool> IsMemberAsync(string guildId, string userId, CancellationToken ct)
+    {
+        if (guildId != _settings.GuildId.ToString() || !ulong.TryParse(userId, out var id)) return false;
+        try { return await _client.Rest.GetGuildUserAsync(_settings.GuildId, id, Options(ct)) is not null; }
+        catch (HttpException ex) when (ex.DiscordCode == DiscordErrorCode.UnknownMember) { return false; }
+    }
+
     public async Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct)
     {
         if (guildId != _settings.GuildId.ToString() || !ulong.TryParse(userId, out var id)) return false;

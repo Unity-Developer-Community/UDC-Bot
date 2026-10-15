@@ -83,7 +83,7 @@ internal sealed class RecruitmentRig : IDisposable
         return State.Listings[id];
     }
     public Task<string> Ack(string id = "100", string owner = "200", string? code = null) =>
-        Engine.AcknowledgeAsync("1", id, owner, code ?? State.Listings[id].ValidCodes.Last(), default);
+        Engine.AcknowledgeAsync("1", id, owner, code ?? State.Listings[id].ValidCodes.LastOrDefault() ?? State.RotationCode, default);
     public Task<string> Staff(string operation, string target = "100", string reason = "Test recovery", string actor = "900") =>
         Engine.StaffAsync("1", actor, operation, operation == "repair" && target == "100" ? "" : target, reason, default);
     public void Dispose() { Engine.Dispose(); if (Directory.Exists(Root)) Directory.Delete(Root, true); }
@@ -135,6 +135,8 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
     }
     public Task<bool> ValidateFeedAsync(CancellationToken ct) => FailFeed ? Task.FromException<bool>(new InvalidOperationException("Feed privacy invalid")) : Task.FromResult(FeedEmbeds);
     public Task<string?> LatestFeedMessageAsync(CancellationToken ct) => Task.FromResult(Messages.Where(m => m.Key.StartsWith("99:")).Select(m => m.Value.Id).OrderByDescending(ulong.Parse).FirstOrDefault());
+    public HashSet<string> MissingMembers { get; } = new();
+    public Task<bool> IsMemberAsync(string guildId, string userId, CancellationToken ct) => Task.FromResult(guildId == "1" && !MissingMembers.Contains(userId));
     public Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct) => Task.FromResult(guildId == "1" && userId == "900");
     public bool IsExpectedForumUpdate(ForumSnapshot snapshot) => Forums.GetValueOrDefault(snapshot.Id) == snapshot;
     public Task<ForumSnapshot> GetForumAsync(string id, CancellationToken ct) { ForumReads++; return Task.FromResult(Forums[id]); }

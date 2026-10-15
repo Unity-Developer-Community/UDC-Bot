@@ -25,7 +25,7 @@ public class RecruitmentSchedulingTests
     }
 
     [Fact]
-    public async Task DeadlineRunsWithoutInventoryOrSetupAndCooldownWakeupAcceptsWaitingListing()
+    public async Task ClosedCooldownConflictDoesNotReopenWhenCooldownExpires()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); var first = await rig.Post(); await rig.Ack(); await rig.Staff("close");
         rig.Clock.Now = first.CreatedAt.AddDays(rig.Settings.Recruitment.CooldownDays).AddMinutes(-2);
@@ -33,19 +33,19 @@ public class RecruitmentSchedulingTests
         Assert.Null(waiting.AcceptedAt);
         var forums = rig.Discord.ForumReads; var inventories = rig.Discord.Inventories;
         rig.Clock.Advance(TimeSpan.FromMinutes(2)); await rig.Engine.RunDueAsync(default);
-        Assert.NotNull(waiting.AcceptedAt);
+        Assert.Null(waiting.AcceptedAt); Assert.Equal(ListingStatus.Closed, waiting.Status);
         Assert.Equal(forums, rig.Discord.ForumReads); Assert.Equal(inventories, rig.Discord.Inventories);
     }
 
     [Fact]
-    public async Task ConfirmedBlockerDeletionWakesOtherAttemptBySameAuthor()
+    public async Task ConfirmedBlockerDeletionDoesNotReopenClosedDuplicate()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); await rig.Post(); await rig.Ack();
         await rig.Staff("waive-cooldown", "200"); var waiting = await rig.Post("101"); await rig.Ack("101");
         Assert.Null(waiting.AcceptedAt);
         rig.Discord.Threads.Remove("100");
         await rig.Engine.ThreadChangedAsync("100", default);
-        Assert.NotNull(waiting.AcceptedAt);
+        Assert.Null(waiting.AcceptedAt); Assert.Equal(ListingStatus.Closed, waiting.Status);
     }
 
     [Fact]
@@ -129,7 +129,8 @@ public class RecruitmentSchedulingTests
             Assert.DoesNotContain("is accepted", await acknowledgement);
             var accepted = await service.RunAsync((engine, _) => Task.FromResult(engine.State!.Listings["101"].AcceptedAt));
             Assert.Null(accepted);
-            Assert.Equal(2, service.Health.Open);
+            Assert.Equal(1, service.Health.Open);
+            Assert.Equal(ListingStatus.Closed, await service.RunAsync((engine, _) => Task.FromResult(engine.State!.Listings["101"].Status)));
             Assert.Equal(1, rig.Discord.Inventories);
         }
         finally { await service.StopAsync(default); }

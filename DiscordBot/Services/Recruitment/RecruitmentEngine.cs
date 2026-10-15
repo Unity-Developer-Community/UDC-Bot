@@ -193,7 +193,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             }
         };
         State.Listings[post.Id] = post;
-        RecruitmentPolicy.Author(State, post.OwnerId, Now);
+        RecordCreation(post);
         Save();
         return Task.CompletedTask;
     }
@@ -247,6 +247,16 @@ public sealed partial class RecruitmentEngine : IDisposable
         {
             if (post.StaffSendPending || post.PublicSendPending || post.PublicationPending) await PublishAsync(post, ct);
             return;
+        }
+        if (EvidenceCurrent && !post.AcceptedAt.HasValue && !post.Exempt && !post.Pinned)
+        {
+            await RefreshBlockersAsync(post, ct);
+            var eligibility = RecruitmentPolicy.Evaluate(State!, post, Now, _settings.CooldownDays);
+            if (!eligibility.Allowed)
+            {
+                await BeginActionAsync(post, RecruitmentActionKind.Close, "system", EligibilityReason(eligibility), "ineligible", true, ct);
+                return;
+            }
         }
         if (_recoverWindows.Remove(post.Id))
         {
@@ -412,7 +422,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         var token = Guid.NewGuid().ToString("N");
         _confirmations[token] = new RemovalConfirmation(guild, thread, owner, post.Version, Now.AddMinutes(2));
         var next = State!.Authors.GetValueOrDefault(owner)?.LastAcceptedCreation?.AddDays(_settings.CooldownDays);
-        var timing = !post.AcceptedAt.HasValue ? "Removing this unaccepted attempt adds no cooldown." : next.HasValue
+        var timing = !post.AcceptedAt.HasValue ? "Removing this unaccepted attempt adds no accepted-listing cooldown; its creation still counts toward the attempt limit." : next.HasValue
             ? "Its creation cooldown remains " + RecruitmentPresentation.Timestamp(next.Value) + "." : "The accepted creation cooldown has been waived.";
         return ($"Permanently remove this forum post? {timing} This confirmation expires in two minutes.", token);
     }
@@ -584,6 +594,11 @@ public sealed partial class RecruitmentEngine : IDisposable
         {
             case "exempt": post.Exempt = true; break;
             case "unexempt": post.Exempt = false; _recoverWindows.Add(post.Id); break;
+            case "reset-attempts":
+                var attemptHistory = RecruitmentPolicy.Author(State, post.OwnerId, Now);
+                attemptHistory.RecentCreations.Clear(); attemptHistory.AttemptPausedUntil = null;
+                foreach (var attempt in State.Listings.Values.Where(p => p.OwnerId == post.OwnerId)) attempt.AttemptPausedUntil = null;
+                break;
             case "reset-timeouts":
                 var timeoutHistory = RecruitmentPolicy.Author(State, post.OwnerId, Now);
                 timeoutHistory.ConsecutiveTimeouts = 0; timeoutHistory.TimeoutAlerted = false; break;

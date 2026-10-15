@@ -21,6 +21,7 @@ public static class RecruitmentPresentation
             if (eligibility.BlockingListingId is not null) instructions.Add($"Your other listing <#{eligibility.BlockingListingId}> occupies your listing slot.");
             if (eligibility.NextAllowedAt.HasValue) instructions.Add($"Creation cooldown ends {Timestamp(eligibility.NextAllowedAt.Value)}.");
         }
+        if (post.Status == ListingStatus.Closed && !post.AcceptedAt.HasValue) instructions.Add(Safe(post.LastOutcome, 400));
         if (post.AcceptedAt.HasValue)
         {
             var next = state.Authors.GetValueOrDefault(post.OwnerId)?.LastAcceptedCreation?.AddDays(settings.CooldownDays);

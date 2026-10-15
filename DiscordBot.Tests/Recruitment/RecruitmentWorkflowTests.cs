@@ -47,15 +47,16 @@ public class RecruitmentWorkflowTests
         rig.Discord.Replies.Add("100"); rig.Clock.Advance(TimeSpan.FromDays(40));
         rig.Discord.Threads["100"] = rig.Discord.Threads["100"] with { Archived = true };
         var second = await rig.Post("101", forum: "14"); await rig.Ack("101");
-        Assert.Null(second.AcceptedAt); Assert.NotNull(second.AcknowledgedAt);
+        Assert.Null(second.AcceptedAt); Assert.Null(second.AcknowledgedAt); Assert.Equal(ListingStatus.Closed, second.Status);
         Assert.Equal("100", RecruitmentPolicy.Evaluate(rig.State, second, rig.Clock.Now, 30).BlockingListingId);
     }
 
     [Fact]
-    public async Task EarlierPendingAttemptWinsAcrossForums_AndAcknowledgedLoserCloses()
+    public async Task EarlierPendingAttemptWinsAcrossForums_AndDuplicateClosesPromptly()
     {
         using var rig = new RecruitmentRig(); await rig.Start();
         await rig.Post(); var second = await rig.Post("101", forum: "12");
+        Assert.Equal(ListingStatus.Closed, second.Status); Assert.Null(second.PromptDeliveredAt);
         await rig.Ack("101"); Assert.Null(second.AcceptedAt);
         await rig.Ack(); Assert.NotNull(rig.State.Listings["100"].AcceptedAt);
         rig.Clock.Advance(TimeSpan.FromMinutes(31)); await rig.Sweep();
@@ -64,12 +65,12 @@ public class RecruitmentWorkflowTests
     }
 
     [Fact]
-    public async Task AcknowledgedAttemptAcceptsWhenPendingBlockerDisappears()
+    public async Task ClosedDuplicateDoesNotReopenWhenPendingBlockerDisappears()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); await rig.Post();
         var second = await rig.Post("101", forum: "13"); await rig.Ack("101");
         rig.Discord.Threads.Remove("100"); await rig.Sweep();
-        Assert.NotNull(second.AcceptedAt);
+        Assert.Null(second.AcceptedAt); Assert.Equal(ListingStatus.Closed, second.Status);
     }
 
     [Fact]
@@ -241,8 +242,8 @@ public class RecruitmentWorkflowTests
     public async Task ReopenKeepsListingOpenWithoutAnExpiry()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); await rig.Post(); await rig.Ack();
-        rig.Clock.Advance(TimeSpan.FromDays(31)); await rig.Sweep(); await rig.Staff("reopen"); await rig.Sweep();
-        Assert.Equal(ListingStatus.Open, rig.State.Listings["100"].Status);
+        await rig.Staff("close");
+        rig.Clock.Advance(TimeSpan.FromDays(31)); await rig.Staff("reopen"); await rig.Sweep();
         Assert.Equal(ListingStatus.Open, rig.State.Listings["100"].Status);
     }
 }

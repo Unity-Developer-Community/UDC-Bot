@@ -108,6 +108,9 @@ public class RecruitmentSettings
     public RecruitmentForums Forums { get; set; } = new();
     public int AcknowledgementMinutes { get; set; } = 30;
     public int CooldownDays { get; set; } = 30;
+    public int AttemptLimit { get; set; } = 2;
+    public int AttemptWindowMinutes { get; set; } = 60;
+    public int AttemptPauseMinutes { get; set; } = 60;
     public int UnansweredDays { get; set; } = 30; // Legacy configuration; listings no longer expire.
     public int PostRetentionMonths { get; set; } = 12;
     public int AuthorRetentionMonths { get; set; } = 24;
@@ -122,6 +125,8 @@ public class RecruitmentSettings
             errors.Add("FeedChannelId must identify a separate staff text channel");
         if (AcknowledgementMinutes is < 1 or > 1440 || CooldownDays is < 1 or > 365)
             errors.Add("durations must be positive (acknowledgement at most 1440 minutes; cooldown at most 365 days)");
+        if (AttemptLimit is < 1 or > 20 || AttemptWindowMinutes is < 1 or > 1440 || AttemptPauseMinutes is < 1 or > 1440)
+            errors.Add("attempt limit must be 1–20; attempt window and pause must be 1–1440 minutes");
         if (PostRetentionMonths is < 1 or > 120 || AuthorRetentionMonths < PostRetentionMonths || AuthorRetentionMonths > 120)
             errors.Add("retention must be 1–120 months, with author retention at least post retention");
         return errors;

@@ -8,6 +8,6 @@ Read the pinned rules and use accurate tags. Verify claims; agree scope, deadlin
 
 Enter **{{code}}** via **Acknowledge** within **{{acknowledgementMinutes}} minutes** of the bot prompt. Unacknowledged posts are removed; posts blocked by an existing listing or cooldown are closed.
 
-Only accepted listings start a **{{cooldownDays}}-day cooldown** from creation. Closing/deleting won't reset it; unaccepted attempts add none.
+Only accepted listings start a **{{cooldownDays}}-day cooldown** from creation. Closing/deleting won't reset it. Repeated attempts trigger a temporary pause; check **/recruitment eligibility**.
 
 Keep this listing updated or bump it when still looking; its history stays visible. Mark finished listings **Closed** to lock/archive. Auto-archive does not free your slot.
