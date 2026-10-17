@@ -23,7 +23,8 @@ public static partial class RecruitmentContent
         try
         {
             var sentences = Sentences().Split(text);
-            var rate = sentences.FirstOrDefault(s => Concrete().IsMatch(s) &&
+            // A monetary literal containing only zeroes does not promise monetary pay.
+            var rate = sentences.FirstOrDefault(s => Concrete().Matches(s).Any(amount => amount.Value.Any(c => c is >= '1' and <= '9')) &&
                 (PaymentLabel().IsMatch(s) || RateUnit().IsMatch(s)) && !OtherPrice().IsMatch(s) && !ApplicantFee().IsMatch(s) && !NegatedMoney().IsMatch(s));
             var unpaid = sentences.FirstOrDefault(s => Unpaid().IsMatch(s) && !NegatedUnpaid().IsMatch(s) && !(ApplicantFee().IsMatch(s) && NoFee().IsMatch(s)));
             var share = sentences.FirstOrDefault(s => RevenueShare().IsMatch(s) && !NegatedShare().IsMatch(s));
