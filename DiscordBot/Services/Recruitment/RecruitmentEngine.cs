@@ -233,7 +233,11 @@ public sealed partial class RecruitmentEngine : IDisposable
         post.Title = RecruitmentPresentation.Safe(live.Title);
         RefreshFacts(post, live);
         post.Facts.TagAdvice = _assets!.TagAdvice(Purpose(post.ForumId), live.Tags, State!.Forums[Purpose(post.ForumId)]);
-        if (!post.PublicSendPending) post.PublicRestoreArchive = live.Archived && post.AcceptedAt.HasValue;
+        if (!post.PublicSendPending)
+        {
+            post.PublicRestoreArchive = live.Archived && post.AcceptedAt.HasValue;
+            post.PublicRestoreLocked = post.PublicRestoreArchive && live.Locked;
+        }
         post.Hold = null;
         if (live.Starter is null && !post.PromptDeliveredAt.HasValue && !post.AcceptedAt.HasValue)
         {
@@ -356,18 +360,20 @@ public sealed partial class RecruitmentEngine : IDisposable
         await PublishStaffAsync(post, ct);
         if (post.Status is ListingStatus.Deleted or ListingStatus.Reference)
         { post.PublicationPending = false; post.PublicSendPending = false; Save(); return; }
-        var message = RecruitmentPresentation.Public(State!, post, _settings, Now);
+        var message = RecruitmentPresentation.PublicV2(State!, post, _settings, Now);
         var renderKey = message.RenderKey + "\nPortfolio registry " + State!.PortfolioSites.Version;
         if (!post.PublicSendPending && !post.PublicationPending && post.PublicMessageId is not null && _publicRenders.GetValueOrDefault(post.Id) == renderKey) return;
         var recovering = post.PublicSendPending;
         var delivery = await _discord.UpsertAsync(post.Id, post.PublicMessageId, recovering, post.PublicSendStartedAt ?? post.CreatedAt,
             message with
-            { RestoreArchive = post.PublicRestoreArchive || post.Status == ListingStatus.Closed }, () =>
+            { RestoreArchive = post.PublicRestoreArchive || post.Status == ListingStatus.Closed, RestoreLocked = post.PublicRestoreLocked || post.Status == ListingStatus.Closed }, () =>
             {
                 if (!recovering) post.PublicSendStartedAt = Now;
                 post.PublicSendPending = true; Save();
             }, ct);
-        var changed = post.PublicMessageId != delivery.Id || post.PublicSendPending || post.PublicationPending;
+        var changed = post.PublicMessageId != delivery.Id || post.PublicSendPending || post.PublicationPending ||
+            post.PublicMediaAttachmentId != delivery.MediaAttachmentId || post.PublicMediaFileName != delivery.MediaFileName;
+        post.PublicMediaAttachmentId = delivery.MediaAttachmentId; post.PublicMediaFileName = delivery.MediaFileName;
         post.PublicMessageId = delivery.Id; post.PublicSendPending = false; post.PublicationPending = false;
         _publicRenders[post.Id] = renderKey;
         if (delivery.NewlySent && post.Deadline.HasValue && !post.AcceptedAt.HasValue)
@@ -485,11 +491,11 @@ public sealed partial class RecruitmentEngine : IDisposable
             {
                 // Resolve a possibly delivered provisional advisory before removing it.
                 var recovered = await _discord.UpsertAsync(post.Id, null, true, post.PublicSendStartedAt ?? post.CreatedAt,
-                    RecruitmentPresentation.Public(State!, post, _settings, Now), Save, ct);
+                    RecruitmentPresentation.PublicV2(State!, post, _settings, Now), Save, ct);
                 post.PublicMessageId = recovered.Id; post.PublicSendPending = false; Save();
             }
-            if (post.PublicMessageId is not null) await _discord.DeleteAdvisoryAsync(post.Id, post.PublicMessageId, ct);
-            post.PublicMessageId = null; post.PendingAction = null; Save(); return;
+            if (post.PublicMessageId is not null) await _discord.DeleteAdvisoryAsync(post.Id, post.PublicMessageId, ct, $"recruitment:{post.Id}:public");
+            post.PublicMessageId = null; post.PublicMediaAttachmentId = null; post.PublicMediaFileName = null; post.PendingAction = null; Save(); return;
         }
         if (action.CallStarted && action.Kind == RecruitmentActionKind.Close && live.Archived && live.Locked)
         {

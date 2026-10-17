@@ -45,6 +45,28 @@ public class RecruitmentStorageAndSetupTests
         Assert.NotNull(rig.State.Listings["100"].AcceptedAt);
     }
 
+    [Fact]
+    public async Task CurrentStateRoundTripsV2DeliveryAndArchiveIntentWithHistory()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post(); await rig.Ack();
+        rig.Engine.Dispose();
+        var forums = rig.Settings.Recruitment.Forums.Mapping().ToDictionary(x => x.Key, x => x.Value.ToString());
+        var fileName = "recruitment-observations-" + new string('a', 64) + ".png";
+        using (var writer = new RecruitmentStateStore(rig.Root, "1", forums, rig.Clock.Now))
+        {
+            var pending = writer.State.Listings["100"];
+            pending.PublicMediaAttachmentId = "901"; pending.PublicMediaFileName = fileName;
+            pending.PublicRestoreArchive = true; pending.PublicRestoreLocked = true; pending.PublicSendPending = true;
+            pending.PublicSendStartedAt = rig.Clock.Now; writer.Save();
+        }
+        using var store = new RecruitmentStateStore(rig.Root, "1", forums, rig.Clock.Now);
+        Assert.Equal("901", store.State.Listings["100"].PublicMediaAttachmentId);
+        Assert.Equal(fileName, store.State.Listings["100"].PublicMediaFileName);
+        Assert.True(store.State.Listings["100"].PublicRestoreLocked); Assert.True(store.State.Listings["100"].PublicSendPending);
+        Assert.Equal(post.AcceptedAt, store.State.Listings["100"].AcceptedAt);
+        Assert.Equal(post.CreatedAt, store.State.Authors["200"].LastAcceptedCreation);
+    }
+
     [Theory]
     [InlineData("corrupt")]
     [InlineData("missing")]

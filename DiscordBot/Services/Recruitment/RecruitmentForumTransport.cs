@@ -51,7 +51,8 @@ internal sealed class RecruitmentForumTransport(IRestClient inner) : IRestClient
         var response = await RecruitmentRequests.SendAsync(method, endpoint, cancelToken,
             () => inner.SendAsync(method, endpoint, cancelToken, headerOnly, reason, requestHeaders));
         var scope = Inventory.Value;
-        if (scope is null || method != "GET" || endpoint != $"guilds/{scope.GuildId}/threads/active" || response.StatusCode != HttpStatusCode.OK) return response;
+        if (scope is null || method != "GET" || endpoint != $"guilds/{scope.GuildId}/threads/active" || response.StatusCode != HttpStatusCode.OK)
+            return await RecruitmentMessageTransport.ObserveResponseAsync(endpoint, response, cancelToken);
         using var stream = response.Stream;
         using var reader = new StreamReader(stream);
         var body = await reader.ReadToEndAsync(cancelToken);
@@ -69,14 +70,22 @@ internal sealed class RecruitmentForumTransport(IRestClient inner) : IRestClient
         return new RestResponse(response.StatusCode, response.Headers, new MemoryStream(Encoding.UTF8.GetBytes(body)));
     }
 
-    public Task<RestResponse> SendAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipart,
+    public async Task<RestResponse> SendAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipart,
         CancellationToken cancelToken, bool headerOnly, string reason,
-        IEnumerable<KeyValuePair<string, IEnumerable<string>>> requestHeaders) =>
-        RecruitmentRequests.SendAsync(method, endpoint, cancelToken, () => inner.SendAsync(method, endpoint, multipart, cancelToken, headerOnly, reason, requestHeaders));
+        IEnumerable<KeyValuePair<string, IEnumerable<string>>> requestHeaders)
+    {
+        var corrected = new Dictionary<string, object>(multipart);
+        if (corrected.TryGetValue("payload_json", out var payload) && payload is string json)
+            corrected["payload_json"] = RecruitmentMessageTransport.Apply(method, endpoint, json, multipart: true);
+        var response = await RecruitmentRequests.SendAsync(method, endpoint, cancelToken,
+            () => inner.SendAsync(method, endpoint, corrected, cancelToken, headerOnly, reason, requestHeaders));
+        return await RecruitmentMessageTransport.ObserveResponseAsync(endpoint, response, cancelToken);
+    }
 
-    public Task<RestResponse> SendAsync(string method, string endpoint, string json, CancellationToken cancelToken,
+    public async Task<RestResponse> SendAsync(string method, string endpoint, string json, CancellationToken cancelToken,
         bool headerOnly, string reason, IEnumerable<KeyValuePair<string, IEnumerable<string>>> requestHeaders)
     {
+        json = RecruitmentMessageTransport.Apply(method, endpoint, json);
         if (reason == TagWriteReason)
         {
             // 3.20.1 ForumHelper drops IsModerated. Fail closed if a future SDK stops carrying
@@ -96,6 +105,7 @@ internal sealed class RecruitmentForumTransport(IRestClient inner) : IRestClient
             }
             json = body.ToString(Formatting.None);
         }
-        return RecruitmentRequests.SendAsync(method, endpoint, cancelToken, () => inner.SendAsync(method, endpoint, json, cancelToken, headerOnly, reason, requestHeaders));
+        var response = await RecruitmentRequests.SendAsync(method, endpoint, cancelToken, () => inner.SendAsync(method, endpoint, json, cancelToken, headerOnly, reason, requestHeaders));
+        return await RecruitmentMessageTransport.ObserveResponseAsync(endpoint, response, cancelToken);
     }
 }

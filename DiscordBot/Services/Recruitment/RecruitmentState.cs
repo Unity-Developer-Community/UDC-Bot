@@ -105,6 +105,9 @@ public sealed class Listing
     public DateTimeOffset? StaffSendStartedAt { get; set; }
     public bool PublicationPending { get; set; }
     public bool PublicRestoreArchive { get; set; }
+    public bool PublicRestoreLocked { get; set; }
+    public string? PublicMediaAttachmentId { get; set; }
+    public string? PublicMediaFileName { get; set; }
     public int TimeoutAlertCount { get; set; }
     public bool PublicSendPending { get; set; }
     public bool StaffSendPending { get; set; }

@@ -9,36 +9,9 @@ public static class RecruitmentPresentation
     public static string Safe(string value, int max = 180) => new string(value.Take(max)
         .Select(c => char.IsControl(c) || "`*_~|<>@[]\\".Contains(c) ? ' ' : c).ToArray());
 
-    public static RecruitmentMessage Public(RecruitmentState state, Listing post, RecruitmentSettings settings, DateTimeOffset now)
-    {
-        var lines = new List<string>();
-        lines.Add(string.Join("\n", post.Facts.Checks.Select(c => $"**{c.Label}:** {Safe(c.Value, 60)} ({c.Applicability switch { ObservationApplicability.Unavailable => "unavailable", ObservationApplicability.NotApplicable => "not applicable", _ => c.Severity.ToString().ToLowerInvariant() }})")));
-        var notes = post.Facts.Observations.Select(o => $"• {o.Description}: “{Safe(o.Evidence, 70)}”.").ToList();
-        if (notes.Count > 0) lines.Add("\n**Things to check**\n" + string.Join("\n", notes));
-        lines.Add("\nClarify scope, work samples and payment terms here before moving to DMs.");
-        var identity = post.Facts.ServerNickname ?? post.Facts.GlobalName ?? post.Facts.Username ?? "Unavailable";
-        lines.Add($"Author: {Safe(identity, 100)} · {Safe(post.Facts.Username ?? "username unavailable", 100)} · {post.OwnerId}");
-        var needsAck = post.Status == ListingStatus.Open && !post.AcceptedAt.HasValue && !post.AcknowledgedAt.HasValue;
-        if (needsAck)
-            lines.Add("\n**Author:** Read this forum's Guidelines and enter its code with **Acknowledge**." +
-                (post.Deadline is { } deadline ? $" Due {Timestamp(deadline)}." : " Your window starts when these controls are available."));
-        if (post.Status == ListingStatus.Closed && !post.AcceptedAt.HasValue) lines.Add("\n**Closed:** " + Safe(post.LastOutcome, 220));
-        if (post.Hold is not null || post.AvailabilityUnknown) lines.Add("\nBot processing is paused; listing details may be incomplete.");
-        var embed = new EmbedBuilder().WithTitle(post.Status == ListingStatus.Closed ? "Recruitment · closed" : "Recruitment · reader notes")
-            .WithDescription(string.Join("\n", lines)).WithColor(new Color(0x747F8D))
-            .WithFooter("Automated observations; identity and work are unverified.")
-            .WithThumbnailUrl(post.Facts.AvatarUrl).Build();
-        var marker = $"recruitment:{post.Id}:public";
-        var fallback = $"**{embed.Title}**\n{embed.Description}\n{embed.Footer?.Text}\n||{marker}||";
-        return new RecruitmentMessage($"||{marker}||", marker, true, Embed: embed, TextFallback: fallback,
-            AcknowledgementRequired: needsAck, ReaderControls: true);
-    }
-
     public const string Heading = "Recruitment · Automated Observations";
     public const string Guidance = "Automated observations; neither endorsement nor judgment. Verify claims. Keep first contact and key terms here; use DMs only for private information.";
 
-    // Final public model. T05 switches Engine.PublishAsync/ExecuteActionAsync to this method
-    // and deletes the interim embed Public method above.
     public static RecruitmentMessage PublicV2(RecruitmentState state, Listing post, RecruitmentSettings settings,
         DateTimeOffset now, Func<IReadOnlyList<RecruitmentObservation>, byte[]>? render = null)
     {
@@ -59,15 +32,16 @@ public static class RecruitmentPresentation
         var marker = $"recruitment:{post.Id}:public";
         var visible = $"## {Heading}\n*{Guidance}*\n";
         var foot = string.Join("\n", operations.Append(warnings).Where(v => v.Length > 0));
+        string? fileName = null;
         MessageComponent Build(bool image)
         {
             var children = new List<IMessageComponentBuilder> { new TextDisplayBuilder($"## {Heading}") };
-            if (image) children.Add(new MediaGalleryBuilder().AddItem("attachment://recruitment-observations.png", RecruitmentBanner.GalleryAlt(checks)));
+            if (image) children.Add(new MediaGalleryBuilder().AddItem("attachment://" + fileName, RecruitmentBanner.GalleryAlt(checks)));
             else children.Add(new TextDisplayBuilder(string.Join("\n", checks.Select(c => $"**{c.Label}:** {Safe(c.Value, 60)} ({RecruitmentBanner.Status(c)})"))));
             children.Add(new TextDisplayBuilder($"*{Guidance}*"));
             if (foot.Length > 0) children.Add(new TextDisplayBuilder(foot));
-            if (avatar is not null) children.Add(new SectionBuilder(new ThumbnailBuilder(new UnfurledMediaItemProperties(avatar), "Author avatar"), new[] { new TextDisplayBuilder(identity) }));
-            else children.Add(new TextDisplayBuilder(identity + "\nAvatar unavailable."));
+            if (image && avatar is not null) children.Add(new SectionBuilder(new ThumbnailBuilder(new UnfurledMediaItemProperties(avatar), "Author avatar"), new[] { new TextDisplayBuilder(identity) }));
+            else children.Add(new TextDisplayBuilder(identity + (avatar is null ? "\nAvatar unavailable." : "\nAvatar image omitted; see Profile Image observation.")));
             var row = new ActionRowBuilder().WithButton("Legend", $"recruit:details:{post.Id}", ButtonStyle.Secondary)
                 .WithButton("Report concern", $"recruit:report:{post.Id}", ButtonStyle.Secondary)
                 .WithButton("Your listing", $"recruit:owner:{post.Id}", ButtonStyle.Secondary);
@@ -77,12 +51,17 @@ public static class RecruitmentPresentation
             return new ComponentBuilderV2(new[] { new ContainerBuilder(children) }).Build();
         }
         RecruitmentMedia? media = null;
-        try { media = new("recruitment-observations.png", (render ?? (c => RecruitmentBanner.Render(c)))(checks), alt); }
+        try
+        {
+            var bytes = (render ?? (c => RecruitmentBanner.Render(c)))(checks);
+            fileName = "recruitment-observations-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant() + ".png";
+            media = new(fileName, bytes, alt);
+        }
         catch (Exception ex) when (ex is ImageMagick.MagickException or IOException or ArgumentException or InvalidOperationException) { /* Text remains complete and operable. */ }
         // Deliberately excludes CDN signatures and SDK-generated component IDs.
         var avatarKey = avatar is null ? "" : new Uri(avatar).GetLeftPart(UriPartial.Path);
         var key = RecruitmentBanner.Identity(RecruitmentBanner.Version + "\n" + state.PortfolioSites.Version + "\n" +
-            alt + "\n" + visible + foot + identity + avatarKey + "\n" + needsAck + "\n" + marker + "\n" + (media is not null));
+            alt + "\n" + visible + foot + identity + avatarKey + "\n" + needsAck + "\n" + marker + "\n" + fileName);
         var fallback = Build(false);
         return new RecruitmentMessage("", marker, true, AcknowledgementRequired: needsAck, ReaderControls: true,
             Format: RecruitmentMessageFormat.ComponentsV2, RenderIdentity: key, Components: media is null ? fallback : Build(true),

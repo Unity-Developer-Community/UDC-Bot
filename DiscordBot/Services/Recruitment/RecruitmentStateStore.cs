@@ -125,6 +125,10 @@ public sealed class RecruitmentStateStore : IDisposable
                 throw new InvalidDataException("Recruitment forum receipt is invalid.");
         foreach (var (id, p) in state.Listings)
             if (p is null || id != p.Id || !Id(id) || !Id(p.OwnerId) || !forums.Values.Contains(p.ForumId) ||
+                p.PublicMediaAttachmentId is not null && !Id(p.PublicMediaAttachmentId) ||
+                (p.PublicMediaAttachmentId is null) != (p.PublicMediaFileName is null) ||
+                p.PublicMediaFileName is { } fileName && (fileName.Length > 120 || !fileName.StartsWith("recruitment-observations-", StringComparison.Ordinal) || !fileName.EndsWith(".png", StringComparison.Ordinal)) ||
+                p.PublicRestoreLocked && !p.PublicRestoreArchive ||
                 p.PortfolioRegistryVersion < 0 || p.PortfolioRegistryVersion > registry.Version ||
                 p.CreatedAt == default || p.CreatedAt.Offset != TimeSpan.Zero || p.UpdatedAt == default ||
                 !Enum.IsDefined(p.Status) || p.ValidCodes is null || p.Facts is null || p.Audit is null ||

@@ -74,6 +74,18 @@ public class RecruitmentRecoveryTests
     }
 
     [Fact]
+    public async Task CosmeticNameRefreshPreservesPendingWindowMessageAndCapacity()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post();
+        var deadline = post.Deadline; var prompt = post.PromptDeliveredAt; var messageId = post.PublicMessageId;
+        rig.Clock.Advance(TimeSpan.FromMinutes(5));
+        rig.Discord.Threads[post.Id] = rig.Discord.Threads[post.Id] with { ServerNickname = "New display name" };
+        await rig.Engine.FactsChangedAsync(post.Id, default);
+        Assert.Equal(deadline, post.Deadline); Assert.Equal(prompt, post.PromptDeliveredAt); Assert.Equal(messageId, post.PublicMessageId);
+        Assert.Single(rig.State.Listings); Assert.Null(post.AcceptedAt); Assert.Equal(ListingStatus.Open, post.Status);
+    }
+
+    [Fact]
     public async Task FourthTimeoutDoesNotSendAnotherThresholdAlert()
     {
         using var rig = new RecruitmentRig(); await rig.Start();

@@ -51,6 +51,18 @@ public class RecruitmentBannerTests
     }
 
     [Fact]
+    public async Task MediaDigestChangesWithBytesAndNamesDoNotChangeImageIdentity()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post();
+        var first = RecruitmentPresentation.PublicV2(rig.State, post, rig.Settings.Recruitment, rig.Clock.Now, _ => new byte[] { 1 });
+        var changed = RecruitmentPresentation.PublicV2(rig.State, post, rig.Settings.Recruitment, rig.Clock.Now, _ => new byte[] { 2 });
+        Assert.NotEqual(first.Media!.FileName, changed.Media!.FileName); Assert.NotEqual(first.RenderKey, changed.RenderKey);
+        post.Facts.ServerNickname = "New name";
+        var renamed = RecruitmentPresentation.PublicV2(rig.State, post, rig.Settings.Recruitment, rig.Clock.Now, _ => new byte[] { 1 });
+        Assert.Equal(first.Media.FileName, renamed.Media!.FileName); Assert.NotEqual(first.RenderKey, renamed.RenderKey);
+    }
+
+    [Fact]
     public async Task RenderIsBoundedDeterministicAndReadableWithoutColor()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post(forum: "12");

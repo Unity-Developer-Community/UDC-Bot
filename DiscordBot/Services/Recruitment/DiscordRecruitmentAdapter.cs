@@ -265,12 +265,20 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
     {
         var channel = await MessageChannelAsync(channelId, ct);
         var botUserId = BotUserId;
+        if (message.Format == RecruitmentMessageFormat.ComponentsV2)
+        {
+            var permissions = channel is RestThreadChannel listingThread
+                ? _client.GetGuild(_settings.GuildId)?.CurrentUser?.GetPermissions(_client.GetGuild(_settings.GuildId)?.GetChannel(listingThread.ParentChannelId))
+                : null;
+            return await UpsertV2Async(channel, botUserId, messageId, recovering, since, message,
+                channel is not IThreadChannel || permissions is { AttachFiles: true, EmbedLinks: true }, beforeWrite, ct);
+        }
         if (message.Embed is not null && message.TextFallback is not null && channel is RestThreadChannel listing &&
             !Guild.CurrentUser.GetPermissions(Guild.GetChannel(listing.ParentChannelId)).EmbedLinks)
             message = message with { Content = message.TextFallback, Embed = null };
         IUserMessage? existing = null;
         if (messageId is not null) existing = await channel.GetMessageAsync(ulong.Parse(messageId), CacheMode.AllowDownload, Options(ct)) as IUserMessage;
-        if (existing is not null && (existing.Author.Id != botUserId || !existing.Content.Contains(message.Marker)))
+        if (existing is not null && (!OwnsMessage(existing, botUserId, channel.Id, message.Marker, message.Format)))
             throw new InvalidOperationException("Stored recruitment message identity does not match.");
         if (existing is null && recovering)
         {
@@ -280,7 +288,7 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
             {
                 var messages = (before.HasValue ? await channel.GetMessagesAsync(before.Value, Direction.Before, 100, CacheMode.AllowDownload, Options(ct)).FlattenAsync()
                     : await channel.GetMessagesAsync(100, CacheMode.AllowDownload, Options(ct)).FlattenAsync()).ToArray();
-                existing = messages.OfType<IUserMessage>().FirstOrDefault(m => m.Author.Id == botUserId && m.Content.Contains(message.Marker));
+                existing = messages.OfType<IUserMessage>().FirstOrDefault(m => OwnsMessage(m, botUserId, channel.Id, message.Marker, message.Format));
                 if (existing is not null) break;
                 if (messages.Length < 100 || messages.Min(m => m.Timestamp) <= since.AddMinutes(-5)) { covered = true; break; }
                 before = messages.Min(m => m.Id);
@@ -379,7 +387,7 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
     public async Task DeleteAdvisoryAsync(string threadId, string messageId, CancellationToken ct, string? marker = null)
     {
         var channel = await MessageChannelAsync(threadId, ct);
-        if (await channel.GetMessageAsync(ulong.Parse(messageId), CacheMode.AllowDownload, Options(ct)) is IUserMessage message && message.Author.Id == BotUserId && (marker is null || message.Content.Contains(marker)))
+        if (await channel.GetMessageAsync(ulong.Parse(messageId), CacheMode.AllowDownload, Options(ct)) is IUserMessage message && marker is not null && OwnsMessage(message, BotUserId, channel.Id, marker, marker.EndsWith(":public", StringComparison.Ordinal) ? RecruitmentMessageFormat.ComponentsV2 : RecruitmentMessageFormat.Standard))
             await message.DeleteAsync(Options(ct));
     }
 }
