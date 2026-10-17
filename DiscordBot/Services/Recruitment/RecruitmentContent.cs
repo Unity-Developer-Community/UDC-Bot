@@ -5,7 +5,7 @@ namespace DiscordBot.Services.Recruitment;
 public sealed record ContentObservation(string Code, string Description, string Evidence);
 public enum CompensationKind { Unavailable, Missing, MonetaryPromise, Rate, Mixed, Unpaid, RevenueShare }
 public sealed record PaymentObservation(string Summary, string Evidence, CompensationKind Kind = CompensationKind.Missing);
-public sealed record PortfolioCandidate(string Url, string Host, bool Specific, bool Supported, bool WorkContext, bool Negated);
+public sealed record PortfolioCandidate(string Url, string Host, bool Specific, bool Supported, bool WorkContext, bool Negated, string? ReuseUrl = null);
 public sealed record PortfolioEvidence(bool Available, bool MediaSample, IReadOnlyList<PortfolioCandidate> Candidates);
 public sealed record StarterAttachment(string Id, string Name, string? ContentType);
 
@@ -58,14 +58,12 @@ public static partial class RecruitmentContent
         {
             foreach (Match match in Links().Matches(text))
             {
-                if (!TryLink(match.Value, out var uri) || Domain(uri!.IdnHost, "discord.com") || Domain(uri.IdnHost, "discord.gg") || Domain(uri.IdnHost, "discordapp.com")) continue;
+                if (!TryLink(match.Value, out var uri) || RecruitmentPortfolioUrls.Read(uri!) is not { } identity) continue;
                 var start = text.LastIndexOf('\n', Math.Max(0, match.Index - 1)) + 1;
                 var end = text.IndexOf('\n', match.Index); if (end < 0) end = text.Length;
                 var line = text[start..end];
-                var contact = Regex.IsMatch(uri.AbsolutePath, @"^/(?:contact|login|signin|invite|join)/?$", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(100));
-                candidates.Add(new(uri.AbsoluteUri[..Math.Min(uri.AbsoluteUri.Length, 300)], uri.IdnHost,
-                    uri.AbsolutePath.Trim('/').Length > 0 && !contact,
-                    (supportedHosts ?? SeedPortfolioHosts).Any(d => Domain(uri.IdnHost, d)), WorkLabel().IsMatch(line), NoWork().IsMatch(line)));
+                candidates.Add(new(identity.DisplayUrl, identity.Host, identity.Specific,
+                    (supportedHosts ?? SeedPortfolioHosts).Any(d => Domain(identity.Host, d)), WorkLabel().IsMatch(line), NoWork().IsMatch(line), identity.ReuseUrl));
                 if (candidates.Count == 8) break;
             }
             return new(true, media, candidates);
@@ -142,18 +140,9 @@ public static partial class RecruitmentContent
         catch (RegexMatchTimeoutException) { return ""; }
     }
 
-    public static List<string> ContactLinks(string? content)
-    {
-        if (content is null) return new();
-        try
-        {
-            return Links().Matches(Bounded(content)).Select(m => TryLink(m.Value, out var uri) ? uri : null)
-                .Where(u => u is not null && u.AbsolutePath.Length > 1)
-                .Select(u => u!.GetLeftPart(UriPartial.Path).TrimEnd('/'))
-                .Where(u => u.Length <= 300).Distinct(StringComparer.OrdinalIgnoreCase).Take(8).ToList();
-        }
-        catch (RegexMatchTimeoutException) { return new(); }
-    }
+    public static List<string> ContactLinks(string? content) => ReadPortfolio(content).Candidates
+        .Where(c => c.Specific && !c.Negated && c.ReuseUrl is not null).Select(c => c.ReuseUrl!)
+        .Distinct(StringComparer.Ordinal).Take(8).ToList();
     private static bool TryLink(string value, out Uri? uri) => Uri.TryCreate(value.TrimEnd('.', ',', ';', '!', '?'), UriKind.Absolute, out uri) &&
         uri.Scheme is "https" or "http" && uri.HostNameType == UriHostNameType.Dns;
     private static bool Domain(string host, string domain) => host.Equals(domain, StringComparison.OrdinalIgnoreCase) || host.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase);

@@ -1,6 +1,6 @@
 # Recruitment management
 
-Recruitment is disabled in the example, development and production settings. It uses four **new** forums, one staff text feed, and the existing configured moderator role. Settings and asset changes take effect after a restart. There is no migration from the old single-forum babysitter or `feat/babysitter` state.
+Recruitment is disabled in the example, development and production settings. It uses four **new** forums, one staff text feed, and the existing configured moderator role. Settings and asset changes take effect after a restart. The administrator portfolio-site registry changes immediately without rewriting settings. There is no migration from the old single-forum babysitter or `feat/babysitter` state.
 
 ## Member behavior
 
@@ -94,6 +94,31 @@ The staff feed keeps one concise entry per attempt, with full details in lookup.
 `resolve-reports` records a moderator's reason and resolves the listing's open reports. `review-changes` acknowledges outstanding changes to payment terms, links or attachments. Neither action endorses the author. First-observed/latest starter copies and up to three previous material versions are retained, each capped at 2,000 characters with truncation recorded. Up to eight specific URL paths and ten attachment metadata records are kept per version. “Original” means first observed, not guaranteed creation-time content. An unavailable starter does not erase earlier evidence. Per-listing notice receipts are bounded to eight and coalesce during prolonged delivery failures.
 
 Reports and versions follow listing retention; active listings retain their bounded evidence. Access to the persistent volume/backups should remain restricted to operators. The bot adds no external classifier, link crawler, private-conversation scraper or public reputation database.
+
+## Administrator portfolio sites
+
+`/recruitment portfolio-sites operation [domain] [reason]` lists, adds or removes recognized portfolio hostnames. All replies are ephemeral. This command requires a current administrator in the configured guild; the moderator role alone does not grant access. Both command preconditions and the serialized engine enforce authorization. Add/remove require a nonempty audit reason. Recognition is an observation, never endorsement or proof of authorship.
+
+The effective registry starts with `github.com`, `gitlab.com`, `artstation.com`, `behance.net`, `dribbble.com`, `itch.io`, `vimeo.com`, `youtube.com`, `youtu.be` and `deviantart.com`. It persists independently of settings, including an intentionally empty set, with at most 100 domains and the last 100 changes (actor, UTC time, operation, hostname and reason). Duplicate adds/removes are idempotent. Restarting does not restore removed defaults. Changes make retained open listings due for normal bounded reclassification (at most 20 per scheduled batch), with persisted per-listing registry versions for restart recovery. They do not create starter versions, material-edit notices, slot exemptions or enforcement decisions.
+
+Enter a DNS hostname, such as `portfolio.example.org`, without a scheme, path, port, credentials or wildcard. Names are trimmed, lowercased and normalized to ASCII IDN form. Matching includes explicit subdomains at a dot boundary; `github.com.evil.org` and `evilgithub.com` do not match `github.com`. IP addresses, local/unlisted TLD names and bare ICANN public suffixes (including multi-label and wildcard rules) are rejected. Provider-private suffixes do not invalidate recognized creator platforms.
+
+Initial URL rules are deliberately conservative and offline:
+
+| URL form | Portfolio observation |
+| --- | --- |
+| Root of a supported platform | Ambiguous external link (yellow), not a work/profile link |
+| Non-navigation profile/project path on GitHub, GitLab, ArtStation, Behance, Dribbble, itch.io, Vimeo or DeviantArt | Specific platform link (green), unless the work claim is negated |
+| Creator subdomain root on itch.io, ArtStation or DeviantArt (excluding `www`) | Specific platform link |
+| YouTube `/watch?v=<11-character ID>`, youtu.be video, `/shorts/<ID>` or `/embed/<ID>` | Specific video; video ID is preserved with case |
+| YouTube `/@creator`, `/channel/<id>`, `/c/<name>` or `/user/<name>` | Specific creator link |
+| Shared navigation such as `/explore`, `/search`, `/issues`, `/settings` or `/feed` | Ambiguous external link |
+| Personal/unrecognized site, including its root; attached media without a supported link | Yellow clarification |
+| Invite/contact-only links and negated work claims | Do not establish a portfolio; invites/contact-only links are excluded |
+
+New registry domains use the same conservative path/navigation rules. This is not link crawling. The ICANN validator embeds `DiscordBot/Assets/recruitment/public-suffix-icann.dat`, copied from [the official Public Suffix List](https://publicsuffix.org/list/public_suffix_list.dat), upstream version `2026-10-07_07-28-19_UTC`, commit `3929462652695bad04f0a27afb600974014a3c8b`. Its upstream MPL-2.0 license notice is preserved. Only the ICANN section is bundled; runtime does not fetch it. Update this snapshot deliberately when registry boundaries change.
+
+Reuse evidence retains at most eight canonical specific candidates per observed starter version within existing version/retention limits. Host case and default ports are normalized, fragments and known `utm_*`/click-tracking parameters are removed, while path case and YouTube video identity remain significant. Unknown query-dependent URLs have their entire query scrubbed in URL observations and are explicitly unsuitable for duplicate matching; they are never collapsed into a reusable base-path identity. Stored starter excerpts remain observed member content. Root landing pages and contact/invite links do not produce URL matches. Moderator lookup alone may show up to five different-author same-server matches against retained versions, with a reminder that shared projects can be legitimate. These hints never enter public output, Legend/member Details, reports, colors or enforcement; pruning listing evidence removes its hints.
 
 ## Persistence and recovery
 

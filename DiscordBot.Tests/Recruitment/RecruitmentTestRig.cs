@@ -139,6 +139,8 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
     public Task<RecruitmentAuthor?> GetAuthorAsync(string userId, CancellationToken ct) => Task.FromResult<RecruitmentAuthor?>(
         MissingMembers.Contains(userId) ? null : new RecruitmentAuthor(userId == "999", userId == "900"));
     public Task<bool> IsMemberAsync(string guildId, string userId, CancellationToken ct) => Task.FromResult(guildId == "1" && !MissingMembers.Contains(userId));
+    public HashSet<string> Administrators { get; } = new() { "901" };
+    public Task<bool> IsAdministratorAsync(string guildId, string userId, CancellationToken ct) => Task.FromResult(guildId == "1" && Administrators.Contains(userId) && !MissingMembers.Contains(userId));
     public Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct) => Task.FromResult(guildId == "1" && userId == "900");
     public bool IsExpectedForumUpdate(ForumSnapshot snapshot) => Forums.GetValueOrDefault(snapshot.Id) == snapshot;
     public Task<ForumSnapshot> GetForumAsync(string id, CancellationToken ct) { ForumReads++; return Task.FromResult(Forums[id]); }

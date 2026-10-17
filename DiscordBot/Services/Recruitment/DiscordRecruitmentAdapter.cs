@@ -87,6 +87,13 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
             user.GuildPermissions.Administrator || user.RoleIds.Contains(_settings.Roles.Moderator));
     }
 
+    public async Task<bool> IsAdministratorAsync(string guildId, string userId, CancellationToken ct)
+    {
+        if (guildId != _settings.GuildId.ToString() || !ulong.TryParse(userId, out var id)) return false;
+        var user = await MemberAsync(id, ct);
+        return user?.GuildPermissions.Administrator == true;
+    }
+
     public async Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct)
     {
         if (guildId != _settings.GuildId.ToString() || !ulong.TryParse(userId, out var id)) return false;

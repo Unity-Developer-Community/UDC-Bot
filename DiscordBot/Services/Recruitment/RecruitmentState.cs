@@ -21,6 +21,7 @@ public sealed class RecruitmentState
     public DateTimeOffset InitializedAt { get; set; }
     [JsonProperty(Required = Required.AllowNull)]
     public DateTimeOffset DiscoveryFloor { get; set; }
+    public PortfolioRegistry PortfolioSites { get; set; } = new();
     public OverviewReceipt Overview { get; set; } = new();
     public RecruitmentFault? RecoveryFault { get; set; }
     public List<RecruitmentAudit> SetupAudit { get; set; } = new();
@@ -89,6 +90,7 @@ public sealed class Listing
     [JsonProperty(Required = Required.AllowNull)]
     public ListingStatus Status { get; set; }
     public long Version { get; set; }
+    public long PortfolioRegistryVersion { get; set; }
     [JsonProperty(Required = Required.AllowNull)]
     public DateTimeOffset? AcceptedAt { get; set; }
     public DateTimeOffset? AcknowledgedAt { get; set; }

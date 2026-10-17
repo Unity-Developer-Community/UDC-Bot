@@ -24,6 +24,7 @@ public interface IRecruitmentDiscord
     Task<bool> ValidateFeedAsync(CancellationToken ct);
     Task<bool> IsMemberAsync(string guildId, string userId, CancellationToken ct);
     Task<RecruitmentAuthor?> GetAuthorAsync(string userId, CancellationToken ct);
+    Task<bool> IsAdministratorAsync(string guildId, string userId, CancellationToken ct);
     Task<bool> IsModeratorAsync(string guildId, string userId, CancellationToken ct);
     bool IsExpectedForumUpdate(ForumSnapshot snapshot);
     Task<ForumSnapshot> GetForumAsync(string forumId, CancellationToken ct);

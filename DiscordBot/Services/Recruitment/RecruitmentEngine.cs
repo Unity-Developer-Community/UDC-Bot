@@ -357,7 +357,8 @@ public sealed partial class RecruitmentEngine : IDisposable
         if (post.Status is ListingStatus.Deleted or ListingStatus.Reference)
         { post.PublicationPending = false; post.PublicSendPending = false; Save(); return; }
         var message = RecruitmentPresentation.Public(State!, post, _settings, Now);
-        if (!post.PublicSendPending && !post.PublicationPending && post.PublicMessageId is not null && _publicRenders.GetValueOrDefault(post.Id) == message.RenderKey) return;
+        var renderKey = message.RenderKey + "\nPortfolio registry " + State!.PortfolioSites.Version;
+        if (!post.PublicSendPending && !post.PublicationPending && post.PublicMessageId is not null && _publicRenders.GetValueOrDefault(post.Id) == renderKey) return;
         var recovering = post.PublicSendPending;
         var delivery = await _discord.UpsertAsync(post.Id, post.PublicMessageId, recovering, post.PublicSendStartedAt ?? post.CreatedAt,
             message with
@@ -368,7 +369,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             }, ct);
         var changed = post.PublicMessageId != delivery.Id || post.PublicSendPending || post.PublicationPending;
         post.PublicMessageId = delivery.Id; post.PublicSendPending = false; post.PublicationPending = false;
-        _publicRenders[post.Id] = message.RenderKey;
+        _publicRenders[post.Id] = renderKey;
         if (delivery.NewlySent && post.Deadline.HasValue && !post.AcceptedAt.HasValue)
         { post.PromptDeliveredAt = null; post.Deadline = null; post.Version++; changed = true; }
         if (changed) Save();

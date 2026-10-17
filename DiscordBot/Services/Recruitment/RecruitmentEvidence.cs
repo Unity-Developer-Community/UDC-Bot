@@ -9,8 +9,9 @@ public sealed partial class RecruitmentEngine
     {
         var payment = RecruitmentContent.ReadPayment(live.Starter);
         var purpose = State!.Forums.First(f => f.Value.ForumId == post.ForumId).Key;
-        post.Facts.Checks = RecruitmentSignals.Evaluate(live, purpose);
-        post.Facts.PortfolioCandidates = RecruitmentContent.ReadPortfolio(live.Starter, live.Attachments);
+        post.Facts.Checks = RecruitmentSignals.Evaluate(live, purpose, State.PortfolioSites.EffectiveHosts());
+        post.PortfolioRegistryVersion = State.PortfolioSites.Version;
+        post.Facts.PortfolioCandidates = RecruitmentContent.ReadPortfolio(live.Starter, live.Attachments, State.PortfolioSites.EffectiveHosts());
         post.Facts.ServerNickname = RecruitmentSignals.SafeIdentity(live.ServerNickname);
         post.Facts.GlobalName = RecruitmentSignals.SafeIdentity(live.GlobalName);
         post.Facts.Username = RecruitmentSignals.SafeIdentity(live.Username);
@@ -23,7 +24,7 @@ public sealed partial class RecruitmentEngine
         post.Facts.Observations = RecruitmentContent.Observations(live.Starter);
         if (live.Starter is null) return; // Missing data must not overwrite previously observed evidence.
         var attachments = live.Attachments?.Take(10).ToList() ?? new();
-        var normalized = string.Join(' ', live.Starter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
+        var normalized = string.Join(' ', live.Starter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized + "\n" + string.Join('|', attachments.Select(a => a.Id)))));
         if (post.LatestStarter?.Fingerprint == fingerprint) return;
         var version = new StarterVersion(Now, live.Starter[..Math.Min(2000, live.Starter.Length)], live.Starter.Length > 2000,
@@ -58,8 +59,11 @@ public sealed partial class RecruitmentEngine
         }
         if (post.LatestStarter is { } latest)
         {
-            var related = State!.Listings.Values.Where(p => p.Id != post.Id && p.OwnerId != post.OwnerId && p.LatestStarter is { } other &&
-                (latest.Content.Length >= 120 && latest.Fingerprint == other.Fingerprint || latest.Links.Intersect(other.Links, StringComparer.OrdinalIgnoreCase).Any()))
+            static IEnumerable<StarterVersion> Retained(Listing p) => new[] { p.OriginalStarter }.Concat(p.EarlierMaterialVersions)
+                .Append(p.LatestStarter).OfType<StarterVersion>();
+            var links = Retained(post).SelectMany(v => v.Links).ToHashSet(StringComparer.Ordinal);
+            var related = State!.Listings.Values.Where(p => p.Id != post.Id && p.OwnerId != post.OwnerId &&
+                Retained(p).Any(other => latest.Content.Length >= 120 && latest.Fingerprint == other.Fingerprint || links.Overlaps(other.Links)))
                 .OrderByDescending(p => p.CreatedAt).Take(5).Select(p => $"<#{p.Id}> (author `{p.OwnerId}`)").ToArray();
             if (related.Length > 0) text += "\nShared starter text or link with: " + string.Join(", ", related) + ". Review context; shared projects can be legitimate.\n";
         }

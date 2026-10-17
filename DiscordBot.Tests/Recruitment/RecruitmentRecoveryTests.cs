@@ -17,7 +17,8 @@ public class RecruitmentRecoveryTests
         var service = new RecruitmentService(client, new BotSettings());
         using var provider = new ServiceCollection().AddSingleton(service).BuildServiceProvider();
         var module = await interactions.AddModuleAsync<RecruitmentModule>(provider);
-        Assert.Equal(8, module.SlashCommands.Count);
+        Assert.Equal(9, module.SlashCommands.Count);
+        Assert.Contains(module.SlashCommands, c => c.Name == "portfolio-sites");
         Assert.Contains(module.SlashCommands, c => c.Name == "status");
         Assert.Contains(module.SlashCommands, c => c.Name == "eligibility");
         Assert.DoesNotContain(module.SlashCommands, c => c.Name == "help");

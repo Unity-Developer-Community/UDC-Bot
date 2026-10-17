@@ -20,8 +20,8 @@ public class RecruitmentContentTests
     }
 
     [Theory]
-    [InlineData("No portfolio available; apply at https://example.org/contact", "external link found; purpose unclear")]
-    [InlineData("Portfolio coming soon: https://example.org/contact", "external link found; purpose unclear")]
+    [InlineData("No portfolio available; apply at https://example.org/contact", "no work-sample link found")]
+    [InlineData("Portfolio coming soon: https://example.org/contact", "no work-sample link found")]
     [InlineData("Not my work: https://artstation.com/artist", "external link found; purpose unclear")]
     [InlineData("My portfolio: https://example.org/work", "work-sample link detected")]
     public void NegatedWorkClaimsDoNotClearSampleCheck(string content, string expected) => Assert.Equal(expected, RecruitmentContent.Portfolio(content));
@@ -65,7 +65,7 @@ public class RecruitmentContentTests
     public void HostRootsAndOverlongContentDoNotCreateBroadContactMatches()
     {
         Assert.Empty(RecruitmentContent.ContactLinks("https://github.com https://example.org/"));
-        Assert.Equal(new[] { "https://example.org/my-project" }, RecruitmentContent.ContactLinks("https://example.org/my-project?tracking=one https://example.org/my-project?tracking=two"));
+        Assert.Equal(new[] { "https://example.org/my-project" }, RecruitmentContent.ContactLinks("https://example.org/my-project?utm_source=one https://example.org/my-project?utm_source=two"));
         Assert.Empty(RecruitmentContent.Observations(new string('a', 8000) + " DM for rates"));
     }
 }

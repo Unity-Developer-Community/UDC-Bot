@@ -104,6 +104,13 @@ public sealed class RecruitmentStateStore : IDisposable
             state.Forums.Count != 4 || forums.Count != 4 || forums.Values.Distinct().Count() != 4 ||
             forums.Any(f => !Id(f.Value) || !state.Forums.TryGetValue(f.Key, out var saved) || saved.ForumId != f.Value))
             throw new InvalidDataException("Recruitment state schema, identity or forum mapping is invalid.");
+        var registry = state.PortfolioSites;
+        if (registry is null || registry.Version < 1 || registry.Hosts is null || registry.Hosts.Count > 100 ||
+            registry.Hosts.Distinct(StringComparer.Ordinal).Count() != registry.Hosts.Count ||
+            registry.Hosts.Any(h => !RecruitmentPortfolioDomains.TryNormalize(h, out var normalized) || h != normalized) ||
+            registry.Audit is null || registry.Audit.Count > 100 || registry.Audit.Any(a => a is null || a.At == default ||
+                !Id(a.Actor) || string.IsNullOrWhiteSpace(a.Reason) || a.Reason.Length > 570))
+            throw new InvalidDataException("Recruitment portfolio-site registry is invalid.");
         var overview = state.Overview;
         if (overview.Sequence < 0 ||
             overview.MessageId is not null && (!Id(overview.MessageId) || overview.Marker is null || !overview.Marker.StartsWith($"recruitment:overview:{state.InstanceId}:")) ||
@@ -118,6 +125,7 @@ public sealed class RecruitmentStateStore : IDisposable
                 throw new InvalidDataException("Recruitment forum receipt is invalid.");
         foreach (var (id, p) in state.Listings)
             if (p is null || id != p.Id || !Id(id) || !Id(p.OwnerId) || !forums.Values.Contains(p.ForumId) ||
+                p.PortfolioRegistryVersion < 0 || p.PortfolioRegistryVersion > registry.Version ||
                 p.CreatedAt == default || p.CreatedAt.Offset != TimeSpan.Zero || p.UpdatedAt == default ||
                 !Enum.IsDefined(p.Status) || p.ValidCodes is null || p.Facts is null || p.Audit is null ||
                 !state.Authors.ContainsKey(p.OwnerId) || p.Facts.Payment is null || p.Facts.Portfolio is null ||
@@ -147,7 +155,7 @@ public sealed class RecruitmentStateStore : IDisposable
         f.Checks.All(c => c is not null && c.Id is { Length: <= 30 } && c.Label is { Length: <= 30 } && c.Value is { Length: <= 100 } &&
             c.Evidence is null or { Length: <= 370 } && Enum.IsDefined(c.Severity) && Enum.IsDefined(c.Applicability)) &&
         f.PortfolioCandidates is { Candidates.Count: <= 8 } && f.PortfolioCandidates.Candidates.All(c =>
-            c is not null && c.Url is { Length: <= 300 } && c.Host is { Length: <= 253 });
+            c is not null && c.Url is { Length: <= 300 } && c.Host is { Length: <= 253 } && c.ReuseUrl is null or { Length: <= 300 });
 
     private static bool VersionValid(StarterVersion? version) => version is null ||
         version.ObservedAt != default && version.Content is { Length: <= 2000 } && version.Fingerprint is { Length: 64 } &&

@@ -53,6 +53,7 @@ public sealed partial class RecruitmentEngine
         var attention = post.Attention.Where(n => n.MessageId is null || n.SendPending)
             .Select(n => n.Fault is null ? (DateTimeOffset?)Now : n.Fault.RetryAt).Where(t => t.HasValue).Min();
         if (post.Status != ListingStatus.Open) return attention;
+        if (post.PortfolioRegistryVersion != State!.PortfolioSites.Version) return Now;
         if (_recoverWindows.Contains(post.Id)) return Now;
         if (!post.PromptDeliveredAt.HasValue && !post.AcceptedAt.HasValue) return Now;
         var dates = new List<DateTimeOffset>();

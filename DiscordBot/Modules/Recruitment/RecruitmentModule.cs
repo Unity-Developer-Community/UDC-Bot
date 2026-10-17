@@ -47,6 +47,15 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
     [SlashCommand("waive-cooldown", "Waive an author's creation cooldown without granting a second slot")]
     public Task Waive(IUser author, string reason) => Staff("waive-cooldown", author.Id.ToString(), reason);
 
+    [SlashCommand("portfolio-sites", "List or change recognized portfolio sites (administrator only)")]
+    [RequireUserPermission(GuildPermission.Administrator)]
+    public async Task PortfolioSites([Choice("List", "list"), Choice("Add", "add"), Choice("Remove", "remove")] string operation = "list",
+        string domain = "", string reason = "")
+    {
+        await DeferAsync(ephemeral: true);
+        await Reply(() => Recruitment.RunAsync((engine, ct) => engine.PortfolioSitesAsync(Guild, Actor, operation, domain, reason, ct)));
+    }
+
     private async Task Staff(string operation, string target = "", string reason = "")
     {
         await DeferAsync(ephemeral: true);
