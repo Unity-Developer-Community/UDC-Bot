@@ -45,10 +45,10 @@ public class RecruitmentPresentationTests
         var message = RecruitmentPresentation.Public(rig.State, post, rig.Settings.Recruitment, rig.Clock.Now);
         var embed = Assert.IsType<Discord.Embed>(message.Embed);
         Assert.Equal(new Discord.Color(0x747F8D), embed.Color);
-        Assert.Contains("account age: **2 days**", embed.Description);
+        Assert.Contains("Account Age", embed.Description);
         Assert.Contains("Clarify scope", embed.Description);
-        Assert.Contains("No portfolio link", embed.Description);
-        Assert.DoesNotContain("roles", embed.Description);
+        Assert.Contains("No Samples Found", embed.Description);
+        Assert.Contains("Server Roles", embed.Description);
         Assert.True(message.AcknowledgementRequired);
         Assert.DoesNotContain("Initial snapshot", message.TextFallback);
         Assert.DoesNotContain("Community activity", message.TextFallback);
@@ -66,7 +66,7 @@ public class RecruitmentPresentationTests
         Assert.DoesNotContain(embed.Fields, f => f.Name.StartsWith("⚠") || f.Name.Contains("Portfolio"));
         Assert.Equal(new Discord.Color(0x747F8D), embed.Color);
         post.Facts.Payment = RecruitmentContent.Payment("Revenue share");
-        Assert.Contains("guaranteed payment is unclear", RecruitmentPresentation.Public(rig.State, post, rig.Settings.Recruitment, rig.Clock.Now).Embed!.Description);
+        Assert.Contains("Not Applicable", RecruitmentPresentation.Public(rig.State, post, rig.Settings.Recruitment, rig.Clock.Now).Embed!.Description);
     }
 
     [Fact]
@@ -79,14 +79,14 @@ public class RecruitmentPresentationTests
         var message = rig.Discord.Messages["100:recruitment:100:public"].Message;
         Assert.DoesNotContain("No portfolio", message.Embed!.Description);
         Assert.False(message.AcknowledgementRequired); Assert.True(message.ReaderControls);
-        Assert.Contains("3.", RecruitmentPresentation.Details(post));
+        Assert.Contains("3 Roles", RecruitmentPresentation.Details(post));
         Assert.Equal(messageId, post.PublicMessageId); Assert.Equal(inventories, rig.Discord.Inventories);
         var writes = rig.Discord.Upserts;
         await rig.Engine.FactsChangedAsync(post.Id, default);
         Assert.Equal(writes, rig.Discord.Upserts);
         rig.Discord.Threads[post.Id] = rig.Discord.Threads[post.Id] with { MemberRoleCount = 0 };
         await rig.Engine.FactsChangedAsync(post.Id, default);
-        Assert.Contains("0.", RecruitmentPresentation.Details(post));
-        Assert.DoesNotContain("roles", rig.Discord.Messages["100:recruitment:100:public"].Message.Embed!.Description);
+        Assert.Contains("0 Roles", RecruitmentPresentation.Details(post));
+        Assert.Contains("0 Roles", rig.Discord.Messages["100:recruitment:100:public"].Message.Embed!.Description);
     }
 }

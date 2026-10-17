@@ -27,6 +27,18 @@ public class RecruitmentPublicationTests
         Assert.Equal(roleCount, thread.MemberRoleCount);
     }
 
+    [Theory]
+    [InlineData("Server", "Global", "Server")]
+    [InlineData(null, "Global", "Global")]
+    [InlineData(null, null, "member")]
+    public async Task InstalledSdkCapturesIdentityFallbacks(string? nickname, string? globalName, string expected)
+    {
+        var transport = new PublicationTransport { Nickname = nickname, GlobalName = globalName };
+        using var client = await Client(transport);
+        var thread = await new DiscordRecruitmentAdapter(client, Settings()).GetThreadAsync("100", default);
+        Assert.Equal(expected, thread!.ServerNickname ?? thread.GlobalName ?? thread.Username);
+    }
+
     [Fact]
     public async Task InstalledSdkCreatesAndPinsReferenceWithoutChangingOtherFlagsOrMessages()
     {
@@ -81,6 +93,9 @@ public class RecruitmentPublicationTests
         using var client = await Client(transport);
         var thread = await new DiscordRecruitmentAdapter(client, Settings()).GetThreadAsync("100", default);
         Assert.Equal(custom, thread!.HasCustomAvatar);
+        Assert.Equal("member", thread.Username); Assert.Equal("Artist", thread.GlobalName); Assert.Equal("Server Artist", thread.ServerNickname);
+        Assert.NotNull(thread.AvatarUrl);
+        Assert.Equal(serverAvatar ?? globalAvatar, thread.AvatarIdentity);
         Assert.Equal("media sample attached", RecruitmentContent.Portfolio(thread.Starter, thread.Attachments));
     }
 
@@ -133,6 +148,8 @@ public class RecruitmentPublicationTests
 
     private sealed class PublicationTransport : IRestClient
     {
+        public string? Nickname { get; init; } = "Server Artist";
+        public string? GlobalName { get; init; } = "Artist";
         public string Role { get; init; } = "52";
         public bool OwnerBot { get; init; }
         public bool MissingMember { get; init; }
@@ -159,8 +176,8 @@ public class RecruitmentPublicationTests
             if (endpoint == "users/@me") body = """{"id":"999","username":"offline","discriminator":"0","bot":true}""";
             else if (endpoint == "oauth2/applications/@me") body = """{"id":"999","name":"offline","description":"","bot_public":true,"bot_require_code_grant":false,"verify_key":"00"}""";
             else if (endpoint.StartsWith("guilds/1/members/200")) body = new JObject {
-                ["user"] = new JObject { ["id"] = "200", ["username"] = "member", ["discriminator"] = "0", ["bot"] = OwnerBot, ["avatar"] = GlobalAvatar },
-                ["avatar"] = ServerAvatar, ["roles"] = new JArray(Role), ["joined_at"] = "2020-01-01T00:00:00Z" }.ToString();
+                ["user"] = new JObject { ["id"] = "200", ["username"] = "member", ["discriminator"] = "0", ["bot"] = OwnerBot, ["avatar"] = GlobalAvatar, ["global_name"] = GlobalName },
+                ["nick"] = Nickname, ["avatar"] = ServerAvatar, ["roles"] = new JArray(Role), ["joined_at"] = "2020-01-01T00:00:00Z" }.ToString();
             else if (endpoint.StartsWith("guilds/1")) body = """{"id":"1","name":"Offline","owner_id":"900","roles":[{"id":"1","name":"@everyone","permissions":"0"},{"id":"50","name":"Moderator","permissions":"0"},{"id":"51","name":"Admin","permissions":"8"},{"id":"52","name":"Artist","permissions":"0"}],"emojis":[],"features":[],"stickers":[],"afk_timeout":300,"preferred_locale":"en-US"}""";
             else if (endpoint == "channels/11") body = """{"id":"11","type":15,"guild_id":"1","name":"forum","flags":16,"available_tags":[{"id":"71","name":"Closed","moderated":false}]}""";
             else if (endpoint == "channels/11/threads" && method == "POST")

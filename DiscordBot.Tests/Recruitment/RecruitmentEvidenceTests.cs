@@ -5,6 +5,23 @@ namespace DiscordBot.Tests.Recruitment;
 public class RecruitmentEvidenceTests
 {
     [Fact]
+    public async Task IdentityOnlyRefreshUpdatesSameMessageWithoutInventoriesOrEnforcementAndSurvivesRestart()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post(); await rig.Ack();
+        var id = post.PublicMessageId; var accepted = post.AcceptedAt; var inventories = rig.Discord.Inventories;
+        rig.Discord.Threads[post.Id] = rig.Discord.Threads[post.Id] with { ServerNickname = "New @nickname", GlobalName = "Global", Username = "member", AvatarUrl = "https://cdn.discordapp.com/avatars/200/hash.png", AvatarIdentity = "hash" };
+        await rig.Engine.FactsChangedAsync(post.Id, default);
+        Assert.Equal("New  nickname", post.Facts.ServerNickname);
+        Assert.Contains("New  nickname", rig.Discord.Messages["100:recruitment:100:public"].Message.TextFallback);
+        Assert.Equal(id, post.PublicMessageId); Assert.Equal(inventories, rig.Discord.Inventories);
+        Assert.Equal(accepted, post.AcceptedAt); Assert.Empty(rig.Discord.Actions);
+        await rig.Restart();
+        var facts = rig.State.Listings[post.Id].Facts;
+        Assert.Equal("member", facts.Username); Assert.Equal("hash", facts.AvatarIdentity); Assert.Equal(9, facts.Checks.Count);
+        Assert.Equal("https://cdn.discordapp.com/avatars/200/hash.png", facts.AvatarUrl);
+    }
+
+    [Fact]
     public async Task TermsChangesBeyondDisplayedExcerptAreStillRecordedAndBounded()
     {
         using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post();

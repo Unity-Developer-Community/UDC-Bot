@@ -121,7 +121,7 @@ public sealed class RecruitmentStateStore : IDisposable
                 p.CreatedAt == default || p.CreatedAt.Offset != TimeSpan.Zero || p.UpdatedAt == default ||
                 !Enum.IsDefined(p.Status) || p.ValidCodes is null || p.Facts is null || p.Audit is null ||
                 !state.Authors.ContainsKey(p.OwnerId) || p.Facts.Payment is null || p.Facts.Portfolio is null ||
-                p.Facts.Observations is null || p.Facts.Observations.Count > 3 ||
+                !FactsValid(p.Facts) || p.Facts.Observations is null || p.Facts.Observations.Count > 4 ||
                 p.Facts.Observations.Any(o => o is null || o.Code is null || o.Description is null || o.Evidence is null || o.Evidence.Length > 180) ||
                 p.Facts.PaymentEvidence is null || p.Facts.PaymentEvidence.Length > 370 ||
                 p.EarlierMaterialVersions is null || p.EarlierMaterialVersions.Count > 3 ||
@@ -138,6 +138,16 @@ public sealed class RecruitmentStateStore : IDisposable
                 a.RecentCreations is null || a.RecentCreations.Count > 21 || a.RecentCreations.Any(d => d == default) || a.RecentReports is null || a.RecentReports.Count > 3 || a.RecentReports.Any(d => d == default))
                 throw new InvalidDataException("Recruitment author history is invalid.");
     }
+
+    private static bool FactsValid(InitialFacts f) =>
+        f.ServerNickname is null or { Length: <= 100 } && f.GlobalName is null or { Length: <= 100 } &&
+        f.Username is null or { Length: <= 100 } && f.AvatarIdentity is null or { Length: <= 200 } &&
+        (f.AvatarUrl is null || RecruitmentSignals.SafeAvatarUrl(f.AvatarUrl) == f.AvatarUrl) &&
+        f.Checks is { Count: <= 9 } && f.Checks.Select(c => c?.Id).Distinct().Count() == f.Checks.Count &&
+        f.Checks.All(c => c is not null && c.Id is { Length: <= 30 } && c.Label is { Length: <= 30 } && c.Value is { Length: <= 100 } &&
+            c.Evidence is null or { Length: <= 370 } && Enum.IsDefined(c.Severity) && Enum.IsDefined(c.Applicability)) &&
+        f.PortfolioCandidates is { Candidates.Count: <= 8 } && f.PortfolioCandidates.Candidates.All(c =>
+            c is not null && c.Url is { Length: <= 300 } && c.Host is { Length: <= 253 });
 
     private static bool VersionValid(StarterVersion? version) => version is null ||
         version.ObservedAt != default && version.Content is { Length: <= 2000 } && version.Fingerprint is { Length: 64 } &&

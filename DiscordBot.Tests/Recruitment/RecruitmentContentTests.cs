@@ -47,11 +47,19 @@ public class RecruitmentContentTests
     }
 
     [Theory]
-    [InlineData("Budget USD 500. Deliver in two weeks. DM to apply with your portfolio.")]
+
     [InlineData("No application fees or deposits required.")]
     [InlineData("Do not DM for payment details; terms must stay public.")]
     [InlineData("Never send money immediately to someone you do not know.")]
     public void OrdinaryContactAndExplicitSafetyAdviceAreNotPressure(string content) => Assert.Empty(RecruitmentContent.Observations(content));
+
+    [Fact]
+    public void DmToApplyIsPublicFirstClarificationWithoutInventingPaymentPressure()
+    {
+        const string text = "Budget USD 500. Deliver in two weeks. DM to apply with your portfolio.";
+        Assert.Empty(RecruitmentContent.Observations(text));
+        Assert.NotEmpty(RecruitmentContent.DmRequest(text)!);
+    }
 
     [Fact]
     public void HostRootsAndOverlongContentDoNotCreateBroadContactMatches()

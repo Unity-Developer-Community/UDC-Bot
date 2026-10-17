@@ -224,7 +224,11 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
                 Array.Empty<string>(), starter?.Content, SnowflakeUtils.FromSnowflake(ownerId), user?.JoinedAt,
                 user is not null && (user.GuildPermissions.Administrator || user.RoleIds.Contains(_settings.Roles.Moderator)),
                 user?.RoleIds.Count(r => r != _settings.GuildId), user is null ? null : !string.IsNullOrEmpty(user.DisplayAvatarId),
-                starter?.Attachments.Take(10).Select(a => new StarterAttachment(a.Id.ToString(), RecruitmentPresentation.Safe(a.Filename, 120), a.ContentType?[..Math.Min(a.ContentType.Length, 80)])).ToArray());
+                starter?.Attachments.Take(10).Select(a => new StarterAttachment(a.Id.ToString(), RecruitmentPresentation.Safe(a.Filename, 120), a.ContentType?[..Math.Min(a.ContentType.Length, 80)])).ToArray(),
+                RecruitmentSignals.SafeIdentity(user?.Nickname), RecruitmentSignals.SafeIdentity(user?.GlobalName),
+                RecruitmentSignals.SafeIdentity(user?.Username ?? starter?.Author.Username),
+                RecruitmentSignals.SafeAvatarUrl(user?.GetDisplayAvatarUrl(ImageFormat.Png, 128)),
+                RecruitmentSignals.SafeIdentity(user?.DisplayAvatarId, 200));
             // Missing starters remain retryable. Bound cached initial facts independently of retained history.
             if (starter is not null)
             {

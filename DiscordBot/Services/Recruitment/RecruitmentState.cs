@@ -166,6 +166,13 @@ public sealed class InitialFacts
     public string Portfolio { get; set; } = "unknown";
     public bool? HasCustomAvatar { get; set; }
     public string PaymentEvidence { get; set; } = "";
+    public string? ServerNickname { get; set; }
+    public string? GlobalName { get; set; }
+    public string? Username { get; set; }
+    public string? AvatarUrl { get; set; }
+    public string? AvatarIdentity { get; set; }
+    public List<RecruitmentObservation> Checks { get; set; } = new();
+    public PortfolioEvidence PortfolioCandidates { get; set; } = new(false, false, Array.Empty<PortfolioCandidate>());
     public List<ContentObservation> Observations { get; set; } = new();
 }
 

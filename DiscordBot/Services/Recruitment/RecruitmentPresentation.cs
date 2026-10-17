@@ -10,31 +10,13 @@ public static class RecruitmentPresentation
 
     public static RecruitmentMessage Public(RecruitmentState state, Listing post, RecruitmentSettings settings, DateTimeOffset now)
     {
-        var purpose = state.Forums.First(f => f.Value.ForumId == post.ForumId).Key;
         var lines = new List<string>();
-        var accountAge = post.Facts.AccountCreatedAt is { } created ? Age(post.CreatedAt - created) : "unavailable";
-        var membership = post.Facts.JoinedAt is { } joined ? joined > post.CreatedAt ? "joined/rejoined after posting" : Age(post.CreatedAt - joined) : "unavailable";
-        lines.Add($"At posting · account age: **{accountAge}** · in this server: **{membership}**.");
-        var notes = new List<string>();
-        if (post.Facts.Payment == "unknown") notes.Add("Starter text is unavailable; payment details could not be checked.");
-        else if (purpose.StartsWith("paid-") && post.Facts.Payment != "concrete rate or budget stated" ||
-            post.Facts.Payment.StartsWith("mixed") || post.Facts.Payment == "revenue-share stated")
-        {
-            var summary = post.Facts.Payment switch
-            {
-                "unpaid collaboration stated" => "Unpaid terms appear in a paid forum",
-                "revenue-share stated" => "Revenue share is stated; guaranteed payment is unclear",
-                "mixed compensation terms; clarify what is guaranteed" => "Mixed compensation terms; clarify what is guaranteed",
-                _ => "A clear compensation rate or budget was not found"
-            };
-            notes.Add(summary + (post.Facts.PaymentEvidence.Length > 0 ? $": “{Safe(post.Facts.PaymentEvidence, 110)}”." : "."));
-        }
-        if (purpose.EndsWith("for-hire") && post.Facts.Portfolio is not ("work-sample link detected" or "media sample attached"))
-            notes.Add(post.Facts.Portfolio == "unknown" ? "Work-sample information is unavailable." :
-                post.Facts.Portfolio == "external link found; purpose unclear" ? "A link is supplied; its purpose as a work sample is unclear." : "No portfolio link or attached media sample was found.");
-        notes.AddRange(post.Facts.Observations.Take(3).Select(o => $"{o.Description}: “{Safe(o.Evidence, 110)}”."));
-        if (notes.Count > 0) lines.Add("\n**Things to check**\n" + string.Join("\n", notes.Select(n => "• " + n)));
+        lines.Add(string.Join("\n", post.Facts.Checks.Select(c => $"**{c.Label}:** {Safe(c.Value, 60)} ({c.Applicability switch { ObservationApplicability.Unavailable => "unavailable", ObservationApplicability.NotApplicable => "not applicable", _ => c.Severity.ToString().ToLowerInvariant() }})")));
+        var notes = post.Facts.Observations.Select(o => $"• {o.Description}: “{Safe(o.Evidence, 70)}”.").ToList();
+        if (notes.Count > 0) lines.Add("\n**Things to check**\n" + string.Join("\n", notes));
         lines.Add("\nClarify scope, work samples and payment terms here before moving to DMs.");
+        var identity = post.Facts.ServerNickname ?? post.Facts.GlobalName ?? post.Facts.Username ?? "Unavailable";
+        lines.Add($"Author: {Safe(identity, 100)} · {Safe(post.Facts.Username ?? "username unavailable", 100)} · {post.OwnerId}");
         var needsAck = post.Status == ListingStatus.Open && !post.AcceptedAt.HasValue && !post.AcknowledgedAt.HasValue;
         if (needsAck)
             lines.Add("\n**Author:** Read this forum's Guidelines and enter its code with **Acknowledge**." +
@@ -43,7 +25,8 @@ public static class RecruitmentPresentation
         if (post.Hold is not null || post.AvailabilityUnknown) lines.Add("\nBot processing is paused; listing details may be incomplete.");
         var embed = new EmbedBuilder().WithTitle(post.Status == ListingStatus.Closed ? "Recruitment · closed" : "Recruitment · reader notes")
             .WithDescription(string.Join("\n", lines)).WithColor(new Color(0x747F8D))
-            .WithFooter("Automated observations; identity and work are unverified.").Build();
+            .WithFooter("Automated observations; identity and work are unverified.")
+            .WithThumbnailUrl(post.Facts.AvatarUrl).Build();
         var marker = $"recruitment:{post.Id}:public";
         var fallback = $"**{embed.Title}**\n{embed.Description}\n{embed.Footer?.Text}\n||{marker}||";
         return new RecruitmentMessage($"||{marker}||", marker, true, Embed: embed, TextFallback: fallback,
@@ -52,22 +35,9 @@ public static class RecruitmentPresentation
 
     public static string Details(Listing post)
     {
-        var facts = post.Facts;
-        return "**Listing details**\n" +
-            $"Account created: {(facts.AccountCreatedAt is { } created ? Timestamp(created) : "unavailable")}\n" +
-            $"Joined this server: {(facts.JoinedAt is { } joined ? Timestamp(joined) : "unavailable")}\n" +
-            $"Profile image: {facts.HasCustomAvatar switch { true => "custom global or server avatar", false => "default Discord avatar", _ => "unavailable" }}\n" +
-            $"Server roles (excluding everyone): {facts.MemberRoleCount?.ToString() ?? "unavailable"}. Roles and avatars do not establish trust.\n" +
-            $"Compensation: {Safe(facts.Payment)}" + (facts.PaymentEvidence.Length > 0 ? $" · “{Safe(facts.PaymentEvidence, 370)}”" : "") + "\n" +
-            $"Work samples: {Safe(facts.Portfolio)}. Links and attachments are not verified.\n{Safe(facts.TagAdvice)}\n" +
-            "Observations use the starter post and available membership data. Missing data is not evidence against the author. Reports go privately to moderators; the bot cannot inspect other people's DMs.";
-    }
-
-    private static string Age(TimeSpan age)
-    {
-        var days = Math.Max(0, (int)age.TotalDays);
-        if (days >= 365) return $"{days / 365} {(days / 365 == 1 ? "year" : "years")}";
-        return days == 0 ? "under 1 day" : $"{days} {(days == 1 ? "day" : "days")}";
+        return "**Listing details**\n" + string.Join("\n", post.Facts.Checks.Select(c =>
+            $"{c.Label}: {c.Value}. {c.Applicability} / {c.Severity}." + (string.IsNullOrEmpty(c.Evidence) ? "" : $" {Safe(c.Evidence, 370)}"))) +
+            "\nObservations use starter and membership data; unavailable data is not evidence against the author. Roles, avatars, links and length do not establish trust or authorship. Reports go privately to moderators.";
     }
 
     public static RecruitmentMessage Staff(RecruitmentState state, Listing post, RecruitmentSettings settings)

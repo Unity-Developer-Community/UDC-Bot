@@ -280,14 +280,14 @@ public sealed class RecruitmentService
     private Task RoleDeleted(SocketRole role) { if (role.Guild.Id == _settings.GuildId) ScheduleRecovery(); return Task.CompletedTask; }
     private Task UserUpdated(SocketUser before, SocketUser after)
     {
-        if (before.AvatarId != after.AvatarId && Volatile.Read(ref _listingOwners).TryGetValue(after.Id.ToString(), out var threads))
+        if ((before.AvatarId != after.AvatarId || before.Username != after.Username || before.GlobalName != after.GlobalName) && Volatile.Read(ref _listingOwners).TryGetValue(after.Id.ToString(), out var threads))
             foreach (var id in threads) NotifyFactsChanged(id);
         return Task.CompletedTask;
     }
 
     private Task MemberUpdated(Cacheable<SocketGuildUser, ulong> before, SocketGuildUser after)
     {
-        if (after.Guild.Id != _settings.GuildId || before.HasValue && before.Value.Roles.Select(r => r.Id).SequenceEqual(after.Roles.Select(r => r.Id)) && before.Value.DisplayAvatarId == after.DisplayAvatarId) return Task.CompletedTask;
+        if (after.Guild.Id != _settings.GuildId || before.HasValue && before.Value.Roles.Select(r => r.Id).SequenceEqual(after.Roles.Select(r => r.Id)) && before.Value.DisplayAvatarId == after.DisplayAvatarId && before.Value.Nickname == after.Nickname && before.Value.GlobalName == after.GlobalName && before.Value.Username == after.Username) return Task.CompletedTask;
         if (after.Id == _client?.CurrentUser.Id) ScheduleRecovery();
         else if (Volatile.Read(ref _listingOwners).TryGetValue(after.Id.ToString(), out var threads))
             foreach (var id in threads) NotifyFactsChanged(id);

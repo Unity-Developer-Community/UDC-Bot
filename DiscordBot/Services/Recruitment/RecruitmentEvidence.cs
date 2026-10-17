@@ -8,6 +8,14 @@ public sealed partial class RecruitmentEngine
     private void RefreshFacts(Listing post, ThreadSnapshot live)
     {
         var payment = RecruitmentContent.ReadPayment(live.Starter);
+        var purpose = State!.Forums.First(f => f.Value.ForumId == post.ForumId).Key;
+        post.Facts.Checks = RecruitmentSignals.Evaluate(live, purpose);
+        post.Facts.PortfolioCandidates = RecruitmentContent.ReadPortfolio(live.Starter, live.Attachments);
+        post.Facts.ServerNickname = RecruitmentSignals.SafeIdentity(live.ServerNickname);
+        post.Facts.GlobalName = RecruitmentSignals.SafeIdentity(live.GlobalName);
+        post.Facts.Username = RecruitmentSignals.SafeIdentity(live.Username);
+        post.Facts.AvatarUrl = RecruitmentSignals.SafeAvatarUrl(live.AvatarUrl);
+        post.Facts.AvatarIdentity = RecruitmentSignals.SafeIdentity(live.AvatarIdentity, 200);
         post.Facts.AccountCreatedAt = live.AccountCreatedAt; post.Facts.JoinedAt = live.JoinedAt;
         post.Facts.MemberRoleCount = live.MemberRoleCount; post.Facts.HasCustomAvatar = live.HasCustomAvatar;
         post.Facts.Payment = payment.Summary; post.Facts.PaymentEvidence = payment.Evidence;
