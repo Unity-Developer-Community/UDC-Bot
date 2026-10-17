@@ -48,6 +48,7 @@ internal sealed class RecruitmentForumTransport(IRestClient inner) : IRestClient
     public async Task<RestResponse> SendAsync(string method, string endpoint, CancellationToken cancelToken,
         bool headerOnly, string reason, IEnumerable<KeyValuePair<string, IEnumerable<string>>> requestHeaders)
     {
+        endpoint = RecruitmentMessageTransport.PinEndpoint(method, endpoint);
         var response = await RecruitmentRequests.SendAsync(method, endpoint, cancelToken,
             () => inner.SendAsync(method, endpoint, cancelToken, headerOnly, reason, requestHeaders));
         var scope = Inventory.Value;

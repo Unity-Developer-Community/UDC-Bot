@@ -199,6 +199,24 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
         if (LoseNextSendResponse) { LoseNextSendResponse = false; throw new InvalidOperationException("Ambiguous send"); }
         return Task.FromResult(new Delivery(id, true));
     }
+    public HashSet<string> MessagePins { get; } = new();
+    public int PinWrites { get; private set; }
+    public Exception? PinFailure { get; set; }
+    public bool LosePinResponse { get; set; }
+    public Action? BeforePinWrite { get; set; }
+    public Task<bool> PinAdvisoryAsync(string threadId, string messageId, bool restoreArchive, bool restoreLocked,
+        Action<bool, bool> beforeWrite, CancellationToken ct)
+    {
+        if (!Messages.Values.Any(m => m.Id == messageId)) return Task.FromResult(false);
+        if (MessagePins.Contains(messageId)) return Task.FromResult(true);
+        if (PinFailure is not null) throw PinFailure;
+        BeforePinWrite?.Invoke();
+        var thread = Threads[threadId];
+        beforeWrite(restoreArchive || thread.Archived, restoreArchive ? restoreLocked : thread.Archived && thread.Locked);
+        PinWrites++; MessagePins.Add(messageId);
+        if (LosePinResponse) { LosePinResponse = false; throw new TimeoutException("Pin response lost"); }
+        return Task.FromResult(true);
+    }
     public Task CloseAsync(ThreadSnapshot thread, string? closedTagId, bool protectPinned, CancellationToken ct, Func<bool>? allowWrite = null)
     {
         if (allowWrite?.Invoke() == false) throw new InvalidOperationException("Evidence changed");

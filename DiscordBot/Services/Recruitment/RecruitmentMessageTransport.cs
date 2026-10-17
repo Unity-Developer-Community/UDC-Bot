@@ -11,6 +11,15 @@ internal static class RecruitmentMessageTransport
 {
     private sealed record Publication(string Endpoint, string Method, IReadOnlyList<IAttachment> Retained);
     private static readonly AsyncLocal<Publication?> Current = new();
+    private static readonly AsyncLocal<(ulong Channel, ulong Message)?> PinScope = new();
+    internal static IDisposable Pin(ulong channel, ulong message)
+    {
+        var previous = PinScope.Value; PinScope.Value = (channel, message);
+        return new Scope(() => PinScope.Value = previous);
+    }
+    internal static string PinEndpoint(string method, string endpoint) =>
+        PinScope.Value is { } pin && method == "PUT" && endpoint == $"channels/{pin.Channel}/pins/{pin.Message}"
+            ? $"channels/{pin.Channel}/messages/pins/{pin.Message}" : endpoint;
     private static readonly AsyncLocal<ulong?> ObservedChannel = new();
     internal static IDisposable Observe(ulong channelId)
     {

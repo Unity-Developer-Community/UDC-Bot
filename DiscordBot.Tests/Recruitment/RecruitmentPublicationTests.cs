@@ -344,6 +344,110 @@ public class RecruitmentPublicationTests
         Assert.True(sent.NewlySent); Assert.Single(transport.MessageWrites); Assert.Contains("Acknowledge", transport.Message.ToString());
     }
 
+    [Fact]
+    public async Task InstalledSdkPinCorrectionIsScopedToExactMessageAndLeavesOrdinaryPinsAlone()
+    {
+        var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
+        var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
+        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        Assert.True(await DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, true, false, false, (_, _) => { }, default));
+        Assert.Equal(new[] { "channels/100/messages/pins/101" }, transport.PinRoutes);
+        var message = (IUserMessage)(await channel.GetMessageAsync(101))!;
+        await message.PinAsync();
+        Assert.Equal("channels/100/pins/101", transport.PinRoutes.Last());
+        using (RecruitmentMessageTransport.Pin(100, 101))
+        {
+            Assert.Equal("channels/100/pins/102", RecruitmentMessageTransport.PinEndpoint("PUT", "channels/100/pins/102"));
+            Assert.Equal("channels/200/pins/101", RecruitmentMessageTransport.PinEndpoint("PUT", "channels/200/pins/101"));
+            Assert.Equal("channels/100/pins/101", RecruitmentMessageTransport.PinEndpoint("DELETE", "channels/100/pins/101"));
+        }
+        Assert.Equal(32768, (int)transport.Thread["flags"]!);
+        Assert.Equal(0, transport.Deletes);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(null)]
+    public async Task OptionalPinWithoutPermissionDoesNotWrite(bool? allowed)
+    {
+        var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
+        var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
+        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, allowed, false, false, (_, _) => { }, default));
+        Assert.Empty(transport.PinRoutes); Assert.Empty(transport.ChannelWrites);
+    }
+
+    [Fact]
+    public async Task LostPinResponseRestoresArchivedClosedThreadWhenMessageAlreadyPinned()
+    {
+        var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
+        var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
+        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        transport.Thread["thread_metadata"]!["archived"] = true; transport.Thread["thread_metadata"]!["locked"] = true;
+        channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
+        transport.LosePinResponse = true; transport.FailRestoreOnce = true;
+        var receipt = new MessagePinReceipt { MessageId = "101" };
+        void SaveIntent(bool archive, bool locked) { receipt.RestoreArchive = archive; receipt.RestoreLocked = locked; }
+        await Assert.ThrowsAsync<TimeoutException>(() => DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, true, false, false, SaveIntent, default));
+        Assert.True(receipt.RestoreArchive); Assert.True(receipt.RestoreLocked);
+        Assert.False((bool)transport.Thread["thread_metadata"]!["archived"]!);
+        Assert.True((bool)transport.Message["pinned"]!);
+        channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
+        Assert.True(await DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, false, receipt.RestoreArchive, receipt.RestoreLocked, SaveIntent, default));
+        Assert.Single(transport.PinRoutes);
+        Assert.True((bool)transport.Thread["thread_metadata"]!["archived"]!);
+        Assert.True((bool)transport.Thread["thread_metadata"]!["locked"]!);
+        Assert.Equal(32768, (int)transport.Thread["flags"]!);
+    }
+
+    [Theory]
+    [InlineData(400)]
+    [InlineData(403)]
+    [InlineData(429)]
+    public async Task InstalledSdkArchivedPinFailureRestoresThreadAndKeepsFailureCosmetic(int status)
+    {
+        var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
+        var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
+        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        transport.Thread["thread_metadata"]!["archived"] = true; transport.Thread["thread_metadata"]!["locked"] = true;
+        channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
+        transport.PinStatus = status;
+        var receipt = new MessagePinReceipt { MessageId = "101" };
+        var error = await Record.ExceptionAsync(() => DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, true, false, false,
+            (archive, locked) => { receipt.RestoreArchive = archive; receipt.RestoreLocked = locked; }, default));
+        Assert.NotNull(error);
+        // A 429 also defers restoration in the same channel. The saved intent retries once
+        // that server deadline passes, without requiring Pin Messages permission.
+        if (status == 429)
+        {
+            var deferred = Assert.IsType<RecruitmentDeferredException>(error);
+            Assert.True(receipt.RestoreArchive);
+            await Task.Delay(deferred.RetryAt - DateTimeOffset.UtcNow + TimeSpan.FromMilliseconds(100));
+            channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
+            transport.PinStatus = 0;
+            await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, false,
+                receipt.RestoreArchive, receipt.RestoreLocked, (archive, locked) => { receipt.RestoreArchive = archive; receipt.RestoreLocked = locked; }, default));
+        }
+        else Assert.IsType<Discord.Net.HttpException>(error);
+        Assert.True((bool)transport.Thread["thread_metadata"]!["archived"]!);
+        Assert.True((bool)transport.Thread["thread_metadata"]!["locked"]!);
+        Assert.False(receipt.RestoreArchive); Assert.Single(transport.PinRoutes);
+        var fault = RecruitmentFault.From(error!, DateTimeOffset.UtcNow);
+        Assert.Equal(status == 429, fault.RetryAt.HasValue);
+        Assert.Equal(0, transport.Deletes);
+    }
+
+    [Fact]
+    public async Task PinRefusesCopiedMarkerOrWrongOwner()
+    {
+        var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
+        var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
+        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        transport.Message["author"]!["id"] = "200";
+        await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, true, false, false, (_, _) => { }, default));
+        Assert.Empty(transport.PinRoutes);
+    }
+
     private static BotSettings Settings() => new() { GuildId = 1,
         Recruitment = new RecruitmentSettings { Forums = new RecruitmentForums { PaidRecruitingId = 11, PaidForHireId = 12, HobbyRecruitingId = 13, HobbyForHireId = 14 } },
         Roles = new() { Moderator = 50 } };
@@ -383,6 +487,10 @@ public class RecruitmentPublicationTests
         public bool RejectUpload { get; set; }
         public bool ComponentOnlyMedia { get; set; }
         public bool CdnMediaUrl { get; set; }
+        public bool LosePinResponse { get; set; }
+        public bool FailRestoreOnce { get; set; }
+        public int PinStatus { get; set; }
+        public List<string> PinRoutes { get; } = new();
         public int Deletes { get; private set; }
         public int Uploads { get; private set; }
         public JObject Message => _message;
@@ -451,6 +559,8 @@ public class RecruitmentPublicationTests
             {
                 if (method == "PATCH")
                 {
+                    if (FailRestoreOnce && (bool?)patch?["archived"] == true)
+                    { FailRestoreOnce = false; throw new TimeoutException("Restore response unavailable"); }
                     ChannelWrites.Add(patch!);
                     foreach (var property in patch!.Properties())
                         if (property.Name is "locked" or "archived") Thread["thread_metadata"]![property.Name] = property.Value.DeepClone();
@@ -470,6 +580,18 @@ public class RecruitmentPublicationTests
                 ApplyMessage(patch!);
                 if (LoseCreateResponse) { LoseCreateResponse = false; throw new InvalidOperationException("Lost create response"); }
                 body = MessageResponse().ToString();
+            }
+            else if (method == "PUT" && endpoint is "channels/100/messages/pins/101" or "channels/100/pins/101")
+            {
+                PinRoutes.Add(endpoint);
+                if (PinStatus != 0)
+                {
+                    var payload = PinStatus == 429 ? "{\"retry_after\":0.01,\"global\":false}" : "{\"code\":30003,\"message\":\"Pin write rejected\"}";
+                    return Task.FromResult(new RestResponse((HttpStatusCode)PinStatus, new Dictionary<string, string>(), new MemoryStream(Encoding.UTF8.GetBytes(payload))));
+                }
+                _message["pinned"] = true;
+                if (LosePinResponse) { LosePinResponse = false; throw new TimeoutException("Pin response lost"); }
+                return Task.FromResult(new RestResponse(HttpStatusCode.NoContent, new Dictionary<string, string>(), new MemoryStream()));
             }
             else if (endpoint == "channels/100/messages/101")
             {

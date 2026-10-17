@@ -49,15 +49,19 @@ public sealed partial class RecruitmentEngine
     private DateTimeOffset? ListingDue(Listing post)
     {
         if (post.Fault is { } fault) return fault.RetryAt;
+        var pinDue = PinDue(post) ? (DateTimeOffset?)Now :
+            post.Status is ListingStatus.Open or ListingStatus.Closed && post.PublicMessageId is not null
+                ? post.PublicPin.Fault?.RetryAt : null;
         if (post.PendingAction is not null || post.PublicSendPending || post.StaffSendPending || post.PublicationPending) return Now;
         var attention = post.Attention.Where(n => n.MessageId is null || n.SendPending)
             .Select(n => n.Fault is null ? (DateTimeOffset?)Now : n.Fault.RetryAt).Where(t => t.HasValue).Min();
-        if (post.Status != ListingStatus.Open) return attention;
+        if (post.Status != ListingStatus.Open) return new[] { attention, pinDue }.Where(t => t.HasValue).Min();
         if (post.PortfolioRegistryVersion != State!.PortfolioSites.Version) return Now;
         if (_recoverWindows.Contains(post.Id)) return Now;
         if (!post.PromptDeliveredAt.HasValue && !post.AcceptedAt.HasValue) return Now;
         var dates = new List<DateTimeOffset>();
         if (attention.HasValue) dates.Add(attention.Value);
+        if (pinDue.HasValue) dates.Add(pinDue.Value);
         if (!post.Exempt && !post.Pinned)
         {
             if (!post.AcceptedAt.HasValue && post.Deadline.HasValue) dates.Add(post.Deadline.Value);
@@ -99,7 +103,7 @@ public sealed partial class RecruitmentEngine
         State.Overview.Fault = null;
         foreach (var f in State.Forums.Values.Where(f => forum is null || f.ForumId == forum)) f.Fault = null;
         foreach (var f in State.Forums.Values.Where(f => forum is null || f.ForumId == forum)) f.Reference.Fault = null;
-        foreach (var post in State.Listings.Values.Where(p => forum is null || p.ForumId == forum)) post.Fault = null;
+        foreach (var post in State.Listings.Values.Where(p => forum is null || p.ForumId == forum)) { post.Fault = null; post.PublicPin.Fault = null; }
         _nextAudit = Now;
         MarkEvidenceGap();
     }
@@ -175,6 +179,7 @@ public sealed partial class RecruitmentEngine
         try
         {
             await ProcessAsync(post, ct);
+            await PinResponseAsync(post, ct);
             if (previousFault is not null) Save();
         }
         catch (Exception ex) when (ex is not OperationCanceledException && ex is not System.IO.IOException)

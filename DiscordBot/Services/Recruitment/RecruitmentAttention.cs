@@ -11,6 +11,7 @@ public sealed partial class RecruitmentEngine
             var reasons = new List<string>();
             if (post.Reports.Any(r => r.ResolvedAt is null)) reasons.Add("private reports");
             if (post.MaterialChanges > post.ReviewedMaterialChanges) reasons.Add("changed terms/links");
+            if (post.PublicPin.Fault is not null) reasons.Add("optional response pin: " + RecruitmentPresentation.Safe(post.PublicPin.Fault.Message, 100));
             if (post.Hold is not null) reasons.Add("processing held");
             if (post.AttemptPausedUntil > Now) reasons.Add("posting pause");
             if (post.TimeoutAlertCount >= 3 && State.Authors.GetValueOrDefault(post.OwnerId)?.TimeoutAlerted == true) reasons.Add("repeated timeouts");

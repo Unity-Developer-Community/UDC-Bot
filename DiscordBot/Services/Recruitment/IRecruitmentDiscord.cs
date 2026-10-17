@@ -42,6 +42,10 @@ public interface IRecruitmentDiscord
     // Ambiguous sends must search the entire bounded recovery interval or hold; never blindly resend.
     Task<Delivery> UpsertAsync(string channelId, string? messageId, bool recovering, DateTimeOffset since,
         RecruitmentMessage message, Action beforeWrite, CancellationToken ct);
+    // False means the exact delivered message is absent. Persist restoration intent before writes,
+    // and clear it only after restoration is confirmed.
+    Task<bool> PinAdvisoryAsync(string threadId, string messageId, bool restoreArchive, bool restoreLocked,
+        Action<bool, bool> beforeWrite, CancellationToken ct);
     Task CloseAsync(ThreadSnapshot thread, string? closedTagId, bool protectPinned, CancellationToken ct, Func<bool>? allowWrite = null);
     Task ReopenAsync(ThreadSnapshot thread, string? closedTagId, CancellationToken ct);
     Task DeleteAsync(ThreadSnapshot thread, string reason, bool protectPinned, CancellationToken ct, Func<bool>? allowWrite = null);

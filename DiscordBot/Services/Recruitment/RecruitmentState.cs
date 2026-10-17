@@ -99,6 +99,7 @@ public sealed class Listing
     public List<string> ValidCodes { get; set; } = new();
     public DateTimeOffset? LastCodeAttemptAt { get; set; }
     public DateTimeOffset? AttemptPausedUntil { get; set; }
+    public MessagePinReceipt PublicPin { get; set; } = new();
     public string? PublicMessageId { get; set; }
     public string? StaffMessageId { get; set; }
     public DateTimeOffset? PublicSendStartedAt { get; set; }
@@ -279,5 +280,15 @@ public sealed class OverviewReceipt
     public string? RetiredMarker { get; set; }
     public DateTimeOffset? LastPostedAt { get; set; }
     public DateTimeOffset? LastEditedAt { get; set; }
+    public RecruitmentFault? Fault { get; set; }
+}
+
+/// <summary>Optional message pin work; never grants forum-post protection or listing capacity.</summary>
+public sealed class MessagePinReceipt
+{
+    public string? MessageId { get; set; }
+    public bool Confirmed { get; set; }
+    public bool RestoreArchive { get; set; }
+    public bool RestoreLocked { get; set; }
     public RecruitmentFault? Fault { get; set; }
 }

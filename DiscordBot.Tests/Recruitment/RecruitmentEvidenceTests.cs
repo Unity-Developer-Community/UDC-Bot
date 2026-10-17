@@ -12,7 +12,12 @@ public class RecruitmentEvidenceTests
         rig.Discord.Threads[post.Id] = rig.Discord.Threads[post.Id] with { ServerNickname = "New @nickname", GlobalName = "Global", Username = "member", AvatarUrl = "https://cdn.discordapp.com/avatars/200/hash.png", AvatarIdentity = "hash" };
         await rig.Engine.FactsChangedAsync(post.Id, default);
         Assert.Equal("New  nickname", post.Facts.ServerNickname);
-        Assert.Contains("New  nickname", rig.Discord.Messages["100:recruitment:100:public"].Message.TextFallback);
+        var message = rig.Discord.Messages["100:recruitment:100:public"].Message;
+        foreach (var components in new[] { message.Components, message.FallbackComponents })
+        {
+            Assert.NotNull(components);
+            Assert.Contains("New  nickname", Newtonsoft.Json.JsonConvert.SerializeObject(components));
+        }
         Assert.Equal(id, post.PublicMessageId); Assert.Equal(inventories, rig.Discord.Inventories);
         Assert.Equal(accepted, post.AcceptedAt); Assert.Empty(rig.Discord.Actions);
         await rig.Restart();
@@ -83,6 +88,14 @@ public class RecruitmentEvidenceTests
         }
         Assert.Contains("<#101>", await rig.Staff("lookup"));
         Assert.DoesNotContain("101", await rig.Engine.DetailsAsync("1", "100", "200", default));
-        Assert.DoesNotContain("101", rig.Discord.Messages["100:recruitment:100:public"].Message.TextFallback);
+        var message = rig.Discord.Messages["100:recruitment:100:public"].Message;
+        foreach (var components in new[] { message.Components, message.FallbackComponents })
+        {
+            Assert.NotNull(components);
+            var text = string.Join("\n", Newtonsoft.Json.Linq.JToken.FromObject(components).SelectTokens("$..Content").Select(t => (string?)t));
+            Assert.NotEmpty(text);
+            Assert.DoesNotContain("101", text);
+            Assert.DoesNotContain("Shared starter", Newtonsoft.Json.JsonConvert.SerializeObject(components));
+        }
     }
 }

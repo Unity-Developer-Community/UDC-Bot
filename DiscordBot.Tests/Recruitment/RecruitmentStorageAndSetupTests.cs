@@ -57,14 +57,40 @@ public class RecruitmentStorageAndSetupTests
             var pending = writer.State.Listings["100"];
             pending.PublicMediaAttachmentId = "901"; pending.PublicMediaFileName = fileName;
             pending.PublicRestoreArchive = true; pending.PublicRestoreLocked = true; pending.PublicSendPending = true;
+            pending.PublicPin = new MessagePinReceipt { MessageId = pending.PublicMessageId, RestoreArchive = true, RestoreLocked = true,
+                Fault = new RecruitmentFault("Pin response lost", rig.Clock.Now.AddMinutes(1), 2) };
             pending.PublicSendStartedAt = rig.Clock.Now; writer.Save();
         }
         using var store = new RecruitmentStateStore(rig.Root, "1", forums, rig.Clock.Now);
         Assert.Equal("901", store.State.Listings["100"].PublicMediaAttachmentId);
         Assert.Equal(fileName, store.State.Listings["100"].PublicMediaFileName);
         Assert.True(store.State.Listings["100"].PublicRestoreLocked); Assert.True(store.State.Listings["100"].PublicSendPending);
+        var pin = store.State.Listings["100"].PublicPin;
+        Assert.Equal(post.PublicMessageId, pin.MessageId); Assert.False(pin.Confirmed);
+        Assert.True(pin.RestoreArchive); Assert.True(pin.RestoreLocked); Assert.Equal(2, pin.Fault!.Attempts);
+        Assert.Equal(rig.Clock.Now.AddMinutes(1), pin.Fault.RetryAt);
         Assert.Equal(post.AcceptedAt, store.State.Listings["100"].AcceptedAt);
         Assert.Equal(post.CreatedAt, store.State.Authors["200"].LastAcceptedCreation);
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("id")]
+    [InlineData("confirmed")]
+    [InlineData("locked")]
+    public async Task MalformedPinReceiptIsRejected(string damage)
+    {
+        using var rig = new RecruitmentRig(); await rig.Start(); await rig.Post(); rig.Engine.Dispose();
+        var forums = rig.Settings.Recruitment.Forums.Mapping().ToDictionary(x => x.Key, x => x.Value.ToString());
+        using var store = new RecruitmentStateStore(rig.Root, "1", forums, rig.Clock.Now);
+        var post = store.State.Listings["100"];
+        post.PublicPin = damage switch
+        {
+            "null" => null!, "id" => new() { MessageId = "invalid" },
+            "confirmed" => new() { Confirmed = true }, "locked" => new() { MessageId = post.PublicMessageId, RestoreLocked = true },
+            _ => throw new InvalidOperationException()
+        };
+        Assert.Throws<InvalidDataException>(store.Save);
     }
 
     [Theory]

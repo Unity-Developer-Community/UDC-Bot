@@ -103,15 +103,17 @@ public sealed partial class RecruitmentEngine : IDisposable
             State.RecoveryFault = null;
             await DiscoverAsync(ct);
             if (retryHeld)
+                foreach (var post in State.Listings.Values) post.PublicPin.Fault = null;
+            if (retryHeld)
                 foreach (var notice in State.Listings.Values.SelectMany(p => p.Attention).Where(n => n.MessageId is null || n.SendPending)) notice.Fault = null;
             var cursor = ulong.TryParse(State.SweepAfterId, out var savedCursor) ? savedCursor : 0;
             var batch = State.Listings.Values
-                .Where(p => p.Status == ListingStatus.Open || p.PendingAction is not null || p.StaffSendPending || p.PublicSendPending || p.PublicationPending || AttentionDue(p))
+                .Where(p => p.Status == ListingStatus.Open || p.PendingAction is not null || p.StaffSendPending || p.PublicSendPending || p.PublicationPending || AttentionDue(p) || PinDue(p))
                 .OrderBy(p => ulong.Parse(p.Id) <= cursor).ThenBy(p => ulong.Parse(p.Id)).Take(10).ToArray();
             foreach (var post in batch)
             {
                 ct.ThrowIfCancellationRequested();
-                if (retryHeld) post.Fault = null;
+                if (retryHeld) { post.Fault = null; post.PublicPin.Fault = null; }
                 _discord.InvalidateFacts(post.Id);
                 await ProcessSafelyAsync(post, ct, verifyHeld: true);
             }
@@ -235,8 +237,8 @@ public sealed partial class RecruitmentEngine : IDisposable
         post.Facts.TagAdvice = _assets!.TagAdvice(Purpose(post.ForumId), live.Tags, State!.Forums[Purpose(post.ForumId)]);
         if (!post.PublicSendPending)
         {
-            post.PublicRestoreArchive = live.Archived && post.AcceptedAt.HasValue;
-            post.PublicRestoreLocked = post.PublicRestoreArchive && live.Locked;
+            post.PublicRestoreArchive = post.PublicPin.RestoreArchive || live.Archived && post.AcceptedAt.HasValue;
+            post.PublicRestoreLocked = post.PublicRestoreArchive && (post.PublicPin.RestoreArchive ? post.PublicPin.RestoreLocked : live.Locked);
         }
         post.Hold = null;
         if (live.Starter is null && !post.PromptDeliveredAt.HasValue && !post.AcceptedAt.HasValue)

@@ -230,7 +230,12 @@ public class RecruitmentPortfolioTests
         var lookup = await rig.Staff("lookup"); var hint = lookup[lookup.IndexOf("Shared starter", StringComparison.Ordinal)..];
         Assert.Equal(5, hint.Split("(author").Length - 1); Assert.Contains("shared projects can be legitimate", hint);
         Assert.DoesNotContain("Shared starter", await rig.Engine.DetailsAsync("1", "100", "200", default));
-        Assert.DoesNotContain("Shared starter", rig.Discord.Messages["100:recruitment:100:public"].Message.TextFallback);
+        var message = rig.Discord.Messages["100:recruitment:100:public"].Message;
+        foreach (var components in new[] { message.Components, message.FallbackComponents })
+        {
+            Assert.NotNull(components);
+            Assert.DoesNotContain("Shared starter", Newtonsoft.Json.JsonConvert.SerializeObject(components));
+        }
         foreach (var post in rig.State.Listings.Values.Where(p => p.Id != "100"))
         { post.Status = ListingStatus.Deleted; post.UpdatedAt = rig.Clock.Now.AddYears(-2); rig.Discord.Threads.Remove(post.Id); }
         RecruitmentPolicy.Prune(rig.State, rig.Clock.Now, 12, 24, 30);
