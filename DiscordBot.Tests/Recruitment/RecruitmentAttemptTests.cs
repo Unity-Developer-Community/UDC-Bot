@@ -122,6 +122,76 @@ public class RecruitmentAttemptTests
         Assert.DoesNotContain("100", await rig.Engine.EligibilityAsync("2", "200", default));
         rig.Discord.MissingMembers.Add("200");
         Assert.Contains("current members", await rig.Engine.EligibilityAsync("1", "200", default));
-        Assert.Contains("no recorded listing restrictions", await rig.Engine.EligibilityAsync("1", "201", default));
+        Assert.Contains("No open listing is recorded", await rig.Engine.EligibilityAsync("1", "201", default));
     }
+    [Fact]
+    public async Task NewAuthorSeesOneSlotAndConfiguredAntiSpamRule()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start();
+        var text = await rig.Engine.EligibilityAsync("1", "200", default);
+        Assert.StartsWith("No open listing is recorded.", text);
+        Assert.Contains("one open listing across all four", text);
+        Assert.Contains("30-day cooldown from creation", text);
+        Assert.Contains("attempt 3 within 60 minutes", text);
+        Assert.Contains("deleted attempts count", text);
+        Assert.DoesNotContain("Up to", text);
+    }
+
+    [Fact]
+    public async Task EligibilityCopyUsesConfiguredDurationsAndAttemptThreshold()
+    {
+        using var rig = new RecruitmentRig();
+        rig.Settings.Recruitment.CooldownDays = 14;
+        rig.Settings.Recruitment.AttemptLimit = 4;
+        rig.Settings.Recruitment.AttemptWindowMinutes = 20;
+        rig.Settings.Recruitment.AttemptPauseMinutes = 45;
+        await rig.Start();
+        var text = await rig.Engine.EligibilityAsync("1", "200", default);
+        Assert.Contains("14-day cooldown from creation", text);
+        Assert.Contains("attempt 5 within 20 minutes triggers a 45-minute pause", text);
+    }
+
+    [Fact]
+    public async Task PendingAndAcceptedListingsOccupySlotEvenAfterCooldownExpires()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start(); await rig.Post();
+        Assert.StartsWith("Your pending listing occupies your slot: <#100>", await rig.Engine.EligibilityAsync("1", "200", default));
+        await rig.Ack(); rig.Clock.Advance(TimeSpan.FromDays(31));
+        var text = await rig.Engine.EligibilityAsync("1", "200", default);
+        Assert.StartsWith("Your open listing occupies your slot: <#100>", text);
+        Assert.DoesNotContain("cooldown ends", text);
+        Assert.DoesNotContain("No open listing", text);
+    }
+
+    [Fact]
+    public async Task ClosedListingStillShowsRemainingAcceptedCooldownFirst()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start(); await rig.Post(); await rig.Ack(); await rig.Staff("close");
+        var text = await rig.Engine.EligibilityAsync("1", "200", default);
+        Assert.StartsWith("Your accepted-listing cooldown ends", text);
+        Assert.Contains("No open listing is recorded", text);
+        Assert.DoesNotContain("occupies your slot", text);
+    }
+
+    [Fact]
+    public async Task DeletedAttemptsShowActivePauseWithoutClaimingCapacity()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start();
+        for (var i = 0; i < 3; i++)
+            await rig.Engine.ThreadCreatedAsync(new ThreadCreation((100 + i).ToString(), "11", "200", "Deleted attempt", rig.Clock.Now), default);
+        var text = await rig.Engine.EligibilityAsync("1", "200", default);
+        Assert.StartsWith("Posting attempts are paused until", text);
+        Assert.Contains("Recent attempts: 3", text);
+        Assert.Contains("deleted attempts count", text);
+    }
+
+    [Fact]
+    public async Task IncompleteInventoryDoesNotClaimAnEmptySlot()
+    {
+        using var rig = new RecruitmentRig(); rig.Discord.InventoryComplete = false; await rig.Start();
+        var text = await rig.Engine.EligibilityAsync("1", "200", default);
+        Assert.StartsWith("Eligibility is being checked; the one-listing rule still applies.", text);
+        Assert.DoesNotContain("No open listing", text);
+    }
+
 }

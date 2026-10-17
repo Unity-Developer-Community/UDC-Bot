@@ -12,7 +12,7 @@ public sealed record RecruitmentHealth(string Status, string Work, DateTimeOffse
 
     public Embed Embed(bool includeFreshness = true)
     {
-        var embed = new EmbedBuilder().WithTitle("Recruitment status").WithColor(InventoryComplete && Status == "Operating" ? Color.Green : Color.Orange)
+        var embed = new EmbedBuilder().WithTitle("Recruitment Status").WithColor(InventoryComplete && Status == "Operating" ? Color.Green : Color.Orange)
             .WithDescription(Text());
         if (includeFreshness) embed.WithFooter($"Snapshot captured {ObservedAt:u}");
         return embed.Build();

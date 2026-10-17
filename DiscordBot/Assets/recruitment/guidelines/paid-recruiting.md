@@ -2,7 +2,7 @@
 
 Describe **work/deliverables**, **skills**, **budget/rate and currency**, **payment schedule**, **timeline**, and **contact**. Name the project/organisation. No applicant fees, misleading pay claims, or “DM for details” listings.
 
-Read the pinned rules; use accurate tags. Verify claims and agree terms in writing.
+Read pinned rules; tag accurately. Verify claims. First contact and terms stay here; DMs only for private information.
 
 **One open listing across all four recruitment forums.** Combine hiring and service offers in a for-hire listing.
 

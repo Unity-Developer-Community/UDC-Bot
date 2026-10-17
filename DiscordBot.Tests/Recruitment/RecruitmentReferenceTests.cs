@@ -14,6 +14,7 @@ public class RecruitmentReferenceTests
         {
             var reference = rig.Discord.Threads[id!];
             Assert.True(reference.Pinned && reference.Locked && !reference.Archived);
+            Assert.Equal("Read First · Recruitment Information", reference.Title);
             Assert.Contains("information below", reference.Starter);
             Assert.DoesNotContain(rig.State.RotationCode, reference.Starter);
         }
@@ -34,6 +35,7 @@ public class RecruitmentReferenceTests
         Assert.Equal("100", rig.State.Forums["paid-recruiting"].Reference.ThreadId);
         Assert.False(rig.State.Forums["paid-recruiting"].Reference.BotOwned);
         Assert.Equal("Moderator-maintained rules", rig.Discord.Threads["100"].Starter);
+        Assert.Equal("Information", rig.Discord.Threads["100"].Title);
         Assert.Equal(3, rig.Discord.ReferenceCreates); Assert.Empty(rig.State.Listings);
     }
 
@@ -126,4 +128,22 @@ public class RecruitmentReferenceTests
         Assert.Equal(reference.Id, rig.State.Forums["paid-recruiting"].Reference.ThreadId);
         Assert.Equal(4, rig.Discord.ReferenceCreates);
     }
+    [Fact]
+    public async Task ReconciliationPreservesCustomizedBotReferenceTitleAndContent()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start();
+        var id = rig.State.Forums["paid-recruiting"].Reference.ThreadId!;
+        var reference = rig.Discord.Threads[id];
+        rig.Discord.Threads[id] = reference with { Title = "Staff customized guidance", Starter = reference.Starter + "\nStaff notes" };
+        rig.Discord.Replies.Add(id);
+        await rig.Restart(); await rig.Restart();
+        var retained = rig.Discord.Threads[id];
+        Assert.Equal("Staff customized guidance", retained.Title);
+        Assert.Equal(reference.Starter + "\nStaff notes", retained.Starter);
+        Assert.Equal(reference.Tags, retained.Tags);
+        Assert.Contains(id, rig.Discord.Replies);
+        Assert.True(retained.Pinned && retained.Locked && !retained.Archived);
+        Assert.Equal(4, rig.Discord.ReferenceCreates);
+    }
+
 }

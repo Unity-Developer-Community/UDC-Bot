@@ -2,7 +2,7 @@
 
 State **skills**, **original work samples**, **availability**, **project interests**, **collaboration expectations**, and **contact**. Explain **unpaid or revenue-share** terms. No vague “DM for details” posts or misleading portfolios.
 
-Read the pinned rules; use accurate tags. Verify claims and agree terms in writing.
+Read pinned rules; tag accurately. Verify claims. First contact and terms stay here; DMs only for private information.
 
 **One open listing across all four recruitment forums.** Combine hiring and service offers in a for-hire listing.
 

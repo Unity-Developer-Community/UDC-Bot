@@ -59,22 +59,24 @@ public sealed partial class RecruitmentEngine
         if (State is null || guild != State.GuildId || !await _discord.IsMemberAsync(guild, owner, ct))
             return "This control is only available to current members of the configured server.";
         var lines = new List<string>();
-        foreach (var post in State.Listings.Values.Where(p => p.OwnerId == owner && p.Status == ListingStatus.Open).Take(10))
-            lines.Add($"Your listing: <#{post.Id}>. Update or bump this thread to keep its conversation history. Close it when finished; auto-archive does not free your slot.");
+        var open = State.Listings.Values.Where(p => p.OwnerId == owner && p.Status == ListingStatus.Open).Take(10).ToArray();
+        foreach (var post in open)
+            lines.Add($"Your {(post.AcceptedAt.HasValue ? "open" : "pending")} listing occupies your slot: <#{post.Id}>. Update or bump this thread to keep its conversation history. Close it when finished; auto-archive does not free your slot.");
         if (State.Authors.TryGetValue(owner, out var author))
         {
             if (author.LastAcceptedCreation?.AddDays(_settings.CooldownDays) is { } next && next > Now)
-                lines.Add($"A replacement can be accepted after {RecruitmentPresentation.Timestamp(next)}. Closing or deleting does not reset this cooldown.");
+                lines.Add($"Your accepted-listing cooldown ends {RecruitmentPresentation.Timestamp(next)}. Closing or deleting does not reset this cooldown.");
             if (author.AttemptPausedUntil > Now)
                 lines.Add($"Posting attempts are paused until {RecruitmentPresentation.Timestamp(author.AttemptPausedUntil.Value)}. A moderator can review a mistake.");
-            else
-            {
-                var used = author.AttemptPausedUntil.HasValue ? 0 : author.RecentCreations.Count(d => d > Now.AddMinutes(-_settings.AttemptWindowMinutes));
-                lines.Add($"Recent creations: {used}/{_settings.AttemptLimit} in {_settings.AttemptWindowMinutes} minutes. Another attempt over this limit starts a {_settings.AttemptPauseMinutes}-minute pause, including deleted attempts.");
-            }
         }
-        else lines.Add($"You have no recorded listing restrictions. Up to {_settings.AttemptLimit} creations in {_settings.AttemptWindowMinutes} minutes; further attempts start a {_settings.AttemptPauseMinutes}-minute pause.");
-        if (!EvidenceCurrent) lines.Add("Inventory recovery is in progress; eligibility will be checked again when you post.");
+        if (!EvidenceCurrent)
+            lines.Add("Eligibility is being checked; the one-listing rule still applies.");
+        else if (open.Length == 0)
+            lines.Add("No open listing is recorded.");
+        lines.Add($"You may have **one open listing across all four recruitment forums**. Pending listings reserve that slot. An accepted listing starts a **{_settings.CooldownDays}-day cooldown from creation**.");
+        var used = author is null || author.AttemptPausedUntil.HasValue && author.AttemptPausedUntil <= Now
+            ? 0 : author.RecentCreations.Count(d => d > Now.AddMinutes(-_settings.AttemptWindowMinutes));
+        lines.Add($"Anti-spam: creation attempt {_settings.AttemptLimit + 1} within {_settings.AttemptWindowMinutes} minutes triggers a {_settings.AttemptPauseMinutes}-minute pause; deleted attempts count. Recent attempts: {used}.");
         return string.Join("\n", lines);
     }
 }

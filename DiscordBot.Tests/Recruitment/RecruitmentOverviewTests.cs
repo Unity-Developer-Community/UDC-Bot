@@ -58,7 +58,7 @@ public class RecruitmentOverviewTests
         using var rig = new RecruitmentRig(); rig.Discord.FeedEmbeds = false;
         await rig.Start(); await rig.Engine.RefreshOverviewAsync(default);
         var message = Assert.Single(rig.Discord.Messages.Values).Message;
-        Assert.Null(message.Embed); Assert.Contains("Recruitment status", message.Content);
+        Assert.Null(message.Embed); Assert.Contains("Recruitment Status", message.Content);
         rig.Discord.FailFeed = true; rig.Engine.InvalidateAccess(); await rig.Sweep();
         var sends = rig.Discord.Sends;
         rig.Clock.Advance(TimeSpan.FromMinutes(6));

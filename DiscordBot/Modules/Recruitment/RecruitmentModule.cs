@@ -27,8 +27,6 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
         { await FollowupAsync("Moderator access is required in the configured server.", ephemeral: true); return; }
         await FollowupAsync(embed: Recruitment.Health.Embed(), ephemeral: true, allowedMentions: AllowedMentions.None);
     }
-    [SlashCommand("help", "Show recruitment status and moderator commands")]
-    public Task Help() => Status();
     [SlashCommand("lookup", "Look up a managed thread or author ID")]
     public Task Lookup(string id) => Staff("lookup", id);
     [SlashCommand("preview", "Preview managed forum setup")]

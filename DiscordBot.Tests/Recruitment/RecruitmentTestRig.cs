@@ -164,7 +164,7 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
     {
         ReferenceCreates++;
         var id = (++_nextId).ToString();
-        Threads[id] = new ThreadSnapshot(id, forum, "999", "Read first · Recruitment information", DateTimeOffset.UtcNow,
+        Threads[id] = new ThreadSnapshot(id, forum, "999", DiscordRecruitmentAdapter.ReferenceTitle, DateTimeOffset.UtcNow,
             true, false, false, false, new[] { closedTagId }, DiscordRecruitmentAdapter.ReferenceIntroduction(marker), null, null);
         if (LoseNextReferenceResponse) { LoseNextReferenceResponse = false; throw new TimeoutException("Reference response lost"); }
         return Task.FromResult(id);

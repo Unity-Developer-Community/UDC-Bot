@@ -2,7 +2,7 @@
 
 State **services/deliverables**, **proof of work** (portfolio or samples), **availability**, **rates and currency**, and **contact method**. Vague “DM for details” posts or false claims may be removed.
 
-Read the pinned rules and use accurate tags. Verify claims; agree scope, deadlines, fees and payment terms in writing.
+Read pinned rules; tag accurately. Verify claims. First contact and terms stay here; DMs only for private information.
 
 **One open listing total across all four recruitment forums.** Combine hiring and service offers here.
 

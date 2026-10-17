@@ -5,18 +5,19 @@ namespace DiscordBot.Services.Recruitment;
 
 public sealed partial class DiscordRecruitmentAdapter
 {
+    internal const string ReferenceTitle = "Read First · Recruitment Information";
     public async Task<string> CreateReferenceAsync(string forumId, string closedTagId, string marker, CancellationToken ct)
     {
         var forum = _forums.TryGetValue(forumId, out var cached) ? cached.Channel : await ForumAsync(forumId, ct);
         var tags = forum.Tags.Where(t => t.Id.ToString() == closedTagId).ToArray();
         if (tags.Length != 1) throw new InvalidOperationException("Reference post needs a verified Closed tag.");
-        var thread = await forum.CreatePostAsync("Read first · Recruitment information", ThreadArchiveDuration.OneWeek,
+        var thread = await forum.CreatePostAsync(ReferenceTitle, ThreadArchiveDuration.OneWeek,
             text: ReferenceIntroduction(marker), tags: tags, allowedMentions: AllowedMentions.None, options: Options(ct));
         return thread.Id.ToString();
     }
 
     internal static string ReferenceIntroduction(string marker) =>
-        "Read the guidance below and this forum's Guidelines before posting. Clarify scope, timing and payment in the listing before moving to DMs.\n\n" +
+        "Read the guidance below and this forum's Guidelines before posting. Keep first contact, scope, timing and payment in the listing; use DMs only for private information.\n\n" +
         "Moderators and administrators maintain the information below.\n" + $"||{marker}||";
 
     public async Task<bool> SecureReferenceAsync(string forumId, string threadId, bool botOwned, string marker, CancellationToken ct)

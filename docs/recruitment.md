@@ -57,7 +57,7 @@ Discord.Net 3.20.1 drops tag moderation during forum serialization and can send 
 
 The persisted code rotates on Monday at 00:00 UTC. Publication is verified per forum; an interrupted rotation retries the same code. A challenge accepts its issued code and codes subsequently confirmed visible during its window. Codes are not included in advisories, staff entries, previews or diagnostic messages.
 
-After setup and complete discovery, the bot reuses a discovered pinned staff reference or creates **Read first · Recruitment information** in each forum. The short introduction directs readers to staff guidance below and the native Guidelines; it does not repeat the rotating code. The reference uses the existing Closed tag, is pinned, locked and active (archiving would clear its pin), and is excluded from member challenges and capacity. Creation intent and the returned thread ID are saved before later writes. Interrupted creates recover by a bot-owned marker; incomplete inventory prevents duplicate creation. A deleted reference is replaced after discovery, and status links to each reference or shows its recovery fault.
+After setup and complete discovery, the bot reuses a discovered pinned staff reference or creates **Read First · Recruitment Information** in each forum. Existing staff and customized reference titles are preserved. The short introduction directs readers to staff guidance below and the native Guidelines; it does not repeat the rotating code. The reference uses the existing Closed tag, is pinned, locked and active (archiving would clear its pin), and is excluded from member challenges and capacity. Creation intent and the returned thread ID are saved before later writes. Interrupted creates recover by a bot-owned marker; incomplete inventory prevents duplicate creation. A deleted reference is replaced after discovery, and status links to each reference or shows its recovery fault.
 
 Forum posts inherit parent permissions, so a single reference cannot have admin-only permission overwrites. Administrators and moderators with **Manage Threads** can unlock it if needed, add or edit their own messages, then relock it while leaving it active. The bot preserves those messages and rechecks the pin/lock on startup, recovery or an explicit repair/reconcile. It does not immediately relock a thread while staff are editing. [Discord thread permissions](https://docs.discord.com/developers/topics/threads)
 
@@ -69,7 +69,7 @@ All commands are ephemeral and check the configured guild and the caller's curre
 
 | Command | Purpose |
 | --- | --- |
-| `/recruitment status` / `help` | Forum/reference links, setup or reference faults, counts, inventory coverage, next work and recovery-job status. Reads a detached snapshot, including during startup or a delayed Discord request. |
+| `/recruitment status` | Forum/reference links, setup or reference faults, counts, inventory coverage, next work and recovery-job status. Reads a detached snapshot, including during startup or a delayed Discord request. |
 | `/recruitment lookup id` | Retained history, bounded starter versions, private reports, audit reasons and same-server text/link matches. Matches are review hints; shared projects may be legitimate. |
 | `/recruitment preview [forum]` | Proposed Guidelines with a masked code, and managed tag names. |
 | `/recruitment repair reason [forum]` | Queue publication/verification of all forums or one selected forum after previewing it. |
@@ -79,9 +79,9 @@ All commands are ephemeral and check the configured guild and the caller's curre
 
 **Confirm unavailable thread is absent** releases a held slot only when Discord availability is uncertain; it does not infer a deletion actor or change the cooldown. Reopening checks capacity. A Closed tag or explicit owner/moderator close still applies.
 
-Repair and reconciliation return a short job ID promptly. The worker rechecks moderator authorization when the job runs; `/recruitment status` shows its latest result. Status/help use the gateway's current member/role cache and never wait behind mutation work. Missing authorization evidence denies access.
+Repair and reconciliation return a short job ID promptly. The worker rechecks moderator authorization when the job runs; `/recruitment status` shows its latest result. Status uses the gateway's current member/role cache and never waits behind mutation work. Missing authorization evidence denies access.
 
-The feed contains one fixed **Recruitment status** overview, edited in place. Staff may pin it manually; the bot does not need Manage Messages. Updates coalesce for five seconds with at least 30 seconds between edits. Missing-message recovery and unfinished replacement/cleanup receipts from older versions remain supported. Ordinary feed traffic does not move it. Cosmetic delivery failures do not block acceptance.
+The feed contains one fixed **Recruitment Status** overview, edited in place. Staff may pin it manually; the bot does not need Manage Messages. Updates coalesce for five seconds with at least 30 seconds between edits. Missing-message recovery and unfinished replacement/cleanup receipts from older versions remain supported. Ordinary feed traffic does not move it. Cosmetic delivery failures do not block acceptance.
 
 The overview links up to five listings needing report review, material-edit review, recovery or repeated-attempt attention. It also shows observed creations, accepted listings, closed unaccepted attempts, timeouts and mean prompt-to-accept delay for listings created in the past 24 hours. These are retained-record aggregates, not a complete event-analytics system. Use moderator review and recorded reasons to assess false positives before tightening thresholds.
 

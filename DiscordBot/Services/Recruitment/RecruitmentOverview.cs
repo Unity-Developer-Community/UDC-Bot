@@ -56,7 +56,7 @@ public sealed partial class RecruitmentEngine
                 receipt.SendStartedAt = Now;
             }
             var marker = receipt.PendingMarker ?? throw new InvalidOperationException("Overview delivery marker is missing; reconcile required.");
-            var message = new RecruitmentMessage(_feedEmbeds ? $"-# {marker}" : "**Recruitment status**\n" + render[..Math.Min(1800, render.Length)] + $"\n-# {marker}",
+            var message = new RecruitmentMessage(_feedEmbeds ? $"-# {marker}" : "**Recruitment Status**\n" + render[..Math.Min(1800, render.Length)] + $"\n-# {marker}",
                 marker, false, Embed: _feedEmbeds ? health.Embed(includeFreshness: false) : null);
             var delivery = await _discord.UpsertAsync(_settings.FeedChannelId.ToString(), replace ? null : receipt.MessageId,
                 receipt.SendPending, receipt.SendStartedAt ?? Now, message, () => { GuardFeedWrite(); receipt.SendPending = true; Save(); }, ct);
