@@ -10,9 +10,12 @@ public sealed record ThreadSnapshot(string Id, string ForumId, string OwnerId, s
     string? ServerNickname = null, string? GlobalName = null, string? Username = null, string? AvatarUrl = null, string? AvatarIdentity = null);
 public sealed record ArchiveCursor(DateTimeOffset Since, DateTimeOffset? Before = null, DateTimeOffset? StartedAt = null);
 public sealed record ThreadInventory(IReadOnlyList<ThreadSnapshot> Threads, bool Complete, IReadOnlyDictionary<string, ArchiveCursor>? Cursors = null);
-public sealed record RecruitmentMessage(string Content, string Marker, bool OwnerControls, bool RestoreArchive = false, Embed? Embed = null, string? TextFallback = null, bool AcknowledgementRequired = false, bool ReaderControls = false)
+public enum RecruitmentMessageFormat { Standard, ComponentsV2 }
+public sealed record RecruitmentMedia(string FileName, byte[] Bytes, string Description);
+public sealed record RecruitmentMessage(string Content, string Marker, bool OwnerControls, bool RestoreArchive = false, Embed? Embed = null, string? TextFallback = null, bool AcknowledgementRequired = false, bool ReaderControls = false, RecruitmentMessageFormat Format = RecruitmentMessageFormat.Standard,
+    string? RenderIdentity = null, MessageComponent? Components = null, MessageComponent? FallbackComponents = null, RecruitmentMedia? Media = null)
 {
-    public string RenderKey => Content + "\n" + OwnerControls + "\n" + AcknowledgementRequired + "\n" + ReaderControls + "\n" + EmbedKey(Embed);
+    public string RenderKey => RenderIdentity ?? Content + "\n" + OwnerControls + "\n" + AcknowledgementRequired + "\n" + ReaderControls + "\n" + EmbedKey(Embed);
     public static string EmbedKey(IEmbed? embed) => embed is null ? "" : Newtonsoft.Json.JsonConvert.SerializeObject(embed.ToEmbedBuilder().Build());
 }
 public sealed record Delivery(string Id, bool NewlySent);

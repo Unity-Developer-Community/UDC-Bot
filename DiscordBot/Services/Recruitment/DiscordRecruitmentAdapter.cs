@@ -289,7 +289,7 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
         }
         var builder = new ComponentBuilder();
         if (message.AcknowledgementRequired) builder.WithButton("Acknowledge", $"recruit:ack:{channelId}", ButtonStyle.Primary);
-        if (message.ReaderControls) builder.WithButton("Details", $"recruit:details:{channelId}", ButtonStyle.Secondary)
+        if (message.ReaderControls) builder.WithButton("Legend", $"recruit:details:{channelId}", ButtonStyle.Secondary)
             .WithButton("Report concern", $"recruit:report:{channelId}", ButtonStyle.Secondary);
         if (message.OwnerControls) builder.WithButton("Your listing", $"recruit:owner:{channelId}", ButtonStyle.Secondary);
         var components = builder.Build();
