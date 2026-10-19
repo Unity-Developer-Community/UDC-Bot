@@ -22,29 +22,11 @@ public sealed partial class RecruitmentEngine
             PublicationPending = true
         };
         State.Listings[post.Id] = post;
-        RecordCreation(post); Save();
-        await ProcessSafelyAsync(post, ct);
+        _workflow!.RecordCreation(post); Save();
+        await _workflow!.ProcessSafelyAsync(post, ct);
     }
 
     // Called once per newly retained thread identity, regardless of later deletion or acknowledgement.
-    private void RecordCreation(Listing post)
-    {
-        var history = ListingTransitions.Author(State!, post.OwnerId, Now);
-        if (post.Pinned || post.CreatedAt <= Now.AddMinutes(-_settings.AttemptWindowMinutes)) return;
-        var decision = AttemptPolicy.Record(history.RecentCreations, history.AttemptPausedUntil, post.CreatedAt, Now,
-            _settings.AttemptWindowMinutes, _settings.AttemptLimit, _settings.AttemptPauseMinutes);
-        history.RecentCreations = decision.Creations.ToList();
-        post.AttemptPausedUntil = history.AttemptPausedUntil = decision.PausedUntil;
-        if (decision.PauseStarted) QueueAttention(post, "Repeated creations triggered a posting pause");
-    }
-
-    private static string EligibilityReason(Eligibility eligibility)
-    {
-        if (eligibility.AttemptPausedUntil is { } pause) return $"Posting attempts paused until {pause:yyyy-MM-dd HH:mm} UTC. Check /recruitment eligibility.";
-        if (eligibility.BlockingListingId is { } id) return $"Existing listing {id} occupies your slot. Update or bump that thread; check /recruitment eligibility.";
-        return $"Accepted-listing cooldown ends {eligibility.NextAllowedAt:yyyy-MM-dd HH:mm} UTC. Check /recruitment eligibility.";
-    }
-
     public async Task<string> EligibilityAsync(string guild, string owner, CancellationToken ct)
     {
         if (State is null || guild != State.GuildId || !await _discord.IsMemberAsync(guild, owner, ct))

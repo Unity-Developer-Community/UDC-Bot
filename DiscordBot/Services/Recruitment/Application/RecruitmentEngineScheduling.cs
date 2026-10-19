@@ -10,8 +10,6 @@ public sealed partial class RecruitmentEngine
     private long _inventoryGeneration = -1;
     private DateTimeOffset _nextAudit = DateTimeOffset.MaxValue;
     private bool _accessInvalid = true;
-    private readonly Dictionary<string, string> _publicRenders = new();
-    private readonly Dictionary<string, string> _staffRenders = new();
     private bool EvidenceCurrent => _gatewayReady() && !_pendingIdentities() && _inventoryComplete && _inventoryGeneration == _evidenceGeneration();
     private bool RoutinePendingIdentity => _ready && _gatewayReady() && _pendingIdentities() && _inventoryComplete && _inventoryGeneration == _evidenceGeneration();
     public event Action? Changed;
@@ -51,7 +49,7 @@ public sealed partial class RecruitmentEngine
     private DateTimeOffset? ListingDue(Listing post)
     {
         if (post.Fault is { } fault) return fault.RetryAt;
-        var pinDue = PinDue(post) ? (DateTimeOffset?)Now :
+        var pinDue = _publisher!.PinDue(post) ? (DateTimeOffset?)Now :
             post.Status is ListingStatus.Open or ListingStatus.Closed && post.PublicMessageId is not null
                 ? post.PublicPin.Fault?.RetryAt : null;
         if (post.PendingAction is not null || post.PublicSendPending || post.StaffSendPending || post.PublicationPending) return Now;
@@ -62,7 +60,7 @@ public sealed partial class RecruitmentEngine
         if (_recoverWindows.Contains(post.Id)) return Now;
         if (!post.PromptDeliveredAt.HasValue && !post.AcceptedAt.HasValue) return Now;
         var dates = new List<DateTimeOffset>();
-        if (AcknowledgementNoticeDue(post) is { } noticeDue) dates.Add(noticeDue);
+        if (_publisher!.AcknowledgementNoticeDue(post) is { } noticeDue) dates.Add(noticeDue);
         if (attention.HasValue) dates.Add(attention.Value);
         if (pinDue.HasValue) dates.Add(pinDue.Value);
         if (!post.Exempt && !post.Pinned)
@@ -89,7 +87,7 @@ public sealed partial class RecruitmentEngine
         }
         if (!_ready || !EvidenceCurrent) return;
         foreach (var post in State.Listings.Values.Where(p => ListingDue(p) <= Now).OrderBy(p => p.CreatedAt).Take(20).ToArray())
-            await ProcessSafelyAsync(post, ct);
+            await _workflow!.ProcessSafelyAsync(post, ct);
     }
 
     public void RequestRecovery() => _nextAudit = Now;
@@ -100,7 +98,7 @@ public sealed partial class RecruitmentEngine
         _feedReady = false;
         _ready = false;
         _discord.InvalidateCache();
-        _publicRenders.Clear(); _staffRenders.Clear();
+        _publisher?.ClearRenders();
         if (State is null) return;
         State.RecoveryFault = null;
         State.Overview.Fault = null;
@@ -138,7 +136,7 @@ public sealed partial class RecruitmentEngine
             RequestRecovery(); Save();
         }
         if (State?.Listings.GetValueOrDefault(id) is not { } post) return;
-        RecordAbsence(post);
+        _reader!.RecordAbsence(post);
         if (_ready) await ReconcileThreadAsync(id, ct);
     }
 
@@ -157,42 +155,11 @@ public sealed partial class RecruitmentEngine
                      channel == _settings.FeedChannelId.ToString() && p.StaffMessageId is not null && ids.Contains(p.StaffMessageId) ||
                      channel == p.Id && p.PublicMessageId is not null && ids.Contains(p.PublicMessageId)).ToArray())
         {
-            if (channel == post.Id) { post.PublicMessageId = null; _publicRenders.Remove(post.Id); }
-            else { post.StaffMessageId = null; _staffRenders.Remove(post.Id); }
+            if (channel == post.Id) { post.PublicMessageId = null; _publisher!.InvalidatePublic(post.Id); }
+            else { post.StaffMessageId = null; _publisher!.InvalidateStaff(post.Id); }
             post.PublicationPending = true; post.Fault = null; Save();
-            if (_ready) await ProcessSafelyAsync(post, ct);
+            if (_ready) await _workflow!.ProcessSafelyAsync(post, ct);
         }
     }
 
-    private async Task ProcessSafelyAsync(Listing post, CancellationToken ct, bool verifyHeld = false)
-    {
-        if (post.Fault is { } fault && !fault.IsDue(Now))
-        {
-            if (!verifyHeld || fault.RetryAt is not null) return;
-            // A permanent write hold must not hide a deletion during downtime. Probe once per bounded audit.
-            try
-            {
-                var live = await ReadAsync(post, ct, refresh: true);
-                if (live is null) RecordAbsence(post);
-                else if (!live.OwnerIsBot && !live.OwnerIsStaff) return;
-            }
-            catch (Exception ex) when (ex is not System.IO.IOException && ex is not OperationCanceledException) { return; }
-        }
-        var previousFault = post.Fault;
-        post.Fault = null;
-        try
-        {
-            await ProcessAsync(post, ct);
-            await PinResponseAsync(post, ct);
-            if (previousFault is not null) Save();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException && ex is not System.IO.IOException)
-        {
-            _discord.InvalidateThread(post.Id);
-            post.Fault = RecruitmentFaultClassifier.From(ex, Now, previousFault);
-            post.Hold = post.Fault.Message;
-            if (!post.AcceptedAt.HasValue && post.Status == ListingStatus.Open) _recoverWindows.Add(post.Id);
-            Save();
-        }
-    }
 }
