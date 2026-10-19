@@ -1,25 +1,5 @@
 namespace DiscordBot.Services.Recruitment;
 
-public sealed record LiveTag(string Id, string Name, bool Moderated, IEmote? Emoji = null);
-public sealed record ForumSnapshot(string Id, string Topic, bool RequireTag, IReadOnlyList<LiveTag> Tags, ChannelFlags Flags = ChannelFlags.None);
-public sealed record ThreadCreation(string Id, string ForumId, string OwnerId, string Title, DateTimeOffset CreatedAt);
-public sealed record RecruitmentAuthor(bool IsBot, bool IsStaff);
-public sealed record ThreadSnapshot(string Id, string ForumId, string OwnerId, string Title, DateTimeOffset CreatedAt,
-    bool OwnerIsBot, bool Pinned, bool Archived, bool Locked, IReadOnlyList<string> Tags, string? Starter,
-    DateTimeOffset? AccountCreatedAt, DateTimeOffset? JoinedAt, bool OwnerIsStaff = false, int? MemberRoleCount = null, bool? HasCustomAvatar = null, IReadOnlyList<StarterAttachment>? Attachments = null,
-    string? ServerNickname = null, string? GlobalName = null, string? Username = null, string? AvatarUrl = null, string? AvatarIdentity = null);
-public sealed record ArchiveCursor(DateTimeOffset Since, DateTimeOffset? Before = null, DateTimeOffset? StartedAt = null);
-public sealed record ThreadInventory(IReadOnlyList<ThreadSnapshot> Threads, bool Complete, IReadOnlyDictionary<string, ArchiveCursor>? Cursors = null);
-public enum RecruitmentMessageFormat { Standard, ComponentsV2 }
-public sealed record RecruitmentMedia(string FileName, byte[] Bytes, string Description);
-public sealed record RecruitmentMessage(string Content, string Marker, bool OwnerControls, bool RestoreArchive = false, Embed? Embed = null, string? TextFallback = null, bool AcknowledgementRequired = false, bool ReaderControls = false, RecruitmentMessageFormat Format = RecruitmentMessageFormat.Standard,
-    string? RenderIdentity = null, MessageComponent? Components = null, MessageComponent? FallbackComponents = null, RecruitmentMedia? Media = null, bool RestoreLocked = false, ulong? MentionUserId = null)
-{
-    public string RenderKey => RenderIdentity ?? Content + "\n" + OwnerControls + "\n" + AcknowledgementRequired + "\n" + ReaderControls + "\n" + EmbedKey(Embed);
-    public static string EmbedKey(IEmbed? embed) => embed is null ? "" : Newtonsoft.Json.JsonConvert.SerializeObject(embed.ToEmbedBuilder().Build());
-}
-public sealed record Delivery(string Id, bool NewlySent, string? MediaAttachmentId = null, string? MediaFileName = null);
-
 /// <summary>Null thread means confirmed Discord Unknown Channel, never a cache miss or permission failure.</summary>
 public interface IRecruitmentDiscord
 {
