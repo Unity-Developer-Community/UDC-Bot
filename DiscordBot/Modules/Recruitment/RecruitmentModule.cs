@@ -1,3 +1,5 @@
+using DiscordBot.Services.Recruitment.Application;
+using DiscordBot.Utils;
 using Discord.Interactions;
 using DiscordBot.Services.Recruitment;
 
@@ -53,22 +55,23 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
         string domain = "", string reason = "")
     {
         await DeferAsync(ephemeral: true);
-        await Reply(() => Recruitment.RunAsync((engine, ct) => engine.PortfolioSitesAsync(Guild, Actor, operation, domain, reason, ct)));
+        await Reply(() => Recruitment.RunAsync((engine, ct) => engine.PortfolioSitesAsync(Guild, Actor, RecruitmentCommands.Portfolio(operation), domain, reason, ct)));
     }
 
     private async Task Staff(string operation, string target = "", string reason = "")
     {
         await DeferAsync(ephemeral: true);
-        if (operation is "repair" or "reconcile")
-        { await FollowupAsync(Recruitment.QueueRecovery(Guild, Actor, operation, target, reason), ephemeral: true, allowedMentions: AllowedMentions.None); return; }
-        await Reply(() => Recruitment.RunAsync((engine, ct) => engine.StaffAsync(Guild, Actor, operation, target, reason, ct)));
+        var command = RecruitmentCommands.Staff(operation);
+        if (command.Operation is StaffOperation.Repair or StaffOperation.Reconcile)
+        { await FollowupAsync(Recruitment.QueueRecovery(Guild, Actor, command, target, reason), ephemeral: true, allowedMentions: AllowedMentions.None); return; }
+        await Reply(() => Recruitment.RunAsync((engine, ct) => engine.StaffAsync(Guild, Actor, command, target, reason, ct)));
     }
 
     [ComponentInteraction("recruit:details:*", true)]
     public async Task Details(string thread)
     {
         await DeferAsync(ephemeral: true);
-        if (thread != Thread) { await FollowupAsync("This control belongs to another thread.", ephemeral: true); return; }
+        if (!await MatchesThreadAsync(thread)) return;
         await Reply(() => Recruitment.RunAsync((engine, ct) => engine.DetailsAsync(Guild, thread, Actor, ct)));
     }
 
@@ -76,7 +79,7 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
     public async Task OwnerControls(string thread)
     {
         await DeferAsync(ephemeral: true);
-        if (thread != Thread) { await FollowupAsync("This control belongs to another thread.", ephemeral: true); return; }
+        if (!await MatchesThreadAsync(thread)) return;
         try
         {
             var result = await Recruitment.RunAsync((engine, ct) => engine.OwnerDetailsAsync(Guild, thread, Actor, ct));
@@ -105,7 +108,7 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
     public async Task SubmitConcern(string thread, ConcernModal modal)
     {
         await DeferAsync(ephemeral: true);
-        if (thread != Thread) { await FollowupAsync("This control belongs to another thread.", ephemeral: true); return; }
+        if (!await MatchesThreadAsync(thread)) return;
         await Reply(() => Recruitment.RunAsync((engine, ct) => engine.ReportAsync(Guild, thread, Actor, modal.Concern, ct)));
     }
 
@@ -128,21 +131,21 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
     public async Task SubmitCode(string thread, GuidelinesModal modal)
     {
         await DeferAsync(ephemeral: true);
-        if (thread != Thread) { await FollowupAsync("This control belongs to another thread.", ephemeral: true); return; }
+        if (!await MatchesThreadAsync(thread)) return;
         await Reply(() => Recruitment.RunAsync((engine, ct) => engine.AcknowledgeAsync(Guild, thread, Actor, modal.Code, ct, Context.Interaction.CreatedAt), thread));
     }
     [ComponentInteraction("recruit:close:*", true)]
     public async Task Close(string thread)
     {
         await DeferAsync(ephemeral: true);
-        if (thread != Thread) { await FollowupAsync("This control belongs to another thread.", ephemeral: true); return; }
+        if (!await MatchesThreadAsync(thread)) return;
         await Reply(() => Recruitment.RunAsync((engine, ct) => engine.CloseOwnerAsync(Guild, thread, Actor, ct), thread));
     }
     [ComponentInteraction("recruit:remove:*", true)]
     public async Task Remove(string thread)
     {
         await DeferAsync(ephemeral: true);
-        if (thread != Thread) { await FollowupAsync("This control belongs to another thread.", ephemeral: true); return; }
+        if (!await MatchesThreadAsync(thread)) return;
         try
         {
             var result = await Recruitment.RunAsync((engine, _) => Task.FromResult(engine.PrepareRemoval(Guild, thread, Actor)), thread);
@@ -156,16 +159,23 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
     public async Task Confirm(string thread, string token)
     {
         await DeferAsync(ephemeral: true);
-        if (thread != Thread) { await FollowupAsync("This control belongs to another thread.", ephemeral: true); return; }
+        if (!await MatchesThreadAsync(thread)) return;
         await Reply(() => Recruitment.RunAsync((engine, ct) => engine.ConfirmRemovalAsync(Guild, thread, Actor, token, ct), thread));
     }
+    private async Task<bool> MatchesThreadAsync(string thread)
+    {
+        if (thread == Thread) return true;
+        await FollowupAsync("This control belongs to another thread.", ephemeral: true);
+        return false;
+    }
+
     private async Task Reply(Func<Task<string>> action)
     {
         try
         {
             var text = await action();
-            for (var offset = 0; offset < text.Length; offset += 1900)
-                await FollowupAsync(text.Substring(offset, Math.Min(1900, text.Length - offset)), ephemeral: true, allowedMentions: AllowedMentions.None);
+            foreach (var chunk in DiscordReplyChunks.Split(text))
+                await FollowupAsync(chunk, ephemeral: true, allowedMentions: AllowedMentions.None);
         }
         catch { await FollowupAsync("Recruitment could not complete this request. Try again or ask a moderator to check status.", ephemeral: true); }
     }

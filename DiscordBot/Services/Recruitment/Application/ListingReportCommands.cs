@@ -1,35 +1,24 @@
-using DiscordBot.Services.Recruitment.Infrastructure.Discord;
+using DiscordBot.Settings;
 using DiscordBot.Utils;
 using DiscordBot.Services.Recruitment.Domain.Policies;
-namespace DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Presentation;
 
-public sealed partial class RecruitmentEngine
+namespace DiscordBot.Services.Recruitment.Application;
+
+internal sealed class ListingReportCommands(RecruitmentState state, TimeProvider time, Action save, ListingQueries queries, ListingPublisher publisher, ListingWorkflow workflow, Func<bool> reportingReady)
 {
-    private async Task<Listing?> ReaderListingAsync(string guild, string thread, string reader, CancellationToken ct) =>
-        State is not null && guild == State.GuildId && State.Listings.TryGetValue(thread, out var post) &&
-        post.Status is not ListingStatus.Reference && await _discord.IsMemberAsync(guild, reader, ct) ? post : null;
-
-    public async Task<string> DetailsAsync(string guild, string thread, string reader, CancellationToken ct)
-    {
-        var post = await ReaderListingAsync(guild, thread, reader, ct);
-        return post is null ? "Listing details are unavailable in this server." : RecruitmentPresentation.Details(post);
-    }
-
-    public async Task<(string Message, bool Open, bool Removable)> OwnerDetailsAsync(string guild, string thread, string owner, CancellationToken ct)
-    {
-        var post = Owner(guild, thread, owner);
-        if (post is null) return ("This listing does not belong to you or recruitment is unavailable.", false, false);
-        return ($"**Your listing · {post.Status}**\n" + await EligibilityAsync(guild, owner, ct) +
-            "\nClosing preserves the discussion. Removal permanently deletes it.", post.Status == ListingStatus.Open,
-            post.Status is ListingStatus.Open or ListingStatus.Closed);
-    }
+    private readonly RecruitmentState State = state;
+    private DateTimeOffset Now => time.GetUtcNow();
+    private readonly ListingPublisher _publisher = publisher;
+    private readonly ListingWorkflow _workflow = workflow;
+    private void Save() => save();
 
     public async Task<string> ReportAsync(string guild, string thread, string reporter, string concern, CancellationToken ct)
     {
-        var post = await ReaderListingAsync(guild, thread, reporter, ct);
+        var post = await queries.ReaderListingAsync(guild, thread, reporter, ct);
         if (post is null) return "This listing is unavailable or you are not a current server member.";
         if (post.OwnerId == reporter) return "Use your listing controls or contact a moderator about your own listing.";
-        if (!_ready || !_feedReady || !_gatewayReady() || _feedGeneration != _evidenceGeneration())
+        if (!reportingReady())
             return "Private reporting is temporarily unavailable. Please contact a moderator directly.";
         concern = concern.Trim();
         if (concern.Length is < 10 or > 1000) return "Describe the concern in 10–1,000 characters, including relevant context.";

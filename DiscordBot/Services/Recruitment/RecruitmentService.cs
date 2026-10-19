@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Application;
 using DiscordBot.Utils;
 using System.Threading.Channels;
 using System.Collections.Concurrent;
@@ -305,7 +306,7 @@ public sealed class RecruitmentService
         ulong.TryParse(actor, out var id) && _client?.GetGuild(_settings.GuildId)?.GetUser(id) is { } user &&
         (user.GuildPermissions.Administrator || user.Roles.Any(r => r.Id == _settings.Roles.Moderator));
 
-    public string QueueRecovery(string guild, string actor, string operation, string target, string reason)
+    public string QueueRecovery(string guild, string actor, StaffCommand operation, string target, string reason)
     {
         if (!CanReadStatus(guild, actor)) return "Moderator access is required in the configured server.";
         if (string.IsNullOrWhiteSpace(reason)) return "A reason is required for this change.";
