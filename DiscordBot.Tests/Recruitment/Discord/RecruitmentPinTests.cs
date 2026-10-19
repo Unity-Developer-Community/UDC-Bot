@@ -1,3 +1,4 @@
+using DiscordBot.Utils;
 using DiscordBot.Services.Recruitment;
 
 namespace DiscordBot.Tests.Recruitment;
@@ -60,7 +61,7 @@ public class RecruitmentPinTests
         rig.Discord.PinFailure = new RecruitmentDeferredException(retry);
         var post = await rig.Post(); await rig.Ack(); await rig.Staff("close");
         Assert.Equal(ListingStatus.Closed, post.Status); Assert.Equal(retry, post.PublicPin.Fault!.RetryAt);
-        Assert.Contains(RecruitmentPresentation.Timestamp(retry), await rig.Staff("lookup"));
+        Assert.Contains(DiscordDisplayText.Timestamp(retry), await rig.Staff("lookup"));
         rig.Discord.PinFailure = null; rig.Clock.Advance(TimeSpan.FromMinutes(2));
         await rig.Engine.RunDueAsync(default);
         Assert.True(post.PublicPin.Confirmed); Assert.Equal(ListingStatus.Closed, post.Status);

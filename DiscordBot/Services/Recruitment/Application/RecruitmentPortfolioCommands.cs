@@ -1,3 +1,4 @@
+using DiscordBot.Utils;
 using System.Globalization;
 using System.IO;
 
@@ -16,7 +17,7 @@ public sealed partial class RecruitmentEngine
                 (registry.Hosts.Count == 0 ? "None configured." : string.Join("\n", registry.Hosts.Order(StringComparer.Ordinal))) +
                 $"\nRegistry version {registry.Version}. Subdomains match at a dot boundary.";
         if (operation is not ("add" or "remove")) return "Choose list, add or remove.";
-        reason = RecruitmentPresentation.Safe(reason, 300).Trim();
+        reason = DiscordDisplayText.Literal(reason, 300).Trim();
         if (string.IsNullOrWhiteSpace(reason)) return "A reason is required for this change.";
         if (!RecruitmentPortfolioDomains.TryNormalize(domain, out var host))
             return "Enter a DNS hostname below a public suffix, without a URL, path, port, credentials or wildcard.";

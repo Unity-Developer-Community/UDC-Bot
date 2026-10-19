@@ -1,3 +1,4 @@
+using DiscordBot.Utils;
 using ImageMagick;
 using ImageMagick.Drawing;
 using System.IO;
@@ -18,11 +19,11 @@ public static class RecruitmentBanner
         c.Severity == ObservationSeverity.Yellow ? "Amber" : c.Severity.ToString();
     public static string Icon(RecruitmentObservation c) => Status(c) switch
     { "Green" => "🟢", "Amber" => "🔶", "Red" => "🟥", _ => "⚪" };
-    public static string Alt(IReadOnlyList<RecruitmentObservation> checks) => string.Join("; ", checks.Select(c => $"{c.Label}: {RecruitmentPresentation.Safe(c.Value, 60)} ({Status(c)})"));
+    public static string Alt(IReadOnlyList<RecruitmentObservation> checks) => string.Join("; ", checks.Select(c => $"{c.Label}: {DiscordDisplayText.Literal(c.Value, 60)} ({Status(c)})"));
     public static string GalleryAlt(IReadOnlyList<RecruitmentObservation> checks)
     {
         var labels = new[] { "Age", "Joined", "Roles", "Pay", "Job Duration", "Portfolio", "DM", "Avatar", "Detail" };
-        var text = string.Join("; ", checks.Select((c, i) => $"{labels[i]}: {RecruitmentPresentation.Safe(c.Value, 60)}"));
+        var text = string.Join("; ", checks.Select((c, i) => $"{labels[i]}: {DiscordDisplayText.Literal(c.Value, 60)}"));
         // The installed Discord.Net gallery builder caps descriptions at 256. The attachment
         // description and Legend retain full labels/statuses even for unexpected long values.
         return text.Length <= 256 ? text : "Nine automated observations. Complete values and explanations: Legend.";
@@ -54,7 +55,7 @@ public static class RecruitmentBanner
                 else if (status == "Red") d.Rectangle(x + 172, y + 189, x + 204, y + 221);
                 else d.FillColor(MagickColors.Transparent).StrokeColor(new MagickColor(color)).StrokeWidth(3)
                     .Circle(x + 188, y + 205, x + 204, y + 205).StrokeWidth(0).StrokeColor(MagickColors.Transparent);
-                var words = RecruitmentPresentation.Safe(c.Value, 60).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var words = DiscordDisplayText.Literal(c.Value, 60).Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 var lines = new List<string>(); var line = "";
                 foreach (var word in words) { if (line.Length + word.Length > 16 && line.Length > 0) { lines.Add(line); line = ""; } line += (line.Length > 0 ? " " : "") + word; }
                 lines.Add(line);

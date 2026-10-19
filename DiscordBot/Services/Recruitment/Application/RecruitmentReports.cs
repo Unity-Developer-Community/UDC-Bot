@@ -1,3 +1,4 @@
+using DiscordBot.Utils;
 using DiscordBot.Services.Recruitment.Domain.Policies;
 namespace DiscordBot.Services.Recruitment;
 
@@ -37,7 +38,7 @@ public sealed partial class RecruitmentEngine
         history.RecentReports.RemoveAll(d => d <= Now.AddDays(-1));
         if (history.RecentReports.Count >= 3) return "You have reached the limit of three listing reports in 24 hours. Contact a moderator for urgent concerns.";
         var firstOpen = post.Reports.All(r => r.ResolvedAt.HasValue);
-        post.Reports.Add(new RecruitmentReport { ReporterId = reporter, At = Now, Concern = RecruitmentPresentation.Safe(concern, 1000) });
+        post.Reports.Add(new RecruitmentReport { ReporterId = reporter, At = Now, Concern = DiscordDisplayText.Literal(concern, 1000) });
         history.RecentReports.Add(Now);
         if (firstOpen) QueueAttention(post, "A private reader report needs review");
         post.UpdatedAt = Now; post.PublicationPending = true; Save();

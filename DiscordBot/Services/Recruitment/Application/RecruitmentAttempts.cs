@@ -1,3 +1,4 @@
+using DiscordBot.Utils;
 using DiscordBot.Services.Recruitment.Domain.Policies;
 namespace DiscordBot.Services.Recruitment;
 
@@ -16,7 +17,7 @@ public sealed partial class RecruitmentEngine
         var post = new Listing
         {
             Id = creation.Id, ForumId = creation.ForumId, OwnerId = creation.OwnerId,
-            Title = RecruitmentPresentation.Safe(creation.Title), CreatedAt = creation.CreatedAt.ToUniversalTime(), UpdatedAt = Now,
+            Title = DiscordDisplayText.Literal(creation.Title), CreatedAt = creation.CreatedAt.ToUniversalTime(), UpdatedAt = Now,
             Status = ListingStatus.Deleted, LastOutcome = "Thread absent before first read; creation observed, deletion actor unknown",
             PublicationPending = true
         };
@@ -55,9 +56,9 @@ public sealed partial class RecruitmentEngine
         if (State.Authors.TryGetValue(owner, out var author))
         {
             if (author.LastAcceptedCreation?.AddDays(_settings.CooldownDays) is { } next && next > Now)
-                lines.Add($"Your accepted-listing cooldown ends {RecruitmentPresentation.Timestamp(next)}. Closing or deleting does not reset this cooldown.");
+                lines.Add($"Your accepted-listing cooldown ends {DiscordDisplayText.Timestamp(next)}. Closing or deleting does not reset this cooldown.");
             if (author.AttemptPausedUntil > Now)
-                lines.Add($"Posting attempts are paused until {RecruitmentPresentation.Timestamp(author.AttemptPausedUntil.Value)}. A moderator can review a mistake.");
+                lines.Add($"Posting attempts are paused until {DiscordDisplayText.Timestamp(author.AttemptPausedUntil.Value)}. A moderator can review a mistake.");
         }
         if (!EvidenceCurrent)
             lines.Add("Eligibility is being checked; the one-listing rule still applies.");

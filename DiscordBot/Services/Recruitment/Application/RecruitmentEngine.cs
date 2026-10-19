@@ -1,3 +1,4 @@
+using DiscordBot.Utils;
 using DiscordBot.Services.Recruitment.Domain.Policies;
 using System.IO;
 using DiscordBot.Settings;
@@ -184,14 +185,13 @@ public sealed partial class RecruitmentEngine : IDisposable
         var purpose = Purpose(live.ForumId);
         var post = new Listing
         {
-            Id = live.Id, ForumId = live.ForumId, OwnerId = live.OwnerId, Title = RecruitmentPresentation.Safe(live.Title),
+            Id = live.Id, ForumId = live.ForumId, OwnerId = live.OwnerId, Title = DiscordDisplayText.Literal(live.Title),
             CreatedAt = live.CreatedAt.ToUniversalTime(), UpdatedAt = Now, Pinned = live.Pinned,
             ResponseCoverageComplete = observedFromCreation,
             Facts = new InitialFacts
             {
                 AccountCreatedAt = live.AccountCreatedAt, JoinedAt = live.JoinedAt,
-                Payment = RecruitmentContent.Payment(live.Starter), MemberRoleCount = live.MemberRoleCount,
-                Portfolio = RecruitmentContent.Portfolio(live.Starter),
+                MemberRoleCount = live.MemberRoleCount,
                 TagAdvice = _assets!.TagAdvice(purpose, live.Tags, State.Forums[purpose]),
                 PriorAcceptedListing = State.Authors.GetValueOrDefault(live.OwnerId)?.LastAcceptedCreation is not null
             }
@@ -233,7 +233,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             await BeginActionAsync(post, RecruitmentActionKind.RemoveAdvisory, "system", post.LastOutcome, "", false, ct);
             return;
         }
-        post.Title = RecruitmentPresentation.Safe(live.Title);
+        post.Title = DiscordDisplayText.Literal(live.Title);
         RefreshFacts(post, live);
         post.Facts.TagAdvice = _assets!.TagAdvice(Purpose(post.ForumId), live.Tags, State!.Forums[Purpose(post.ForumId)]);
         if (!post.PublicSendPending)
@@ -433,7 +433,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         _confirmations[token] = new RemovalConfirmation(guild, thread, owner, post.Version, Now.AddMinutes(2));
         var next = State!.Authors.GetValueOrDefault(owner)?.LastAcceptedCreation?.AddDays(_settings.CooldownDays);
         var timing = !post.AcceptedAt.HasValue ? "Removing this unaccepted attempt adds no accepted-listing cooldown; its creation still counts toward the attempt limit." : next.HasValue
-            ? "Its creation cooldown remains " + RecruitmentPresentation.Timestamp(next.Value) + "." : "The accepted creation cooldown has been waived.";
+            ? "Its creation cooldown remains " + DiscordDisplayText.Timestamp(next.Value) + "." : "The accepted creation cooldown has been waived.";
         return ($"Permanently remove this forum post? {timing} This confirmation expires in two minutes.", token);
     }
 
@@ -569,7 +569,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             return "No retained recruitment record for that thread or author.";
         }
         if (string.IsNullOrWhiteSpace(reason)) return "A reason is required for this change.";
-        reason = RecruitmentPresentation.Safe(reason, 300);
+        reason = DiscordDisplayText.Literal(reason, 300);
         if (operation == "repair")
         {
             if (target.Length > 0 && !State.Forums.ContainsKey(target)) return "Unknown recruitment forum purpose.";

@@ -1,3 +1,4 @@
+using DiscordBot.Utils;
 using System.Threading.Channels;
 using System.Collections.Concurrent;
 using Discord.WebSocket;
@@ -315,11 +316,11 @@ public sealed class RecruitmentService
             try
             {
                 var result = await _engine.StaffAsync(guild, actor, operation, target, reason, ct);
-                _job = id + ": " + RecruitmentPresentation.Safe(result, 300);
+                _job = id + ": " + DiscordDisplayText.Literal(result, 300);
             }
             catch (Exception ex)
             {
-                _job = id + ": held — " + RecruitmentPresentation.Safe(ex.Message, 250);
+                _job = id + ": held — " + DiscordDisplayText.Literal(ex.Message, 250);
                 throw;
             }
         }, WorkKind.Recovery);

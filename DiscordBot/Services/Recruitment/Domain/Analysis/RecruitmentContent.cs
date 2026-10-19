@@ -1,3 +1,4 @@
+using DiscordBot.Utils;
 using System.Text.RegularExpressions;
 
 namespace DiscordBot.Services.Recruitment;
@@ -12,7 +13,7 @@ public sealed record StarterAttachment(string Id, string Name, string? ContentTy
 public static partial class RecruitmentContent
 {
     private static string Bounded(string text) => text[..Math.Min(text.Length, 8000)];
-    private static string Excerpt(string text) => RecruitmentPresentation.Safe(text.Trim(), 180);
+    private static string Excerpt(string text) => DiscordDisplayText.Literal(text.Trim(), 180);
     public static string Payment(string? content) => ReadPayment(content).Summary;
 
     // An amount alone is not compensation. Labels and units provide context, never verification.
@@ -64,7 +65,7 @@ public static partial class RecruitmentContent
                 var end = text.IndexOf('\n', match.Index); if (end < 0) end = text.Length;
                 var line = text[start..end];
                 candidates.Add(new(identity.DisplayUrl, identity.Host, identity.Specific,
-                    (supportedHosts ?? SeedPortfolioHosts).Any(d => Domain(identity.Host, d)), WorkLabel().IsMatch(line), NoWork().IsMatch(line), identity.ReuseUrl));
+                    (supportedHosts ?? SeedPortfolioHosts).Any(d => DomainName.Matches(identity.Host, d)), WorkLabel().IsMatch(line), NoWork().IsMatch(line), identity.ReuseUrl));
                 if (candidates.Count == 8) break;
             }
             return new(true, media, candidates);
@@ -73,8 +74,10 @@ public static partial class RecruitmentContent
     }
 
     public static string Portfolio(string? content, IReadOnlyList<StarterAttachment>? attachments = null)
+        => PortfolioSummary(ReadPortfolio(content, attachments));
+
+    public static string PortfolioSummary(PortfolioEvidence facts)
     {
-        var facts = ReadPortfolio(content, attachments);
         if (facts.MediaSample) return "media sample attached";
         if (!facts.Available) return "unknown";
         if (facts.Candidates.Any(c => !c.Negated && c.Specific && (c.Supported || c.WorkContext))) return "work-sample link detected";
@@ -108,7 +111,9 @@ public static partial class RecruitmentContent
         catch (RegexMatchTimeoutException) { return null; }
     }
 
-    public static List<ContentObservation> Observations(string? content)
+    public static List<ContentObservation> Observations(string? content) => Observations(content, ReadPayment(content));
+
+    public static List<ContentObservation> Observations(string? content, PaymentObservation payment)
     {
         var observations = new List<ContentObservation>();
         if (content is null) return observations;
@@ -125,7 +130,6 @@ public static partial class RecruitmentContent
             Add("payment-pressure", "Post combines payment with urgency", s => Urgency().IsMatch(s) && PaymentAction().IsMatch(s) && !NoPressure().IsMatch(s) && !SafetyQuote().IsMatch(s));
         }
         catch (RegexMatchTimeoutException) { /* Observations are optional, never enforcement evidence. */ }
-        var payment = ReadPayment(content);
         if (payment.Kind == CompensationKind.Mixed) observations.Add(new("mixed-compensation", "Mixed compensation terms; clarify what is guaranteed", payment.Evidence[..Math.Min(payment.Evidence.Length, 180)]));
         return observations;
     }
@@ -141,12 +145,14 @@ public static partial class RecruitmentContent
         catch (RegexMatchTimeoutException) { return ""; }
     }
 
-    public static List<string> ContactLinks(string? content) => ReadPortfolio(content).Candidates
+    public static List<string> ContactLinks(string? content) => ContactLinks(ReadPortfolio(content));
+
+    public static List<string> ContactLinks(PortfolioEvidence portfolio) => portfolio.Candidates
         .Where(c => c.Specific && !c.Negated && c.ReuseUrl is not null).Select(c => c.ReuseUrl!)
         .Distinct(StringComparer.Ordinal).Take(8).ToList();
     private static bool TryLink(string value, out Uri? uri) => Uri.TryCreate(value.TrimEnd('.', ',', ';', '!', '?'), UriKind.Absolute, out uri) &&
         uri.Scheme is "https" or "http" && uri.HostNameType == UriHostNameType.Dns;
-    private static bool Domain(string host, string domain) => host.Equals(domain, StringComparison.OrdinalIgnoreCase) || host.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase);
+
 
     [GeneratedRegex(@"(?:[$€£¥]\s*\d+(?:[.,]\d+)*(?:\s*[kK])?|\b\d+(?:[.,]\d+)*\s*(?:USD|AUD|CAD|EUR|GBP|JPY)\b|\b(?:USD|AUD|CAD|EUR|GBP|JPY)\s*\d+)", RegexOptions.IgnoreCase, 100)]
     private static partial Regex Concrete();

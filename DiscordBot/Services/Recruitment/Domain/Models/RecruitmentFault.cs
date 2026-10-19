@@ -1,3 +1,4 @@
+using DiscordBot.Utils;
 using Discord.Net;
 using System.Net;
 
@@ -18,7 +19,7 @@ public sealed record RecruitmentFault(string Message, DateTimeOffset? RetryAt, i
             : error.Message;
         var retry = error is RecruitmentDeferredException deferred ? deferred.RetryAt
             : permanent ? (DateTimeOffset?)null : now.AddSeconds(Math.Min(900, 15 * Math.Pow(2, attempts - 1)) + Random.Shared.Next(1, 6));
-        return new RecruitmentFault(RecruitmentPresentation.Safe(message, 400), retry, attempts);
+        return new RecruitmentFault(DiscordDisplayText.Literal(message, 400), retry, attempts);
     }
 }
 

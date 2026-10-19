@@ -1,3 +1,4 @@
+using DiscordBot.Utils;
 using System.Text.RegularExpressions;
 
 namespace DiscordBot.Services.Recruitment;
@@ -6,8 +7,7 @@ namespace DiscordBot.Services.Recruitment;
 public static class RecruitmentPortfolioUrls
 {
     public sealed record Identity(string DisplayUrl, string Host, bool Specific, string? ReuseUrl);
-    public static bool Domain(string host, string domain) => host.Equals(domain, StringComparison.OrdinalIgnoreCase) ||
-        host.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase);
+
 
     public static Identity? Read(Uri uri)
     {
@@ -16,12 +16,12 @@ public static class RecruitmentPortfolioUrls
         var path = uri.AbsolutePath;
         var route = path.Trim('/');
         var parts = route.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (Domain(host, "discord.com") || Domain(host, "discord.gg") || Domain(host, "discordapp.com") ||
-            Domain(host, "t.me") || Domain(host, "telegram.me") || Domain(host, "wa.me") ||
+        if (DomainName.Matches(host, "discord.com") || DomainName.Matches(host, "discord.gg") || DomainName.Matches(host, "discordapp.com") ||
+            DomainName.Matches(host, "t.me") || DomainName.Matches(host, "telegram.me") || DomainName.Matches(host, "wa.me") ||
             parts.Any(p => p.ToLowerInvariant() is "contact" or "login" or "signin" or "invite" or "join")) return null;
         var specific = parts.Length > 0;
         // Selected providers have creator-owned subdomains; their root is already a profile/project.
-        if (new[] { "itch.io", "artstation.com", "deviantart.com" }.Any(d => Domain(host, d) && host != d && host != "www." + d))
+        if (new[] { "itch.io", "artstation.com", "deviantart.com" }.Any(d => DomainName.Matches(host, d) && host != d && host != "www." + d))
             specific = true;
         // Shared platform entry points, discovery and authentication pages are not work samples.
         if (parts.Length > 0 && parts[0].ToLowerInvariant() is "explore" or "discover" or "search" or "marketplace" or "pricing" or "about" or "features" or "topics" or "trending" or "settings" or "notifications" or "issues" or "pulls" or "dashboard" or "help" or "support" or "feed" or "subscriptions")
@@ -32,7 +32,7 @@ public static class RecruitmentPortfolioUrls
         if (query is null) return new(builder.Uri.AbsoluteUri, host, false, null);
         var identityQuery = query.Where(q => !Tracking(q.Key)).ToArray();
         string? reuse = null;
-        if (Domain(host, "youtube.com") || host is "youtu.be" or "www.youtu.be")
+        if (DomainName.Matches(host, "youtube.com") || host is "youtu.be" or "www.youtu.be")
         {
             var videos = identityQuery.Where(q => q.Key == "v").ToArray();
             var video = host.EndsWith("youtu.be", StringComparison.Ordinal) && parts.Length == 1 ? parts[0] :

@@ -1,3 +1,4 @@
+using DiscordBot.Utils;
 namespace DiscordBot.Services.Recruitment;
 
 public sealed record ForumHealth(string Purpose, string Id, string Setup, string? Fault, DateTimeOffset? RetryAt, string? ReferenceId = null, string? ReferenceFault = null);
@@ -21,15 +22,15 @@ public sealed record RecruitmentHealth(string Status, string Work, DateTimeOffse
     public string Text()
     {
         var forums = string.Join("\n", Forums.Select(f => $"• <#{f.Id}> · {f.Purpose}: {f.Setup}" +
-            (f.Fault is null ? "" : $" — {RecruitmentPresentation.Safe(f.Fault, 250)}" + (f.RetryAt.HasValue ? $"; retry {RecruitmentPresentation.Timestamp(f.RetryAt.Value)}" : "; preview and repair required")) +
+            (f.Fault is null ? "" : $" — {DiscordDisplayText.Literal(f.Fault, 250)}" + (f.RetryAt.HasValue ? $"; retry {DiscordDisplayText.Timestamp(f.RetryAt.Value)}" : "; preview and repair required")) +
             (f.ReferenceId is null ? " · reference pending" : $" · reference <#{f.ReferenceId}>") +
-            (f.ReferenceFault is null ? "" : " · reference held: " + RecruitmentPresentation.Safe(f.ReferenceFault, 180))));
-        return RecruitmentPresentation.Safe(Status, 400) + $"\nOpen: {Open} · awaiting acknowledgement: {Pending} · held: {Held}\n" +
+            (f.ReferenceFault is null ? "" : " · reference held: " + DiscordDisplayText.Literal(f.ReferenceFault, 180))));
+        return DiscordDisplayText.Literal(Status, 400) + $"\nOpen: {Open} · awaiting acknowledgement: {Pending} · held: {Held}\n" +
             $"Inventory: {(InventoryComplete ? "complete" : "recovery needed")} · work: {Work}\n" +
             (Attention is null ? "" : "**Needs review**\n" + Attention + "\n") +
             (Metrics is null ? "" : Metrics + "\n") +
-            (LastRecovery.HasValue ? $"Last recovery: {RecruitmentPresentation.Timestamp(LastRecovery.Value)}\n" : "No completed recovery yet.\n") +
-            (NextDue.HasValue ? $"Next scheduled work: {RecruitmentPresentation.Timestamp(NextDue.Value)}\n" : "") + forums +
+            (LastRecovery.HasValue ? $"Last recovery: {DiscordDisplayText.Timestamp(LastRecovery.Value)}\n" : "No completed recovery yet.\n") +
+            (NextDue.HasValue ? $"Next scheduled work: {DiscordDisplayText.Timestamp(NextDue.Value)}\n" : "") + forums +
             (OverviewFault is null ? "" : "\nOverview: " + OverviewFault) +
             (Job is null ? "" : "\nJob: " + Job) +
             "\nUse /recruitment status, lookup, preview, repair or reconcile. Repairs and changes require a reason.";

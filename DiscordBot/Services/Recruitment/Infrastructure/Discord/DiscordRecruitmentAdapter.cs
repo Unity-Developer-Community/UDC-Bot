@@ -1,3 +1,4 @@
+using DiscordBot.Utils;
 using System.IO;
 using System.Collections.Concurrent;
 using Discord.Net;
@@ -231,7 +232,7 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
                 Array.Empty<string>(), starter?.Content, SnowflakeUtils.FromSnowflake(ownerId), user?.JoinedAt,
                 user is not null && (user.GuildPermissions.Administrator || user.RoleIds.Contains(_settings.Roles.Moderator)),
                 user?.RoleIds.Count(r => r != _settings.GuildId), user is null ? null : !string.IsNullOrEmpty(user.DisplayAvatarId),
-                starter?.Attachments.Take(10).Select(a => new StarterAttachment(a.Id.ToString(), RecruitmentPresentation.Safe(a.Filename, 120), a.ContentType?[..Math.Min(a.ContentType.Length, 80)])).ToArray(),
+                starter?.Attachments.Take(10).Select(a => new StarterAttachment(a.Id.ToString(), DiscordDisplayText.Literal(a.Filename, 120), a.ContentType?[..Math.Min(a.ContentType.Length, 80)])).ToArray(),
                 RecruitmentSignals.SafeIdentity(user?.Nickname), RecruitmentSignals.SafeIdentity(user?.GlobalName),
                 RecruitmentSignals.SafeIdentity(user?.Username ?? starter?.Author.Username),
                 RecruitmentSignals.SafeAvatarUrl(user?.GetDisplayAvatarUrl(ImageFormat.Png, 128)),
@@ -376,7 +377,7 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
         var live = await ThreadAsync(thread.Id, ct);
         GuardWrite(live, thread, protectPinned);
         if (allowWrite?.Invoke() == false) throw new InvalidOperationException("New recruitment evidence requires reconciliation before this action.");
-        var options = Options(ct); options.AuditLogReason = "Recruitment: " + RecruitmentPresentation.Safe(reason);
+        var options = Options(ct); options.AuditLogReason = "Recruitment: " + DiscordDisplayText.Literal(reason);
         await live.DeleteAsync(options);
         InvalidateThread(thread.Id);
     }
