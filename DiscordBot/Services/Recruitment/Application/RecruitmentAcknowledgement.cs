@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 using System.IO;
 
 namespace DiscordBot.Services.Recruitment;
@@ -35,7 +36,7 @@ public sealed partial class RecruitmentEngine
         {
             // The public controls remain usable; an optional notification cannot reset the deadline
             // or prevent a timely acknowledgement. Retry/recover independently without a second ping.
-            notice.Fault = RecruitmentFault.From(ex, Now, notice.Fault);
+            notice.Fault = RecruitmentFaultClassifier.From(ex, Now, notice.Fault);
             Save();
         }
     }

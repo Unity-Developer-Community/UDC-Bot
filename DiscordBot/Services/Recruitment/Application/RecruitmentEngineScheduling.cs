@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 using DiscordBot.Services.Recruitment.Domain.Policies;
 namespace DiscordBot.Services.Recruitment;
 
@@ -188,7 +189,7 @@ public sealed partial class RecruitmentEngine
         catch (Exception ex) when (ex is not OperationCanceledException && ex is not System.IO.IOException)
         {
             _discord.InvalidateThread(post.Id);
-            post.Fault = RecruitmentFault.From(ex, Now, previousFault);
+            post.Fault = RecruitmentFaultClassifier.From(ex, Now, previousFault);
             post.Hold = post.Fault.Message;
             if (!post.AcceptedAt.HasValue && post.Status == ListingStatus.Open) _recoverWindows.Add(post.Id);
             Save();

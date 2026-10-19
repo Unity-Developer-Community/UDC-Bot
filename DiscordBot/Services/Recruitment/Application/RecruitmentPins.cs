@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 namespace DiscordBot.Services.Recruitment;
 
 public sealed partial class RecruitmentEngine
@@ -28,9 +29,9 @@ public sealed partial class RecruitmentEngine
         }
         catch (Exception ex) when ((ex is not OperationCanceledException || !ct.IsCancellationRequested) && !persistenceFailed)
         {
-            receipt.Fault = RecruitmentFault.From(ex, Now, receipt.Fault);
+            receipt.Fault = RecruitmentFaultClassifier.From(ex, Now, receipt.Fault);
             if (receipt.RestoreArchive && receipt.Fault.RetryAt is null)
-                receipt.Fault = receipt.Fault with { RetryAt = Now.AddSeconds(Math.Min(900, 15 * Math.Pow(2, receipt.Fault.Attempts - 1)) + Random.Shared.Next(1, 6)) };
+                receipt.Fault = receipt.Fault with { RetryAt = Now.AddSeconds(RecruitmentBackoff.Seconds(receipt.Fault.Attempts, Random.Shared.Next(1, 6))) };
             Save(); return;
         }
         if (found)

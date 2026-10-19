@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 using DiscordBot.Utils;
 using DiscordBot.Services.Recruitment.Domain.Policies;
 using System.IO;
@@ -133,7 +134,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             try { MarkEvidenceGap(invalidateAccess: false); } catch (IOException) { return; }
             if (State is not null)
             {
-                State.RecoveryFault = RecruitmentFault.From(ex, Now, previousFault);
+                State.RecoveryFault = RecruitmentFaultClassifier.From(ex, Now, previousFault);
                 try { Save(); } catch { return; }
             }
             Status = $"Recruitment held: {ex.GetType().Name}: {ex.Message}";

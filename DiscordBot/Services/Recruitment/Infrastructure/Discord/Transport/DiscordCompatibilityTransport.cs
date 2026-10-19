@@ -7,8 +7,8 @@ using Newtonsoft.Json.Linq;
 
 namespace DiscordBot.Services.Recruitment;
 
-/// <summary>Corrects recruitment tag serialization without bypassing Discord.Net's request queue.</summary>
-internal sealed class RecruitmentForumTransport(IRestClient inner) : IRestClient
+/// <summary>Shared Discord.Net 3.20.1 compatibility facade. Corrections are scoped; rate-limit deadlines are bot-wide.</summary>
+internal sealed class DiscordCompatibilityTransport(IRestClient inner) : IRestClient
 {
     internal const string TagWriteReason = "Recruitment: publish forum tags";
     private static readonly AsyncLocal<TagScope?> Current = new();
@@ -27,7 +27,7 @@ internal sealed class RecruitmentForumTransport(IRestClient inner) : IRestClient
     }
     private sealed record TagScope(string Endpoint, IReadOnlyList<LiveTag> Tags);
 
-    public static RestClientProvider Wrap(RestClientProvider provider) => url => new RecruitmentForumTransport(provider(url));
+    public static RestClientProvider Wrap(RestClientProvider provider) => url => new DiscordCompatibilityTransport(provider(url));
 
     internal static IDisposable PreserveTags(ulong forumId, IReadOnlyList<LiveTag> tags)
     {

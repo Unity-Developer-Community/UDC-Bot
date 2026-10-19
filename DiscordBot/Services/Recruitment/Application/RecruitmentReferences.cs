@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 namespace DiscordBot.Services.Recruitment;
 
 public sealed partial class RecruitmentEngine
@@ -81,7 +82,7 @@ public sealed partial class RecruitmentEngine
             }
             catch (Exception ex) when (ex is not OperationCanceledException && ex is not System.IO.IOException)
             {
-                receipt.Fault = RecruitmentFault.From(ex, Now, receipt.Fault);
+                receipt.Fault = RecruitmentFaultClassifier.From(ex, Now, receipt.Fault);
                 Save(); // Reference availability does not block otherwise valid member listings.
             }
         }

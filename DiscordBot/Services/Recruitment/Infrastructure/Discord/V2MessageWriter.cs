@@ -1,29 +1,11 @@
+using static DiscordBot.Services.Recruitment.RecruitmentRequests;
 using Discord.Net;
 using Newtonsoft.Json.Linq;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Infrastructure.Discord;
 
-public sealed partial class DiscordRecruitmentAdapter
+internal static class V2MessageWriter
 {
-    // One predicate covers stored IDs, interrupted-send discovery and advisory deletion.
-    internal static bool OwnsMessage(IUserMessage message, ulong botId, ulong channelId, string marker, RecruitmentMessageFormat format) =>
-        message.Author.Id == botId && message.Channel.Id == channelId &&
-        (format == RecruitmentMessageFormat.ComponentsV2
-            ? (message.Flags & MessageFlags.ComponentsV2) != 0 && TextDisplays(message.Components).Any(t => t == $"||{marker}||")
-            : message.Content.Split('\n').Any(t => t == $"||{marker}||" || t == $"-# {marker}"));
-
-    private static IEnumerable<string> TextDisplays(IEnumerable<IMessageComponent> components)
-    {
-        foreach (var component in components)
-        {
-            if (component is TextDisplayComponent text) yield return text.Content;
-            if (component is ContainerComponent container)
-                foreach (var value in TextDisplays(container.Components)) yield return value;
-            if (component is SectionComponent section)
-                foreach (var value in TextDisplays(section.Components)) yield return value;
-        }
-    }
-
     // Serialize the complete recursive builder model, dropping only Discord-assigned IDs and
     // resolved CDN metadata. Attachment URLs and avatar CDN signatures have a stable identity.
     internal static string V2ComponentKey(IEnumerable<IMessageComponent> components)
@@ -55,29 +37,14 @@ public sealed partial class DiscordRecruitmentAdapter
         else if (token is JArray array) foreach (var item in array) Normalize(item);
     }
 
-    internal static async Task<Delivery> UpsertV2Async(IMessageChannel channel, ulong botId, string? messageId,
+    internal static async Task<Delivery> UpsertAsync(IMessageChannel channel, ulong botId, string? messageId,
         bool recovering, DateTimeOffset since, RecruitmentMessage message, bool mediaAvailable, Action beforeWrite, CancellationToken ct)
     {
+        using var requestScope = RecruitmentRequests.BeginScope();
         ct.ThrowIfCancellationRequested();
         using var observation = RecruitmentMessageTransport.Observe(channel.Id);
-        IUserMessage? existing = messageId is null ? null : await channel.GetMessageAsync(ulong.Parse(messageId), CacheMode.AllowDownload, Options(ct)) as IUserMessage;
-        if (existing is not null && !OwnsMessage(existing, botId, channel.Id, message.Marker, RecruitmentMessageFormat.ComponentsV2))
-            throw new InvalidOperationException("Stored recruitment message identity does not match.");
-        if (existing is null && recovering)
-        {
-            ulong? before = null;
-            var covered = false;
-            for (var page = 0; page < 20; page++)
-            {
-                var messages = (before.HasValue ? await channel.GetMessagesAsync(before.Value, Direction.Before, 100, CacheMode.AllowDownload, Options(ct)).FlattenAsync()
-                    : await channel.GetMessagesAsync(100, CacheMode.AllowDownload, Options(ct)).FlattenAsync()).ToArray();
-                existing = messages.OfType<IUserMessage>().FirstOrDefault(m => OwnsMessage(m, botId, channel.Id, message.Marker, RecruitmentMessageFormat.ComponentsV2));
-                if (existing is not null) break;
-                if (messages.Length < 100 || messages.Min(m => m.Timestamp) <= since.AddMinutes(-5)) { covered = true; break; }
-                before = messages.Min(m => m.Id);
-            }
-            if (existing is null && !covered) throw new InvalidOperationException("Message recovery history exceeds the scan bound; staff review required before resending.");
-        }
+        var existing = (await OwnedMessageLookup.FindAsync(channel, botId, messageId, recovering, since,
+            message.Marker, RecruitmentMessageFormat.ComponentsV2, ct)).RequireCovered();
         var media = mediaAvailable ? message.Media : null;
         var components = media is null ? message.FallbackComponents ?? message.Components! : message.Components!;
         var retained = media is null ? null : existing?.Attachments.SingleOrDefault(a => a.Filename == media.FileName);
@@ -121,7 +88,7 @@ public sealed partial class DiscordRecruitmentAdapter
         {
             // A definite rejected media write is safe to retry as text. Ambiguous responses and
             // cancellation propagate with the saved publication/restoration intent untouched.
-            return await UpsertV2Async(channel, botId, existing?.Id.ToString(), recovering, since,
+            return await UpsertAsync(channel, botId, existing?.Id.ToString(), recovering, since,
                 message with { Media = null, Components = message.FallbackComponents }, false, beforeWrite, ct);
         }
         if (message.RestoreArchive && (needsRestore || edit) && channel is IThreadChannel restore)

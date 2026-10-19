@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 using Discord.Rest;
 
 namespace DiscordBot.Services.Recruitment;
@@ -7,6 +8,7 @@ public sealed partial class DiscordRecruitmentAdapter
     public async Task<bool> PinAdvisoryAsync(string threadId, string messageId, bool restoreArchive, bool restoreLocked,
         Action<bool, bool> beforeWrite, CancellationToken ct)
     {
+        using var requestScope = RecruitmentRequests.BeginScope();
         // A fresh channel is essential after a lost unarchive/pin response.
         var channel = await _client.Rest.GetChannelAsync(ulong.Parse(threadId), Options(ct)) as RestThreadChannel;
         if (channel is null || channel.GuildId != _settings.GuildId ||
@@ -21,6 +23,7 @@ public sealed partial class DiscordRecruitmentAdapter
     internal static async Task<bool> PinOwnedAsync(IThreadChannel channel, ulong botId, ulong messageId, bool? allowed,
         bool restoreArchive, bool restoreLocked, Action<bool, bool> beforeWrite, CancellationToken ct)
     {
+        using var requestScope = RecruitmentRequests.BeginScope();
         using var observation = RecruitmentMessageTransport.Observe(channel.Id);
         var message = await channel.GetMessageAsync(messageId, CacheMode.AllowDownload, Options(ct)) as IUserMessage;
         var archive = restoreArchive || channel.IsArchived;
@@ -37,7 +40,7 @@ public sealed partial class DiscordRecruitmentAdapter
         // Restoration from an interrupted attempt is independent of pin capability.
         if (restoreArchive) await RestoreAsync(false);
         if (message is null) return false;
-        if (!OwnsMessage(message, botId, channel.Id, $"recruitment:{channel.Id}:public", RecruitmentMessageFormat.ComponentsV2))
+        if (!OwnedMessageLookup.OwnsMessage(message, botId, channel.Id, $"recruitment:{channel.Id}:public", RecruitmentMessageFormat.ComponentsV2))
             throw new InvalidOperationException("Response pin message identity does not match.");
         if (message.IsPinned) return true;
         if (allowed != true) throw new InvalidOperationException(allowed == false ? "Pin Messages permission missing" : "Pin Messages permission evidence unavailable");

@@ -8,6 +8,7 @@ public sealed partial class DiscordRecruitmentAdapter
     internal const string ReferenceTitle = "Read First · Recruitment Information";
     public async Task<string> CreateReferenceAsync(string forumId, string closedTagId, string marker, CancellationToken ct)
     {
+        using var requestScope = RecruitmentRequests.BeginScope();
         var forum = _forums.TryGetValue(forumId, out var cached) ? cached.Channel : await ForumAsync(forumId, ct);
         var tags = forum.Tags.Where(t => t.Id.ToString() == closedTagId).ToArray();
         if (tags.Length != 1) throw new InvalidOperationException("Reference post needs a verified Closed tag.");
@@ -22,6 +23,7 @@ public sealed partial class DiscordRecruitmentAdapter
 
     public async Task<bool> SecureReferenceAsync(string forumId, string threadId, bool botOwned, string marker, CancellationToken ct)
     {
+        using var requestScope = RecruitmentRequests.BeginScope();
         RestThreadChannel thread;
         try
         {

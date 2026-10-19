@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 using DiscordBot.Utils;
 using DiscordBot.Services.Recruitment.Domain.Policies;
 namespace DiscordBot.Services.Recruitment;
@@ -75,7 +76,7 @@ public sealed partial class RecruitmentEngine
             }
             catch (Exception ex) when (ex is not OperationCanceledException && ex is not System.IO.IOException)
             {
-                notice.Fault = RecruitmentFault.From(ex, Now, notice.Fault); Save();
+                notice.Fault = RecruitmentFaultClassifier.From(ex, Now, notice.Fault); Save();
             }
         }
     }

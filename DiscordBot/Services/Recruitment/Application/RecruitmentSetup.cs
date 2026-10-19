@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 using System.IO;
 using System.Security.Cryptography;
 using DiscordBot.Settings;
@@ -38,7 +39,7 @@ public sealed class RecruitmentSetup
             }
             catch (Exception ex) when (ex is not OperationCanceledException && ex is not IOException)
             {
-                receipt.Fault = RecruitmentFault.From(ex, now, receipt.Fault);
+                receipt.Fault = RecruitmentFaultClassifier.From(ex, now, receipt.Fault);
             }
             _store.Save();
             Progress?.Invoke();

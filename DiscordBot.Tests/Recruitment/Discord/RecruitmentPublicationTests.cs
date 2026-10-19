@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 using System.Net;
 using System.Text;
 using Discord;
@@ -13,6 +14,27 @@ namespace DiscordBot.Tests.Recruitment;
 [Collection("Recruitment transport")]
 public class RecruitmentPublicationTests
 {
+    [Theory]
+    [InlineData(RecruitmentMessageFormat.Standard, false)]
+    [InlineData(RecruitmentMessageFormat.Standard, true)]
+    [InlineData(RecruitmentMessageFormat.ComponentsV2, false)]
+    [InlineData(RecruitmentMessageFormat.ComponentsV2, true)]
+    public async Task SharedRecoveryDistinguishesCoveredAbsenceFromExhaustedHistory(RecruitmentMessageFormat format, bool incomplete)
+    {
+        var transport = new PublicationTransport { MessageMissing = true, LongHistory = incomplete };
+        using var client = await Client(transport);
+        var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
+        transport.Message["author"]!["id"] = "200";
+        transport.Message["timestamp"] = DateTimeOffset.UtcNow.ToString("O");
+        var result = await OwnedMessageLookup.FindAsync(channel, 999, null, true, DateTimeOffset.UtcNow.AddDays(-1),
+            "recruitment:100:public", format, default);
+        Assert.Equal(incomplete ? MessageLookupStatus.Incomplete : MessageLookupStatus.Absent, result.Status);
+        Assert.Null(result.Message);
+        if (incomplete) Assert.Throws<InvalidOperationException>(() => result.RequireCovered());
+        else Assert.Null(result.RequireCovered());
+        Assert.Empty(transport.MessageWrites);
+    }
+
     [Theory]
     [InlineData("50", false, true, 1)]
     [InlineData("51", false, true, 1)]
@@ -177,7 +199,7 @@ public class RecruitmentPublicationTests
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
         var writes = 0;
-        var first = await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, false, DateTimeOffset.UtcNow, V2(), true, () => writes++, default);
+        var first = await V2MessageWriter.UpsertAsync(channel, 999, null, false, DateTimeOffset.UtcNow, V2(), true, () => writes++, default);
         Assert.True(first.NewlySent); Assert.Equal("901", first.MediaAttachmentId);
         Assert.Equal(1, transport.Uploads);
         var create = Assert.Single(transport.MessageWrites);
@@ -185,15 +207,15 @@ public class RecruitmentPublicationTests
         Assert.Null(create["content"]);
         Assert.Null(create["embeds"]);
         Assert.True(create["allowed_mentions"]!["parse"] is null or { Type: JTokenType.Null } || !create["allowed_mentions"]!["parse"]!.Any());
-        var same = await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, first.Id, false, DateTimeOffset.UtcNow, V2(), true, () => writes++, default);
+        var same = await V2MessageWriter.UpsertAsync(channel, 999, first.Id, false, DateTimeOffset.UtcNow, V2(), true, () => writes++, default);
         Assert.False(same.NewlySent); Assert.Equal(1, writes); Assert.Equal(1, transport.Uploads);
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, first.Id, false, DateTimeOffset.UtcNow, V2(ack: false), true, () => writes++, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, first.Id, false, DateTimeOffset.UtcNow, V2(ack: false), true, () => writes++, default);
         Assert.Equal(2, writes); Assert.Equal(1, transport.Uploads);
         var retain = transport.MessageWrites.Last();
         Assert.Equal("901", (string?)retain["attachments"]![0]!["id"]);
         Assert.True(retain["allowed_mentions"]!["parse"] is null or { Type: JTokenType.Null } || !retain["allowed_mentions"]!["parse"]!.Any());
         Assert.DoesNotContain("Acknowledge", retain["components"]!.ToString());
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, first.Id, false, DateTimeOffset.UtcNow, V2("Changed"), true, () => writes++, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, first.Id, false, DateTimeOffset.UtcNow, V2("Changed"), true, () => writes++, default);
         Assert.Equal(2, transport.Uploads); Assert.Single((JArray)transport.Message["attachments"]!);
         Assert.Equal("902", (string?)transport.Message["attachments"]![0]!["id"]);
     }
@@ -206,7 +228,7 @@ public class RecruitmentPublicationTests
     {
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, false, DateTimeOffset.UtcNow, V2(media: renderSucceeded), mediaAvailable, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, null, false, DateTimeOffset.UtcNow, V2(media: renderSucceeded), mediaAvailable, () => { }, default);
         Assert.Equal(0, transport.Uploads);
         var create = Assert.Single(transport.MessageWrites);
         Assert.Equal(32768, (int)create["flags"]!);
@@ -220,15 +242,15 @@ public class RecruitmentPublicationTests
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
         transport.LoseCreateResponse = true;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => V2MessageWriter.UpsertAsync(channel, 999, null, false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default));
         // Restart/lost create response: no stored ID, recover from component marker.
-        var recovered = await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, true, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        var recovered = await V2MessageWriter.UpsertAsync(channel, 999, null, true, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
         Assert.Equal("101", recovered.Id); Assert.False(recovered.NewlySent); Assert.Single(transport.MessageWrites);
         transport.Message["author"]!["id"] = "200";
-        await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false,
+        await Assert.ThrowsAsync<InvalidOperationException>(() => V2MessageWriter.UpsertAsync(channel, 999, "101", false,
             DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default));
         transport.LongHistory = true; transport.Message["timestamp"] = DateTimeOffset.UtcNow.ToString("O");
-        await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, true,
+        await Assert.ThrowsAsync<InvalidOperationException>(() => V2MessageWriter.UpsertAsync(channel, 999, null, true,
             DateTimeOffset.UtcNow.AddDays(-1), V2(media: false), true, () => { }, default));
         Assert.Single(transport.MessageWrites);
     }
@@ -238,14 +260,14 @@ public class RecruitmentPublicationTests
     {
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, false, DateTimeOffset.UtcNow, V2(), true, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, null, false, DateTimeOffset.UtcNow, V2(), true, () => { }, default);
         transport.Thread["thread_metadata"]!["archived"] = true; transport.Thread["thread_metadata"]!["locked"] = true;
         channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
         transport.LoseEditResponse = true;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false,
+        await Assert.ThrowsAsync<InvalidOperationException>(() => V2MessageWriter.UpsertAsync(channel, 999, "101", false,
             DateTimeOffset.UtcNow, V2("Changed") with { RestoreArchive = true, RestoreLocked = true }, true, () => { }, default));
         channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
-        var recovered = await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", true, DateTimeOffset.UtcNow,
+        var recovered = await V2MessageWriter.UpsertAsync(channel, 999, "101", true, DateTimeOffset.UtcNow,
             V2("Changed") with { RestoreArchive = true, RestoreLocked = true }, true, () => { }, default);
         Assert.False(recovered.NewlySent); Assert.Equal(2, transport.Uploads); Assert.Equal(2, transport.MessageWrites.Count);
         Assert.True((bool)transport.Thread["thread_metadata"]!["archived"]!); Assert.True((bool)transport.Thread["thread_metadata"]!["locked"]!);
@@ -256,11 +278,11 @@ public class RecruitmentPublicationTests
     {
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, false, DateTimeOffset.UtcNow, V2(), true, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, null, false, DateTimeOffset.UtcNow, V2(), true, () => { }, default);
         transport.Thread["thread_metadata"]!["archived"] = true; transport.Thread["thread_metadata"]!["locked"] = true;
         transport.RejectUpload = true;
         channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
-        var delivery = await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false, DateTimeOffset.UtcNow,
+        var delivery = await V2MessageWriter.UpsertAsync(channel, 999, "101", false, DateTimeOffset.UtcNow,
             V2("Changed") with { RestoreArchive = true, RestoreLocked = true }, true, () => { }, default);
         Assert.Null(delivery.MediaAttachmentId); Assert.False(delivery.NewlySent);
         Assert.True((bool)transport.Thread["thread_metadata"]!["archived"]!); Assert.True((bool)transport.Thread["thread_metadata"]!["locked"]!);
@@ -274,14 +296,14 @@ public class RecruitmentPublicationTests
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var adapter = new DiscordRecruitmentAdapter(client, Settings());
         var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, null, false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
         var owned = (IUserMessage)(await channel.GetMessageAsync(101))!;
-        Assert.True(DiscordRecruitmentAdapter.OwnsMessage(owned, 999, 100, "recruitment:100:public", RecruitmentMessageFormat.ComponentsV2));
-        Assert.False(DiscordRecruitmentAdapter.OwnsMessage(owned, 200, 100, "recruitment:100:public", RecruitmentMessageFormat.ComponentsV2));
-        Assert.False(DiscordRecruitmentAdapter.OwnsMessage(owned, 999, 200, "recruitment:100:public", RecruitmentMessageFormat.ComponentsV2));
-        Assert.False(DiscordRecruitmentAdapter.OwnsMessage(owned, 999, 100, "recruitment:100:pub", RecruitmentMessageFormat.ComponentsV2));
+        Assert.True(OwnedMessageLookup.OwnsMessage(owned, 999, 100, "recruitment:100:public", RecruitmentMessageFormat.ComponentsV2));
+        Assert.False(OwnedMessageLookup.OwnsMessage(owned, 200, 100, "recruitment:100:public", RecruitmentMessageFormat.ComponentsV2));
+        Assert.False(OwnedMessageLookup.OwnsMessage(owned, 999, 200, "recruitment:100:public", RecruitmentMessageFormat.ComponentsV2));
+        Assert.False(OwnedMessageLookup.OwnsMessage(owned, 999, 100, "recruitment:100:pub", RecruitmentMessageFormat.ComponentsV2));
         transport.Message["flags"] = 0;
-        Assert.False(DiscordRecruitmentAdapter.OwnsMessage((IUserMessage)(await channel.GetMessageAsync(101))!, 999, 100, "recruitment:100:public", RecruitmentMessageFormat.ComponentsV2));
+        Assert.False(OwnedMessageLookup.OwnsMessage((IUserMessage)(await channel.GetMessageAsync(101))!, 999, 100, "recruitment:100:public", RecruitmentMessageFormat.ComponentsV2));
         transport.Message["flags"] = 32768;
         await adapter.DeleteAdvisoryAsync("100", "101", default, "recruitment:100:public");
         Assert.Equal(1, transport.Deletes);
@@ -293,7 +315,7 @@ public class RecruitmentPublicationTests
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
         using var cancellation = new CancellationTokenSource(); cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, false,
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => V2MessageWriter.UpsertAsync(channel, 999, null, false,
             DateTimeOffset.UtcNow, V2(), true, () => { }, cancellation.Token));
         Assert.Empty(transport.MessageWrites);
         await channel.SendMessageAsync("Ordinary content");
@@ -308,13 +330,13 @@ public class RecruitmentPublicationTests
         var transport = new PublicationTransport { MessageMissing = true, ComponentOnlyMedia = true, CdnMediaUrl = cdnUrl };
         using var client = await Client(transport);
         var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
-        var delivered = await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, false, DateTimeOffset.UtcNow, V2(), true, () => { }, default);
+        var delivered = await V2MessageWriter.UpsertAsync(channel, 999, null, false, DateTimeOffset.UtcNow, V2(), true, () => { }, default);
         Assert.Equal("901", delivered.MediaAttachmentId);
         using var restarted = await Client(transport);
         channel = (IMessageChannel)(await restarted.Rest.GetChannelAsync(100))!;
-        var recovered = await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, true, DateTimeOffset.UtcNow, V2(), true, () => { }, default);
+        var recovered = await V2MessageWriter.UpsertAsync(channel, 999, null, true, DateTimeOffset.UtcNow, V2(), true, () => { }, default);
         Assert.Equal("901", recovered.MediaAttachmentId); Assert.Single(transport.MessageWrites); Assert.Equal(1, transport.Uploads);
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, recovered.Id, false, DateTimeOffset.UtcNow, V2(ack: false), true, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, recovered.Id, false, DateTimeOffset.UtcNow, V2(ack: false), true, () => { }, default);
         Assert.Equal(1, transport.Uploads); Assert.Equal("901", (string?)transport.MessageWrites.Last()["attachments"]![0]!["id"]);
     }
 
@@ -326,7 +348,7 @@ public class RecruitmentPublicationTests
         var message = RecruitmentPresentation.PublicV2(rig.State, post, rig.Settings.Recruitment, rig.Clock.Now);
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, false, DateTimeOffset.UtcNow, message, false, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, null, false, DateTimeOffset.UtcNow, message, false, () => { }, default);
         var payload = Assert.Single(transport.MessageWrites);
         Assert.DoesNotContain("cdn.discordapp.com", payload.ToString()); Assert.DoesNotContain("attachment://", payload.ToString());
         Assert.DoesNotContain(payload["components"]!.SelectTokens("$..type"), t => (int)t is 11 or 12);
@@ -341,10 +363,10 @@ public class RecruitmentPublicationTests
         var message = RecruitmentPresentation.PublicV2(rig.State, post, rig.Settings.Recruitment, rig.Clock.Now);
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
-        var sent = await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, false, DateTimeOffset.UtcNow, message, true, () => { }, default);
+        var sent = await V2MessageWriter.UpsertAsync(channel, 999, null, false, DateTimeOffset.UtcNow, message, true, () => { }, default);
         post.Facts.ServerNickname = "**<@123> New name**";
         var renamed = RecruitmentPresentation.PublicV2(rig.State, post, rig.Settings.Recruitment, rig.Clock.Now);
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, sent.Id, false, DateTimeOffset.UtcNow, renamed, true, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, sent.Id, false, DateTimeOffset.UtcNow, renamed, true, () => { }, default);
         Assert.Equal(1, transport.Uploads); Assert.Equal(2, transport.MessageWrites.Count);
         Assert.DoesNotContain("<@123>", transport.MessageWrites.Last().ToString()); Assert.Contains("New name", transport.MessageWrites.Last().ToString());
         Assert.Equal("901", (string?)transport.MessageWrites.Last()["attachments"]![0]!["id"]);
@@ -355,11 +377,11 @@ public class RecruitmentPublicationTests
     {
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, null, false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, null, false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
         transport.Thread["thread_metadata"]!["archived"] = true; transport.Thread["thread_metadata"]!["locked"] = false;
         channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
         var saves = 0;
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", true, DateTimeOffset.UtcNow,
+        await V2MessageWriter.UpsertAsync(channel, 999, "101", true, DateTimeOffset.UtcNow,
             V2(media: false) with { RestoreArchive = true, RestoreLocked = true }, true, () => saves++, default);
         Assert.Equal(1, saves); Assert.Single(transport.MessageWrites); Assert.True((bool)transport.Thread["thread_metadata"]!["locked"]!);
     }
@@ -369,7 +391,7 @@ public class RecruitmentPublicationTests
     {
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IMessageChannel)(await client.Rest.GetChannelAsync(100))!;
-        var sent = await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        var sent = await V2MessageWriter.UpsertAsync(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
         Assert.True(sent.NewlySent); Assert.Single(transport.MessageWrites); Assert.Contains("Acknowledge", transport.Message.ToString());
     }
 
@@ -378,7 +400,7 @@ public class RecruitmentPublicationTests
     {
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
         Assert.True(await DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, true, false, false, (_, _) => { }, default));
         Assert.Equal(new[] { "channels/100/messages/pins/101" }, transport.PinRoutes);
         var message = (IUserMessage)(await channel.GetMessageAsync(101))!;
@@ -401,7 +423,7 @@ public class RecruitmentPublicationTests
     {
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
         await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, allowed, false, false, (_, _) => { }, default));
         Assert.Empty(transport.PinRoutes); Assert.Empty(transport.ChannelWrites);
     }
@@ -411,7 +433,7 @@ public class RecruitmentPublicationTests
     {
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
         transport.Thread["thread_metadata"]!["archived"] = true; transport.Thread["thread_metadata"]!["locked"] = true;
         channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
         transport.LosePinResponse = true; transport.FailRestoreOnce = true;
@@ -437,7 +459,7 @@ public class RecruitmentPublicationTests
     {
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
         transport.Thread["thread_metadata"]!["archived"] = true; transport.Thread["thread_metadata"]!["locked"] = true;
         channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
         transport.PinStatus = status;
@@ -461,7 +483,7 @@ public class RecruitmentPublicationTests
         Assert.True((bool)transport.Thread["thread_metadata"]!["archived"]!);
         Assert.True((bool)transport.Thread["thread_metadata"]!["locked"]!);
         Assert.False(receipt.RestoreArchive); Assert.Single(transport.PinRoutes);
-        var fault = RecruitmentFault.From(error!, DateTimeOffset.UtcNow);
+        var fault = RecruitmentFaultClassifier.From(error!, DateTimeOffset.UtcNow);
         Assert.Equal(status == 429, fault.RetryAt.HasValue);
         Assert.Equal(0, transport.Deletes);
     }
@@ -471,7 +493,7 @@ public class RecruitmentPublicationTests
     {
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
-        await DiscordRecruitmentAdapter.UpsertV2Async(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
+        await V2MessageWriter.UpsertAsync(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
         transport.Message["author"]!["id"] = "200";
         await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, true, false, false, (_, _) => { }, default));
         Assert.Empty(transport.PinRoutes);
@@ -483,7 +505,7 @@ public class RecruitmentPublicationTests
 
     private static async Task<DiscordSocketClient> Client(PublicationTransport transport)
     {
-        var client = new DiscordSocketClient(new DiscordSocketConfig { RestClientProvider = RecruitmentForumTransport.Wrap(_ => transport) });
+        var client = new DiscordSocketClient(new DiscordSocketConfig { RestClientProvider = DiscordCompatibilityTransport.Wrap(_ => transport) });
         await client.LoginAsync(TokenType.Bot, "offline-placeholder-token", validateToken: false);
         // READY normally seeds the socket REST wrapper's identity. Seed only that SDK cache from an
         // offline REST login so these payload tests never open a gateway or replace production I/O.

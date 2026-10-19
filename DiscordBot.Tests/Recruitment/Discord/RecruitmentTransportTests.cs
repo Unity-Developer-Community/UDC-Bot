@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 using System.Net;
 using System.Text;
 using Discord;
@@ -18,7 +19,7 @@ public class RecruitmentTransportTests
     {
         var transport = new ForumTransport();
         using var client = new DiscordRestClient(new DiscordRestConfig
-        { RestClientProvider = RecruitmentForumTransport.Wrap(_ => transport) });
+        { RestClientProvider = DiscordCompatibilityTransport.Wrap(_ => transport) });
         await client.LoginAsync(TokenType.Bot, "offline-placeholder-token", validateToken: false);
         var forum = Assert.IsType<RestForumChannel>(await client.GetChannelAsync(11));
         var tags = new[] { new LiveTag("51", "Staff", true, new Emoji("⭐")), new LiveTag("", "Programming", false) };
@@ -44,9 +45,9 @@ public class RecruitmentTransportTests
     public async Task TagPublicationWithoutScopeFailsBeforeTransport()
     {
         var inner = new ForumTransport();
-        using var transport = new RecruitmentForumTransport(inner);
+        using var transport = new DiscordCompatibilityTransport(inner);
         await Assert.ThrowsAsync<InvalidOperationException>(() => transport.SendAsync("PATCH", "channels/11", "{}",
-            default, false, RecruitmentForumTransport.TagWriteReason, Array.Empty<KeyValuePair<string, IEnumerable<string>>>()));
+            default, false, DiscordCompatibilityTransport.TagWriteReason, Array.Empty<KeyValuePair<string, IEnumerable<string>>>()));
         Assert.Empty(inner.Writes);
     }
 
@@ -55,7 +56,7 @@ public class RecruitmentTransportTests
     {
         var transport = new ForumTransport { InventoryMode = true };
         using var client = new DiscordSocketClient(new DiscordSocketConfig
-        { RestClientProvider = RecruitmentForumTransport.Wrap(_ => transport) });
+        { RestClientProvider = DiscordCompatibilityTransport.Wrap(_ => transport) });
         await client.LoginAsync(TokenType.Bot, "offline-placeholder-token", validateToken: false);
         var settings = new BotSettings { GuildId = 1, Recruitment = new RecruitmentSettings
         { Forums = new RecruitmentForums { PaidRecruitingId = 11, PaidForHireId = 12, HobbyRecruitingId = 13, HobbyForHireId = 14 } } };
@@ -81,10 +82,10 @@ public class RecruitmentTransportTests
     public async Task InventoryObservationRetainsIdentitiesDiscardedBySdkParentFilter()
     {
         var transport = new ForumTransport { InventoryMode = true, IncludeOtherForumThread = true };
-        using var client = new DiscordRestClient(new DiscordRestConfig { RestClientProvider = RecruitmentForumTransport.Wrap(_ => transport) });
+        using var client = new DiscordRestClient(new DiscordRestConfig { RestClientProvider = DiscordCompatibilityTransport.Wrap(_ => transport) });
         await client.LoginAsync(TokenType.Bot, "offline-placeholder-token", validateToken: false);
         var forum = Assert.IsType<RestForumChannel>(await client.GetChannelAsync(11));
-        using var observed = RecruitmentForumTransport.ObserveActiveInventory(1);
+        using var observed = DiscordCompatibilityTransport.ObserveActiveInventory(1);
         Assert.Empty(await forum.GetActiveThreadsAsync());
         Assert.Equal((100UL, 12UL), Assert.Single(observed.Identities!));
         Assert.Single(transport.Requests, r => r.Contains("/threads/active"));
@@ -95,9 +96,10 @@ public class RecruitmentTransportTests
     [InlineData(537)]
     public async Task RateLimitReturnsDeadlineWithoutBlockingWorkerOrResending(int seconds)
     {
+        using var requestScope = RecruitmentRequests.BeginScope(new DiscordRetryDeadlines());
         var transport = new ForumTransport { RetrySeconds = seconds };
         using var client = new DiscordRestClient(new DiscordRestConfig
-        { RestClientProvider = RecruitmentForumTransport.Wrap(_ => transport) });
+        { RestClientProvider = DiscordCompatibilityTransport.Wrap(_ => transport) });
         await client.LoginAsync(TokenType.Bot, "offline-placeholder-token", validateToken: false);
         var started = DateTimeOffset.UtcNow;
         var error = await Assert.ThrowsAsync<RecruitmentDeferredException>(async () =>
@@ -105,8 +107,8 @@ public class RecruitmentTransportTests
         Assert.True(error.RetryAt >= started.AddSeconds(seconds));
         await Assert.ThrowsAsync<RecruitmentDeferredException>(async () =>
             await client.GetChannelAsync((ulong)seconds, RecruitmentRequests.Options(default)).WaitAsync(TimeSpan.FromSeconds(2)));
-        using var sameChannel = new RecruitmentForumTransport(transport);
-        _ = RecruitmentRequests.Options(default); // Mark this direct transport call as recruitment work too.
+        using var sameChannel = new DiscordCompatibilityTransport(transport);
+        _ = RecruitmentRequests.Options(default);
         await Assert.ThrowsAsync<RecruitmentDeferredException>(() => sameChannel.SendAsync("GET", $"channels/{seconds}/messages?limit=100",
             default, false, "", Array.Empty<KeyValuePair<string, IEnumerable<string>>>()).WaitAsync(TimeSpan.FromSeconds(2)));
         Assert.Equal(1, transport.RateLimitRequests);
@@ -115,24 +117,15 @@ public class RecruitmentTransportTests
     [Fact]
     public async Task GlobalRateLimitDefersOtherRecruitmentRoutesBeforeSdkWaiting()
     {
+        using var requestScope = RecruitmentRequests.BeginScope(new DiscordRetryDeadlines());
         var transport = new ForumTransport { RetrySeconds = 1, GlobalLimit = true };
-        using var client = new DiscordRestClient(new DiscordRestConfig { RestClientProvider = RecruitmentForumTransport.Wrap(_ => transport) });
+        using var client = new DiscordRestClient(new DiscordRestConfig { RestClientProvider = DiscordCompatibilityTransport.Wrap(_ => transport) });
         await client.LoginAsync(TokenType.Bot, "offline-placeholder-token", validateToken: false);
         var error = await Assert.ThrowsAsync<RecruitmentDeferredException>(async () =>
             await client.GetChannelAsync(1, RecruitmentRequests.Options(default)).WaitAsync(TimeSpan.FromSeconds(2)));
-        try
-        {
-            var other = Assert.Throws<RecruitmentDeferredException>(() => RecruitmentRequests.Options(default));
-            Assert.Equal(error.RetryAt, other.RetryAt);
-            Assert.Equal(1, transport.RateLimitRequests);
-        }
-        finally
-        {
-            // This process-wide limiter is shared by all SDK instances, as it is by production callers.
-            // Let this short synthetic global window expire before another test uses the transport.
-            var remaining = error.RetryAt - DateTimeOffset.UtcNow + TimeSpan.FromMilliseconds(20);
-            if (remaining > TimeSpan.Zero) await Task.Delay(remaining);
-        }
+        var other = Assert.Throws<RecruitmentDeferredException>(() => RecruitmentRequests.Options(default));
+        Assert.Equal(error.RetryAt, other.RetryAt);
+        Assert.Equal(1, transport.RateLimitRequests);
     }
 
     // Uses the real installed SDK's request queue and serialization, but never a network transport.
