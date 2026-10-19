@@ -1,26 +1,34 @@
+using DiscordBot.Settings;
 using DiscordBot.Services.Recruitment.Infrastructure.Discord;
-namespace DiscordBot.Services.Recruitment;
+using DiscordBot.Services.Recruitment.Presentation;
 
-public sealed partial class RecruitmentEngine
+namespace DiscordBot.Services.Recruitment.Application;
+
+internal sealed class RecruitmentOverviewPublisher(
+    RecruitmentState state,
+    RecruitmentSettings settings,
+    IRecruitmentDiscord discord,
+    TimeProvider time,
+    Action save,
+    Func<bool> feedAvailable,
+    Func<bool> feedEmbeds,
+    Action guardFeedWrite,
+    Func<RecruitmentHealth> healthSnapshot)
 {
-    private bool _feedReady;
-    private long _feedGeneration = -1;
-    private bool _feedEmbeds;
+    private readonly RecruitmentState State = state;
+    private readonly RecruitmentSettings _settings = settings;
+    private readonly IRecruitmentDiscord _discord = discord;
+    private DateTimeOffset Now => time.GetUtcNow();
+    private void Save() => save();
+    public void InvalidateRender() => _overviewRender = null;
     private string? _overviewRender;
     private DateTimeOffset? _overviewDirtyAt;
 
-    private void GuardFeedWrite()
-    {
-        if (!_feedReady || !_gatewayReady() || _feedGeneration != _evidenceGeneration())
-            throw new InvalidOperationException("Feed access changed; recruitment recovery is required before publication.");
-    }
-
-    public DateTimeOffset? NextDueAt => new[] { NextWorkAt, OverviewDueAt }.Where(t => t.HasValue).Min();
-    private DateTimeOffset? OverviewDueAt
+    public DateTimeOffset? NextDueAt
     {
         get
         {
-            if (!_feedReady || !_gatewayReady() || _feedGeneration != _evidenceGeneration() || State is null) return null;
+            if (!feedAvailable()) return null;
             var receipt = State.Overview;
             if (receipt.Fault is not null) return receipt.Fault.RetryAt;
             if (receipt.SendPending || receipt.RetiredMessageId is not null || receipt.MessageId is null) return Now;
@@ -32,14 +40,14 @@ public sealed partial class RecruitmentEngine
     }
     private static DateTimeOffset Max(DateTimeOffset a, DateTimeOffset b) => a > b ? a : b;
 
-    public async Task RefreshOverviewAsync(CancellationToken ct)
+    public async Task RefreshAsync(CancellationToken ct)
     {
-        if (!_feedReady || !_gatewayReady() || _feedGeneration != _evidenceGeneration() || State is null) return;
+        if (!feedAvailable()) return;
         var receipt = State.Overview;
-        var health = Health();
+        var health = healthSnapshot();
         var render = health.Text();
         if (render != _overviewRender) _overviewDirtyAt ??= Now;
-        if (!(OverviewDueAt <= Now)) return;
+        if (!(NextDueAt <= Now)) return;
         if (receipt.Fault is not null && !receipt.Fault.IsDue(Now)) return;
         try
         {
@@ -57,10 +65,10 @@ public sealed partial class RecruitmentEngine
                 receipt.SendStartedAt = Now;
             }
             var marker = receipt.PendingMarker ?? throw new InvalidOperationException("Overview delivery marker is missing; reconcile required.");
-            var message = new RecruitmentMessage(_feedEmbeds ? $"-# {marker}" : "**Recruitment Status**\n" + render[..Math.Min(1800, render.Length)] + $"\n-# {marker}",
-                marker, false, Embed: _feedEmbeds ? health.Embed(includeFreshness: false) : null);
+            var message = new RecruitmentMessage(feedEmbeds() ? $"-# {marker}" : "**Recruitment Status**\n" + render[..Math.Min(1800, render.Length)] + $"\n-# {marker}",
+                marker, false, Embed: feedEmbeds() ? health.Embed(includeFreshness: false) : null);
             var delivery = await _discord.UpsertAsync(_settings.FeedChannelId.ToString(), replace ? null : receipt.MessageId,
-                receipt.SendPending, receipt.SendStartedAt ?? Now, message, () => { GuardFeedWrite(); receipt.SendPending = true; Save(); }, ct);
+                receipt.SendPending, receipt.SendStartedAt ?? Now, message, () => { guardFeedWrite(); receipt.SendPending = true; Save(); }, ct);
             if (replace && receipt.MessageId is not null && receipt.MessageId != delivery.Id)
             { receipt.RetiredMessageId = receipt.MessageId; receipt.RetiredMarker = receipt.Marker; }
             receipt.MessageId = delivery.Id; receipt.Marker = marker; receipt.SendPending = false;

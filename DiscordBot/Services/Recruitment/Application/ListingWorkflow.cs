@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Presentation;
 using System.IO;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
@@ -7,7 +8,20 @@ using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 
 namespace DiscordBot.Services.Recruitment.Application;
 
-internal sealed class ListingWorkflow(RecruitmentState state, RecruitmentSettings settings, IRecruitmentDiscord discord, TimeProvider time, Action save, AcknowledgementRecovery windows, ListingReader reader, ListingPublisher publisher, ListingActionExecutor actions, ListingEvidenceCapture facts, ListingForums forums, Func<bool> evidenceCurrent, Action<ThreadSnapshot> observeReferenceCandidate)
+internal sealed class ListingWorkflow(
+    RecruitmentState state,
+    RecruitmentSettings settings,
+    IRecruitmentDiscord discord,
+    TimeProvider time,
+    Action save,
+    AcknowledgementRecovery windows,
+    ListingReader reader,
+    ListingPublisher publisher,
+    ListingActionExecutor actions,
+    ListingEvidenceCapture facts,
+    ListingForums forums,
+    Func<bool> evidenceCurrent,
+    Action<ThreadSnapshot> observeReferenceCandidate)
 {
     private readonly RecruitmentState State = state;
     private readonly RecruitmentSettings _settings = settings;

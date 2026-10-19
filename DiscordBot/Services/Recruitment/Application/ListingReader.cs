@@ -7,7 +7,13 @@ using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 
 namespace DiscordBot.Services.Recruitment.Application;
 
-internal sealed class ListingReader(RecruitmentState state, RecruitmentSettings settings, IRecruitmentDiscord discord, TimeProvider time, Action save, AcknowledgementRecovery windows)
+internal sealed class ListingReader(
+    RecruitmentState state,
+    RecruitmentSettings settings,
+    IRecruitmentDiscord discord,
+    TimeProvider time,
+    Action save,
+    AcknowledgementRecovery windows)
 {
     private readonly RecruitmentState State = state;
     private readonly RecruitmentSettings _settings = settings;

@@ -10,11 +10,12 @@ using DiscordBot.Settings;
 namespace DiscordBot.Services.Recruitment;
 
 /// <summary>Discord I/O and authoritative pre-action checks for the serialized recruitment engine.</summary>
-public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
+public sealed class DiscordRecruitmentAdapter : IRecruitmentDiscord
 {
     private readonly DiscordSocketClient _client;
     private readonly BotSettings _settings;
     private readonly TimeProvider _time;
+    private readonly DiscordReferencePublisher _referencePublisher;
     private readonly Dictionary<string, (ForumSnapshot Snapshot, RestForumChannel Channel)> _forums = new();
     private readonly ConcurrentDictionary<string, ForumSnapshot> _expectedForums = new();
     private readonly Dictionary<string, ThreadSnapshot> _threads = new();
@@ -24,7 +25,10 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
     public void InvalidateFacts(string threadId) { _observedFacts.Remove(threadId); InvalidateThread(threadId); }
     public void InvalidateCache() { _threads.Clear(); _observedFacts.Clear(); _messageChannels.Clear(); _forums.Clear(); }
     public DiscordRecruitmentAdapter(DiscordSocketClient client, BotSettings settings, TimeProvider? time = null)
-        => (_client, _settings, _time) = (client, settings, time ?? TimeProvider.System);
+    {
+        (_client, _settings, _time) = (client, settings, time ?? TimeProvider.System);
+        _referencePublisher = new DiscordReferencePublisher(client, settings, CachedForumAsync, () => BotUserId, IsModeratorAsync, InvalidateFacts);
+    }
     private static RequestOptions Options(CancellationToken ct) => RecruitmentRequests.Options(ct);
     private ulong BotUserId => _client.CurrentUser?.Id ?? _client.Rest.CurrentUser?.Id
         ?? throw new InvalidOperationException("Authenticated bot identity is unavailable.");
@@ -303,4 +307,23 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
         if (await channel.GetMessageAsync(ulong.Parse(messageId), CacheMode.AllowDownload, Options(ct)) is IUserMessage message && marker is not null && OwnedMessageLookup.OwnsMessage(message, BotUserId, channel.Id, marker, marker.EndsWith(":public", StringComparison.Ordinal) ? RecruitmentMessageFormat.ComponentsV2 : RecruitmentMessageFormat.Standard))
             await message.DeleteAsync(Options(ct));
     }
+    public async Task<bool> PinAdvisoryAsync(string threadId, string messageId, bool restoreArchive, bool restoreLocked,
+        Action<bool, bool> beforeWrite, CancellationToken ct)
+    {
+        using var requestScope = RecruitmentRequests.BeginScope();
+        // A fresh channel is essential after a lost unarchive/pin response.
+        var channel = await _client.Rest.GetChannelAsync(ulong.Parse(threadId), Options(ct)) as RestThreadChannel;
+        if (channel is null || channel.GuildId != _settings.GuildId ||
+            !_settings.Recruitment.Forums.Mapping().Values.Contains(channel.ParentChannelId))
+            throw new InvalidOperationException("Response pin thread unavailable.");
+        var guild = _client.GetGuild(_settings.GuildId);
+        var parent = guild?.GetChannel(channel.ParentChannelId);
+        bool? allowed = parent is null ? null : guild!.CurrentUser.GetPermissions(parent).PinMessages;
+        return await DiscordResponsePins.PinOwnedAsync(channel, BotUserId, ulong.Parse(messageId), allowed, restoreArchive, restoreLocked, beforeWrite, ct);
+    }
+
+    public Task<string> CreateReferenceAsync(string forumId, string closedTagId, string marker, CancellationToken ct) =>
+        _referencePublisher.CreateReferenceAsync(forumId, closedTagId, marker, ct);
+    public Task<bool> SecureReferenceAsync(string forumId, string threadId, bool botOwned, string marker, CancellationToken ct) =>
+        _referencePublisher.SecureReferenceAsync(forumId, threadId, botOwned, marker, ct);
 }

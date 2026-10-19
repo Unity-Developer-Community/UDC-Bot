@@ -5,7 +5,17 @@ using DiscordBot.Services.Recruitment.Presentation;
 
 namespace DiscordBot.Services.Recruitment.Application;
 
-internal sealed class ListingOwnerCommands(RecruitmentState state, RecruitmentSettings settings, IRecruitmentDiscord discord, TimeProvider time, Action save, ListingWorkflow workflow, ListingActionExecutor actions, Func<bool> ready, Func<bool> acknowledgementReady, Func<bool> evidenceCurrent)
+internal sealed class ListingOwnerCommands(
+    RecruitmentState state,
+    RecruitmentSettings settings,
+    IRecruitmentDiscord discord,
+    TimeProvider time,
+    Action save,
+    ListingWorkflow workflow,
+    ListingActionExecutor actions,
+    Func<bool> ready,
+    Func<bool> acknowledgementReady,
+    Func<bool> evidenceCurrent)
 {
     private readonly RecruitmentState State = state;
     private readonly RecruitmentSettings _settings = settings;

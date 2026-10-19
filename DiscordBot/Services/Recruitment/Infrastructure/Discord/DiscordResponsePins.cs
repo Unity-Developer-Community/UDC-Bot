@@ -1,25 +1,9 @@
-using DiscordBot.Services.Recruitment.Infrastructure.Discord;
-using Discord.Rest;
+using static DiscordBot.Services.Recruitment.RecruitmentRequests;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Infrastructure.Discord;
 
-public sealed partial class DiscordRecruitmentAdapter
+internal static class DiscordResponsePins
 {
-    public async Task<bool> PinAdvisoryAsync(string threadId, string messageId, bool restoreArchive, bool restoreLocked,
-        Action<bool, bool> beforeWrite, CancellationToken ct)
-    {
-        using var requestScope = RecruitmentRequests.BeginScope();
-        // A fresh channel is essential after a lost unarchive/pin response.
-        var channel = await _client.Rest.GetChannelAsync(ulong.Parse(threadId), Options(ct)) as RestThreadChannel;
-        if (channel is null || channel.GuildId != _settings.GuildId ||
-            !_settings.Recruitment.Forums.Mapping().Values.Contains(channel.ParentChannelId))
-            throw new InvalidOperationException("Response pin thread unavailable.");
-        var guild = _client.GetGuild(_settings.GuildId);
-        var parent = guild?.GetChannel(channel.ParentChannelId);
-        bool? allowed = parent is null ? null : guild!.CurrentUser.GetPermissions(parent).PinMessages;
-        return await PinOwnedAsync(channel, BotUserId, ulong.Parse(messageId), allowed, restoreArchive, restoreLocked, beforeWrite, ct);
-    }
-
     internal static async Task<bool> PinOwnedAsync(IThreadChannel channel, ulong botId, ulong messageId, bool? allowed,
         bool restoreArchive, bool restoreLocked, Action<bool, bool> beforeWrite, CancellationToken ct)
     {

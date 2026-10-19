@@ -7,7 +7,18 @@ using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 
 namespace DiscordBot.Services.Recruitment.Application;
 
-internal sealed class ListingActionExecutor(RecruitmentState state, RecruitmentSettings settings, IRecruitmentDiscord discord, TimeProvider time, Action save, AcknowledgementRecovery windows, ListingReader reader, ListingPublisher publisher, ListingForums forums, Func<bool> evidenceCurrent, Func<string, bool> pendingThreadWork)
+internal sealed class ListingActionExecutor(
+    RecruitmentState state,
+    RecruitmentSettings settings,
+    IRecruitmentDiscord discord,
+    TimeProvider time,
+    Action save,
+    AcknowledgementRecovery windows,
+    ListingReader reader,
+    ListingPublisher publisher,
+    ListingForums forums,
+    Func<bool> evidenceCurrent,
+    Func<string, bool> pendingThreadWork)
 {
     private readonly RecruitmentState State = state;
     private readonly RecruitmentSettings _settings = settings;

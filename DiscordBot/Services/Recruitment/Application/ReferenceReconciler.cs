@@ -3,8 +3,14 @@ using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 namespace DiscordBot.Services.Recruitment.Application;
 
 internal sealed record ReferenceCandidate(string Id, bool BotOwned);
-internal sealed class ReferenceReconciler(RecruitmentState state, RecruitmentAssets assets, IRecruitmentDiscord discord,
-    TimeProvider time, Action save, Func<bool> evidenceCurrent, Action requestRetry)
+internal sealed class ReferenceReconciler(
+    RecruitmentState state,
+    RecruitmentAssets assets,
+    IRecruitmentDiscord discord,
+    TimeProvider time,
+    Action save,
+    Func<bool> evidenceCurrent,
+    Action requestRetry)
 {
     private readonly RecruitmentState State = state;
     private readonly RecruitmentAssets _assets = assets;

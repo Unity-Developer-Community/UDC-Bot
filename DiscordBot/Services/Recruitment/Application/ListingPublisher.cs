@@ -7,7 +7,13 @@ using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 
 namespace DiscordBot.Services.Recruitment.Application;
 
-internal sealed class ListingPublisher(RecruitmentState state, RecruitmentSettings settings, IRecruitmentDiscord discord, TimeProvider time, Action save, Action guardFeedWrite)
+internal sealed class ListingPublisher(
+    RecruitmentState state,
+    RecruitmentSettings settings,
+    IRecruitmentDiscord discord,
+    TimeProvider time,
+    Action save,
+    Action guardFeedWrite)
 {
     private readonly RecruitmentState State = state;
     private readonly RecruitmentSettings _settings = settings;
@@ -50,8 +56,8 @@ internal sealed class ListingPublisher(RecruitmentState state, RecruitmentSettin
         if (!post.PublicSendPending && !post.PublicationPending && post.PublicMessageId is not null && _publicRenders.GetValueOrDefault(post.Id) == renderKey) return;
         var recovering = post.PublicSendPending;
         var delivery = await _discord.UpsertAsync(post.Id, post.PublicMessageId, recovering, post.PublicSendStartedAt ?? post.CreatedAt,
-            message with
-            { RestoreArchive = post.PublicRestoreArchive || post.Status == ListingStatus.Closed, RestoreLocked = post.PublicRestoreLocked || post.Status == ListingStatus.Closed }, () =>
+            message.WithRestoration(post.Status == ListingStatus.Closed ? ThreadRestoration.LockedArchive :
+                new ThreadRestoration(Archived: post.PublicRestoreArchive, Locked: post.PublicRestoreLocked)), () =>
             {
                 if (!recovering) post.PublicSendStartedAt = Now;
                 post.PublicSendPending = true; Save();
@@ -99,11 +105,7 @@ internal sealed class ListingPublisher(RecruitmentState state, RecruitmentSettin
         }
     }
 
-    public DateTimeOffset? AcknowledgementNoticeDue(Listing post) =>
-        post.Status == ListingStatus.Open && !post.AcceptedAt.HasValue && !post.AcknowledgedAt.HasValue &&
-        post.PublicMessageId is not null && post.Deadline > Now &&
-        (post.AcknowledgementNotice.MessageId is null || post.AcknowledgementNotice.SendPending)
-            ? post.AcknowledgementNotice.Fault is { } fault ? fault.RetryAt : Now : null;
+    public DateTimeOffset? AcknowledgementNoticeDue(Listing post) => ListingDeliveryPolicy.AcknowledgementNoticeDue(post, Now);
 
     public async Task PublishAcknowledgementNoticeAsync(Listing post, CancellationToken ct)
     {
@@ -135,10 +137,7 @@ internal sealed class ListingPublisher(RecruitmentState state, RecruitmentSettin
         }
     }
 
-    public bool PinDue(Listing post) => post.Status is ListingStatus.Open or ListingStatus.Closed &&
-        post.PublicMessageId is not null &&
-        (post.PublicPin.MessageId != post.PublicMessageId ||
-         (!post.PublicPin.Confirmed || post.PublicPin.RestoreArchive) && (post.PublicPin.Fault is null || post.PublicPin.Fault.IsDue(Now)));
+    public bool PinDue(Listing post) => ListingDeliveryPolicy.PinDue(post, Now);
 
     public async Task PinResponseAsync(Listing post, CancellationToken ct)
     {

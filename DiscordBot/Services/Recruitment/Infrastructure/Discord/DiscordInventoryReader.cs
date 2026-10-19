@@ -4,7 +4,9 @@ using static DiscordBot.Services.Recruitment.RecruitmentRequests;
 
 namespace DiscordBot.Services.Recruitment.Infrastructure.Discord;
 
-internal sealed class DiscordInventoryReader(BotSettings settings, TimeProvider time,
+internal sealed class DiscordInventoryReader(
+    BotSettings settings,
+    TimeProvider time,
     Func<string, CancellationToken, Task<RestForumChannel>> forum,
     Func<RestThreadChannel, CancellationToken, Task<ThreadSnapshot>> readSnapshot,
     Func<string, CancellationToken, Task<ThreadSnapshot?>> readThread)

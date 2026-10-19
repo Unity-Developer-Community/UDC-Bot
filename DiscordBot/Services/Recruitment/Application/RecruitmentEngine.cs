@@ -1,20 +1,34 @@
 using DiscordBot.Services.Recruitment.Application;
-using DiscordBot.Services.Recruitment.Infrastructure.Discord;
-using DiscordBot.Utils;
 using DiscordBot.Services.Recruitment.Domain.Policies;
-using System.IO;
+using DiscordBot.Services.Recruitment.Infrastructure.Discord;
+using DiscordBot.Services.Recruitment.Runtime;
 using DiscordBot.Settings;
+using DiscordBot.Utils;
+using System.IO;
 
 namespace DiscordBot.Services.Recruitment;
 
 /// <summary>All entry points are serialized by RecruitmentService, including staff and owner commands.</summary>
-public sealed partial class RecruitmentEngine : IDisposable
+public sealed class RecruitmentEngine : IDisposable
 {
     private readonly BotSettings _bot;
     private readonly RecruitmentSettings _settings;
     private readonly IRecruitmentDiscord _discord;
     private readonly TimeProvider _time;
+    private readonly Func<double> _auditJitter;
     private readonly Func<string, bool> _pendingThreadWork;
+    private readonly Func<long> _evidenceGeneration;
+    private readonly Func<bool> _gatewayReady;
+    private readonly Func<bool> _pendingIdentities;
+    private DateTimeOffset _nextAudit = DateTimeOffset.MaxValue;
+    private bool _accessInvalid = true;
+    private bool EvidenceCurrent => _gatewayReady() && !_pendingIdentities() && _inventoryComplete && _inventoryGeneration == _evidenceGeneration();
+    private bool RoutinePendingIdentity => _ready && _gatewayReady() && _pendingIdentities() && _inventoryComplete && _inventoryGeneration == _evidenceGeneration();
+    public event Action? Changed;
+
+    private bool _feedReady;
+    private long _feedGeneration = -1;
+    private bool _feedEmbeds;
     private RecruitmentStateStore? _store;
     private RecruitmentAssets? _assets;
     private RecruitmentSetup? _setup;
@@ -34,13 +48,18 @@ public sealed partial class RecruitmentEngine : IDisposable
     private ListingReportCommands? _reportCommands;
     private ListingStaffCommands? _staffCommands;
     private PortfolioCommands? _portfolioCommands;
+    private RecruitmentOverviewPublisher? _overview;
+    private ListingEvents? _events;
     public string Status { get; private set; } = "Not started";
     public RecruitmentState? State => _store?.State;
     private DateTimeOffset Now => _time.GetUtcNow();
 
-    public RecruitmentEngine(BotSettings bot, IRecruitmentDiscord discord, TimeProvider? time = null, Func<string, bool>? pendingThreadWork = null, Func<long>? evidenceGeneration = null, Func<bool>? gatewayReady = null, Func<bool>? pendingIdentities = null)
+    public RecruitmentEngine(BotSettings bot, IRecruitmentDiscord discord, TimeProvider? time = null,
+        Func<string, bool>? pendingThreadWork = null, Func<long>? evidenceGeneration = null, Func<bool>? gatewayReady = null,
+        Func<bool>? pendingIdentities = null, Func<double>? auditJitter = null)
     {
         (_bot, _settings, _discord, _time) = (bot, bot.Recruitment, discord, time ?? TimeProvider.System);
+        _auditJitter = auditJitter ?? Random.Shared.NextDouble;
         _pendingThreadWork = pendingThreadWork ?? (_ => false);
         _evidenceGeneration = evidenceGeneration ?? (() => 0);
         _gatewayReady = gatewayReady ?? (() => true);
@@ -77,6 +96,10 @@ public sealed partial class RecruitmentEngine : IDisposable
             _staffCommands = new ListingStaffCommands(State!, _time, Save, _actions, _publisher, _recoverWindows,
                 async token => { await DiscoverAsync(token); return _inventoryComplete; });
             _portfolioCommands = new PortfolioCommands(State!, _time, Save);
+            _overview = new RecruitmentOverviewPublisher(State!, _settings, _discord, _time, Save,
+                () => _feedReady && _gatewayReady() && _feedGeneration == _evidenceGeneration(), () => _feedEmbeds, GuardFeedWrite, () => Health());
+            _events = new ListingEvents(State!, _settings, _discord, _time, Save, _workflow, _reader, _references,
+                _publisher, _overview, () => _ready, RequestRecovery);
             _setup = new RecruitmentSetup(_store, _assets, _settings, _discord);
             _setup.Progress += () => Changed?.Invoke();
             MarkEvidenceGap();
@@ -107,7 +130,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         var previousFault = State!.RecoveryFault;
         var auditDue = _nextAudit <= Now;
         var held = !retryHeld && State.RecoveryFault is { } recovery && !recovery.IsDue(Now);
-        _nextAudit = Now.AddMinutes(15 + Random.Shared.NextDouble() * 3);
+        _nextAudit = Now.AddMinutes(15 + _auditJitter() * 3);
         _publisher?.ClearRenders();
         _discord.InvalidateCache();
         try
@@ -181,14 +204,12 @@ public sealed partial class RecruitmentEngine : IDisposable
 
     private Task DiscoverAsync(CancellationToken ct) => _inventory!.DiscoverAsync(ct);
 
-    public async Task ReconcileThreadAsync(string thread, CancellationToken ct)
-    {
-        if (!_ready || State?.Listings.GetValueOrDefault(thread) is not { } post) return;
-        await _workflow!.ProcessSafelyAsync(post, ct);
-        foreach (var waiting in State.Listings.Values.Where(p => p.Id != post.Id && p.OwnerId == post.OwnerId &&
-                     p.Status == ListingStatus.Open && !p.AcceptedAt.HasValue).OrderBy(p => p.CreatedAt).ToArray())
-            await _workflow!.ProcessSafelyAsync(waiting, ct);
-    }
+    public Task ReconcileThreadAsync(string id, CancellationToken ct) => _events?.ReconcileThreadAsync(id, ct) ?? Task.CompletedTask;
+    public Task ThreadCreatedAsync(ThreadCreation creation, CancellationToken ct) => _events?.ThreadCreatedAsync(creation, ct) ?? Task.CompletedTask;
+    public Task ThreadChangedAsync(string id, CancellationToken ct) => _events?.ThreadChangedAsync(id, ct) ?? Task.CompletedTask;
+    public Task ThreadDeletedAsync(string id, CancellationToken ct) => _events?.ThreadDeletedAsync(id, ct) ?? Task.CompletedTask;
+    public Task FactsChangedAsync(string id, CancellationToken ct) => _events?.FactsChangedAsync(id, ct) ?? Task.CompletedTask;
+    public Task MessageDeletedAsync(string channel, IReadOnlySet<string> ids, CancellationToken ct) => _events?.MessageDeletedAsync(channel, ids, ct) ?? Task.CompletedTask;
 
     public Task ObserveAsync(ThreadSnapshot live, bool observedFromCreation, CancellationToken ct) =>
         !_ready || _workflow is null ? Task.CompletedTask : _workflow.ObserveAsync(live, observedFromCreation, ct);
@@ -278,5 +299,57 @@ public sealed partial class RecruitmentEngine : IDisposable
             throw;
         }
     }
+
+    public RecruitmentHealth Health(string work = "Idle") => RecruitmentHealthQuery.Build(State, _ready, EvidenceCurrent,
+        RoutinePendingIdentity, Status, work, Now, NextWorkAt);
+
+    private RecruitmentDueWork? NextWork => State is null || !_settings.Enabled ? null :
+        RecruitmentSchedule.Next(State, Now, _nextAudit, _ready, EvidenceCurrent, _settings.CooldownDays, _recoverWindows);
+    private DateTimeOffset? NextWorkAt => NextWork?.At;
+    private DateTimeOffset? ListingDue(Listing post) =>
+        RecruitmentSchedule.Listing(State!, post, Now, _settings.CooldownDays, _recoverWindows.Contains(post.Id))?.At;
+
+    public async Task RunDueAsync(CancellationToken ct)
+    {
+        if (State is null) return;
+        if (RecruitmentSchedule.RecoveryDue(State, Now, _nextAudit, _ready))
+        {
+            await SweepAsync(ct, retryHeld: false);
+            return;
+        }
+        if (!_ready || !EvidenceCurrent) return;
+        foreach (var post in State.Listings.Values.Where(p => ListingDue(p) <= Now).OrderBy(p => p.CreatedAt).Take(20).ToArray())
+            await _workflow!.ProcessSafelyAsync(post, ct);
+    }
+
+    public void RequestRecovery() => _nextAudit = Now;
+
+    public void InvalidateAccess(string? forum = null)
+    {
+        _accessInvalid = true;
+        _feedReady = false;
+        _ready = false;
+        _discord.InvalidateCache();
+        _publisher?.ClearRenders();
+        if (State is null) return;
+        State.RecoveryFault = null;
+        State.Overview.Fault = null;
+        foreach (var f in State.Forums.Values.Where(f => forum is null || f.ForumId == forum)) f.Fault = null;
+        foreach (var f in State.Forums.Values.Where(f => forum is null || f.ForumId == forum)) f.Reference.Fault = null;
+        foreach (var post in State.Listings.Values.Where(p => forum is null || p.ForumId == forum))
+        { post.Fault = null; post.PublicPin.Fault = null; post.AcknowledgementNotice.Fault = null; }
+        _nextAudit = Now;
+        MarkEvidenceGap();
+    }
+
+    private void GuardFeedWrite()
+    {
+        if (!_feedReady || !_gatewayReady() || _feedGeneration != _evidenceGeneration())
+            throw new InvalidOperationException("Feed access changed; recruitment recovery is required before publication.");
+    }
+
+    public DateTimeOffset? NextDueAt => new[] { NextWorkAt, _overview?.NextDueAt }.Where(t => t.HasValue).Min();
+    public Task RefreshOverviewAsync(CancellationToken ct) => _overview?.RefreshAsync(ct) ?? Task.CompletedTask;
+
     public void Dispose() => _store?.Dispose();
 }

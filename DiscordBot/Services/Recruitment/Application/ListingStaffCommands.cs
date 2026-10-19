@@ -5,7 +5,14 @@ using DiscordBot.Services.Recruitment.Presentation;
 
 namespace DiscordBot.Services.Recruitment.Application;
 
-internal sealed class ListingStaffCommands(RecruitmentState state, TimeProvider time, Action save, ListingActionExecutor actions, ListingPublisher publisher, AcknowledgementRecovery windows, Func<CancellationToken, Task<bool>> discover)
+internal sealed class ListingStaffCommands(
+    RecruitmentState state,
+    TimeProvider time,
+    Action save,
+    ListingActionExecutor actions,
+    ListingPublisher publisher,
+    AcknowledgementRecovery windows,
+    Func<CancellationToken, Task<bool>> discover)
 {
     private readonly RecruitmentState State = state;
     private readonly ListingActionExecutor _actions = actions;

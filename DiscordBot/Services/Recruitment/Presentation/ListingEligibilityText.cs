@@ -5,9 +5,9 @@ using DiscordBot.Services.Recruitment.Domain.Analysis;
 using DiscordBot.Services.Recruitment.Domain.Policies;
 using DiscordBot.Services.Recruitment.Infrastructure.Discord;
 
-namespace DiscordBot.Services.Recruitment.Application;
+namespace DiscordBot.Services.Recruitment.Presentation;
 
-internal sealed class ListingEligibilityText()
+internal static class ListingEligibilityText
 {
 
     public static string EligibilityReason(Eligibility eligibility)

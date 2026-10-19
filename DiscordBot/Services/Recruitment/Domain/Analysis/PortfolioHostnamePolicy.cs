@@ -1,31 +1,12 @@
 using System.Globalization;
-using System.IO;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Domain.Analysis;
 
-public static class RecruitmentPortfolioDomains
+/// <summary>DNS/IDN and public-suffix decisions over supplied rules; no resource or filesystem access.</summary>
+internal static class PortfolioHostnamePolicy
 {
     private static readonly IdnMapping Idn = new();
-    private static readonly Lazy<HashSet<string>> Rules = new(() =>
-    {
-        using var stream = typeof(RecruitmentPortfolioDomains).Assembly.GetManifestResourceStream("Recruitment.PublicSuffixIcann")
-            ?? throw new InvalidDataException("Bundled ICANN public suffix rules are missing.");
-        using var reader = new StreamReader(stream);
-        var rules = new HashSet<string>(StringComparer.Ordinal);
-        while (reader.ReadLine() is { } line)
-        {
-            line = line.Trim();
-            if (line.Length == 0 || line.StartsWith("//", StringComparison.Ordinal)) continue;
-            var prefix = line.StartsWith('!') ? "!" : line.StartsWith("*.", StringComparison.Ordinal) ? "*." : "";
-            rules.Add(prefix + Idn.GetAscii(line[prefix.Length..]).ToLowerInvariant());
-        }
-        return rules;
-    });
-
-    private static readonly Lazy<HashSet<string>> Tlds = new(() => Rules.Value
-        .Select(r => r.Split('.').Last().TrimStart('!')).ToHashSet(StringComparer.Ordinal));
-
-    public static bool TryNormalize(string? input, out string host)
+    public static bool TryNormalize(string? input, IReadOnlySet<string> rules, IReadOnlySet<string> tlds, out string host)
     {
         host = "";
         if (string.IsNullOrWhiteSpace(input)) return false;
@@ -37,9 +18,8 @@ public static class RecruitmentPortfolioDomains
         if (value.Length > 253 || Uri.CheckHostName(value) != UriHostNameType.Dns || !value.Contains('.')) return false;
         var labels = value.Split('.');
         if (labels.Any(l => l.Length is < 1 or > 63 || l[0] == '-' || l[^1] == '-' || l.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-'))) return false;
-        var rules = Rules.Value;
         // An unlisted TLD is not an Internet registry boundary (e.g. a local search suffix).
-        if (!Tlds.Value.Contains(labels[^1])) return false;
+        if (!tlds.Contains(labels[^1])) return false;
         var suffixLabels = 1;
         for (var i = 0; i < labels.Length; i++)
         {

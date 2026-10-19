@@ -401,7 +401,7 @@ public class RecruitmentPublicationTests
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
         await V2MessageWriter.UpsertAsync(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
-        Assert.True(await DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, true, false, false, (_, _) => { }, default));
+        Assert.True(await DiscordResponsePins.PinOwnedAsync(channel, 999, 101, true, false, false, (_, _) => { }, default));
         Assert.Equal(new[] { "channels/100/messages/pins/101" }, transport.PinRoutes);
         var message = (IUserMessage)(await channel.GetMessageAsync(101))!;
         await message.PinAsync();
@@ -424,7 +424,7 @@ public class RecruitmentPublicationTests
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
         await V2MessageWriter.UpsertAsync(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, allowed, false, false, (_, _) => { }, default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordResponsePins.PinOwnedAsync(channel, 999, 101, allowed, false, false, (_, _) => { }, default));
         Assert.Empty(transport.PinRoutes); Assert.Empty(transport.ChannelWrites);
     }
 
@@ -439,12 +439,12 @@ public class RecruitmentPublicationTests
         transport.LosePinResponse = true; transport.FailRestoreOnce = true;
         var receipt = new MessagePinReceipt { MessageId = "101" };
         void SaveIntent(bool archive, bool locked) { receipt.RestoreArchive = archive; receipt.RestoreLocked = locked; }
-        await Assert.ThrowsAsync<TimeoutException>(() => DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, true, false, false, SaveIntent, default));
+        await Assert.ThrowsAsync<TimeoutException>(() => DiscordResponsePins.PinOwnedAsync(channel, 999, 101, true, false, false, SaveIntent, default));
         Assert.True(receipt.RestoreArchive); Assert.True(receipt.RestoreLocked);
         Assert.False((bool)transport.Thread["thread_metadata"]!["archived"]!);
         Assert.True((bool)transport.Message["pinned"]!);
         channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
-        Assert.True(await DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, false, receipt.RestoreArchive, receipt.RestoreLocked, SaveIntent, default));
+        Assert.True(await DiscordResponsePins.PinOwnedAsync(channel, 999, 101, false, receipt.RestoreArchive, receipt.RestoreLocked, SaveIntent, default));
         Assert.Single(transport.PinRoutes);
         Assert.True((bool)transport.Thread["thread_metadata"]!["archived"]!);
         Assert.True((bool)transport.Thread["thread_metadata"]!["locked"]!);
@@ -457,6 +457,8 @@ public class RecruitmentPublicationTests
     [InlineData(429)]
     public async Task InstalledSdkArchivedPinFailureRestoresThreadAndKeepsFailureCosmetic(int status)
     {
+        var clock = new ManualClock();
+        using var requestScope = RecruitmentRequests.BeginScope(new DiscordRetryDeadlines(clock));
         var transport = new PublicationTransport { MessageMissing = true }; using var client = await Client(transport);
         var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
         await V2MessageWriter.UpsertAsync(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
@@ -464,7 +466,7 @@ public class RecruitmentPublicationTests
         channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
         transport.PinStatus = status;
         var receipt = new MessagePinReceipt { MessageId = "101" };
-        var error = await Record.ExceptionAsync(() => DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, true, false, false,
+        var error = await Record.ExceptionAsync(() => DiscordResponsePins.PinOwnedAsync(channel, 999, 101, true, false, false,
             (archive, locked) => { receipt.RestoreArchive = archive; receipt.RestoreLocked = locked; }, default));
         Assert.NotNull(error);
         // A 429 also defers restoration in the same channel. The saved intent retries once
@@ -473,10 +475,10 @@ public class RecruitmentPublicationTests
         {
             var deferred = Assert.IsType<RecruitmentDeferredException>(error);
             Assert.True(receipt.RestoreArchive);
-            await Task.Delay(deferred.RetryAt - DateTimeOffset.UtcNow + TimeSpan.FromMilliseconds(100));
+            clock.Advance(deferred.RetryAt - clock.Now + TimeSpan.FromMilliseconds(100));
             channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
             transport.PinStatus = 0;
-            await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, false,
+            await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordResponsePins.PinOwnedAsync(channel, 999, 101, false,
                 receipt.RestoreArchive, receipt.RestoreLocked, (archive, locked) => { receipt.RestoreArchive = archive; receipt.RestoreLocked = locked; }, default));
         }
         else Assert.IsType<Discord.Net.HttpException>(error);
@@ -495,7 +497,7 @@ public class RecruitmentPublicationTests
         var channel = (IThreadChannel)(await client.Rest.GetChannelAsync(100))!;
         await V2MessageWriter.UpsertAsync(channel, 999, "101", false, DateTimeOffset.UtcNow, V2(media: false), true, () => { }, default);
         transport.Message["author"]!["id"] = "200";
-        await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordRecruitmentAdapter.PinOwnedAsync(channel, 999, 101, true, false, false, (_, _) => { }, default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => DiscordResponsePins.PinOwnedAsync(channel, 999, 101, true, false, false, (_, _) => { }, default));
         Assert.Empty(transport.PinRoutes);
     }
 

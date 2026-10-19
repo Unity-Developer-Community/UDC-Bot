@@ -5,7 +5,14 @@ using DiscordBot.Services.Recruitment.Presentation;
 
 namespace DiscordBot.Services.Recruitment.Application;
 
-internal sealed class ListingReportCommands(RecruitmentState state, TimeProvider time, Action save, ListingQueries queries, ListingPublisher publisher, ListingWorkflow workflow, Func<bool> reportingReady)
+internal sealed class ListingReportCommands(
+    RecruitmentState state,
+    TimeProvider time,
+    Action save,
+    ListingQueries queries,
+    ListingPublisher publisher,
+    ListingWorkflow workflow,
+    Func<bool> reportingReady)
 {
     private readonly RecruitmentState State = state;
     private DateTimeOffset Now => time.GetUtcNow();

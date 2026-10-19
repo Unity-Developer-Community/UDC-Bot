@@ -2,8 +2,14 @@ using DiscordBot.Services.Recruitment.Domain.Policies;
 
 namespace DiscordBot.Services.Recruitment.Application;
 
-internal sealed class InventoryRecovery(RecruitmentState state, IRecruitmentDiscord discord, AcknowledgementRecovery windows,
-    ReferenceReconciler references, ListingWorkflow workflow, Func<long> currentGeneration, Action save)
+internal sealed class InventoryRecovery(
+    RecruitmentState state,
+    IRecruitmentDiscord discord,
+    AcknowledgementRecovery windows,
+    ReferenceReconciler references,
+    ListingWorkflow workflow,
+    Func<long> currentGeneration,
+    Action save)
 {
     private readonly RecruitmentState State = state;
     private readonly IRecruitmentDiscord _discord = discord;

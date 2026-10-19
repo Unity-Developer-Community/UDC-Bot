@@ -1,15 +1,26 @@
 using Discord.Net;
 using Discord.Rest;
+using Discord.WebSocket;
+using DiscordBot.Settings;
+using static DiscordBot.Services.Recruitment.RecruitmentRequests;
 
-namespace DiscordBot.Services.Recruitment;
+namespace DiscordBot.Services.Recruitment.Infrastructure.Discord;
 
-public sealed partial class DiscordRecruitmentAdapter
+internal sealed class DiscordReferencePublisher(
+    DiscordSocketClient client,
+    BotSettings settings,
+    Func<string, CancellationToken, Task<RestForumChannel>> readForum,
+    Func<ulong> botIdentity,
+    Func<string, string, CancellationToken, Task<bool>> isModerator,
+    Action<string> invalidateFacts)
 {
+    private readonly DiscordSocketClient _client = client;
+    private readonly BotSettings _settings = settings;
     internal const string ReferenceTitle = "Read First · Recruitment Information";
     public async Task<string> CreateReferenceAsync(string forumId, string closedTagId, string marker, CancellationToken ct)
     {
         using var requestScope = RecruitmentRequests.BeginScope();
-        var forum = _forums.TryGetValue(forumId, out var cached) ? cached.Channel : await ForumAsync(forumId, ct);
+        var forum = await readForum(forumId, ct);
         var tags = forum.Tags.Where(t => t.Id.ToString() == closedTagId).ToArray();
         if (tags.Length != 1) throw new InvalidOperationException("Reference post needs a verified Closed tag.");
         var thread = await forum.CreatePostAsync(ReferenceTitle, ThreadArchiveDuration.OneWeek,
@@ -36,11 +47,11 @@ public sealed partial class DiscordRecruitmentAdapter
         if (botOwned)
         {
             var starter = await thread.GetMessageAsync(thread.Id, Options(ct));
-            var botUserId = BotUserId;
+            var botUserId = botIdentity();
             if (((IThreadChannel)thread).OwnerId != botUserId || starter?.Author.Id != botUserId || !starter.Content.Contains(marker, StringComparison.Ordinal))
                 throw new InvalidOperationException("Reference bot ownership or marker does not match.");
         }
-        else if (!await IsModeratorAsync(_settings.GuildId.ToString(), ((IThreadChannel)thread).OwnerId.ToString(), ct))
+        else if (!await isModerator(_settings.GuildId.ToString(), ((IThreadChannel)thread).OwnerId.ToString(), ct))
             throw new InvalidOperationException("Existing reference is no longer owned by a moderator or administrator.");
         if (thread.IsLocked && !thread.IsArchived && thread.Flags.HasFlag(ChannelFlags.Pinned)) return true;
         // Forum threads inherit permissions. Locking is the supported member-posting restriction;
@@ -50,7 +61,7 @@ public sealed partial class DiscordRecruitmentAdapter
         var verified = await _client.Rest.GetChannelAsync(thread.Id, Options(ct)) as RestThreadChannel;
         if (verified is null || verified.IsArchived || !verified.IsLocked || !verified.Flags.HasFlag(ChannelFlags.Pinned))
             throw new InvalidOperationException("Reference pin/lock was not confirmed.");
-        InvalidateFacts(threadId);
+        invalidateFacts(threadId);
         return true;
     }
 }
