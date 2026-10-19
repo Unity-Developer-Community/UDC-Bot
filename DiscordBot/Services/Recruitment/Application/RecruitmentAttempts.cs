@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Domain.Policies;
 namespace DiscordBot.Services.Recruitment;
 
 public sealed partial class RecruitmentEngine
@@ -27,24 +28,13 @@ public sealed partial class RecruitmentEngine
     // Called once per newly retained thread identity, regardless of later deletion or acknowledgement.
     private void RecordCreation(Listing post)
     {
-        var history = RecruitmentPolicy.Author(State!, post.OwnerId, Now);
+        var history = ListingTransitions.Author(State!, post.OwnerId, Now);
         if (post.Pinned || post.CreatedAt <= Now.AddMinutes(-_settings.AttemptWindowMinutes)) return;
-        if (history.AttemptPausedUntil > Now)
-        {
-            post.AttemptPausedUntil = history.AttemptPausedUntil;
-            return; // Extra attempts cannot prolong an existing pause.
-        }
-        if (history.AttemptPausedUntil.HasValue)
-        {
-            history.RecentCreations.Clear(); history.AttemptPausedUntil = null;
-        }
-        history.RecentCreations.RemoveAll(d => d <= Now.AddMinutes(-_settings.AttemptWindowMinutes));
-        history.RecentCreations.Add(post.CreatedAt);
-        if (history.RecentCreations.Count > _settings.AttemptLimit)
-        {
-            post.AttemptPausedUntil = history.AttemptPausedUntil = Now.AddMinutes(_settings.AttemptPauseMinutes);
-            QueueAttention(post, "Repeated creations triggered a posting pause");
-        }
+        var decision = AttemptPolicy.Record(history.RecentCreations, history.AttemptPausedUntil, post.CreatedAt, Now,
+            _settings.AttemptWindowMinutes, _settings.AttemptLimit, _settings.AttemptPauseMinutes);
+        history.RecentCreations = decision.Creations.ToList();
+        post.AttemptPausedUntil = history.AttemptPausedUntil = decision.PausedUntil;
+        if (decision.PauseStarted) QueueAttention(post, "Repeated creations triggered a posting pause");
     }
 
     private static string EligibilityReason(Eligibility eligibility)

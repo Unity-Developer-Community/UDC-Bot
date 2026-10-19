@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Domain.Policies;
 namespace DiscordBot.Services.Recruitment;
 
 public sealed partial class RecruitmentEngine
@@ -69,7 +70,7 @@ public sealed partial class RecruitmentEngine
         }
         if (post.AcknowledgedAt.HasValue && !post.AcceptedAt.HasValue)
         {
-            var next = RecruitmentPolicy.Evaluate(State!, post, Now, _settings.CooldownDays);
+            var next = ListingEligibilityPolicy.Evaluate(State!, post, Now, _settings.CooldownDays);
             if (next.BlockingListingId is null) dates.Add(next.NextAllowedAt ?? Now);
         }
         return dates.Count == 0 ? null : dates.Min();

@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Domain.Policies;
 using System.IO;
 using DiscordBot.Settings;
 
@@ -119,7 +120,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             }
             if (batch.Length > 0) State.SweepAfterId = batch[^1].Id;
             await ReconcileReferencesAsync(ct, retryHeld);
-            RecruitmentPolicy.Prune(State, Now, _settings.PostRetentionMonths, _settings.AuthorRetentionMonths, _settings.CooldownDays);
+            RecruitmentRetention.Prune(State, Now, _settings.PostRetentionMonths, _settings.AuthorRetentionMonths, _settings.CooldownDays);
             if (EvidenceCurrent) State.LastSweepAt = Now;
             else _nextAudit = Now.AddSeconds(10);
             Save();
@@ -256,10 +257,10 @@ public sealed partial class RecruitmentEngine : IDisposable
         if (EvidenceCurrent && !post.AcceptedAt.HasValue && !post.Exempt && !post.Pinned)
         {
             await RefreshBlockersAsync(post, ct);
-            var eligibility = RecruitmentPolicy.Evaluate(State!, post, Now, _settings.CooldownDays);
+            var eligibility = ListingEligibilityPolicy.Evaluate(State!, post, Now, _settings.CooldownDays);
             if (!eligibility.Allowed)
             {
-                await BeginActionAsync(post, RecruitmentActionKind.Close, "system", EligibilityReason(eligibility), "ineligible", true, ct);
+                await BeginActionAsync(post, RecruitmentActionKind.Close, "system", EligibilityReason(eligibility), RecruitmentConditions.Ineligible, true, ct);
                 return;
             }
         }
@@ -283,17 +284,17 @@ public sealed partial class RecruitmentEngine : IDisposable
         await PublishAcknowledgementNoticeAsync(post, ct);
         if (EvidenceCurrent && post.AcknowledgedAt.HasValue && !post.AcceptedAt.HasValue)
             await RefreshBlockersAsync(post, ct);
-        if (EvidenceCurrent && RecruitmentPolicy.TryAccept(State, post, Now, _settings.CooldownDays))
+        if (EvidenceCurrent && ListingTransitions.TryAccept(State, post, Now, _settings.CooldownDays))
         { Save(); await PublishAsync(post, ct); }
         if (!EvidenceCurrent || post.Exempt || post.Pinned) return;
         if (live.Tags.Contains(ClosingTag(post)))
-            await BeginActionAsync(post, RecruitmentActionKind.Close, "system", "Closed tag applied", "closed-tag", true, ct);
+            await BeginActionAsync(post, RecruitmentActionKind.Close, "system", "Closed tag applied", RecruitmentConditions.ClosedTag, true, ct);
         else if (!post.AcceptedAt.HasValue && post.Deadline <= Now)
         {
             if (!post.AcknowledgedAt.HasValue)
-                await BeginActionAsync(post, RecruitmentActionKind.Delete, "system", "Guidelines acknowledgement timed out", "timeout", true, ct);
+                await BeginActionAsync(post, RecruitmentActionKind.Delete, "system", "Guidelines acknowledgement timed out", RecruitmentConditions.Timeout, true, ct);
             else
-                await BeginActionAsync(post, RecruitmentActionKind.Close, "system", "Acknowledged but still ineligible at deadline", "ineligible", true, ct);
+                await BeginActionAsync(post, RecruitmentActionKind.Close, "system", "Acknowledged but still ineligible at deadline", RecruitmentConditions.Ineligible, true, ct);
         }
     }
 
@@ -303,7 +304,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         post.PublicationPending = true; post.PublicSendPending = false; post.Hold = null; post.Fault = null;
         post.AvailabilityUnknown = false; post.Deadline = null; _recoverWindows.Remove(post.Id);
         post.LastOutcome = "Thread absent; deletion actor unknown"; post.Version++;
-        RecruitmentPolicy.Author(State!, post.OwnerId, Now);
+        ListingTransitions.Author(State!, post.OwnerId, Now);
         Save();
     }
 
@@ -312,7 +313,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         // Eligibility cannot depend on which half of a bounded sweep happened to run first.
         for (var count = 0; count < 10; count++)
         {
-            var id = RecruitmentPolicy.Evaluate(State!, candidate, Now, _settings.CooldownDays).BlockingListingId;
+            var id = ListingEligibilityPolicy.Evaluate(State!, candidate, Now, _settings.CooldownDays).BlockingListingId;
             if (id is null) return;
             var blocker = State!.Listings[id];
             try
@@ -401,7 +402,7 @@ public sealed partial class RecruitmentEngine : IDisposable
         // Persist a timely valid submission before any processing can execute an overdue timeout.
         // Invalid/late submissions never extend the window or fence the deadline worker.
         post.AcknowledgedAt = submittedAt; post.Version++; post.UpdatedAt = Now;
-        var author = RecruitmentPolicy.Author(State!, owner, Now);
+        var author = ListingTransitions.Author(State!, owner, Now);
         author.ConsecutiveTimeouts = 0; author.TimeoutAlerted = false;
         Save();
         _discord.InvalidateThread(post.Id);
@@ -455,7 +456,7 @@ public sealed partial class RecruitmentEngine : IDisposable
     {
         if (post.PendingAction is not null) throw new InvalidOperationException("An earlier action still needs reconciliation.");
         post.PendingAction = new RecruitmentAction { Kind = kind, ActorId = actor, Reason = reason, Condition = condition,
-            Automatic = automatic, RequiresModerator = requiresModerator, GuidelineTimeout = condition == "timeout", CreatedAt = Now };
+            Automatic = automatic, RequiresModerator = requiresModerator, GuidelineTimeout = condition == RecruitmentConditions.Timeout, CreatedAt = Now };
         if (!automatic) Audit(post, actor, reason);
         Save();
         await ExecuteActionAsync(post, ct);
@@ -464,7 +465,7 @@ public sealed partial class RecruitmentEngine : IDisposable
     private async Task ExecuteActionAsync(Listing post, CancellationToken ct)
     {
         var action = post.PendingAction!;
-        if (action.Automatic && action.Condition == "unanswered")
+        if (action.Automatic && action.Condition == RecruitmentConditions.LegacyUnanswered)
         {
             // Cancel unsent legacy expiry; preserve a closure already applied before the upgrade.
             var previous = action.CallStarted ? await ReadAsync(post, ct, refresh: true) : null;
@@ -507,9 +508,9 @@ public sealed partial class RecruitmentEngine : IDisposable
             post.PublicationPending = true; Save(); await PublishAsync(post, ct); return;
         }
         if (action.Automatic && (!EvidenceCurrent || post.Exempt || post.Pinned || post.Status != ListingStatus.Open ||
-            (action.Condition == "timeout" && (post.AcknowledgedAt.HasValue || post.AcceptedAt.HasValue || post.Deadline > Now || _recoverWindows.Contains(post.Id))) ||
-            (action.Condition == "ineligible" && (post.AcceptedAt.HasValue || RecruitmentPolicy.Evaluate(State!, post, Now, _settings.CooldownDays).Allowed)) ||
-            (action.Condition == "closed-tag" && !live.Tags.Contains(ClosingTag(post)))))
+            (action.Condition == RecruitmentConditions.Timeout && (post.AcknowledgedAt.HasValue || post.AcceptedAt.HasValue || post.Deadline > Now || _recoverWindows.Contains(post.Id))) ||
+            (action.Condition == RecruitmentConditions.Ineligible && (post.AcceptedAt.HasValue || ListingEligibilityPolicy.Evaluate(State!, post, Now, _settings.CooldownDays).Allowed)) ||
+            (action.Condition == RecruitmentConditions.ClosedTag && !live.Tags.Contains(ClosingTag(post)))))
         { post.PendingAction = null; Save(); return; }
         if (action.Kind == RecruitmentActionKind.Reopen && State!.Listings.Values.Any(p => p.OwnerId == post.OwnerId && p.Id != post.Id && p.Status == ListingStatus.Open))
             throw new InvalidOperationException("Another listing occupies this author's slot.");
@@ -527,7 +528,7 @@ public sealed partial class RecruitmentEngine : IDisposable
                 post.Status = ListingStatus.Deleted;
                 if (action.GuidelineTimeout)
                 {
-                    var author = RecruitmentPolicy.Author(State!, post.OwnerId, Now);
+                    var author = ListingTransitions.Author(State!, post.OwnerId, Now);
                     author.ConsecutiveTimeouts++;
                     if (author.ConsecutiveTimeouts >= 3 && !author.TimeoutAlerted)
                     { post.TimeoutAlertCount = author.ConsecutiveTimeouts; author.TimeoutAlerted = true; QueueAttention(post, "Three consecutive confirmed Guidelines timeouts"); }
@@ -543,7 +544,7 @@ public sealed partial class RecruitmentEngine : IDisposable
                 if (!post.AcceptedAt.HasValue) _recoverWindows.Add(post.Id);
                 break;
         }
-        RecruitmentPolicy.Author(State!, post.OwnerId, Now);
+        ListingTransitions.Author(State!, post.OwnerId, Now);
         post.LastOutcome = action.Reason; post.PendingAction = null; post.UpdatedAt = Now; post.Version++; post.PublicationPending = true; Save();
         await PublishAsync(post, ct);
     }
@@ -612,17 +613,17 @@ public sealed partial class RecruitmentEngine : IDisposable
                 break;
             case "review-changes": post.ReviewedMaterialChanges = post.MaterialChanges; break;
             case "reset-attempts":
-                var attemptHistory = RecruitmentPolicy.Author(State, post.OwnerId, Now);
+                var attemptHistory = ListingTransitions.Author(State, post.OwnerId, Now);
                 attemptHistory.RecentCreations.Clear(); attemptHistory.AttemptPausedUntil = null;
                 foreach (var attempt in State.Listings.Values.Where(p => p.OwnerId == post.OwnerId)) attempt.AttemptPausedUntil = null;
                 break;
             case "reset-timeouts":
-                var timeoutHistory = RecruitmentPolicy.Author(State, post.OwnerId, Now);
+                var timeoutHistory = ListingTransitions.Author(State, post.OwnerId, Now);
                 timeoutHistory.ConsecutiveTimeouts = 0; timeoutHistory.TimeoutAlerted = false; break;
             case "reset":
                 if (post.AcceptedAt.HasValue || post.Status != ListingStatus.Open) return "Only an open unaccepted attempt can have its acknowledgement reset.";
                 post.AcknowledgedAt = null; post.ValidCodes.Clear(); _recoverWindows.Add(post.Id);
-                var history = RecruitmentPolicy.Author(State, post.OwnerId, Now);
+                var history = ListingTransitions.Author(State, post.OwnerId, Now);
                 history.ConsecutiveTimeouts = 0; history.TimeoutAlerted = false; break;
             case "reference":
                 if (post.Status == ListingStatus.Deleted) return "A deleted thread cannot become a reference post.";
@@ -645,7 +646,7 @@ public sealed partial class RecruitmentEngine : IDisposable
                 if (!post.AvailabilityUnknown) return "Availability is known; use close or reconcile instead.";
                 post.Status = ListingStatus.Deleted; post.AvailabilityUnknown = false; post.PendingAction = null;
                 post.PublicSendPending = false; post.Hold = null;
-                RecruitmentPolicy.Author(State, post.OwnerId, Now);
+                ListingTransitions.Author(State, post.OwnerId, Now);
                 post.LastOutcome = "Staff confirmed absence"; break;
             default: return "Unknown recruitment operation.";
         }

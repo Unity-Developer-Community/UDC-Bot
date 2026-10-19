@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Domain.Policies;
 using DiscordBot.Services.Recruitment;
 
 namespace DiscordBot.Tests.Recruitment;
@@ -24,7 +25,7 @@ public class RecruitmentWorkflowTests
         rig.Clock.Advance(TimeSpan.FromDays(elapsedDays));
         rig.Discord.Threads.Remove(post.Id); await rig.Sweep();
         var replacement = await rig.Post("101", forum: "14");
-        var policy = RecruitmentPolicy.Evaluate(rig.State, replacement, rig.Clock.Now, 30);
+        var policy = ListingEligibilityPolicy.Evaluate(rig.State, replacement, rig.Clock.Now, 30);
         Assert.Equal(remainingDays == 0, policy.Allowed);
         Assert.Equal(post.CreatedAt, rig.State.Authors[post.OwnerId].LastAcceptedCreation);
         if (remainingDays > 0) Assert.Equal(rig.Clock.Now.AddDays(remainingDays), policy.NextAllowedAt);
@@ -48,7 +49,7 @@ public class RecruitmentWorkflowTests
         rig.Discord.Threads["100"] = rig.Discord.Threads["100"] with { Archived = true };
         var second = await rig.Post("101", forum: "14"); await rig.Ack("101");
         Assert.Null(second.AcceptedAt); Assert.Null(second.AcknowledgedAt); Assert.Equal(ListingStatus.Closed, second.Status);
-        Assert.Equal("100", RecruitmentPolicy.Evaluate(rig.State, second, rig.Clock.Now, 30).BlockingListingId);
+        Assert.Equal("100", ListingEligibilityPolicy.Evaluate(rig.State, second, rig.Clock.Now, 30).BlockingListingId);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Domain.Policies;
 using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -238,7 +239,7 @@ public class RecruitmentPortfolioTests
         }
         foreach (var post in rig.State.Listings.Values.Where(p => p.Id != "100"))
         { post.Status = ListingStatus.Deleted; post.UpdatedAt = rig.Clock.Now.AddYears(-2); rig.Discord.Threads.Remove(post.Id); }
-        RecruitmentPolicy.Prune(rig.State, rig.Clock.Now, 12, 24, 30);
+        RecruitmentRetention.Prune(rig.State, rig.Clock.Now, 12, 24, 30);
         Assert.DoesNotContain("Shared starter", await rig.Staff("lookup"));
         await rig.Post("108", "200");
         rig.Discord.Threads["108"] = rig.Discord.Threads["108"] with { Starter = "Portfolio https://youtube.com/watch?v=AbCdEfGhI_1" };

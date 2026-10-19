@@ -1,3 +1,4 @@
+using DiscordBot.Services.Recruitment.Domain.Policies;
 namespace DiscordBot.Services.Recruitment;
 
 public sealed partial class RecruitmentEngine
@@ -32,7 +33,7 @@ public sealed partial class RecruitmentEngine
         if (concern.Length is < 10 or > 1000) return "Describe the concern in 10–1,000 characters, including relevant context.";
         if (post.Reports.Any(r => r.ReporterId == reporter)) return "You have already reported this listing. Contact a moderator with additional evidence.";
         if (post.Reports.Count >= 20) return "This listing already has reports awaiting or recorded by moderators. Contact a moderator with additional evidence.";
-        var history = RecruitmentPolicy.Author(State!, reporter, Now);
+        var history = ListingTransitions.Author(State!, reporter, Now);
         history.RecentReports.RemoveAll(d => d <= Now.AddDays(-1));
         if (history.RecentReports.Count >= 3) return "You have reached the limit of three listing reports in 24 hours. Contact a moderator for urgent concerns.";
         var firstOpen = post.Reports.All(r => r.ResolvedAt.HasValue);
