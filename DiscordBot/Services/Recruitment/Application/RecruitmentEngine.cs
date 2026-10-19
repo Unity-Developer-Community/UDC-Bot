@@ -19,7 +19,10 @@ public sealed partial class RecruitmentEngine : IDisposable
     private RecruitmentAssets? _assets;
     private RecruitmentSetup? _setup;
     private bool _ready;
-    private bool _inventoryComplete;
+    private InventoryRecovery? _inventory;
+    private ReferenceReconciler? _references;
+    private bool _inventoryComplete => _inventory?.Complete == true;
+    private long _inventoryGeneration => _inventory?.Generation ?? -1;
     private readonly AcknowledgementRecovery _recoverWindows = new();
     private ListingWorkflow? _workflow;
     private ListingActionExecutor? _actions;
@@ -55,6 +58,8 @@ public sealed partial class RecruitmentEngine : IDisposable
             _assets = new RecruitmentAssets(_bot.AssetsRootPath, _settings);
             _store = new RecruitmentStateStore(_bot.ServerRootPath, _bot.GuildId.ToString(),
                 _settings.Forums.Mapping().ToDictionary(x => x.Key, x => x.Value.ToString()), Now);
+            _references = new ReferenceReconciler(State!, _assets, _discord, _time, Save, () => EvidenceCurrent,
+                () => _nextAudit = Now.AddSeconds(10));
             _listingForums = new ListingForums(State!, _assets);
             _publisher = new ListingPublisher(State!, _settings, _discord, _time, Save, GuardFeedWrite);
             _reader = new ListingReader(State!, _settings, _discord, _time, Save, _recoverWindows);
@@ -62,7 +67,8 @@ public sealed partial class RecruitmentEngine : IDisposable
                 () => EvidenceCurrent, _pendingThreadWork);
             var facts = new ListingEvidenceCapture(State!, _time, _publisher.QueueAttention);
             _workflow = new ListingWorkflow(State!, _settings, _discord, _time, Save, _recoverWindows, _reader, _publisher, _actions,
-                facts, _listingForums, () => EvidenceCurrent, ObserveReferenceCandidate);
+                facts, _listingForums, () => EvidenceCurrent, _references.ObserveReferenceCandidate);
+            _inventory = new InventoryRecovery(State!, _discord, _recoverWindows, _references, _workflow, _evidenceGeneration, Save);
             _ownerCommands = new ListingOwnerCommands(State!, _settings, _discord, _time, Save, _workflow, _actions,
                 () => _ready, () => _ready && _feedReady && _feedGeneration == _evidenceGeneration(), () => EvidenceCurrent);
             _queries = new ListingQueries(State!, _settings, _discord, _time, _ownerCommands, () => EvidenceCurrent);
@@ -83,12 +89,11 @@ public sealed partial class RecruitmentEngine : IDisposable
     public void MarkEvidenceGap(bool invalidateAccess = true)
     {
         if (State is null) return;
-        _inventoryComplete = false;
-        _inventoryGeneration = -1;
+        _inventory?.Invalidate();
         _accessInvalid = true;
         if (invalidateAccess) _feedReady = false;
         _discord.InvalidateCache();
-        _verifiedReferences.Clear(); _referenceCandidates.Clear(); _ignoredThreads.Clear();
+        _references!.Invalidate();
         foreach (var post in State.Listings.Values.Where(p => p.Status == ListingStatus.Open))
         {
             if (!post.AcceptedAt.HasValue) _recoverWindows.Add(post.Id);
@@ -107,19 +112,10 @@ public sealed partial class RecruitmentEngine : IDisposable
         _discord.InvalidateCache();
         try
         {
-            if (_accessInvalid || auditDue || retryHeld)
-            {
-                _feedReady = false;
-                var feedGeneration = _evidenceGeneration();
-                _feedEmbeds = await _discord.ValidateFeedAsync(ct);
-                _feedGeneration = feedGeneration;
-                _feedReady = true;
-                if (!held) await _discord.ValidateAccessAsync(ct);
-                _accessInvalid = false;
-            }
+            if (_accessInvalid || auditDue || retryHeld) await RefreshAccessAsync(held, ct);
             if (held) { Changed?.Invoke(); return; }
             State!.RecoveryFault = null;
-            await _setup.ReconcileAsync(Now, false, ct, retryHeld);
+            await _setup.ReconcileAsync(Now, new SetupRequest(SetupIntent.Reconcile, RetryHeld: retryHeld), ct);
             if (State!.Forums.Values.FirstOrDefault(f => f.Fault is not null) is { } failed)
             {
                 _ready = false;
@@ -130,23 +126,8 @@ public sealed partial class RecruitmentEngine : IDisposable
             _ready = true;
             State.RecoveryFault = null;
             await DiscoverAsync(ct);
-            if (retryHeld)
-                foreach (var post in State.Listings.Values) { post.PublicPin.Fault = null; post.AcknowledgementNotice.Fault = null; }
-            if (retryHeld)
-                foreach (var notice in State.Listings.Values.SelectMany(p => p.Attention).Where(n => n.MessageId is null || n.SendPending)) notice.Fault = null;
-            var cursor = ulong.TryParse(State.SweepAfterId, out var savedCursor) ? savedCursor : 0;
-            var batch = State.Listings.Values
-                .Where(p => p.Status == ListingStatus.Open || p.PendingAction is not null || p.StaffSendPending || p.PublicSendPending || p.PublicationPending || _publisher!.AttentionDue(p) || _publisher!.PinDue(p))
-                .OrderBy(p => ulong.Parse(p.Id) <= cursor).ThenBy(p => ulong.Parse(p.Id)).Take(10).ToArray();
-            foreach (var post in batch)
-            {
-                ct.ThrowIfCancellationRequested();
-                if (retryHeld) { post.Fault = null; post.PublicPin.Fault = null; }
-                _discord.InvalidateFacts(post.Id);
-                await _workflow!.ProcessSafelyAsync(post, ct, verifyHeld: true);
-            }
-            if (batch.Length > 0) State.SweepAfterId = batch[^1].Id;
-            await ReconcileReferencesAsync(ct, retryHeld);
+            await ReconcileListingBatchAsync(State, retryHeld, ct);
+            await _references!.ReconcileAsync(ct, retryHeld);
             RecruitmentRetention.Prune(State, Now, _settings.PostRetentionMonths, _settings.AuthorRetentionMonths, _settings.CooldownDays);
             if (EvidenceCurrent) State.LastSweepAt = Now;
             else _nextAudit = Now.AddSeconds(10);
@@ -167,33 +148,38 @@ public sealed partial class RecruitmentEngine : IDisposable
         Changed?.Invoke();
     }
 
-    private async Task DiscoverAsync(CancellationToken ct)
+    private async Task RefreshAccessAsync(bool held, CancellationToken ct)
     {
-        var state = State!;
-        var generation = _evidenceGeneration();
-        var cursors = state.Forums.Values.ToDictionary(f => f.ForumId, f =>
-        {
-            var cursor = f.ArchiveCursor ?? new ArchiveCursor(state.DiscoveryFloor);
-            return f.Reference.CreatePending && f.Reference.CreateStartedAt is { } started && cursor.Since > started.AddMinutes(-5)
-                ? new ArchiveCursor(started.AddMinutes(-5)) : cursor;
-        });
-        foreach (var id in _ignoredThreads.Where(p => p.Value < state.DiscoveryFloor).Select(p => p.Key).ToArray()) _ignoredThreads.Remove(id);
-        var known = state.Listings.Keys.Concat(_ignoredThreads.Keys).Concat(state.Forums.Values.Select(f => f.Reference.ThreadId).OfType<string>()).ToHashSet();
-        var inventory = await _discord.InventoryAsync(state.DiscoveryFloor, known, cursors, ct);
-        _inventoryComplete = inventory.Complete;
-        _inventoryGeneration = generation;
-        _unreadableReferenceForums.Clear();
-        foreach (var live in inventory.Threads.OrderBy(t => t.CreatedAt).ThenBy(t => ulong.Parse(t.Id)))
-        {
-            ObserveReferenceCandidate(live);
-            await ObserveAsync(live, false, ct);
-        }
-        if (inventory.Cursors is not null)
-            foreach (var forum in state.Forums.Values) forum.ArchiveCursor = inventory.Cursors[forum.ForumId];
-        if (!_inventoryComplete)
-            foreach (var p in state.Listings.Values.Where(p => p.Status == ListingStatus.Open && !p.AcceptedAt.HasValue)) _recoverWindows.Add(p.Id);
-        Save();
+        _feedReady = false;
+        var feedGeneration = _evidenceGeneration();
+        _feedEmbeds = await _discord.ValidateFeedAsync(ct);
+        _feedGeneration = feedGeneration;
+        _feedReady = true;
+        if (!held) await _discord.ValidateAccessAsync(ct);
+        _accessInvalid = false;
     }
+
+    private async Task ReconcileListingBatchAsync(RecruitmentState state, bool retryHeld, CancellationToken ct)
+    {
+        if (retryHeld)
+            foreach (var post in state.Listings.Values) { post.PublicPin.Fault = null; post.AcknowledgementNotice.Fault = null; }
+        if (retryHeld)
+            foreach (var notice in state.Listings.Values.SelectMany(p => p.Attention).Where(n => n.MessageId is null || n.SendPending)) notice.Fault = null;
+        var cursor = ulong.TryParse(state.SweepAfterId, out var savedCursor) ? savedCursor : 0;
+        var batch = state.Listings.Values
+            .Where(p => p.Status == ListingStatus.Open || p.PendingAction is not null || p.StaffSendPending || p.PublicSendPending || p.PublicationPending || _publisher!.AttentionDue(p) || _publisher!.PinDue(p))
+            .OrderBy(p => ulong.Parse(p.Id) <= cursor).ThenBy(p => ulong.Parse(p.Id)).Take(10).ToArray();
+        foreach (var post in batch)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (retryHeld) { post.Fault = null; post.PublicPin.Fault = null; }
+            _discord.InvalidateFacts(post.Id);
+            await _workflow!.ProcessSafelyAsync(post, ct, verifyHeld: true);
+        }
+        if (batch.Length > 0) state.SweepAfterId = batch[^1].Id;
+    }
+
+    private Task DiscoverAsync(CancellationToken ct) => _inventory!.DiscoverAsync(ct);
 
     public async Task ReconcileThreadAsync(string thread, CancellationToken ct)
     {
@@ -251,19 +237,19 @@ public sealed partial class RecruitmentEngine : IDisposable
         {
             if (target.Length > 0 && !State.Forums.ContainsKey(target)) return "Unknown recruitment forum purpose.";
             State.Overview.Fault = null;
-            _verifiedReferences.Clear();
+            _references!.ClearVerified();
             State.SetupAudit.Add(new RecruitmentAudit(Now, actor, "Repair forum setup: " + reason));
             if (State.SetupAudit.Count > 30) State.SetupAudit.RemoveAt(0);
             Save();
             await _discord.ValidateAccessAsync(ct);
-            await _setup!.ReconcileAsync(Now, true, ct, target: string.IsNullOrEmpty(target) ? null : target);
+            await _setup!.ReconcileAsync(Now, new SetupRequest(SetupIntent.Repair, Target: string.IsNullOrEmpty(target) ? null : target), ct);
             Status = "Setup repaired";
             await SweepAsync(ct); return Status;
         }
         if (operation == StaffOperation.Reconcile)
         {
             State.Overview.Fault = null;
-            _verifiedReferences.Clear();
+            _references!.ClearVerified();
             State.SetupAudit.Add(new RecruitmentAudit(Now, actor, "Reconcile: " + reason));
             if (State.SetupAudit.Count > 30) State.SetupAudit.RemoveAt(0);
             Save(); await SweepAsync(ct); return Status;

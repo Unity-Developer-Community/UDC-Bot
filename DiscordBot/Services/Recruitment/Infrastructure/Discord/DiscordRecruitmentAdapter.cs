@@ -170,52 +170,13 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
         return Snapshot(forum);
     }
 
-    public async Task<ThreadInventory> InventoryAsync(DateTimeOffset floor, IReadOnlySet<string> knownIds,
-        IReadOnlyDictionary<string, ArchiveCursor> cursors, CancellationToken ct)
-    {
-        using var requestScope = RecruitmentRequests.BeginScope();
-        var found = new Dictionary<ulong, RestThreadChannel?>();
-        var progress = new Dictionary<string, ArchiveCursor>();
-        var complete = true;
-        var firstId = _settings.Recruitment.Forums.Mapping().Values.First().ToString();
-        var firstForum = _forums.TryGetValue(firstId, out var first) ? first.Channel : await ForumAsync(firstId, ct);
-        using (var active = DiscordCompatibilityTransport.ObserveActiveInventory(_settings.GuildId))
-        {
-            foreach (var thread in await firstForum.GetActiveThreadsAsync(Options(ct))) found[thread.Id] = thread;
-            if (active.Identities is null) throw new InvalidOperationException("Active-thread inventory response was not observed; acceptance is held.");
-            foreach (var identity in active.Identities.Where(t => _settings.Recruitment.Forums.Contains(t.Parent)))
-                found.TryAdd(identity.Id, null);
-        }
-        foreach (var id in _settings.Recruitment.Forums.Mapping().Values)
-        {
-            var forum = _forums.TryGetValue(id.ToString(), out var observed) ? observed.Channel : await ForumAsync(id.ToString(), ct);
-            var cursor = cursors[id.ToString()];
-            var started = cursor.StartedAt ?? _time.GetUtcNow();
-            var since = cursor.Since > floor ? cursor.Since : floor;
-            var before = cursor.Before;
-            var finished = false;
-            // Resume bounded archive pages across sweeps. A completed pass advances its lower boundary.
-            for (var page = 0; page < 2; page++)
-            {
-                var batch = await forum.GetPublicArchivedThreadsAsync(100, before, Options(ct));
-                foreach (var thread in batch.Where(t => t.CreatedAt >= floor)) found[thread.Id] = thread;
-                if (batch.Count < 100 || batch.Min(t => t.ArchiveTimestamp) < since) { finished = true; break; }
-                before = batch.Min(t => t.ArchiveTimestamp);
-            }
-            complete &= finished;
-            // An overlap protects against timestamp precision and threads archiving during the scan.
-            progress[id.ToString()] = finished ? new ArchiveCursor(started.AddMinutes(-5)) : new ArchiveCursor(since, before, started);
-        }
-        var snapshots = new List<ThreadSnapshot>();
-        var unseen = found.Where(t => SnowflakeUtils.FromSnowflake(t.Key) >= floor && !knownIds.Contains(t.Key.ToString())).ToArray();
-        foreach (var thread in unseen.Take(50))
-        {
-            var snapshot = thread.Value is not null ? await SnapshotAsync(thread.Value, ct) : await GetThreadAsync(thread.Key.ToString(), ct);
-            if (snapshot is not null) snapshots.Add(snapshot);
-        }
-        // Do not advance past an archive page until all its unknown identities have been retained.
-        return unseen.Length > 50 ? new ThreadInventory(snapshots, false, cursors) : new ThreadInventory(snapshots, complete, progress);
-    }
+    public Task<ThreadInventory> InventoryAsync(DateTimeOffset floor, IReadOnlySet<string> knownIds,
+        IReadOnlyDictionary<string, ArchiveCursor> cursors, CancellationToken ct) =>
+        new DiscordInventoryReader(_settings, _time, CachedForumAsync, SnapshotAsync,
+            (id, token) => GetThreadAsync(id, token)).ReadAsync(floor, knownIds, cursors, ct);
+
+    private Task<RestForumChannel> CachedForumAsync(string id, CancellationToken ct) =>
+        _forums.TryGetValue(id, out var observed) ? Task.FromResult(observed.Channel) : ForumAsync(id, ct);
 
     public async Task<ThreadSnapshot?> GetThreadAsync(string threadId, CancellationToken ct, bool refresh = false)
     {

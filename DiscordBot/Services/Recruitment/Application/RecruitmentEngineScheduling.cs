@@ -7,7 +7,6 @@ public sealed partial class RecruitmentEngine
     private readonly Func<long> _evidenceGeneration;
     private readonly Func<bool> _gatewayReady;
     private readonly Func<bool> _pendingIdentities;
-    private long _inventoryGeneration = -1;
     private DateTimeOffset _nextAudit = DateTimeOffset.MaxValue;
     private bool _accessInvalid = true;
     private bool EvidenceCurrent => _gatewayReady() && !_pendingIdentities() && _inventoryComplete && _inventoryGeneration == _evidenceGeneration();
@@ -119,7 +118,7 @@ public sealed partial class RecruitmentEngine
         {
             var live = await _discord.GetThreadAsync(id, ct);
             // ThreadCreated also signals access to an existing thread; it cannot certify reply coverage.
-            if (live is not null) { ObserveReferenceCandidate(live); await ObserveAsync(live, false, ct); }
+            if (live is not null) { _references!.ObserveReferenceCandidate(live); await ObserveAsync(live, false, ct); }
             if (!State.Listings.TryGetValue(id, out post)) return;
         }
         post.Fault = null;
@@ -131,8 +130,7 @@ public sealed partial class RecruitmentEngine
         _discord.InvalidateThread(id);
         if (State?.Forums.Values.FirstOrDefault(f => f.Reference.ThreadId == id) is { } forum)
         {
-            forum.Reference = new ReferenceReceipt(); _verifiedReferences.Remove(forum.ForumId);
-            _referenceCandidates.Remove(forum.ForumId); _ignoredThreads.Remove(id);
+            forum.Reference = new ReferenceReceipt(); _references!.Forget(forum.ForumId, id);
             RequestRecovery(); Save();
         }
         if (State?.Listings.GetValueOrDefault(id) is not { } post) return;
