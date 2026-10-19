@@ -294,6 +294,12 @@ public sealed class RecruitmentService
         return Task.CompletedTask;
     }
 
+    // Use the immutable ownership snapshot so opening a modal does not wait behind Discord work.
+    // Submission still authorizes against the persisted listing on the serialized worker.
+    public bool CanOpenAcknowledgement(string guild, string thread, string actor) =>
+        _settings.Recruitment.Enabled && !_stop.IsCancellationRequested && guild == _settings.GuildId.ToString() &&
+        Volatile.Read(ref _listingOwners).TryGetValue(actor, out var threads) && threads.Contains(thread);
+
     public bool CanReadStatus(string guild, string actor) => guild == _settings.GuildId.ToString() &&
         ulong.TryParse(actor, out var id) && _client?.GetGuild(_settings.GuildId)?.GetUser(id) is { } user &&
         (user.GuildPermissions.Administrator || user.Roles.Any(r => r.Id == _settings.Roles.Moderator));

@@ -113,7 +113,8 @@ public sealed class RecruitmentModule : InteractionModuleBase<SocketInteractionC
     public async Task Acknowledge(string thread)
     {
         if (thread != Thread || Context.Guild is null) { await RespondAsync("This control belongs to another thread.", ephemeral: true); return; }
-        // The modal itself grants no authority; submission checks persisted ownership and eligibility.
+        if (!Recruitment.CanOpenAcknowledgement(Guild, thread, Actor))
+        { await RespondAsync("Only the listing author can acknowledge the Guidelines for an open listing.", ephemeral: true); return; }
         await RespondWithModalAsync<GuidelinesModal>($"recruit:code:{thread}");
     }
     public sealed class GuidelinesModal : IModal

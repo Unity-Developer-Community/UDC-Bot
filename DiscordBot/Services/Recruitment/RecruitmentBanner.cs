@@ -9,16 +9,19 @@ namespace DiscordBot.Services.Recruitment;
 /// <summary>Offline, bounded renderer. No author identifiers or downloaded content enter the image.</summary>
 public static class RecruitmentBanner
 {
-    public const string Version = "observations-grid-2";
-    public const int Width = 1200, Height = 840;
+    public const string Version = "observations-grid-3";
+    public const int Width = 1200, Height = 756;
     private static readonly object Gate = new();
     private static readonly Dictionary<string, byte[]> Cache = new();
     public static string Identity(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
-    public static string Status(RecruitmentObservation c) => c.Applicability != ObservationApplicability.Available ? "Grey" : c.Severity.ToString();
+    public static string Status(RecruitmentObservation c) => c.Applicability != ObservationApplicability.Available ? "Grey" :
+        c.Severity == ObservationSeverity.Yellow ? "Amber" : c.Severity.ToString();
+    public static string Icon(RecruitmentObservation c) => Status(c) switch
+    { "Green" => "🟢", "Amber" => "🔶", "Red" => "🟥", _ => "⚪" };
     public static string Alt(IReadOnlyList<RecruitmentObservation> checks) => string.Join("; ", checks.Select(c => $"{c.Label}: {RecruitmentPresentation.Safe(c.Value, 60)} ({Status(c)})"));
     public static string GalleryAlt(IReadOnlyList<RecruitmentObservation> checks)
     {
-        var labels = new[] { "Age", "Joined", "Roles", "Pay", "Duration", "Portfolio", "DM", "Avatar", "Detail" };
+        var labels = new[] { "Age", "Joined", "Roles", "Pay", "Job Duration", "Portfolio", "DM", "Avatar", "Detail" };
         var text = string.Join("; ", checks.Select((c, i) => $"{labels[i]}: {RecruitmentPresentation.Safe(c.Value, 60)}"));
         // The installed Discord.Net gallery builder caps descriptions at 256. The attachment
         // description and Legend retain full labels/statuses even for unexpected long values.
@@ -36,24 +39,27 @@ public static class RecruitmentBanner
             using var image = new MagickImage(new MagickColor("#20242B"), Width, Height);
             for (var i = 0; i < 9; i++)
             {
-                var c = checks[i]; var x = i % 3 * 400 + 12; var y = i / 3 * 280 + 12;
+                var c = checks[i]; var x = i % 3 * 400 + 12; var y = i / 3 * 252 + 12;
                 var status = Status(c);
-                var color = status switch { "Green" => "#66D5A0", "Yellow" => "#F1CD68", "Red" => "#FF9494", _ => "#BAC2CE" };
-                var d = new Drawables().FillColor(new MagickColor("#2C323B")).Rectangle(x, y, x + 376, y + 256)
-                    .Font(fontPath).FontPointSize(40).FillColor(MagickColors.White).Text(x + 16, y + 48, c.Label)
+                var color = status switch { "Green" => "#66D5A0", "Amber" => "#F1CD68", "Red" => "#FF9494", _ => "#BAC2CE" };
+                var d = new Drawables().FillColor(new MagickColor("#2C323B")).Rectangle(x, y, x + 376, y + 228)
+                    // A small matching stroke gives bundled-font headings a consistent bold weight.
+                    .Font(fontPath).FontPointSize(40).FillColor(MagickColors.White).StrokeColor(MagickColors.White).StrokeWidth(1.2)
+                    .Text(x + 16, y + 48, c.Label).StrokeWidth(0).StrokeColor(MagickColors.Transparent)
                     .FillColor(new MagickColor(color));
-                // Shapes and explicit words preserve meaning without color.
-                if (status == "Green") d.Circle(x + 26, y + 229, x + 36, y + 229);
-                else if (status == "Yellow") d.Polygon(new PointD(x + 16, y + 239), new PointD(x + 26, y + 217), new PointD(x + 36, y + 239));
-                else if (status == "Red") d.Rectangle(x + 16, y + 219, x + 36, y + 239);
-                else d.FillColor(MagickColors.Transparent).StrokeColor(new MagickColor(color)).StrokeWidth(3).Circle(x + 26, y + 229, x + 36, y + 229).StrokeWidth(0);
-                d.FillColor(MagickColors.White).FontPointSize(40).Text(x + 48, y + 240, status);
+                // Distinct shapes and full status names in alt text keep meaning without color.
+                if (status == "Green") d.Circle(x + 188, y + 205, x + 204, y + 205);
+                else if (status == "Amber") d.Polygon(new PointD(x + 188, y + 187), new PointD(x + 206, y + 205),
+                    new PointD(x + 188, y + 223), new PointD(x + 170, y + 205));
+                else if (status == "Red") d.Rectangle(x + 172, y + 189, x + 204, y + 221);
+                else d.FillColor(MagickColors.Transparent).StrokeColor(new MagickColor(color)).StrokeWidth(3)
+                    .Circle(x + 188, y + 205, x + 204, y + 205).StrokeWidth(0).StrokeColor(MagickColors.Transparent);
                 var words = RecruitmentPresentation.Safe(c.Value, 60).Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 var lines = new List<string>(); var line = "";
                 foreach (var word in words) { if (line.Length + word.Length > 16 && line.Length > 0) { lines.Add(line); line = ""; } line += (line.Length > 0 ? " " : "") + word; }
                 lines.Add(line);
-                d.FontPointSize(40);
-                for (var n = 0; n < Math.Min(3, lines.Count); n++) d.Text(x + 16, y + 100 + n * 44, lines[n].Length > 17 ? lines[n][..16] + "…" : lines[n]);
+                d.FillColor(MagickColors.White).FontPointSize(40);
+                for (var n = 0; n < Math.Min(3, lines.Count); n++) d.Text(x + 16, y + 92 + n * 40, lines[n].Length > 17 ? lines[n][..16] + "…" : lines[n]);
                 d.Draw(image);
             }
             image.Format = MagickFormat.Png; image.Strip();

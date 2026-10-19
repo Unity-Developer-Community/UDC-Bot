@@ -118,6 +118,35 @@ public class RecruitmentPublicationTests
         Assert.Equal(writes, transport.MessageWrites.Count);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InstalledSdkAuthorNoticeMentionsOnlyAuthorOnCreationAndNeverOnRecoveryOrEdit(bool loseResponse)
+    {
+        var transport = new PublicationTransport { MessageMissing = true, LoseCreateResponse = loseResponse };
+        transport.Message["attachments"] = new JArray(); transport.Message["embeds"] = new JArray();
+        using var client = await Client(transport);
+        var adapter = new DiscordRecruitmentAdapter(client, Settings());
+        const string marker = "recruitment:100:acknowledgement";
+        var message = new RecruitmentMessage($"<@200> please acknowledge. <@201> @everyone <@&50>\n||{marker}||",
+            marker, false, MentionUserId: 200);
+        var error = await Record.ExceptionAsync(() => adapter.UpsertAsync("100", null, false, DateTimeOffset.UtcNow,
+            message, () => { }, default));
+        if (loseResponse) Assert.IsType<InvalidOperationException>(error); else Assert.Null(error);
+        var create = Assert.Single(transport.MessageWrites);
+        var mentions = create["allowed_mentions"]!;
+        Assert.Empty((JArray)mentions["parse"]!);
+        Assert.Equal(new[] { "200" }, ((JArray)mentions["users"]!).Values<string>());
+        Assert.False(mentions["roles"]?.Values<string>().Any() ?? false);
+        var recovered = await adapter.UpsertAsync("100", null, true, DateTimeOffset.UtcNow, message, () => { }, default);
+        Assert.False(recovered.NewlySent); Assert.Single(transport.MessageWrites);
+        await adapter.UpsertAsync("100", recovered.Id, false, DateTimeOffset.UtcNow,
+            message with { Content = message.Content + "\nUpdated deadline." }, () => { }, default);
+        var edit = transport.MessageWrites.Last()["allowed_mentions"]!;
+        Assert.Empty((JArray)edit["parse"]!);
+        Assert.False(edit["users"]?.Values<string>().Any() ?? false);
+    }
+
     [Fact]
     public async Task DepartedMemberLeavesProfileFactsUnavailableWithoutLosingStarter()
     {

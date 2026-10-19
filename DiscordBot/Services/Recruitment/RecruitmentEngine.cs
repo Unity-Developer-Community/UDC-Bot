@@ -103,7 +103,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             State.RecoveryFault = null;
             await DiscoverAsync(ct);
             if (retryHeld)
-                foreach (var post in State.Listings.Values) post.PublicPin.Fault = null;
+                foreach (var post in State.Listings.Values) { post.PublicPin.Fault = null; post.AcknowledgementNotice.Fault = null; }
             if (retryHeld)
                 foreach (var notice in State.Listings.Values.SelectMany(p => p.Attention).Where(n => n.MessageId is null || n.SendPending)) notice.Fault = null;
             var cursor = ulong.TryParse(State.SweepAfterId, out var savedCursor) ? savedCursor : 0;
@@ -280,6 +280,7 @@ public sealed partial class RecruitmentEngine : IDisposable
             post.Version++; Save();
             await PublishAsync(post, ct);
         }
+        await PublishAcknowledgementNoticeAsync(post, ct);
         if (EvidenceCurrent && post.AcknowledgedAt.HasValue && !post.AcceptedAt.HasValue)
             await RefreshBlockersAsync(post, ct);
         if (EvidenceCurrent && RecruitmentPolicy.TryAccept(State, post, Now, _settings.CooldownDays))

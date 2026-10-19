@@ -30,7 +30,39 @@ public class RecruitmentPresentationTests
         Assert.Contains("Applicant fee", text); Assert.Contains("fee requested", text);
         Assert.Contains("Acknowledge", text); Assert.Contains("processing is paused", text);
         Assert.All(post.Facts.Checks, check => Assert.Contains(check.Label, text));
+        Assert.Contains("**Job Duration:**", text);
+        Assert.DoesNotContain("(Green)", text); Assert.DoesNotContain("(Yellow)", text);
         Assert.DoesNotContain("trusted", text); Assert.DoesNotContain("no red flags", text);
+    }
+
+    [Fact]
+    public async Task LegendUsesCompactStatusIconsAndBoldLabelsWhilePreservingEvidenceAndUnknowns()
+    {
+        using var rig = new RecruitmentRig(); await rig.Start(); var post = await rig.Post();
+        post.Facts.Checks = new()
+        {
+            new("account-age", "Account Age", ObservationSeverity.Green, ObservationApplicability.Available, "At least 2 years"),
+            new("duration", "Job Duration", ObservationSeverity.Yellow, ObservationApplicability.Available, "Timing Unclear"),
+            new("compensation", "Compensation", ObservationSeverity.Red, ObservationApplicability.Available, "No Monetary Pay Found", "Unpaid position"),
+            new("portfolio", "Portfolio", ObservationSeverity.Green, ObservationApplicability.NotApplicable, "Not Applicable"),
+            new("join-date", "Join Date", ObservationSeverity.Red, ObservationApplicability.Unavailable, "Rejoined after posting"),
+            new("post-detail", "Post Detail", ObservationSeverity.Yellow, ObservationApplicability.Available, "159 Characters",
+                "Normalized body length is a heuristic, not proof of completeness or quality.")
+        };
+        post.Facts.Observations = new() { new("fee", "Applicant fee", "pay **$50** <@123>") };
+        var text = RecruitmentPresentation.Details(post);
+        Assert.Contains("🟢 **Account Age:** At least 2 years", text);
+        Assert.Contains("🔶 **Job Duration:** Timing Unclear", text);
+        Assert.Contains("🟥 **Compensation:** No Monetary Pay Found — Unpaid position", text);
+        Assert.Contains("⚪ **Portfolio:** Not Applicable", text);
+        Assert.Contains("⚪ **Join Date:** Rejoined after posting", text);
+        Assert.Contains("**Applicant fee:**", text); Assert.Contains("$50", text); Assert.DoesNotContain("<@123>", text);
+        Assert.DoesNotContain("Available /", text); Assert.DoesNotContain("NotApplicable /", text);
+        Assert.DoesNotContain("Server Roles excludes everyone", text);
+        Assert.DoesNotContain("Normalized body length is a heuristic", text);
+        Assert.Contains("length does not prove quality", text); Assert.Contains("privately", text);
+        Assert.InRange(text.Length, 1, 1400);
+        Assert.Contains("Job Duration: Timing Unclear (Amber)", RecruitmentBanner.Alt(post.Facts.Checks));
     }
 
     [Fact]

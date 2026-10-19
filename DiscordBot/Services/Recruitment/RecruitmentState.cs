@@ -99,6 +99,7 @@ public sealed class Listing
     public List<string> ValidCodes { get; set; } = new();
     public DateTimeOffset? LastCodeAttemptAt { get; set; }
     public DateTimeOffset? AttemptPausedUntil { get; set; }
+    public AcknowledgementNoticeReceipt AcknowledgementNotice { get; set; } = new();
     public MessagePinReceipt PublicPin { get; set; } = new();
     public string? PublicMessageId { get; set; }
     public string? StaffMessageId { get; set; }
@@ -134,6 +135,14 @@ public sealed class Listing
     public int ReviewedMaterialChanges { get; set; }
     public List<RecruitmentReport> Reports { get; set; } = new();
     public List<AttentionNotice> Attention { get; set; } = new();
+}
+
+public sealed class AcknowledgementNoticeReceipt
+{
+    public string? MessageId { get; set; }
+    public bool SendPending { get; set; }
+    public DateTimeOffset? StartedAt { get; set; }
+    public RecruitmentFault? Fault { get; set; }
 }
 
 public sealed class RecruitmentReport

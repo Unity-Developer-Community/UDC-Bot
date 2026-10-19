@@ -81,6 +81,7 @@ public class RecruitmentBannerTests
         Assert.NotEmpty(RecruitmentBanner.Render(longChecks));
         // Local review fixtures, intentionally outside repository discovery.
         Directory.CreateDirectory("/tmp/udc-t04-previews");
+        File.WriteAllBytes("/tmp/udc-t04-previews/observations.png", RecruitmentBanner.Render(post.Facts.Checks));
         image.Write("/tmp/udc-t04-previews/grid.png");
         foreach (var width in new uint[] { 320, 360, 640 })
         foreach (var light in new[] { false, true })

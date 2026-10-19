@@ -115,8 +115,9 @@ public class RecruitmentWorkflowTests
     {
         using var rig = new RecruitmentRig(); await rig.Start(); rig.Discord.LoseNextSendResponse = true;
         await rig.Post(); await rig.Restart(); await rig.Sweep();
-        Assert.Equal(2, rig.Discord.Sends);
-        Assert.Equal(2, rig.Discord.Messages.Count);
+        Assert.Equal(3, rig.Discord.Sends);
+        Assert.Equal(3, rig.Discord.Messages.Count);
+        Assert.Single(rig.Discord.Messages.Values, m => m.Message.MentionUserId == 200);
         Assert.NotNull(rig.State.Listings["100"].Deadline);
     }
 

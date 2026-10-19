@@ -60,6 +60,7 @@ public sealed partial class RecruitmentEngine
         if (_recoverWindows.Contains(post.Id)) return Now;
         if (!post.PromptDeliveredAt.HasValue && !post.AcceptedAt.HasValue) return Now;
         var dates = new List<DateTimeOffset>();
+        if (AcknowledgementNoticeDue(post) is { } noticeDue) dates.Add(noticeDue);
         if (attention.HasValue) dates.Add(attention.Value);
         if (pinDue.HasValue) dates.Add(pinDue.Value);
         if (!post.Exempt && !post.Pinned)
@@ -103,7 +104,8 @@ public sealed partial class RecruitmentEngine
         State.Overview.Fault = null;
         foreach (var f in State.Forums.Values.Where(f => forum is null || f.ForumId == forum)) f.Fault = null;
         foreach (var f in State.Forums.Values.Where(f => forum is null || f.ForumId == forum)) f.Reference.Fault = null;
-        foreach (var post in State.Listings.Values.Where(p => forum is null || p.ForumId == forum)) { post.Fault = null; post.PublicPin.Fault = null; }
+        foreach (var post in State.Listings.Values.Where(p => forum is null || p.ForumId == forum))
+        { post.Fault = null; post.PublicPin.Fault = null; post.AcknowledgementNotice.Fault = null; }
         _nextAudit = Now;
         MarkEvidenceGap();
     }

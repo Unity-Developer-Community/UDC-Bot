@@ -112,6 +112,8 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
     public bool InventoryComplete { get; set; } = true;
     public bool FailStaff { get; set; }
     public bool LoseNextSendResponse { get; set; }
+    public bool LoseAcknowledgementNoticeResponse { get; set; }
+    public Exception? AcknowledgementNoticeFailure { get; set; }
     public bool LoseNextCloseResponse { get; set; }
     public bool LoseNextDeleteResponse { get; set; }
     public bool FailPermissions { get; set; }
@@ -188,6 +190,7 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
         Upserts++;
         if (FailOverview && message.Marker.StartsWith("recruitment:overview:")) throw new TimeoutException("Overview unavailable");
         if (FailStaff && channelId == "99") throw new InvalidOperationException("Feed unavailable");
+        if (message.Marker.EndsWith(":acknowledgement") && AcknowledgementNoticeFailure is { } failure) throw failure;
         var key = channelId + ":" + message.Marker;
         if (Messages.TryGetValue(key, out var existing))
         {
@@ -196,6 +199,8 @@ internal sealed class FakeRecruitmentDiscord : IRecruitmentDiscord
         }
         beforeWrite();
         var id = (++_nextId).ToString(); Messages[key] = (id, message); Sends++;
+        if (LoseAcknowledgementNoticeResponse && message.Marker.EndsWith(":acknowledgement"))
+        { LoseAcknowledgementNoticeResponse = false; throw new TimeoutException("Author notice response lost"); }
         if (LoseNextSendResponse) { LoseNextSendResponse = false; throw new InvalidOperationException("Ambiguous send"); }
         return Task.FromResult(new Delivery(id, true));
     }

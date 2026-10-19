@@ -43,8 +43,8 @@ public static class RecruitmentSignals
         else Add("compensation", "Compensation", payment.Kind == CompensationKind.Rate ? ObservationSeverity.Green : compensationRed ? ObservationSeverity.Red : ObservationSeverity.Yellow,
             payment.Kind switch { CompensationKind.Rate => "Rate Stated", CompensationKind.Mixed => "Mixed Terms", CompensationKind.MonetaryPromise => "Rate Unclear", CompensationKind.Unpaid => "Unpaid / Exposure", CompensationKind.RevenueShare => "Revenue Share Only", _ => "No Monetary Pay Found" }, payment.Evidence);
         var duration = RecruitmentContent.Duration(live.Starter, hire);
-        if (duration is null) Unknown("duration", "Duration");
-        else Add("duration", "Duration", duration.Length > 0 ? ObservationSeverity.Green : paid && compensationRed ? ObservationSeverity.Red : ObservationSeverity.Yellow,
+        if (duration is null) Unknown("duration", "Job Duration");
+        else Add("duration", "Job Duration", duration.Length > 0 ? ObservationSeverity.Green : paid && compensationRed ? ObservationSeverity.Red : ObservationSeverity.Yellow,
             duration.Length > 0 ? "Window Stated" : "Timing Unclear", duration);
         var portfolio = RecruitmentContent.ReadPortfolio(live.Starter, live.Attachments, supportedHosts);
         if (!hire) Na("portfolio", "Portfolio");

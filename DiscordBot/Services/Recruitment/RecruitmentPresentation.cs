@@ -37,7 +37,7 @@ public static class RecruitmentPresentation
         {
             var children = new List<IMessageComponentBuilder> { new TextDisplayBuilder($"## {Heading}") };
             if (image) children.Add(new MediaGalleryBuilder().AddItem("attachment://" + fileName, RecruitmentBanner.GalleryAlt(checks)));
-            else children.Add(new TextDisplayBuilder(string.Join("\n", checks.Select(c => $"**{c.Label}:** {Safe(c.Value, 60)} ({RecruitmentBanner.Status(c)})"))));
+            else children.Add(new TextDisplayBuilder(string.Join("\n", checks.Select(c => $"{RecruitmentBanner.Icon(c)} **{c.Label}:** {Safe(c.Value, 60)}"))));
             children.Add(new TextDisplayBuilder($"*{Guidance}*"));
             if (foot.Length > 0) children.Add(new TextDisplayBuilder(foot));
             if (image && avatar is not null) children.Add(new SectionBuilder(new ThumbnailBuilder(new UnfurledMediaItemProperties(avatar), "Author avatar"), new[] { new TextDisplayBuilder(identity) }));
@@ -71,9 +71,12 @@ public static class RecruitmentPresentation
     public static string Details(Listing post)
     {
         return "**Legend · Recruitment observations**\n" + string.Join("\n", post.Facts.Checks.Select(c =>
-            $"{c.Label}: {Safe(c.Value, 60)}. {c.Applicability} / {c.Severity}." + (string.IsNullOrEmpty(c.Evidence) ? "" : $" {Safe(c.Evidence, 370)}"))) +
-            (post.Facts.Observations.Count == 0 ? "" : "\n**Additional evidence**\n" + string.Join("\n", post.Facts.Observations.Take(4).Select(o => $"• {Safe(o.Description, 140)}: “{Safe(o.Evidence, 180)}”."))) +
-            "\nGreen describes an observed fact; yellow asks for clarification; red highlights a missing expected detail or concern. Grey means Unavailable or Not Applicable. Colors never establish trust.\nAccount Age: at posting, green ≥2 years; yellow ≥6 months. Join Date: at posting, green ≥1 year; yellow ≥2 months; later joins are rejoined, with no invented tenure. Server Roles excludes everyone.\nCompensation: monetary rate/budget, unclear or mixed terms, or no monetary pay; hobby is Not Applicable. Duration seeks an explicit work window/availability. Portfolio recognizes specific supported-platform work links, without endorsement; recruiting is Not Applicable; attached samples alone request clarification for paid for-hire.\nDM Requests flags affirmative DM-first instructions, more strongly below 120 body characters. Profile Image describes custom/default appearance only. Post Detail: green ≥300, yellow 120–299, red <120 normalized characters; URLs and markup excluded.\nObservations use starter and membership data; unavailable data is not evidence against the author. Roles, avatars, links and length do not establish trust or authorship. Reports go privately to moderators.";
+            $"{RecruitmentBanner.Icon(c)} **{c.Label}:** {Safe(c.Value, 60)}" +
+            (c.Id == "post-detail" || string.IsNullOrWhiteSpace(c.Evidence) ? "" : $" — {Safe(c.Evidence, 120)}"))) +
+            (post.Facts.Observations.Count == 0 ? "" : "\n\n**Additional evidence**\n" + string.Join("\n", post.Facts.Observations.Take(4).Select(o => $"• **{Safe(o.Description, 80)}:** “{Safe(o.Evidence, 120)}”."))) +
+            "\n\n🟢 Observed fact · 🔶 Clarification needed · 🟥 Missing detail or concern · ⚪ Unavailable or not applicable" +
+            "\nAges are measured at posting. Job Duration looks for a work window or availability. Portfolio links are detected, not verified. Post Detail excludes links and formatting; length does not prove quality." +
+            "\nThese observations do not establish trust or authorship; unavailable data is not evidence against the author. Use **Report concern** to contact moderators privately.";
     }
 
     public static RecruitmentMessage Staff(RecruitmentState state, Listing post, RecruitmentSettings settings)

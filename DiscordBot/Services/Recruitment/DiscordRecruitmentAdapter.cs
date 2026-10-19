@@ -315,7 +315,7 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
                     await archived.ModifyAsync(p => p.Archived = false, Options(ct));
                     unarchivedForEdit = true;
                 }
-                await existing.ModifyAsync(p => { p.Content = message.Content; p.Components = components; p.Attachments = Array.Empty<FileAttachment>(); p.Embeds = message.Embed is null ? Array.Empty<Embed>() : new[] { message.Embed }; p.AllowedMentions = AllowedMentions.None; }, Options(ct));
+                await existing.ModifyAsync(p => { p.Content = message.Content; p.Components = components; p.Attachments = Array.Empty<FileAttachment>(); p.Embeds = message.Embed is null ? Array.Empty<Embed>() : new[] { message.Embed }; p.AllowedMentions = new AllowedMentions(AllowedMentionTypes.None); }, Options(ct));
             }
             // The caller persists this restoration intent before publication, so a restart can finish it.
             if (message.RestoreArchive && channel is IThreadChannel thread && (unarchivedForEdit || !thread.IsArchived))
@@ -331,7 +331,10 @@ public sealed partial class DiscordRecruitmentAdapter : IRecruitmentDiscord
             if (archivedThread.IsLocked && !message.RestoreArchive) throw new InvalidOperationException("A locked thread needs moderator review before receiving a challenge.");
             await archivedThread.ModifyAsync(p => p.Archived = false, Options(ct));
         }
-        var sent = await channel.SendMessageAsync(message.Content, options: Options(ct), allowedMentions: AllowedMentions.None, components: components, embed: message.Embed);
+        // Only a new, explicit author notice may ping. Recovery edits always suppress mentions above.
+        var mentions = message.MentionUserId is { } author
+            ? new AllowedMentions(AllowedMentionTypes.None) { UserIds = new List<ulong> { author } } : AllowedMentions.None;
+        var sent = await channel.SendMessageAsync(message.Content, options: Options(ct), allowedMentions: mentions, components: components, embed: message.Embed);
         if (message.RestoreArchive && channel is IThreadChannel restoreThread)
             await restoreThread.ModifyAsync(p => p.Archived = true, Options(ct));
         return new Delivery(sent.Id.ToString(), true);

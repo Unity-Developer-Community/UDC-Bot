@@ -129,6 +129,8 @@ public sealed class RecruitmentStateStore : IDisposable
                 (p.PublicMediaAttachmentId is null) != (p.PublicMediaFileName is null) ||
                 p.PublicMediaFileName is { } fileName && (fileName.Length > 120 || !fileName.StartsWith("recruitment-observations-", StringComparison.Ordinal) || !fileName.EndsWith(".png", StringComparison.Ordinal)) ||
                 p.PublicRestoreLocked && !p.PublicRestoreArchive ||
+                p.AcknowledgementNotice is null || p.AcknowledgementNotice.MessageId is not null && !Id(p.AcknowledgementNotice.MessageId) ||
+                p.AcknowledgementNotice.SendPending && p.AcknowledgementNotice.StartedAt is null ||
                 p.PublicPin is null || p.PublicPin.MessageId is not null && !Id(p.PublicPin.MessageId) ||
                 p.PublicPin.Confirmed && p.PublicPin.MessageId is null ||
                 p.PublicPin.RestoreLocked && !p.PublicPin.RestoreArchive ||
