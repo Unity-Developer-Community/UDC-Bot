@@ -1,0 +1,202 @@
+{
+  "paid-recruiting": [
+    {
+      "Key": "programming",
+      "Name": "Programming",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "art",
+      "Name": "Art / animation",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "audio",
+      "Name": "Audio",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "design",
+      "Name": "Design / writing",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "other",
+      "Name": "Other discipline",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "short",
+      "Name": "Short project",
+      "Group": "engagement",
+      "Closing": false
+    },
+    {
+      "Key": "ongoing",
+      "Name": "Ongoing",
+      "Group": "engagement",
+      "Closing": false
+    },
+    {
+      "Key": "closed",
+      "Name": "Closed",
+      "Group": "",
+      "Closing": true
+    }
+  ],
+  "paid-for-hire": [
+    {
+      "Key": "programming",
+      "Name": "Programming",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "art",
+      "Name": "Art / animation",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "audio",
+      "Name": "Audio",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "design",
+      "Name": "Design / writing",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "other",
+      "Name": "Other discipline",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "short",
+      "Name": "Short project",
+      "Group": "engagement",
+      "Closing": false
+    },
+    {
+      "Key": "ongoing",
+      "Name": "Ongoing",
+      "Group": "engagement",
+      "Closing": false
+    },
+    {
+      "Key": "closed",
+      "Name": "Closed",
+      "Group": "",
+      "Closing": true
+    }
+  ],
+  "hobby-recruiting": [
+    {
+      "Key": "programming",
+      "Name": "Programming",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "art",
+      "Name": "Art / animation",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "audio",
+      "Name": "Audio",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "design",
+      "Name": "Design / writing",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "other",
+      "Name": "Other discipline",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "short",
+      "Name": "Short project",
+      "Group": "engagement",
+      "Closing": false
+    },
+    {
+      "Key": "ongoing",
+      "Name": "Ongoing",
+      "Group": "engagement",
+      "Closing": false
+    },
+    {
+      "Key": "closed",
+      "Name": "Closed",
+      "Group": "",
+      "Closing": true
+    }
+  ],
+  "hobby-for-hire": [
+    {
+      "Key": "programming",
+      "Name": "Programming",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "art",
+      "Name": "Art / animation",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "audio",
+      "Name": "Audio",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "design",
+      "Name": "Design / writing",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "other",
+      "Name": "Other discipline",
+      "Group": "discipline",
+      "Closing": false
+    },
+    {
+      "Key": "short",
+      "Name": "Short project",
+      "Group": "engagement",
+      "Closing": false
+    },
+    {
+      "Key": "ongoing",
+      "Name": "Ongoing",
+      "Group": "engagement",
+      "Closing": false
+    },
+    {
+      "Key": "closed",
+      "Name": "Closed",
+      "Group": "",
+      "Closing": true
+    }
+  ]
+}

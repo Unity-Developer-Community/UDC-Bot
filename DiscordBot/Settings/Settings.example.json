@@ -18,7 +18,6 @@
     "UnityNews": { "desc": "Unity News Channel", "id": "0" },
     "UnityReleases": { "desc": "Unity Releases Channel", "id": "0" },
     "Rules": { "desc": "Rules Channel", "id": "0" },
-    "Recruitment": { "desc": "Channel for job postings", "id": "0" },
     "GenericHelp": { "desc": "Unity-Help Channel", "id": "0" },
     "Meme": { "desc": "Meme Channel", "id": "0" },
     "BirthdayAnnouncement": { "desc": "Channel for birthday announcements", "id": "0" },
@@ -37,11 +36,20 @@
 
   "Recruitment": {
     "Enabled": false,
-    "TagLookingToHire": "0",
-    "TagLookingForWork": "0",
-    "TagUnpaidCollab": "0",
-    "TagPositionFilled": "0",
-    "EditPermissionAccessTimeMin": 3
+    "FeedChannelId": "0",
+    "Forums": {
+      "PaidRecruitingId": "0",
+      "PaidForHireId": "0",
+      "HobbyRecruitingId": "0",
+      "HobbyForHireId": "0"
+    },
+    "AcknowledgementMinutes": 30,
+    "CooldownDays": 30,
+    "AttemptLimit": 2,
+    "AttemptWindowMinutes": 60,
+    "AttemptPauseMinutes": 60,
+    "PostRetentionMonths": 12,
+    "AuthorRetentionMonths": 24
   },
 
   "UnityHelp": {

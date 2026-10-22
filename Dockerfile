@@ -19,6 +19,7 @@ COPY --from=build /app/publish/ ./
 COPY ./DiscordBot/Assets/fonts/ ./Assets/fonts/
 COPY ./DiscordBot/Assets/images/ ./Assets/images/
 COPY ./DiscordBot/Assets/skins/ ./Assets/skins/
+COPY ./DiscordBot/Assets/recruitment/ ./Assets/recruitment/
 
 # Add contrib repo for MS fonts, matching the base image's Debian codename
 RUN . /etc/os-release && \

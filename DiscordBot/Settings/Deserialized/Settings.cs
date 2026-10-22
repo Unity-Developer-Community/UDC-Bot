@@ -52,17 +52,7 @@ public class BotSettings
             ValidateChannel(warnings, Channels.BirthdayAnnouncement, nameof(Channels.BirthdayAnnouncement));
 
         if (Recruitment.Enabled)
-        {
-            ValidateChannel(warnings, Channels.Recruitment, nameof(Channels.Recruitment));
-            if (string.IsNullOrWhiteSpace(Recruitment.TagLookingToHire))
-                warnings.Add("Recruitment enabled but TagLookingToHire is empty");
-            if (string.IsNullOrWhiteSpace(Recruitment.TagLookingForWork))
-                warnings.Add("Recruitment enabled but TagLookingForWork is empty");
-            if (string.IsNullOrWhiteSpace(Recruitment.TagUnpaidCollab))
-                warnings.Add("Recruitment enabled but TagUnpaidCollab is empty");
-            if (string.IsNullOrWhiteSpace(Recruitment.TagPositionFilled))
-                warnings.Add("Recruitment enabled but TagPositionFilled is empty");
-        }
+            warnings.AddRange(Recruitment.Validate().Select(error => $"Recruitment stopped: {error}"));
 
         if (UnityHelp.BabySitterEnabled)
         {
@@ -94,7 +84,6 @@ public class ChannelSettings
     public ChannelInfo UnityNews { get; set; } = null!;
     public ChannelInfo UnityReleases { get; set; } = null!;
     public ChannelInfo Rules { get; set; } = null!;
-    public ChannelInfo Recruitment { get; set; } = null!;
     public ChannelInfo Meme { get; set; } = null!;
     public ChannelInfo BirthdayAnnouncement { get; set; } = null!;
 
@@ -114,12 +103,51 @@ public class RoleSettings
 
 public class RecruitmentSettings
 {
-    public bool Enabled { get; set; } = false;
-    public string TagLookingToHire { get; set; } = string.Empty;
-    public string TagLookingForWork { get; set; } = string.Empty;
-    public string TagUnpaidCollab { get; set; } = string.Empty;
-    public string TagPositionFilled { get; set; } = string.Empty;
-    public int EditPermissionAccessTimeMin { get; set; } = 3;
+    public bool Enabled { get; set; }
+    public ulong FeedChannelId { get; set; }
+    public RecruitmentForums Forums { get; set; } = new();
+    public int AcknowledgementMinutes { get; set; } = 30;
+    public int CooldownDays { get; set; } = 30;
+    public int AttemptLimit { get; set; } = 2;
+    public int AttemptWindowMinutes { get; set; } = 60;
+    public int AttemptPauseMinutes { get; set; } = 60;
+    public int UnansweredDays { get; set; } = 30; // Legacy configuration; listings no longer expire.
+    public int PostRetentionMonths { get; set; } = 12;
+    public int AuthorRetentionMonths { get; set; } = 24;
+
+    public List<string> Validate()
+    {
+        var errors = new List<string>();
+        var forums = Forums?.Mapping();
+        if (forums is null || forums.Values.Any(id => id == 0) || forums.Values.Distinct().Count() != 4)
+            errors.Add("all four named forum IDs must be nonzero and distinct");
+        if (FeedChannelId == 0 || (forums?.Values.Contains(FeedChannelId) ?? false))
+            errors.Add("FeedChannelId must identify a separate staff text channel");
+        if (AcknowledgementMinutes is < 1 or > 1440 || CooldownDays is < 1 or > 365)
+            errors.Add("durations must be positive (acknowledgement at most 1440 minutes; cooldown at most 365 days)");
+        if (AttemptLimit is < 1 or > 20 || AttemptWindowMinutes is < 1 or > 1440 || AttemptPauseMinutes is < 1 or > 1440)
+            errors.Add("attempt limit must be 1–20; attempt window and pause must be 1–1440 minutes");
+        if (PostRetentionMonths is < 1 or > 120 || AuthorRetentionMonths < PostRetentionMonths || AuthorRetentionMonths > 120)
+            errors.Add("retention must be 1–120 months, with author retention at least post retention");
+        return errors;
+    }
+}
+
+public class RecruitmentForums
+{
+    public ulong PaidRecruitingId { get; set; }
+    public ulong PaidForHireId { get; set; }
+    public ulong HobbyRecruitingId { get; set; }
+    public ulong HobbyForHireId { get; set; }
+
+    public Dictionary<string, ulong> Mapping() => new()
+    {
+        ["paid-recruiting"] = PaidRecruitingId, ["paid-for-hire"] = PaidForHireId,
+        ["hobby-recruiting"] = HobbyRecruitingId, ["hobby-for-hire"] = HobbyForHireId
+    };
+
+    public bool Contains(ulong channelId, ulong? parentId = null) =>
+        Mapping().Values.Any(id => id != 0 && (id == channelId || id == parentId));
 }
 
 public class UnityHelpSettings

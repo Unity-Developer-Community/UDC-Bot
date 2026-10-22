@@ -29,7 +29,6 @@ data:
                 "UnityNews": { "desc": "Unity News Channel", "id": "1022102744552710154" },
                 "UnityReleases": { "desc": "Unity Releases Channel", "id": "1022102744552710154" },
                 "Rules": { "desc": "The Rules", "id": "825932695698669618" },
-                "Recruitment": { "desc": "Channel for job postings", "id": "1134672948356202678" },
                 "GenericHelp": { "desc": "Unity-Help Channel", "id": "1028254982748778516" },
                 "BirthdayAnnouncement": { "desc": "Channel for birthday announcements", "id": "566084539664039944" },
                 "ComplaintCategoryId": "874631331810799626",
@@ -53,11 +52,21 @@ data:
             },
 
             "Recruitment": {
-                "Enabled": true,
-                "TagLookingToHire": "1134673961779724480",
-                "TagLookingForWork": "1134673990993051658",
-                "TagUnpaidCollab": "1134674009292804117",
-                "TagPositionFilled": "1134674041450545283"
+                "Enabled": false,
+                "FeedChannelId": "0",
+                "Forums": {
+                    "PaidRecruitingId": "0",
+                    "PaidForHireId": "0",
+                    "HobbyRecruitingId": "0",
+                    "HobbyForHireId": "0"
+                },
+                "AcknowledgementMinutes": 30,
+                "CooldownDays": 30,
+                "AttemptLimit": 2,
+                "AttemptWindowMinutes": 60,
+                "AttemptPauseMinutes": 60,
+                "PostRetentionMonths": 12,
+                "AuthorRetentionMonths": 24
             },
 
             "UnityHelp": {
