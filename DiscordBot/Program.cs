@@ -84,6 +84,7 @@ public class Program
             _services.GetRequiredService<BirthdayAnnouncementService>();
             _services.GetRequiredService<AuditLogService>();
             _services.GetRequiredService<WelcomeService>();
+            _services.GetRequiredService<IntroductionWatcherService>();
             _services.GetRequiredService<XpService>();
             _services.GetRequiredService<KarmaService>();
             _services.GetRequiredService<CodeCheckService>();
@@ -122,6 +123,7 @@ public class Program
             .AddSingleton<ILoggingService, LoggingService>()
             .AddSingleton<DatabaseService>()
             .AddSingleton<WelcomeService>()
+            .AddSingleton<IntroductionWatcherService>()
             .AddSingleton<XpService>()
             .AddSingleton<KarmaService>()
             .AddSingleton<CodeCheckService>()
