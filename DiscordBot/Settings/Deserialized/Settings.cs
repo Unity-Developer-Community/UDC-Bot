@@ -20,6 +20,7 @@ public class BotSettings
     public UnityHelpSettings UnityHelp { get; set; } = new();
     public CasinoSettings Casino { get; set; } = new();
     public BirthdaySettings Birthday { get; set; } = new();
+    public IntroductionWatchSettings IntroductionWatch { get; set; } = new();
     public ApiKeySettings ApiKeys { get; set; } = new();
     public FunCommandSettings FunCommands { get; set; } = new();
 
@@ -50,6 +51,9 @@ public class BotSettings
 
         if (Birthday.Enabled)
             ValidateChannel(warnings, Channels.BirthdayAnnouncement, nameof(Channels.BirthdayAnnouncement));
+
+        if (IntroductionWatch.Enabled && IntroductionWatch.DelayMinutes < 1)
+            warnings.Add("IntroductionWatch.DelayMinutes is less than 1 — 1 minute will be used");
 
         if (Recruitment.Enabled)
         {
@@ -145,6 +149,12 @@ public class BirthdaySettings
 {
     public bool Enabled { get; set; } = true;
     public int CheckIntervalMinutes { get; set; } = 240;
+}
+
+public class IntroductionWatchSettings
+{
+    public bool Enabled { get; set; } = false;
+    public int DelayMinutes { get; set; } = 5;
 }
 
 public class ApiKeySettings

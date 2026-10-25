@@ -126,4 +126,22 @@ public class BotSettingsValidationTests
         var (_, warnings) = settings.Validate();
         Assert.Contains(warnings, w => w.Contains("TagResolved"));
     }
+
+    [Fact]
+    public void IntroductionWatchEnabled_ZeroDelay_Warning()
+    {
+        var settings = CreateValid();
+        settings.IntroductionWatch = new IntroductionWatchSettings { Enabled = true, DelayMinutes = 0 };
+        var (_, warnings) = settings.Validate();
+        Assert.Contains(warnings, w => w.Contains("IntroductionWatch.DelayMinutes"));
+    }
+
+    [Fact]
+    public void IntroductionWatchDisabled_ZeroDelay_NoWarning()
+    {
+        var settings = CreateValid();
+        settings.IntroductionWatch = new IntroductionWatchSettings { Enabled = false, DelayMinutes = 0 };
+        var (_, warnings) = settings.Validate();
+        Assert.DoesNotContain(warnings, w => w.Contains("IntroductionWatch"));
+    }
 }
