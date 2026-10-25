@@ -7,9 +7,9 @@ namespace DiscordBot.Services.Server;
 public class AuditLogService
 {
     private readonly ILoggingService _loggingService;
+    private readonly DiscordSocketClient _client;
 
     private const int MaxMessageLength = 800;
-    private static readonly Color DeletedMessageColor = new(200, 128, 128);
     private static readonly Color EditedMessageColor = new(255, 255, 128);
 
     private readonly IMessageChannel? _botAnnouncementChannel = null!;
@@ -17,8 +17,10 @@ public class AuditLogService
     public AuditLogService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService)
     {
         _loggingService = loggingService;
+        _client = client;
 
         client.MessageDeleted += EventGuard.Guarded<Cacheable<IMessage, ulong>, Cacheable<IMessageChannel, ulong>>(MessageDeleted, nameof(MessageDeleted));
+        client.MessagesBulkDeleted += EventGuard.Guarded<IReadOnlyCollection<Cacheable<IMessage, ulong>>, Cacheable<IMessageChannel, ulong>>(MessagesBulkDeleted, nameof(MessagesBulkDeleted));
         client.MessageUpdated += EventGuard.Guarded<Cacheable<IMessage, ulong>, SocketMessage, ISocketMessageChannel>(MessageUpdated, nameof(MessageUpdated));
         client.UserLeft += EventGuard.Guarded<SocketGuild, SocketUser>(UserLeft, nameof(UserLeft));
         client.GuildMemberUpdated += EventGuard.Guarded<Cacheable<SocketGuildUser, ulong>, SocketGuildUser>(GuildMemberUpdated, nameof(GuildMemberUpdated));
@@ -29,34 +31,81 @@ public class AuditLogService
 
     private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
     {
+        if (channel.Id == _botAnnouncementChannel?.Id)
+            return;
+
         if (message.HasValue == false)
         {
-            await _loggingService.LogChannelAndFile($"An uncached Message snowflake:`{message.Id}` was deleted from channel <#{(await channel.GetOrDownloadAsync()).Id}>");
+            // Don't download the channel: it may be a thread that was just deleted.
+            IChannel? cachedChannel = channel.HasValue ? channel.Value : _client.GetChannel(channel.Id);
+            if (cachedChannel is IPrivateChannel)
+                return;
+            var cardChannel = cachedChannel != null ? CardChannel.From(cachedChannel) : new CardChannel(channel.Id, null);
+            await _loggingService.LogComponentsToChannel(
+                AuditLogCards.UncachedDeletedMessageCard(message.Id, cardChannel, DateTimeOffset.UtcNow));
             return;
         }
 
-        if (message.Value.Author.IsBot || channel.Id == _botAnnouncementChannel?.Id)
+        var deleted = message.Value;
+        if (deleted.Author.IsBot || deleted.Channel is not IGuildChannel guildChannel)
             return;
 
-        var guildUser = message.Value.Author as SocketGuildUser;
-        if (guildUser == null)
+        var card = AuditLogCards.DeletedMessageCard(ToDeletedMessage(deleted, guildChannel.Guild), DateTimeOffset.UtcNow);
+        await _loggingService.LogComponentsToChannel(card);
+    }
+
+    private async Task MessagesBulkDeleted(IReadOnlyCollection<Cacheable<IMessage, ulong>> messages, Cacheable<IMessageChannel, ulong> channel)
+    {
+        if (channel.Id == _botAnnouncementChannel?.Id)
             return;
 
-        var content = message.Value.Content;
-        if (content.Length > MaxMessageLength)
-            content = content[..MaxMessageLength];
+        IChannel? cachedChannel = channel.HasValue ? channel.Value : _client.GetChannel(channel.Id);
+        if (cachedChannel is IPrivateChannel)
+            return;
+        var guild = (cachedChannel as IGuildChannel)?.Guild;
 
-        var user = message.Value.Author;
-        var builder = new EmbedBuilder()
-            .WithColor(DeletedMessageColor)
-            .WithTimestamp(message.Value.Timestamp)
-            .FooterInChannel(message.Value.Channel)
-            .AddAuthorWithAction(user, "Deleted a message", true)
-            .AddField($"Deleted Message {(content.Length != message.Value.Content.Length ? "(truncated)" : "")}",
-                content);
-        var embed = builder.Build();
+        var cached = messages.Where(m => m.HasValue).Select(m => m.Value).OrderBy(m => m.Timestamp).ToList();
+        var uncachedCount = messages.Count - cached.Count;
+        var listed = cached
+            .Where(m => !m.Author.IsBot)
+            .Select(m => new AuditLogCards.BulkDeletedMessage(AuthorCard(m.Author, guild), m.Content, m.Attachments.Count))
+            .ToList();
+        // Bot messages count towards the total but aren't listed.
+        uncachedCount += cached.Count - listed.Count;
+        if (listed.Count == 0 && uncachedCount == 0)
+            return;
 
-        await _loggingService.Log(LogBehaviour.Channel, string.Empty, ExtendedLogSeverity.Info, embed);
+        var cardChannel = cachedChannel != null ? CardChannel.From(cachedChannel) : new CardChannel(channel.Id, null);
+        await _loggingService.LogComponentsToChannel(
+            AuditLogCards.BulkDeletedCard(cardChannel, listed, uncachedCount, DateTimeOffset.UtcNow));
+    }
+
+    private static CardUser AuthorCard(IUser author, IGuild? guild)
+    {
+        // Deletions from people who left or were banned are what scam waves look like, so call it out.
+        var inServer = guild is SocketGuild socketGuild ? socketGuild.GetUser(author.Id) != null : true;
+        return CardUser.From(author, inServer ? null : "no longer in the server");
+    }
+
+    private static AuditLogCards.DeletedMessage ToDeletedMessage(IMessage message, IGuild guild)
+    {
+        var forwarded = (message as IUserMessage)?.ForwardedMessages?.Select(f => f.Message).FirstOrDefault(m => m != null);
+        var attachments = message.Attachments.Count > 0 || forwarded == null ? message.Attachments : forwarded.Attachments;
+
+        string? replyTo = null;
+        if (message.Type == MessageType.Reply && message.Reference?.MessageId.IsSpecified == true)
+            replyTo = AuditLogCards.JumpUrl(guild.Id, message.Reference.ChannelId, message.Reference.MessageId.Value);
+
+        return new AuditLogCards.DeletedMessage(
+            AuthorCard(message.Author, guild),
+            CardChannel.From(message.Channel),
+            message.Id,
+            message.Timestamp,
+            message.Content,
+            attachments.Select(a => new CardAttachment(a.Filename, a.Size)).ToList(),
+            message.Stickers.Select(st => st.Name).ToList(),
+            replyTo,
+            forwarded?.Content);
     }
 
     private async Task MessageUpdated(Cacheable<IMessage, ulong> before, SocketMessage after, ISocketMessageChannel channel)
