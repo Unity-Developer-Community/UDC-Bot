@@ -8,7 +8,7 @@
 | **Command Handling** | Text command + slash command routing, history tracking, prefix config | — | `CommandHandlingService` | Core |
 | **Logging** | Multi-destination logging (console, file, Discord channel) with severity levels | — | `LoggingService` | Core |
 | **Database** | PostgreSQL connection pooling, user/casino repositories | — | `DatabaseService` | Core |
-| **Audit Logging** | Background logging of moderator-relevant server events | — | `AuditLogService` | Core |
+| **Audit Logging** | Posts moderator log cards (Components V2, never ping) to the bot-announcement channel: deleted messages (author avatar, names, user ID, channel, content, attachment names, replies/forwards, including authors who have left), bulk deletes (one card grouped by author), real edits only (before/after and attachment changes; link unfurls, pins and other non-edit updates are ignored), and thread/forum-post deletions (name, parent, owner, tags, message count, starter post when cached). Who deleted a thread is shown when the bot has the optional **View Audit Log** permission. Also logs members leaving and nickname changes | — | `AuditLogService` | Core |
 | **Unity Help** | Help forum thread management, auto-archive, canned responses, resources | `UnityHelpModule`, `UnityHelpInteractiveModule`, `GeneralHelpModule`, `CannedResponseModule`, `CannedInteractiveModule` | `UnityHelpService`, `CannedResponseService` | Core |
 | **Welcome** | New-member welcome messages | — | `WelcomeService` | Core |
 | **Code Assistance** | Code-block formatting checks/reminders and code tips | `CodeTipModule` | `CodeCheckService` | Feature |

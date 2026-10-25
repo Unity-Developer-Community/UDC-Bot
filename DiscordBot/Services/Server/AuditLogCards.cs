@@ -2,8 +2,8 @@ using Discord.WebSocket;
 
 namespace DiscordBot.Services.Server;
 
-/// <summary>Plain identity shown in a card header.</summary>
-public sealed record CardUser(ulong Id, string Name, string AvatarUrl, string? Note = null)
+/// <summary>Plain identity shown in a card header. <see cref="Label"/> prefixes the name line, e.g. "Owner".</summary>
+public sealed record CardUser(ulong Id, string Name, string AvatarUrl, string? Note = null, string? Label = null)
 {
     public static CardUser From(IUser user, string? note = null) =>
         new(user.Id, user.GetPreferredAndUsername(), user.GetDisplayAvatarUrl(size: 256), note);
@@ -21,7 +21,7 @@ public sealed record CardChannel(ulong Id, string? Name, string? ParentName = nu
     }
 }
 
-public sealed record CardAttachment(string Filename, int Size);
+public sealed record CardAttachment(string Filename, int Size, ulong Id = 0);
 
 /// <summary>
 /// Builds one Components V2 container and keeps the text of the whole message under Discord's
@@ -58,7 +58,7 @@ public sealed class AuditCard
         var lines = new List<string> { $"### {title}" };
         if (user != null)
         {
-            lines.Add($"<@{user.Id}> {Format.Sanitize(user.Name)}");
+            lines.Add($"{(user.Label != null ? $"{user.Label}: " : "")}<@{user.Id}> {Format.Sanitize(user.Name)}");
             lines.Add(user.Note == null ? $"User ID: `{user.Id}`" : $"User ID: `{user.Id}` · {user.Note}");
         }
         if (channel != null)
@@ -307,5 +307,88 @@ public static class AuditLogCards
             .AddLines(lines)
             .WithFooter($"Deleted {Timestamp(deletedAt)} · Usually a moderator purge or a ban that removed message history")
             .Build();
+    }
+
+    public sealed record EditedMessage(
+        CardUser Author,
+        CardChannel Channel,
+        ulong MessageId,
+        string JumpUrl,
+        DateTimeOffset SentAt,
+        DateTimeOffset EditedAt,
+        string? Before,
+        string After,
+        IReadOnlyList<CardAttachment> Removed,
+        IReadOnlyList<CardAttachment> Added);
+
+    private const int MaxEditVersionLength = 1600;
+
+    /// <summary>Edit card. A null <see cref="EditedMessage.Before"/> means the previous version wasn't cached.</summary>
+    public static MessageComponent EditedMessageCard(EditedMessage edit)
+    {
+        var card = new AuditCard(EditedColor)
+            .WithHeader(edit.Before == null ? "✏️ Message edited (previous version not cached)" : "✏️ Message edited",
+                edit.Author, edit.Channel, $"[Jump to message]({edit.JumpUrl})");
+
+        if (edit.Before == null)
+            card.AddText("**After**\n" + Quote(edit.After), MaxEditVersionLength);
+        else if (edit.Before == edit.After)
+            card.AddText("-# Text unchanged");
+        else
+            card.AddText("**Before**\n" + Quote(edit.Before), MaxEditVersionLength)
+                .AddText("**After**\n" + Quote(edit.After), MaxEditVersionLength);
+
+        if (edit.Removed.Count > 0)
+            card.AddText(AttachmentLines("Attachments removed", edit.Removed));
+        if (edit.Added.Count > 0)
+            card.AddText(AttachmentLines("Attachments added", edit.Added));
+
+        return card
+            .WithFooter($"Message ID: {edit.MessageId} · Sent {Timestamp(edit.SentAt)} · Edited {Timestamp(edit.EditedAt)}")
+            .Build();
+    }
+
+    public sealed record DeletedThread(
+        ulong ThreadId,
+        string? Name,
+        bool IsForumPost,
+        CardChannel? Parent,
+        CardUser? Owner,
+        ulong? OwnerId,
+        IReadOnlyList<string> Tags,
+        int? MessageCount,
+        string? StarterContent,
+        IReadOnlyList<CardAttachment> StarterAttachments,
+        CardUser? DeletedBy,
+        bool WasCached);
+
+    private const int MaxStarterLength = 1500;
+
+    public static MessageComponent DeletedThreadCard(DeletedThread thread, DateTimeOffset deletedAt)
+    {
+        var kind = thread.IsForumPost ? "Forum post" : "Thread";
+        var extra = new List<string>
+        {
+            thread.Name != null ? $"Name: **{Format.Sanitize(thread.Name)}**" : "",
+            thread.Owner == null && thread.OwnerId != null ? $"Owner: <@{thread.OwnerId}> `{thread.OwnerId}`" : "",
+            thread.Tags.Count > 0 ? "Tags: " + string.Join(", ", thread.Tags.Select(t => $"`{t.Replace("`", "'")}`")) : "",
+            thread.DeletedBy != null ? $"Deleted by: <@{thread.DeletedBy.Id}> {Format.Sanitize(thread.DeletedBy.Name)} `{thread.DeletedBy.Id}`" : "",
+            thread.WasCached ? "" : "-# The bot did not have this thread cached, so owner and messages are unknown.",
+        };
+
+        var card = new AuditCard(DeletedColor)
+            .WithHeader($"🧵 {kind} deleted", thread.Owner == null ? null : thread.Owner with { Label = "Owner" }, thread.Parent, extra.ToArray());
+
+        if (thread.StarterContent != null)
+            card.AddText((thread.IsForumPost ? "**Post**\n" : "**First message**\n") + Quote(thread.StarterContent), MaxStarterLength);
+        if (thread.StarterAttachments.Count > 0)
+            card.AddText(AttachmentLines("Attachments", thread.StarterAttachments));
+
+        var footer = new List<string> { $"Thread ID: {thread.ThreadId}", $"Created {Timestamp(SnowflakeUtils.FromSnowflake(thread.ThreadId))}" };
+        if (thread.MessageCount != null)
+            footer.Add($"{thread.MessageCount} message{(thread.MessageCount == 1 ? "" : "s")}");
+        footer.Add($"Deleted {Timestamp(deletedAt)}");
+
+        return card.WithFooter(string.Join(" · ", footer)).Build();
     }
 }

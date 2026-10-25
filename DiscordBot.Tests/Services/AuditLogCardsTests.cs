@@ -140,4 +140,57 @@ public class AuditLogCardsTests
         Assert.Contains("more lines not shown", text);
         Assert.Contains("**user1** <@1> `1` · 20 messages", text);
     }
+
+    [Fact]
+    public void EditedMessageCard_LongVersions_StaysWithinLimitAndShowsBoth()
+    {
+        var edit = new AuditLogCards.EditedMessage(User, Channel, 42, "https://discord.com/channels/1/2/42", Now.AddHours(-1), Now,
+            new string('b', 4000), new string('a', 4000),
+            Enumerable.Range(0, 10).Select(i => new CardAttachment(new string('r', 150) + i, 1024, (ulong)i)).ToList(), []);
+
+        var text = Text(AuditLogCards.EditedMessageCard(edit));
+
+        Assert.True(text.Length <= AuditCard.DiscordTextLimit, $"Card text was {text.Length} chars");
+        Assert.Contains("**Before**", text);
+        Assert.Contains("**After**", text);
+        Assert.Contains("[Jump to message](https://discord.com/channels/1/2/42)", text);
+    }
+
+    [Fact]
+    public void EditedMessageCard_Uncached_ShowsAfterOnly()
+    {
+        var edit = new AuditLogCards.EditedMessage(User, Channel, 42, "https://x", Now, Now, null, "now this", [], []);
+        var text = Text(AuditLogCards.EditedMessageCard(edit));
+        Assert.Contains("previous version not cached", text);
+        Assert.DoesNotContain("**Before**", text);
+        Assert.Contains("> now this", text);
+    }
+
+    [Fact]
+    public void DeletedThreadCard_Cached_ShowsOwnerTagsAndStarter()
+    {
+        var thread = new AuditLogCards.DeletedThread(
+            1234567890123456789, "Help with shaders", true, new CardChannel(5, "unity-help"),
+            User, User.Id, ["Shaders", "URP"], 12, "My shader is pink", [new CardAttachment("pink.png", 2048)],
+            User with { Id = 99, Name = "Mod" }, true);
+
+        var text = Text(AuditLogCards.DeletedThreadCard(thread, Now));
+
+        Assert.Contains("Forum post deleted", text);
+        Assert.Contains("Owner: <@123456789012345678>", text);
+        Assert.Contains("`Shaders`, `URP`", text);
+        Assert.Contains("Deleted by: <@99>", text);
+        Assert.Contains("> My shader is pink", text);
+        Assert.Contains("12 messages", text);
+    }
+
+    [Fact]
+    public void DeletedThreadCard_UncachedNoAudit_Builds()
+    {
+        var thread = new AuditLogCards.DeletedThread(77, null, false, null, null, null, [], null, null, [], null, false);
+        var text = Text(AuditLogCards.DeletedThreadCard(thread, Now));
+        Assert.Contains("Thread deleted", text);
+        Assert.Contains("Thread ID: 77", text);
+        Assert.Contains("not have this thread cached", text);
+    }
 }
