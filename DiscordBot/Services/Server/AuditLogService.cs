@@ -96,7 +96,7 @@ public class AuditLogService
     private static CardUser AuthorCard(IUser author, IGuild? guild)
     {
         // Deletions from people who left or were banned are what scam waves look like, so call it out.
-        var inServer = guild is SocketGuild socketGuild ? socketGuild.GetUser(author.Id) != null : true;
+        var inServer = guild is not SocketGuild socketGuild || socketGuild.GetUser(author.Id) != null;
         return CardUser.From(author, inServer ? null : "no longer in the server");
     }
 
