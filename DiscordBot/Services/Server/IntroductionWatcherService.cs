@@ -15,6 +15,7 @@ public class IntroductionWatcherService
     private const string ServiceName = "IntroductionWatcherService";
     private const int HistoryScanLimit = 50;
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(1);
     private static readonly Color AccentColour = new(0x12D687);
 
     private readonly DiscordSocketClient _client;
@@ -108,12 +109,34 @@ public class IntroductionWatcherService
                 }
                 catch (Exception e) when (e is not OperationCanceledException)
                 {
-                    await _loggingService.LogChannelAndFile(
-                        $"[{ServiceName}] Failed to post the introduction prompt: {e.Message}", ExtendedLogSeverity.Warning);
+                    // Retry outages and timeouts; a 4xx such as missing permissions won't fix itself.
+                    var retry = e is not HttpException http || (int)http.HttpCode >= 500;
+                    if (retry)
+                        _schedule.Retry(DateTime.UtcNow + RetryDelay);
+                    var next = retry ? $"retrying in {RetryDelay.TotalMinutes:0} minute(s)" : "not retrying";
+                    await LogWarningAsync($"Failed to post the introduction prompt ({next}): {e.Message}");
                 }
             }
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+            // Bot is shutting down.
+        }
+    }
+
+    // Logging to the channel can fail during the same outage that caused the warning, so it must
+    // never throw out of the background loop.
+    private async Task LogWarningAsync(string message)
+    {
+        message = $"[{ServiceName}] {message}";
+        try
+        {
+            await _loggingService.LogChannelAndFile(message, ExtendedLogSeverity.Warning);
+        }
+        catch (Exception e)
+        {
+            LoggingService.LogToConsole($"{message} (could not log to channel/file: {e.Message})", ExtendedLogSeverity.Warning);
+        }
     }
 
     /// <summary>
@@ -144,8 +167,7 @@ public class IntroductionWatcherService
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
-            await _loggingService.LogChannelAndFile(
-                $"[{ServiceName}] Could not read Introductions history on startup: {e.Message}", ExtendedLogSeverity.Warning);
+            await LogWarningAsync($"Could not read Introductions history on startup: {e.Message}");
         }
     }
 
@@ -182,8 +204,7 @@ public class IntroductionWatcherService
         }
         catch (Exception e)
         {
-            await _loggingService.LogChannelAndFile(
-                $"[{ServiceName}] Failed to delete old introduction prompt {messageId}: {e.Message}", ExtendedLogSeverity.Warning);
+            await LogWarningAsync($"Failed to delete old introduction prompt {messageId}: {e.Message}");
         }
     }
 }

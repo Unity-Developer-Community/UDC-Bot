@@ -73,4 +73,29 @@ public class IntroductionPromptScheduleTests
         Assert.Null(schedule.DueUtc);
         Assert.False(schedule.TryTakeDue(Start.AddMinutes(6)));
     }
+
+    [Fact]
+    public void Retry_AfterTake_SchedulesRetry()
+    {
+        var schedule = new IntroductionPromptSchedule(5);
+        schedule.Touch(Start);
+        Assert.True(schedule.TryTakeDue(Start.AddMinutes(5)));
+
+        schedule.Retry(Start.AddMinutes(6));
+        Assert.Equal(Start.AddMinutes(6), schedule.DueUtc);
+        Assert.True(schedule.TryTakeDue(Start.AddMinutes(6)));
+    }
+
+    [Fact]
+    public void Retry_DoesNotOverrideNewerTouch()
+    {
+        var schedule = new IntroductionPromptSchedule(5);
+        schedule.Touch(Start);
+        Assert.True(schedule.TryTakeDue(Start.AddMinutes(5)));
+
+        // A member posted while the failed prompt was being sent.
+        schedule.Touch(Start.AddMinutes(5));
+        schedule.Retry(Start.AddMinutes(6));
+        Assert.Equal(Start.AddMinutes(10), schedule.DueUtc);
+    }
 }

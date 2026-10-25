@@ -45,6 +45,15 @@ public sealed class IntroductionPromptSchedule
         }
     }
 
+    /// <summary>
+    /// Schedules a retry after a failed post. Does nothing if a <see cref="Touch"/> already set a
+    /// due time, so a newer message keeps its own debounce.
+    /// </summary>
+    public void Retry(DateTime retryAtUtc)
+    {
+        lock (_lock) _dueUtc ??= retryAtUtc;
+    }
+
     public void Clear()
     {
         lock (_lock) _dueUtc = null;
