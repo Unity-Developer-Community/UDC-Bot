@@ -126,4 +126,41 @@ public class BotSettingsValidationTests
         var (_, warnings) = settings.Validate();
         Assert.Contains(warnings, w => w.Contains("TagResolved"));
     }
+
+    [Fact]
+    public void ImageSpamGuard_Defaults_NoWarnings()
+    {
+        var settings = CreateValid();
+        settings.ImageSpamGuard = new ImageSpamGuardSettings { Enabled = true };
+        var (_, warnings) = settings.Validate();
+        Assert.DoesNotContain(warnings, w => w.Contains("ImageSpamGuard"));
+        Assert.Equal(4, settings.ImageSpamGuard.ImageCount);
+        Assert.Equal(15, settings.ImageSpamGuard.WindowMinutes);
+        Assert.Equal(24, settings.ImageSpamGuard.TimeoutHours);
+    }
+
+    [Theory]
+    [InlineData(0, 15, 24, "ImageCount")]
+    [InlineData(4, 0, 24, "WindowMinutes")]
+    [InlineData(4, 15, 0, "TimeoutHours")]
+    [InlineData(4, 15, 673, "TimeoutHours")]
+    public void ImageSpamGuard_InvalidValues_Warning(int imageCount, int windowMinutes, int timeoutHours, string expected)
+    {
+        var settings = CreateValid();
+        settings.ImageSpamGuard = new ImageSpamGuardSettings
+        {
+            Enabled = true, ImageCount = imageCount, WindowMinutes = windowMinutes, TimeoutHours = timeoutHours
+        };
+        var (_, warnings) = settings.Validate();
+        Assert.Contains(warnings, w => w.Contains($"ImageSpamGuard.{expected}"));
+    }
+
+    [Fact]
+    public void ImageSpamGuard_Disabled_InvalidValuesIgnored()
+    {
+        var settings = CreateValid();
+        settings.ImageSpamGuard = new ImageSpamGuardSettings { Enabled = false, ImageCount = 0 };
+        var (_, warnings) = settings.Validate();
+        Assert.DoesNotContain(warnings, w => w.Contains("ImageSpamGuard"));
+    }
 }

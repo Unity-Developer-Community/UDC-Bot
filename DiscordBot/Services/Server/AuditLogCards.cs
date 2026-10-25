@@ -391,4 +391,55 @@ public static class AuditLogCards
 
         return card.WithFooter(string.Join(" · ", footer)).Build();
     }
+
+    public static readonly Color SpamGuardColor = new(230, 60, 60);
+    private const int MaxSpamExcerptLength = 300;
+
+    public sealed record SpamMessage(ulong ChannelId, ulong MessageId, string Text, IReadOnlyList<string> FileNames);
+
+    public sealed record ImageSpamReport(
+        CardUser User,
+        int ImageCount,
+        int WindowMinutes,
+        IReadOnlyList<SpamMessage> Messages,
+        int Deleted,
+        IReadOnlyList<string> DeleteFailures,
+        string TimeoutResult,
+        IReadOnlyList<string> CopiedImageUrls,
+        string? CopyNote);
+
+    public static MessageComponent ImageSpamReportCard(ImageSpamReport report, DateTimeOffset at)
+    {
+        var card = new AuditCard(SpamGuardColor)
+            .WithHeader("🚨 Image spam guard triggered", report.User, null,
+                $"Posted {report.Messages.Count} messages with exactly {report.ImageCount} images within {report.WindowMinutes} minutes.",
+                $"**Timeout:** {report.TimeoutResult}",
+                $"**Deleted:** {report.Deleted} of {report.Messages.Count} messages" +
+                (report.DeleteFailures.Count > 0 ? $" ({string.Join("; ", report.DeleteFailures)})" : ""));
+
+        var lines = new List<string> { "**Messages**" };
+        foreach (var message in report.Messages)
+        {
+            lines.Add($"- <#{message.ChannelId}> · " + string.Join(", ", message.FileNames.Select(f => $"`{f.Replace("`", "'")}`")));
+            if (!string.IsNullOrWhiteSpace(message.Text))
+                lines.Add("> " + Fit(string.Join(' ', message.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))));
+        }
+        card.AddLines(lines);
+
+        if (report.CopiedImageUrls.Count > 0)
+        {
+            card.AddSeparator()
+                .AddText("-# Images copied from the last message, to check this isn't a false positive:")
+                .AddMedia(report.CopiedImageUrls);
+        }
+        if (report.CopyNote != null)
+            card.AddText($"-# {report.CopyNote}");
+
+        return card
+            .WithFooter($"Message IDs: {string.Join(", ", report.Messages.Select(m => m.MessageId))} · {Timestamp(at)} · " +
+                        "If this was a false positive, remove the timeout from the member's profile")
+            .Build();
+
+        static string Fit(string text) => AuditCard.Fit(text, MaxSpamExcerptLength, "…");
+    }
 }

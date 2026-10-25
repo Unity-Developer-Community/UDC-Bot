@@ -193,4 +193,29 @@ public class AuditLogCardsTests
         Assert.Contains("Thread ID: 77", text);
         Assert.Contains("not have this thread cached", text);
     }
+
+    [Fact]
+    public void ImageSpamReportCard_ShowsActionsAndCopiedImages()
+    {
+        var report = new AuditLogCards.ImageSpamReport(
+            User, 4, 15,
+            [
+                new AuditLogCards.SpamMessage(10, 1001, "free nitro https://scam.example", ["1.png", "2.png", "3.png", "4.png"]),
+                new AuditLogCards.SpamMessage(20, 1002, new string('x', 5000), ["1.png", "2.png", "3.png", "4.png"]),
+            ],
+            2, [], "✅ 24 hours", ["attachment://spam-1.png", "attachment://spam-2.png"], null);
+
+        var card = AuditLogCards.ImageSpamReportCard(report, Now);
+        var text = Text(card);
+
+        Assert.True(text.Length <= AuditCard.DiscordTextLimit, $"Card text was {text.Length} chars");
+        Assert.Contains("User ID: `123456789012345678`", text);
+        Assert.Contains("**Timeout:** ✅ 24 hours", text);
+        Assert.Contains("**Deleted:** 2 of 2 messages", text);
+        Assert.Contains("<#10>", text);
+        Assert.Contains("Message IDs: 1001, 1002", text);
+
+        var gallery = Assert.Single(card.Components.OfType<ContainerComponent>().Single().Components.OfType<MediaGalleryComponent>());
+        Assert.Equal(2, gallery.Items.Count);
+    }
 }

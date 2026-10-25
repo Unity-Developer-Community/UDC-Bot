@@ -73,5 +73,12 @@
     "SlapObjectsTable": null,
     "SlapChoices": [],
     "SlapFails": []
+  },
+
+  "ImageSpamGuard": {
+    "Enabled": false,
+    "ImageCount": 4,
+    "WindowMinutes": 15,
+    "TimeoutHours": 24
   }
 }

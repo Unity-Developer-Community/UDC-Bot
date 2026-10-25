@@ -3,6 +3,7 @@ using System.Globalization;
 using Discord.Net;
 using Discord.Rest;
 using Discord.WebSocket;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 
 namespace DiscordBot.Services.Server;
@@ -12,6 +13,7 @@ public class AuditLogService
     private readonly ILoggingService _loggingService;
     private readonly DiscordSocketClient _client;
     private readonly BotSettings _settings;
+    private readonly BotDeletionRegistry _botDeletions;
 
     // Uncached edits already logged (message ID -> edited time), so the unfurl update after an edit isn't logged twice.
     private readonly ConcurrentDictionary<ulong, DateTimeOffset> _uncachedEditsLogged = new();
@@ -19,8 +21,9 @@ public class AuditLogService
 
     private readonly IMessageChannel? _botAnnouncementChannel = null!;
 
-    public AuditLogService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService)
+    public AuditLogService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService, BotDeletionRegistry botDeletions)
     {
+        _botDeletions = botDeletions;
         _loggingService = loggingService;
         _client = client;
         _settings = settings;
@@ -38,7 +41,8 @@ public class AuditLogService
 
     private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
     {
-        if (channel.Id == _botAnnouncementChannel?.Id)
+        // Messages removed by the spam guard are already in its report.
+        if (channel.Id == _botAnnouncementChannel?.Id || _botDeletions.Contains(message.Id, DateTimeOffset.UtcNow))
             return;
 
         if (message.HasValue == false)
@@ -71,6 +75,8 @@ public class AuditLogService
             return;
         var guild = (cachedChannel as IGuildChannel)?.Guild;
 
+        var now = DateTimeOffset.UtcNow;
+        messages = messages.Where(m => !_botDeletions.Contains(m.Id, now)).ToList();
         var cached = messages.Where(m => m.HasValue).Select(m => m.Value).OrderBy(m => m.Timestamp).ToList();
         var uncachedCount = messages.Count - cached.Count;
         var listed = cached

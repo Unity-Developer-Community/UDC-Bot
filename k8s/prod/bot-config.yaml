@@ -88,5 +88,12 @@ data:
             "Birthday": {
                 "Enabled": true,
                 "CheckIntervalMinutes": 60
+            },
+
+            "ImageSpamGuard": {
+                "Enabled": false,
+                "ImageCount": 4,
+                "WindowMinutes": 15,
+                "TimeoutHours": 24
             }
         }
