@@ -68,7 +68,7 @@ data:
 
             "IntroductionWatch": {
                 "Enabled": true,
-                "DelayMinutes": 1
+                "DelayMinutes": 2
             },
 
             "FunCommands": {
