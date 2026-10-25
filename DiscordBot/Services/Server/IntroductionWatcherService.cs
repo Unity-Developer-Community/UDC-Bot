@@ -18,6 +18,7 @@ public class IntroductionWatcherService
     private static readonly Color AccentColour = new(0x12D687);
 
     private readonly DiscordSocketClient _client;
+    private readonly BotSettings _settings;
     private readonly ILoggingService _loggingService;
     private readonly CancellationToken _shutdownToken;
     private readonly ITextChannel _channel = null!;
@@ -30,6 +31,7 @@ public class IntroductionWatcherService
         CancellationTokenSource cts)
     {
         _client = client;
+        _settings = settings;
         _loggingService = loggingService;
         _shutdownToken = cts.Token;
 
@@ -54,17 +56,23 @@ public class IntroductionWatcherService
         LoggingService.LogServiceEnabled(ServiceName);
     }
 
-    public static MessageComponent BuildPrompt() =>
+    public static MessageComponent BuildPrompt(ChannelInfo? rulesChannel, ChannelInfo? helpChannel) =>
         new ComponentBuilderV2()
             .WithContainer(new ContainerBuilder()
                 .WithAccentColor(AccentColour)
-                .WithTextDisplay("### 👋 Your turn to say hello\n" +
-                                 "New here? Tell us a little about yourself!\n" +
-                                 "**Try sharing:** your name or nickname, interests, and what brought you here.")
+                .WithTextDisplay("### 👋 New here? Introduce yourself!\n" +
+                                 "We'd love to know a little about you.\n" +
+                                 "**Some ideas:** a nickname, what you're making or learning, and what brought you here.")
                 .WithSeparator(SeparatorSpacingSize.Small, true)
-                .WithTextDisplay("**Keep it an introduction.** No \"DM me\" requests, ads, or personal contact details.\n" +
-                                 "-# A few lines is plenty. Share only what you're comfortable sharing."))
+                .WithTextDisplay("**Before you post**\n" +
+                                 $"- Keep it to an introduction. Questions go in {ChannelLink(helpChannel, "the help channels")}.\n" +
+                                 "- No ads, \"DM me\" requests, or personal contact details.\n" +
+                                 "-# A few lines is plenty, and only share what you're comfortable with. " +
+                                 $"Full rules: {ChannelLink(rulesChannel, "#rules")}"))
             .Build();
+
+    private static string ChannelLink(ChannelInfo? channel, string fallback) =>
+        channel is { Id: not 0 } ? $"<#{channel.Id}>" : fallback;
 
     private Task OnMessageReceived(SocketMessage message)
     {
@@ -152,7 +160,7 @@ public class IntroductionWatcherService
         }
 
         var sent = await _channel.SendMessageAsync(
-            components: BuildPrompt(),
+            components: BuildPrompt(_settings.Channels.Rules, _settings.Channels.GenericHelp),
             allowedMentions: AllowedMentions.None,
             flags: MessageFlags.ComponentsV2);
 
