@@ -5,9 +5,9 @@ public sealed record ImageSpamHit(ulong ChannelId, ulong MessageId, DateTimeOffs
 
 public enum ImageSpamOutcome
 {
-    /// <summary>First match in the window: remembered, no action.</summary>
+    /// <summary>Matches so far are all in one channel: remembered, no action.</summary>
     Recorded,
-    /// <summary>Second match in the window: act on every hit returned.</summary>
+    /// <summary>Matches in at least two channels within the window: act on every hit returned.</summary>
     Triggered,
     /// <summary>The user was already actioned in this window: delete this message only.</summary>
     AlreadyActioned,
@@ -16,7 +16,8 @@ public enum ImageSpamOutcome
 public sealed record ImageSpamResult(ImageSpamOutcome Outcome, IReadOnlyList<ImageSpamHit> Hits);
 
 /// <summary>
-/// Counts scam-shaped messages per user in a sliding window. Thread-safe, in memory only.
+/// Counts scam-shaped messages per user in a sliding window and triggers once they span two or
+/// more channels, so repeated screenshots in one help thread don't count. Thread-safe, in memory only.
 /// </summary>
 public sealed class ImageSpamTracker
 {
@@ -41,7 +42,7 @@ public sealed class ImageSpamTracker
                 _hits[userId] = hits = [];
             hits.Add(hit);
 
-            if (hits.Count < 2)
+            if (hits.Select(h => h.ChannelId).Distinct().Count() < 2)
                 return new ImageSpamResult(ImageSpamOutcome.Recorded, [hit]);
 
             _hits.Remove(userId);
@@ -80,9 +81,11 @@ public static class ImageSpamShape
 
     /// <param name="attachments">The message's own attachments.</param>
     /// <param name="forwarded">Attachments of the first forwarded message, used when the message has none.</param>
-    /// <param name="imageCount">Exact number of images that makes a match.</param>
+    /// <param name="imageCount">Exact number of images that makes a match. Never matches if below 1.</param>
     public static bool Matches(IReadOnlyList<AttachmentShape> attachments, IReadOnlyList<AttachmentShape>? forwarded, int imageCount)
     {
+        if (imageCount < 1)
+            return false;
         var set = attachments.Count > 0 ? attachments : forwarded ?? [];
         return set.Count == imageCount && set.All(IsImage);
     }

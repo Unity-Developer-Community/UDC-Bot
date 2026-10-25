@@ -32,10 +32,31 @@ public class ImageSpamTrackerTests
     public void SecondHitAfterWindow_RecordedAgain()
     {
         var tracker = new ImageSpamTracker(Window);
-        tracker.Record(7, Hit(1, Start));
-        var result = tracker.Record(7, Hit(2, Start.AddMinutes(16)));
+        tracker.Record(7, Hit(1, Start, channelId: 10));
+        var result = tracker.Record(7, Hit(2, Start.AddMinutes(16), channelId: 20));
 
         Assert.Equal(ImageSpamOutcome.Recorded, result.Outcome);
+    }
+
+    [Fact]
+    public void HitsInSameChannel_DoNotTrigger()
+    {
+        var tracker = new ImageSpamTracker(Window);
+        tracker.Record(7, Hit(1, Start, channelId: 10));
+        Assert.Equal(ImageSpamOutcome.Recorded, tracker.Record(7, Hit(2, Start.AddMinutes(1), channelId: 10)).Outcome);
+        Assert.Equal(ImageSpamOutcome.Recorded, tracker.Record(7, Hit(3, Start.AddMinutes(2), channelId: 10)).Outcome);
+    }
+
+    [Fact]
+    public void SameChannelHitsThenOtherChannel_TriggeredWithAllMessages()
+    {
+        var tracker = new ImageSpamTracker(Window);
+        tracker.Record(7, Hit(1, Start, channelId: 10));
+        tracker.Record(7, Hit(2, Start.AddMinutes(1), channelId: 10));
+        var result = tracker.Record(7, Hit(3, Start.AddMinutes(2), channelId: 20));
+
+        Assert.Equal(ImageSpamOutcome.Triggered, result.Outcome);
+        Assert.Equal([1UL, 2UL, 3UL], result.Hits.Select(h => h.MessageId));
     }
 
     [Fact]
@@ -50,10 +71,10 @@ public class ImageSpamTrackerTests
     public void HitsAfterTrigger_AlreadyActionedUntilWindowEnds()
     {
         var tracker = new ImageSpamTracker(Window);
-        tracker.Record(7, Hit(1, Start));
-        tracker.Record(7, Hit(2, Start.AddMinutes(1)));
+        tracker.Record(7, Hit(1, Start, channelId: 10));
+        tracker.Record(7, Hit(2, Start.AddMinutes(1), channelId: 20));
 
-        var third = tracker.Record(7, Hit(3, Start.AddMinutes(2)));
+        var third = tracker.Record(7, Hit(3, Start.AddMinutes(2), channelId: 30));
         Assert.Equal(ImageSpamOutcome.AlreadyActioned, third.Outcome);
         Assert.Equal([3UL], third.Hits.Select(h => h.MessageId));
 
@@ -76,6 +97,16 @@ public class ImageSpamTrackerTests
     {
         var attachments = Enumerable.Range(0, count).Select(i => Img($"{i}.png")).ToList();
         Assert.False(ImageSpamShape.Matches(attachments, null, 4));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Shape_NonPositiveCount_NeverMatches(int imageCount)
+    {
+        // A text-only message has zero attachments, so a count of 0 must not match it.
+        Assert.False(ImageSpamShape.Matches([], null, imageCount));
+        Assert.False(ImageSpamShape.Matches([], [], imageCount));
     }
 
     [Fact]

@@ -82,7 +82,7 @@ public class BotSettings
         if (ImageSpamGuard.Enabled)
         {
             if (ImageSpamGuard.ImageCount < 1)
-                warnings.Add("ImageSpamGuard.ImageCount must be at least 1");
+                warnings.Add("ImageSpamGuard.ImageCount must be at least 1 — the guard will not act until it is fixed");
             if (ImageSpamGuard.WindowMinutes < 1)
                 warnings.Add("ImageSpamGuard.WindowMinutes must be at least 1");
             if (ImageSpamGuard.TimeoutHours is < 1 or > ImageSpamGuardSettings.MaxTimeoutHours)

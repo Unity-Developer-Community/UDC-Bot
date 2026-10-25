@@ -8,8 +8,9 @@ namespace DiscordBot.Services.Moderation;
 
 /// <summary>
 /// Catches the common scam wave: the same account posting messages with exactly N images
-/// (default 4) in quick succession. The first such message is only remembered; a second one
-/// within the window deletes every remembered message, times the member out and posts a report.
+/// (default 4) in quick succession. The first such message is only remembered; another one in a
+/// different channel within the window deletes every remembered message, times the member out and
+/// posts a report.
 /// </summary>
 public class ImageSpamGuardService
 {
