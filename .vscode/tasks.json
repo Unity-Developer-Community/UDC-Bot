@@ -1,42 +1,127 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "build",
-            "command": "dotnet",
-            "type": "process",
-            "args": [
-                "build",
-                "${workspaceFolder}/DiscordBot/DiscordBot.csproj",
-                "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary"
-            ],
-            "problemMatcher": "$msCompile"
-        },
-        {
-            "label": "publish",
-            "command": "dotnet",
-            "type": "process",
-            "args": [
-                "publish",
-                "${workspaceFolder}/DiscordBot/DiscordBot.csproj",
-                "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary"
-            ],
-            "problemMatcher": "$msCompile"
-        },
-        {
-            "label": "watch",
-            "command": "dotnet",
-            "type": "process",
-            "args": [
-                "watch",
-                "run",
-                "${workspaceFolder}/DiscordBot/DiscordBot.csproj",
-                "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary"
-            ],
-            "problemMatcher": "$msCompile"
+  // Tasks build and run net8.0 only (the target used by Docker and CI), so any .NET 8+ SDK works.
+  // DOTNET_ROLL_FORWARD=Major lets the net8.0 build run on a newer runtime when .NET 8 isn't installed.
+  // The bot reads Settings/, Assets/ and SERVER/ relative to DiscordBot/, so run tasks use that as cwd.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/DiscordBot/DiscordBot.csproj",
+        "--framework",
+        "net8.0",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "check settings",
+      "detail": "Fails with a hint if DiscordBot/Settings/Settings.json is missing",
+      "type": "shell",
+      "command": "test -f Settings/Settings.json || { echo 'DiscordBot/Settings/Settings.json is missing. Copy DiscordBot/Settings/Settings.example.json to Settings.json and fill in Token and DbConnectionString.'; exit 1; }",
+      "windows": {
+        "command": "if (-not (Test-Path Settings/Settings.json)) { Write-Host 'DiscordBot/Settings/Settings.json is missing. Copy DiscordBot/Settings/Settings.example.json to Settings.json and fill in Token and DbConnectionString.'; exit 1 }",
+        "options": {
+          "cwd": "${workspaceFolder}/DiscordBot",
+          "shell": {
+            "executable": "powershell.exe",
+            "args": ["-NoProfile", "-Command"]
+          }
         }
-    ]
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/DiscordBot"
+      },
+      "presentation": {
+        "reveal": "silent",
+        "revealProblems": "never"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "build and check settings",
+      "detail": "Used by the launch configuration",
+      "dependsOn": ["check settings", "build"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "test",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/DiscordBot.Tests/DiscordBot.Tests.csproj",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "options": {
+        "env": {
+          "DOTNET_ROLL_FORWARD": "Major"
+        }
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "watch",
+      "detail": "Run the bot and restart it on code changes",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "watch",
+        "run",
+        "--project",
+        "${workspaceFolder}/DiscordBot/DiscordBot.csproj",
+        "--framework",
+        "net8.0"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/DiscordBot",
+        "env": {
+          "DOTNET_ROLL_FORWARD": "Major"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "publish",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "publish",
+        "${workspaceFolder}/DiscordBot/DiscordBot.csproj",
+        "--configuration",
+        "Release",
+        "--framework",
+        "net8.0",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "start database",
+      "detail": "Start the local PostgreSQL container from docker-compose.yml",
+      "command": "docker",
+      "type": "process",
+      "args": ["compose", "up", "-d", "db"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
 }
