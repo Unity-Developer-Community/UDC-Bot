@@ -67,6 +67,11 @@ data:
                 "TipImageDirectory": "tips"
             },
 
+            "IntroductionWatch": {
+                "Enabled": true,
+                "DelayMinutes": 2
+            },
+
             "FunCommands": {
                 "SlapObjectsTable": "Settings/udc-slap.txt",
                 "SlapChoices": [
@@ -88,5 +93,12 @@ data:
             "Birthday": {
                 "Enabled": true,
                 "CheckIntervalMinutes": 60
+            },
+
+            "ImageSpamGuard": {
+                "Enabled": true,
+                "ImageCount": 4,
+                "WindowMinutes": 15,
+                "TimeoutHours": 24
             }
         }
