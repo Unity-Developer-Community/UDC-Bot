@@ -29,6 +29,7 @@
 | **Embed Builder** | Generate embeds from messages or hastebin URLs | `EmbedModule` | `EmbedParsingService` | Feature |
 | **Birthday Announcements** | Scheduled birthday notifications (configurable interval), plus birthday command management (`/bday show [count] [user]` lists upcoming birthdays or a specific member's birthday, `/bday set`, `/bday del`, the **View Birthday**, **Set Birthday**, and **Remove Birthday** user context-menu commands — removal asks for confirmation via buttons, admin-only `/admin bday set-user`, `/admin bday del-user`, `/admin bday list`) | `BirthdayModule`, `BirthdaySlashModule`, `AdminSlashModule` | `BirthdayAnnouncementService` | Feature |
 | **Recruitment** | Configurable recruitment workflow (toggleable) | — | `RecruitService` | Feature |
+| **Introduction Prompt** | Keeps a short "say hello" prompt as the latest message in Introductions: after a member posts and the channel has been quiet for `IntroductionWatch.DelayMinutes`, posts a new prompt (no pings) and deletes the old one (toggleable via `IntroductionWatch.Enabled`, off by default). Needs View Channel, Send Messages and Read Message History in Introductions | — | `IntroductionWatcherService` | Feature |
 | **Release Feeds** | RSS feed parsing and Unity release-notes tracking | — | `FeedService`, `ReleaseNotesParser` | Feature |
 | **@everyone Scold** | Warns users who use `@everyone`/`@here` without permission | — | `EveryoneScoldService` | Feature |
 | **Miku** | Playful auto-reply when Hatsune Miku is mentioned | — | `MikuService` | Feature |

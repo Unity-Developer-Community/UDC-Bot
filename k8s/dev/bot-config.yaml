@@ -66,6 +66,11 @@ data:
                 "TipImageDirectory": "tips"
             },
 
+            "IntroductionWatch": {
+                "Enabled": true,
+                "DelayMinutes": 1
+            },
+
             "FunCommands": {
                 "SlapObjectsTable": "Settings/udc-slap.txt",
                 "SlapChoices": [
