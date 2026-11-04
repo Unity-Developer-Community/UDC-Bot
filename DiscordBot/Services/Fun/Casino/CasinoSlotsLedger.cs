@@ -12,7 +12,7 @@ public class CasinoSlotsLedger(CasinoService casinoService, DatabaseService data
     public Task Credit(string userId, long delta, Dictionary<string, string> details) =>
         casinoService.UpdateUserTokens(userId, delta, TransactionKind.Game, details);
 
-    public async Task<long> GetPot() => (await Repo.GetJackpot()).Amount;
+    public async Task<long> GetPot() => (await Repo.GetJackpot())?.Amount ?? 0;
 
     public Task<long> AddContribution(long hundredths) => Repo.AddJackpotContribution(hundredths, DateTime.UtcNow);
 

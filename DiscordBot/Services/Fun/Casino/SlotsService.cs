@@ -11,7 +11,7 @@ public interface ISlotsLedger
     /// <summary>Changes the balance by <paramref name="delta"/> and records a <c>Game</c> transaction.</summary>
     Task Credit(string userId, long delta, Dictionary<string, string> details);
 
-    /// <summary>The jackpot in hundredths of a token.</summary>
+    /// <summary>The jackpot in hundredths of a token, 0 when its database row is missing.</summary>
     Task<long> GetPot();
 
     /// <summary>Adds to the jackpot and returns the new pot, in hundredths.</summary>
@@ -114,6 +114,9 @@ public class SlotsService
             if (balance < bet)
                 return SlotsPlay.Refused(SlotsStatus.InsufficientTokens);
 
+            // Refuse before anything changes: a missing jackpot would charge the bet and pay a win of 0.
+            await EnsureJackpotAsync();
+
             DiscardExpiredHolds();
             _holds.TryRemove(userId, out _); // a new spin ends the previous offer
 
@@ -141,6 +144,9 @@ public class SlotsService
         {
             if (!_holds.TryGetValue(userId, out var hold) || hold.OfferId != offerId)
                 return SlotsPlay.Refused(SlotsStatus.NoHold);
+
+            // Checked before the offer is spent, so a missing jackpot does not cost the player the free respin.
+            await EnsureJackpotAsync();
 
             // Removing exactly this entry is what makes the offer single use: the engine itself would accept a second respin.
             if (!_holds.TryRemove(new KeyValuePair<ulong, PendingHold>(userId, hold)) || hold.IsExpired(_time.GetUtcNow()))
@@ -213,6 +219,8 @@ public class SlotsService
         if (result.IsJackpot)
         {
             share = await _ledger.ClaimShare(bet);
+            if (share <= 0)
+                throw new InvalidOperationException($"The jackpot claim for a bet of {bet} returned {share}: the jackpot row is missing or was changed.");
             pot = SlotSettlementMath.PotAfterClaim(pot, share);
             payout = share / SlotSettlementMath.HundredthsPerToken;
         }
@@ -237,14 +245,23 @@ public class SlotsService
         }
         catch
         {
-            if (share > 0)
-                await _logging.LogChannelAndFile(
-                    $"SlotsService: jackpot share of {payout} tokens claimed for user {userId} but not credited. Credit it with /admin casino tokens-add.",
-                    ExtendedLogSeverity.Error);
+            // The jackpot and the balance are separate writes, so say what the player is owed for an admin to settle.
+            await _logging.LogChannelAndFile(
+                share > 0
+                    ? $"SlotsService: jackpot share of {payout} tokens claimed for user {userId} but not credited. Owed: {net} tokens (payout {payout} minus bet {bet}). The balance update may have been partly applied: check it, then fix it with /admin casino tokens-add."
+                    : $"SlotsService: could not credit user {userId} {net} tokens for a {(result.IsRespin ? "free respin" : "spin")} (payout {payout}, bet {bet}). The balance update may have been partly applied: check it, then fix it with /admin casino tokens-add if needed.",
+                ExtendedLogSeverity.Error);
             throw;
         }
 
         return (payout, net, pot, share);
+    }
+
+    private async Task EnsureJackpotAsync()
+    {
+        var pot = await _ledger.GetPot();
+        if (pot < SlotSettlementMath.JackpotFloorHundredths)
+            throw new InvalidOperationException($"The jackpot is {pot} hundredths, below its floor: the casino_jackpot row is missing or damaged.");
     }
 
     // The spin is already settled: a rendering failure only costs the animation.

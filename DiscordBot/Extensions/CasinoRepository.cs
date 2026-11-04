@@ -51,7 +51,7 @@ public interface ICasinoRepo
 
     // Slots jackpot (amounts in hundredths of a token)
     [Sql($"SELECT * FROM {JackpotProps.TableName} WHERE {JackpotProps.Id} = {JackpotProps.RowId}")]
-    Task<CasinoJackpot> GetJackpot();
+    Task<CasinoJackpot?> GetJackpot();
 
     /// <returns>The pot after the contribution.</returns>
     [Sql($@"

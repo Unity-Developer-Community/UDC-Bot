@@ -19,6 +19,7 @@ public class SlotsServiceTests
         public long Pot { get; set; } = Floor;
         public List<(long Delta, Dictionary<string, string> Details)> Credits { get; } = [];
         public bool FailCredit { get; set; }
+        public bool ClaimReturnsNothing { get; set; }
         public Func<Task>? BeforeGetTokens { get; set; }
 
         public async Task<long> GetTokens(string userId)
@@ -41,6 +42,7 @@ public class SlotsServiceTests
 
         public Task<long> ClaimShare(int bet)
         {
+            if (ClaimReturnsNothing) return Task.FromResult(0L);
             var share = SlotSettlementMath.JackpotShare(Pot, bet);
             Pot = SlotSettlementMath.PotAfterClaim(Pot, share);
             return Task.FromResult(share);
@@ -218,6 +220,50 @@ public class SlotsServiceTests
         Assert.Contains(f.Logging.Messages, m => m.Contains("claimed") && m.Contains($"{Floor / 100 + 5}") && m.Contains(UserId.ToString()));
     }
 
+    [Fact]
+    public async Task Spin_CreditFails_LogsWhatThePlayerIsOwed()
+    {
+        var f = new Fixture();
+        f.Ledger.FailCredit = true;
+        f.Stops(SlotSymbol.Star, SlotSymbol.Star, SlotSymbol.Star);
+
+        var play = await f.Service.SpinAsync(UserId, 10);
+
+        Assert.Equal(SlotsStatus.Failed, play.Status);
+        Assert.Contains(f.Logging.Messages, m => m.Contains(UserId.ToString()) && m.Contains("290 tokens for a spin") && m.Contains("bet 10"));
+    }
+
+    [Fact]
+    public async Task Spin_JackpotRowMissing_RefusesBeforeAnythingChanges()
+    {
+        var f = new Fixture();
+        f.Ledger.Pot = 0;
+        f.Stops(SlotSymbol.Diamond, SlotSymbol.Diamond, SlotSymbol.Diamond);
+
+        var play = await f.Service.SpinAsync(UserId, 10);
+
+        Assert.Equal(SlotsStatus.Failed, play.Status);
+        Assert.Equal(1_000, f.Ledger.Tokens);
+        Assert.Empty(f.Ledger.Credits);
+        Assert.Equal(0, f.Ledger.Pot);
+        Assert.Contains(f.Logging.Messages, m => m.Contains("jackpot"));
+    }
+
+    [Fact]
+    public async Task Spin_JackpotClaimReturnsNothing_DoesNotChargeTheBet()
+    {
+        var f = new Fixture();
+        f.Ledger.ClaimReturnsNothing = true;
+        f.Stops(SlotSymbol.Diamond, SlotSymbol.Diamond, SlotSymbol.Diamond);
+
+        var play = await f.Service.SpinAsync(UserId, 10);
+
+        Assert.Equal(SlotsStatus.Failed, play.Status);
+        Assert.Equal(1_000, f.Ledger.Tokens);
+        Assert.Empty(f.Ledger.Credits);
+        Assert.Contains(f.Logging.Messages, m => m.Contains("returned 0"));
+    }
+
     #endregion
 
     #region Refusals (AC3)
@@ -298,14 +344,21 @@ public class SlotsServiceTests
         f.LosingSpinWithoutHold();
         f.LosingSpinWithoutHold();
         var release = new TaskCompletionSource();
-        f.Ledger.BeforeGetTokens = () => release.Task;
+        var gated = false;
+        // Only the first player's balance read waits, so the two spins never touch the scripted randomness at the same time.
+        f.Ledger.BeforeGetTokens = () =>
+        {
+            if (gated) return Task.CompletedTask;
+            gated = true;
+            return release.Task;
+        };
 
         var first = f.Service.SpinAsync(UserId, 10);
-        var second = f.Service.SpinAsync(UserId + 1, 10);
+        var second = await f.Service.SpinAsync(UserId + 1, 10);
         release.SetResult();
 
+        Assert.Equal(SlotsStatus.Ok, second.Status);
         Assert.Equal(SlotsStatus.Ok, (await first).Status);
-        Assert.Equal(SlotsStatus.Ok, (await second).Status);
     }
 
     #endregion
@@ -385,6 +438,38 @@ public class SlotsServiceTests
         Assert.Equal(0, respin.Net);
         Assert.Equal(creditsBefore, f.Ledger.Credits.Count);
         Assert.Equal(990, respin.Balance);
+    }
+
+    [Fact]
+    public async Task Respin_JackpotRowMissing_KeepsTheOffer()
+    {
+        var f = new Fixture();
+        f.LosingSpinWithHold();
+        var spin = await f.Service.SpinAsync(UserId, 10);
+        f.Ledger.Pot = 0;
+
+        var failed = await f.Service.RespinAsync(UserId, spin.Hold!.OfferId);
+        f.Ledger.Pot = Floor;
+        f.Random.Enqueue(StopOf(0, SlotSymbol.Lemon), StopOf(1, SlotSymbol.Bell), StopOf(2, SlotSymbol.Grape));
+        var retry = await f.Service.RespinAsync(UserId, spin.Hold!.OfferId);
+
+        Assert.Equal(SlotsStatus.Failed, failed.Status);
+        Assert.Equal(SlotsStatus.Ok, retry.Status);
+    }
+
+    [Fact]
+    public async Task Respin_CreditFails_LogsWhatThePlayerIsOwed()
+    {
+        var f = new Fixture();
+        f.LosingSpinWithHold();
+        var spin = await f.Service.SpinAsync(UserId, 10);
+        f.Ledger.FailCredit = true;
+        f.Random.Enqueue(StopOf(0, SlotSymbol.Cherry), StopOf(1, SlotSymbol.Bell), StopOf(2, SlotSymbol.Grape));
+
+        var respin = await f.Service.RespinAsync(UserId, spin.Hold!.OfferId);
+
+        Assert.Equal(SlotsStatus.Failed, respin.Status);
+        Assert.Contains(f.Logging.Messages, m => m.Contains(UserId.ToString()) && m.Contains("10 tokens for a free respin") && m.Contains("payout 10, bet 10"));
     }
 
     [Fact]
