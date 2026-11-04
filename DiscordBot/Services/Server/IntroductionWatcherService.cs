@@ -107,7 +107,9 @@ public class IntroductionWatcherService
                     if (_schedule.TryTakeDue(DateTime.UtcNow))
                         await PostPromptAsync();
                 }
-                catch (Exception e) when (e is not OperationCanceledException)
+                // Filter on the token, not the exception type: an HTTP timeout throws TaskCanceledException,
+                // which would otherwise end the loop as if the bot were shutting down.
+                catch (Exception e) when (!_shutdownToken.IsCancellationRequested)
                 {
                     // Retry outages and timeouts; a 4xx such as missing permissions won't fix itself.
                     var retry = e is not HttpException http || (int)http.HttpCode >= 500;
@@ -165,7 +167,7 @@ public class IntroductionWatcherService
             if (newestPrompt == null || humanAfterPrompt)
                 _schedule.Touch(DateTime.UtcNow);
         }
-        catch (Exception e) when (e is not OperationCanceledException)
+        catch (Exception e) when (!_shutdownToken.IsCancellationRequested)
         {
             await LogWarningAsync($"Could not read Introductions history on startup: {e.Message}");
         }
