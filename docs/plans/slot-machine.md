@@ -2,6 +2,8 @@
 
 Branch: `feat/slot-machine`.
 
+Status: `slots-animation` committed; next open item is `JackpotProps`, table creation in `DatabaseService` and repository methods (Jackpot storage). The four sample GIFs still await the user's approval.
+
 ## Goal
 
 A solo slot machine in the casino: each spin shows an animated GIF of three reels stopping on the result, and part of every bet feeds one jackpot shared by the whole server. The house keeps a small, tested share of what is bet.
@@ -47,9 +49,13 @@ A solo slot machine in the casino: each spin shows an animated GIF of three reel
 
 ### Spin animation
 
-- [ ] Download the Fluent Emoji 3D PNGs into `Assets/slots/` (check the upstream LICENSE and that each glyph is included), add the MIT notice, draw the 7
-- [ ] `SlotsRenderer` (animated GIF + static frame), `Dockerfile` `COPY` line for `Assets/slots/`, test project copies `Assets/slots/` to its output
-- [ ] `DiscordBot.Tests/Services/SlotsRendererTests.cs`: AC13; writes a sample of a loss, a 🍒 win, a 7-7-7 and a 💎 jackpot to `slots-samples/` in the test output folder
+- [x] Download the Fluent Emoji 3D PNGs into `Assets/slots/` (check the upstream LICENSE and that each glyph is included), add the MIT notice, draw the 7
+- [x] `SlotsRenderer` (animated GIF + static frame), `Dockerfile` `COPY` line for `Assets/slots/`, test project copies `Assets/slots/` to its output
+- [x] `DiscordBot.Tests/Services/SlotsRendererTests.cs`: AC13; writes a sample of a loss, a 🍒 win, a 7-7-7 and a 💎 jackpot to `slots-samples/` in the test output folder
+- Decided during the run: the six Fluent Emoji PNGs (cherry, lemon, grape, bell, star, diamond = Gem stone) are copied as-is at 256 px into `Assets/slots/` with the upstream MIT `LICENSE-FluentEmoji.txt` and a short `README.md`; the red 7 is drawn at render time from the already bundled `Assets/fonts/ConsolasBold.ttf` instead of shipping a PNG, so the item needs no new font. Alternative: ship a pre-drawn `seven.png`; change `DrawSeven` in `SlotsRenderer`.
+- Decided during the run: the static render is a PNG of the same palette-mapped frame as the last GIF frame (not a truecolor picture), so the two are pixel-identical (AC13). The palette is built once from sample frames and applied through a lookup table (Magick's own remap cost ~30 ms a frame, a spin took ~1.1 s instead of ~0.4 s). Alternative: truecolor static PNG, which would differ slightly from the GIF; change `RenderStatic`.
+- Decided during the run: no cylinder shading on the reels (a gradient multiplied onto the strips turned into banding and muddy colors with 256 colors); opaque dark bezels at the top and bottom of each window and a thin red payline stand in. Alternative: shading with dithering, bigger and shimmering GIFs; change `BuildOverlay`.
+- Measured on the dev machine: warm spin render about 0.4 s, GIF about 460 KB, static render 15 ms; the first render after start takes about 2.7 s (art loading and palette). The commands item should resolve `SlotsRenderer` in the `Ready` handler and warm it with one `RenderStaticAsync` so no player waits for it.
 - Visible after: four sample GIFs.
 - Needs you: open the four sample GIFs and approve the look (stops the run).
 
