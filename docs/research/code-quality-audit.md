@@ -1,245 +1,163 @@
 # Code Quality Audit
 
-**Scope:** Full codebase review: refactoring opportunities, code duplication, patterns, bugs. Fixed findings are removed from this file.
+**Scope:** Full codebase review: refactoring opportunities, code duplication, patterns, bugs. Every finding below was checked against the current code and is marked *(verified)*. Fixed findings are removed from this file.
 
 ## Open questions
 
-- **Q1 Re-check the remaining findings.** Findings that name `UserService`, `UserModule` or the moderation code point to classes that no longer exist; that code now lives in `XpService`, `KarmaService`, `ProfileCardService`, `WelcomeService` and the `Profiles` modules. Findings marked *(verified)* were checked against the current code; the others are not.
-- **Q2 Track the open work in GitHub Issues.** The project's backlog is GitHub Issues; the open actions below become issues once confirmed.
+- **Q1 Which open actions become GitHub issues?** The project's backlog is GitHub Issues (`Unity-Developer-Community/UDC-Bot`). Recommendation: file F10, F11, F12 and F13 (confirmed bugs) first, then F7 and F8; keep the rest here until someone picks them up.
 
 ---
 
-## Findings by Category
+## Findings
 
-### 1. God Classes & SRP Violations
+### Structure
 
-| Class | File | Responsibilities | Severity |
-|-------|------|-----------------|----------|
-| `UpdateService` | `Services/UpdateService.cs` | Bot data, user muting lifecycle, FAQ loading, RSS feeds, Wikipedia downloading (5 concerns) | High |
-| `CasinoSlashModule` | `Modules/Fun/Casino/CasinoSlashModule.cs` | 500+ lines; token commands, game commands, admin commands, statistics, nested `TokenCommands` class | High |
-| `ICasinoRepo` | `Extensions/CasinoRepository.cs` | 37+ SQL method signatures in one interface *(verified)* | Medium |
-
-**Recommended split:**
-
-- `ICasinoRepo` → `ICasinoUserRepo`, `ITokenTransactionRepo`,
-  `ICasinoAdminRepo`
+| ID | Where | Finding | Severity |
+|----|-------|---------|----------|
+| F1 | `Services/UpdateService.cs` | 307 lines, five concerns: persisted bot/user/feed JSON, FAQ loading, RSS feed checks, Unity doc database download, Wikipedia download. *(verified)* | Medium |
+| F2 | `Modules/Fun/Casino/CasinoSlashModule.cs` and `CasinoSlashModule.Games.cs` | One `partial` class of about 1,165 lines (512 + 653): token commands (nested `TokenCommands` class), game commands, statistics and leaderboards. *(verified)* | High |
 
 ---
 
-### 2. Code Duplication
+### Code duplication
 
-#### 2b. Embed construction boilerplate
-
-Files: `ModerationService.cs`, `RecruitService.cs`, `CannedResponseService.cs`,
-and ~20 other locations.
-
-```csharp
-var builder = new EmbedBuilder()
-    .WithColor(color)
-    .WithTimestamp(...)
-    .FooterInChannel(...);
-```
-
-**Fix:** Create an `EmbedFactory` helper with preset methods per use-case. *(verified: `new EmbedBuilder()` appears 74 times)*
-
-#### 2c. Service name constant
-
-Every service file declares `private const string ServiceName = "...";`
-identically. Could be extracted to a base class or generated via `nameof`.
-
-#### 2f. Cooldown calculation pattern
-
-File: `UserServiceExtensions.cs` — `Days()`, `Hours()`, `Minutes()`,
-`Seconds()`, `Milliseconds()` all follow the exact same structure with
-`cooldowns.HasUser()` check.
-
-#### 2g. Weather command overloads
-
-File: `WeatherModule.cs` — each weather command (Temp, Weather, Pollution, Time)
-duplicated as `(IUser)` and `(params string[])` overloads with near-identical
-bodies.
+- **F3 Embed construction boilerplate.** `new EmbedBuilder()` appears 71 times in 22 files (most in `AdminSlashModule` 12, `RecruitService` 8, `CasinoSlashModule` 6). Color, timestamp and footer setup is repeated per use-case; only `EmbedBuilderExtension` shares part of it (`FooterInChannel`, used in `AuditLogService`). Fix: an `EmbedFactory` helper with preset methods. *(verified)*
+- **F4 `ServiceName` constant.** 15 services declare `private const string ServiceName = "..."` by hand, and two values are wrong: `RecruitService` uses `"RecruitmentService"` and `WeatherService` uses `"FeedService"` (`Services/Utils/Weather/WeatherService.cs:9`), so its log lines name the wrong service. Fix: derive from `nameof` or a base class. *(verified)*
+- **F5 Cooldown helpers.** `Extensions/UserServiceExtensions.cs`: `Days()`, `Hours()`, `Minutes()`, `Seconds()`, `Milliseconds()` repeat the same `HasUser` check and `Subtract(DateTime.Now)` shape. *(verified)*
+- **F6 Weather overloads.** `Modules/Utils/Weather/WeatherModule.cs`: Temperature, CurentWeather, Pollution and Time each exist as an `(IUser)` and a `(params string[])` overload. The embed building is already shared in `*Embed` helpers; what repeats is the 10-line command body. Low value. *(verified)*
 
 ---
 
-### 3. Potential Bugs
+### Potential bugs
 
-#### 3a. Thread-safety issues (Critical)
-
-| Location | Issue |
-|----------|-------|
-| `UserService.cs` — `_xpCooldown` dictionary | Modified from multiple async tasks without synchronization. |
-| `ReminderService.cs` — `_reminders` list | Modified while iterating in `CheckReminders`. |
-| `GameSession.cs` — `GameData` dictionary | `AddPlayer` / `RemovePlayer` without locks. |
-| `RecruitService.cs` — `_botSanityCheck` dictionary | Used as a lock mechanism but is not thread-safe. |
-
-#### 3b. Resource leaks (High)
-
-| Location | Issue |
-|----------|-------|
-| `DatabaseService.cs` — `Query` property | Returns a new connection on each access; may never be disposed by caller. |
-| `UserService.cs` — `GenerateProfileCard()` | MagickImage objects not consistently disposed. |
-| `FuzzTable.cs` — `File.ReadLines()` | Not wrapped in `using`; handle may leak on exception. |
-
-#### 3c. Null-reference risks (Medium)
-
-| Location | Issue |
-|----------|-------|
-| `ModerationService` — `MessageDeleted` handler | `_botAnnouncementChannel.Id` — channel could be null. |
-| `FeedService` — `HandleFeed` method | `item.Links[0]` — no bounds check. |
-| `UserExtensions` — `HasRoleGroup` overload | `user as SocketGuildUser` result used without null check. |
-| `ContextExtension` — `IsOnlyReplyingToAuthor` | `context.Message.ReferencedMessage.Author.Id` — no null check. |
-| `SkinModuleJsonConverter` — `ReadJson` | `Type.GetType(t)` can return null; `jo["Type"]` can be null. |
-| `CustomTextSkinModule` — `GetDrawables` | `prop.GetValue(data, null)` cast to `dynamic` — value could be null. |
-
-#### 3d. Logic bugs
-
-| Location | Issue | Severity |
-|----------|-------|----------|
-| `StringExtensions.cs` — `MessageSplitToSize` | With no newline in a page, `LastIndexOf` + 1 is 0 and `page.Remove(-1)` throws. It also ignores its `maxLength` parameter. *(verified)* | Medium |
-| `AirportModule.cs` — `FlyTo` day-of-week calc | `(int)DayOfWeek - 2` counts days since Tuesday, not until: Monday gives 6 instead of 1. *(verified)* | Medium |
-| `Blackjack` — `DoubleDown` method | No check that player has sufficient tokens before doubling bet; `CasinoService.UpdateUserTokens` clamps the result to 0, so a player can double beyond their balance and lose nothing extra. *(verified)* | Medium |
-
-#### 3e. Session / memory leaks (Medium)
-
-| Location | Issue |
-|----------|-------|
-| `GameSession.cs` | `ExpiryTime` commented out — sessions can live forever with no cleanup. *(verified)* |
-| `Program.cs` | All services are `Singleton` — never disposed; database connections held forever. |
+- **F7 Unsynchronized shared state (High).** *(verified)*
+  - `Services/Server/ReminderService.cs`: `_reminders` (a `List`) is changed by command handlers (`AddReminder`, `RemoveReminders`) while the `CheckReminders` background loop reads and removes from it. The loop iterates a copy, so the risk is concurrent access, not modification during enumeration.
+  - `Domain/Casino/GameSession.cs`: `Players` is changed by `AddPlayer` / `RemovePlayer` / `RemovePlayerAI` from concurrent button interactions without a lock.
+- **F8 Undisposed images (High).** `Services/Profiles/ProfileCardService.cs`, `GenerateProfileCard()`: `background`, `profile.Picture`, each layer `image`, each layer canvas `l` (all `MagickImage`) and the avatar `Stream` are never disposed; only `profileCard` and `result` are. *(verified)*
+- **F9 Connection per access (Low).** `Services/DatabaseService.cs`: `Query`, `CasinoQuery` and `BadgeQuery` create a new `NpgsqlConnection` on every property access and nothing disposes it. Whether this leaks depends on Insight.Database opening and closing the connection per call, which was not confirmed here. *(verified in code, impact unconfirmed)*
+- **F10 `MessageSplitToSize` (Medium).** `Extensions/StringExtensions.cs:37`. *(verified by reading)*
+  - It ignores its `maxLength` parameter and uses `Constants.MaxLengthChannelMessage`.
+  - When a page has no newline, `LastIndexOf` + 1 is 0 and `page.Remove(-1)` throws.
+  - From the third page on, `indexOfLine` is an offset inside the previous page but is used as an offset into the whole string, so text repeats.
+  - Callers: `RulesModule`, `CommandHandlingService`.
+- **F11 `FlyTo` day offset (Medium).** `Modules/Utils/AirportModule.cs:79`: `(int)DayOfWeek - 2` counts days since Tuesday, not until: Monday gives 6 instead of 1. The result is passed as `daysFromNow` to `AirportService.GetFlightInfo`. *(verified)*
+- **F12 Blackjack double down (Medium).** `Domain/Casino/Games/Cards/Blackjack/Blackjack.cs:159`: `DoubleDown` doubles `player.Bet` without checking the player's balance, and `CasinoService.UpdateUserTokens` clamps the balance at 0 (`Services/Fun/Casino/CasinoService.cs:89`), so a player can double beyond their tokens and lose nothing extra. The balance is only checked when the bet is set (`GameService.SetBet`). *(verified)*
+- **F13 Game sessions never expire (Medium).** `Domain/Casino/GameSession.cs:42`: `ExpiryTime` is commented out. `GameService._activeSessions` entries are removed only for abandoned games and rules pages (`CasinoSlashModule.Games.cs:104`, `:202`), so finished or idle sessions stay in memory. *(verified)*
 
 ---
 
-### 4. Long Methods (> 50 lines)
+### F14 Long methods (> 50 lines)
+
+All rows verified.
 
 | File | Method | ~Lines | Issue |
 |------|--------|--------|-------|
-| `UserService.cs` | Constructor | 150 | Initialization, regex compilation, event hookup all mixed |
-| `UserService.cs` | `GenerateProfileCard()` | 150 | DB queries, image manipulation, HTTP, file I/O in one method |
-| `UserService.cs` | `Thanks()` | 100 | Regex matching, DB calls, cooldown checks combined |
-| `UserModule.cs` | `SearchResults` | 120+ | Web scraping, HTML parsing, URL manipulation, embed building |
-| `FeedService.cs` | `GetReleaseNotes()` | 100 | Complex HTML parsing with nested loops |
-| `AirportModule.cs` | `FlyTo` | 95 | API calls, coordinate lookups, embed building |
-| `EmbedModule.cs` | `SendEmbedToChannel` | 90+ | Reaction polling, message creation, confirmation |
-| `UpdateService.cs` | `DownloadDocDatabase()` | 80 | Web scraping, parsing, file I/O |
-| `CasinoSlashModule.cs` | `DisplayTransactionHistory` | 80+ | Query, pagination, admin checks, embed formatting |
-| `PokerHelper.cs` | Hand evaluation | 200 | Complex hand ranking with edge cases |
+| `Services/Profiles/ProfileCardService.cs` | `GenerateProfileCard()` | 120 | DB queries, image manipulation, HTTP, file I/O in one method |
+| `Services/Profiles/KarmaService.cs` | `Thanks()` | 65 | Regex matching, DB calls, cooldown checks combined |
+| `Modules/Utils/AirportModule.cs` | `FlyTo` | 85 | API calls, coordinate lookups, embed building |
+| `Modules/Server/EmbedModule.cs` | `SendEmbedToChannel` | 70 | Reaction polling, message creation, confirmation |
+| `Modules/Fun/Casino/CasinoSlashModule.cs` | `DisplayTransactionHistory` | 145 | Query, pagination, admin checks, embed formatting |
+| `Domain/Casino/Games/Cards/Poker/PokerHelper.cs` | `EvaluateHand` | 100 | Hand ranking with edge cases |
 
 ---
 
-### 5. Hardcoded Values That Should Be In Config
+### F15 Hardcoded values that could be configuration
+
+All rows verified.
 
 | File | Value | Purpose |
 |------|-------|---------|
-| `UserService.cs` | `39` minutes | Miku cooldown |
-| `UserService.cs` | `800` | Code block warning length threshold |
-| `UnityHelpService.cs` | `10` min, `14` hr, `20` hr, `3` days | Thread close/idle timers |
-| `RecruitService.cs` | `120` chars, `60` sec | Min message length, delete delay |
-| `ReminderService.cs` | `10` | Max reminders per user |
-| `AirportService.cs` | API URLs | Test vs production URLs |
-| `TipService.cs` | `"tips.json"` | Filename |
-| `StringExtensions.cs` | `1990` | Discord max message length (should use constant) |
-| `UserServiceExtensions.cs` | `9999` days | "Permanent" duration |
-| `WeatherModule.cs` | `22.5, 67.5, 112.5...` | Wind direction angles |
-| `CasinoSlashModule.Games.cs` | Game name mapping | Hardcoded switch expression |
-| `Skin modules` | Pixel coordinates | Layout-specific X/Y positions |
-| `BotSettings` | `300`, `21600`, `86400` seconds | Various delay timers |
+| `Services/Fun/MikuService.cs:21` | `39` minutes | Miku cooldown |
+| `Services/Code/CodeCheckService.cs:19` | `800` | Code block warning length |
+| `Services/Code/Unity/UnityHelp/UnityHelpService.cs` | `10` min, `14` h, `20` h, `3` days, `5` min (named constants) | Thread close, idle and delete timers |
+| `Services/Server/RecruitService.cs` | `120` chars, `60` s (named constants) | Minimum message length, delete delay |
+| `Services/Server/ReminderService.cs` | `10` (named constant) | Max reminders per user |
+| `Services/Utils/AirportService.cs:19`, `:200` | `https://test.api.amadeus.com/...` | Test endpoints hardcoded, no production switch |
+| `Extensions/StringExtensions.cs:16` | `1990` | `MessageSplit` default, while `Constants.MaxLengthChannelMessage` is 2000 |
+| `Extensions/UserServiceExtensions.cs:82` | `9999` days | "Permanent" cooldown |
+| `Modules/Utils/Weather/WeatherModule.cs:331` | `22.5, 67.5, 112.5...` | Wind direction angles |
+| `Modules/Fun/Casino/CasinoSlashModule.Games.cs:573` | Game name mapping | Hardcoded switch expression |
+| `Skin/KarmaPointsSkinModule.cs`, `KarmaRankSkinModule.cs`, `LevelSkinModule.cs` | `StartX` / `StartY` | Default pixel positions in constructors; `Assets/skins/skin.json` can override them |
 
 ---
 
-### 6. Architecture & Design Issues
+### F16 Inconsistent command patterns
 
-#### 6c. Inconsistent command patterns
+All rows verified.
 
-- Mixed text commands (`UserModule`) vs slash commands (`UserSlashModule`) for
-  similar functionality.
-- Inconsistent use of `Priority` attribute across modules.
-- Inconsistent alias patterns.
-- Different `InteractionModuleBase` generic parameterization.
-- Event handler naming varies: `MessageReceived` vs `OnMessageReceived` vs
-  `GatewayOnMessageReceived`.
-
-#### 6e. Singleton-only DI
-
-`Program.cs` registers every service as `Singleton`. No consideration for
-`Scoped` or `Transient` lifetimes. Services holding database connections or
-disposable resources are never cleaned up.
+- Text and slash modules exist side by side for the same commands: `ConvertModule` / `ConvertSlashModule` (currency) and `ServerModule` / `ServerSlashModule` (help, ping, members).
+- `Priority` is used in 8 of the text modules and absent from the others.
+- `InteractionModuleBase` is used non-generic in 6 modules (`AdminSlashModule`, `BirthdaySlashModule`, `DuelSlashModule`, `ServerSlashModule`, `CannedInteractiveModule`, `UnityHelpInteractiveModule`) and as `InteractionModuleBase<SocketInteractionContext>` in 11.
 
 ---
 
-### 7. Skin System Issues
+### Skin system
 
-| Issue | Severity | Details |
-|-------|----------|---------|
-| Reflection in `SkinModuleJsonConverter` | Medium | `Type.GetType()` on every deserialization; no caching; no null check |
-| Magic threshold in avatar color sampling | Medium | `650` RGB sum threshold unexplained |
-| Inconsistent coordinate types | Low | Some modules use `int`, others use `double` |
-| Hardcoded pixel positions | Medium | Skin modules have layout-specific coordinates baked in |
-| `CustomTextSkinModule` null risk | Medium | `prop.GetValue()` result cast to `dynamic`, `.ToString()` called without null check |
-| Text rendering setup duplication | Medium | All text skin modules repeat the same `StrokeColor`/`FillColor`/`FontPointSize` initialization |
+| ID | Where | Finding | Severity |
+|----|-------|---------|----------|
+| F17 | `Skin/SkinModuleJsonConverter.cs`, `Services/Profiles/ProfileCardService.cs` | `Type.GetType()` runs for every module on every deserialization, and `GetSkinData()` re-reads and re-deserializes `skin.json` for each profile card (no cache). An unknown module `Type` makes `Type.GetType` return null; the failure is logged and rethrown, but with an unclear message. *(verified)* | Medium |
+| F18 | `Skin/RectangleSampleAvatarColorSkinModule.cs:40` | Unexplained `650` RGB-sum threshold. *(verified)* | Medium |
+| F19 | `Skin/` | Coordinates are `double` everywhere except `RectangleSampleAvatarColorSkinModule` (`int`). *(verified)* | Low |
+| F20 | `Skin/CustomTextSkinModule.cs`, text skin modules | `BaseTextSkinModule` holds the shared text setup, but `CustomTextSkinModule.GetDrawables` copies the base method body instead of calling it, and several constructors repeat the same `StrokeColor` / `FillColor` / `FontPointSize` defaults. *(verified)* | Medium |
 
 ---
 
-### 8. Dead Code & Commented-Out Code
+### F21 Dead code and commented-out code
 
-| File | What | Notes |
-|------|------|-------|
-| `UserService.cs` | `MikuCheck` event subscription | Commented out |
-| `UserService.cs` | `_mikuCooldownTime` initialization | Commented out |
-| `UpdateService.cs` | `UpdateUserRanks` task | Commented out |
-| `AirportModule.cs` | Flight details (seats, bags, fees) | Commented out |
-| `UserModule.cs` | Entire `CompileCode` method | Commented out with note "Not really a required feature" |
-| `FeedService.cs` | TODO about other entities | Stale |
-| `TipService.cs` | TODO about image attachment | Stale |
-| `GameSession.cs` | `ExpiryTime`, `UserId` properties | Commented out |
-| `DiscordGameSession.cs` | "Reload Embed" and "Custom" bet buttons | Commented out |
+All rows verified.
 
----
-
-### 9. Missing Error Handling
-
-| File | Method | Issue |
-|------|--------|-------|
-| `AirportService.cs` | `GetFlightTickets()` | Returns null without logging |
-| `DatabaseService.cs` | Constructor | Bare catch block; continues silently |
-| `ReminderService.cs` | `LoadReminders()` | No handling for corrupted file |
-| `TipService.cs` | `CommitTipDatabase()` | No try-catch for file write failures |
-| `UnityHelpService.cs` | Message fetching | Missing null checks on `GetMessageAsync` results |
-| `TicketModule.cs` | `Complaint` | No validation that `Settings.ComplaintCategoryId` is valid |
-| `CasinoSlashModule.Games.cs` | `DoAction` | `Enum.Parse` with no try-catch |
-| `Program.cs` | `DeserializeSettings()` | No error handling; exception propagates uncaught |
-| `Program.cs` | `Ready` handler | No try-catch around service initialization |
+| File | What |
+|------|------|
+| `Services/Fun/MikuService.cs:29` | `MikuCheck` event subscription commented out, so the service never runs |
+| `Services/UpdateService.cs:79` | `UpdateUserRanks` task commented out |
+| `Modules/Utils/AirportModule.cs:105-117` | Flight details (seats, bags, fees) commented out |
+| `Services/Utils/AirportService.cs:45`, `:86-87` | Commented-out model properties |
+| `Domain/Casino/GameSession.cs:42-43` | `ExpiryTime`, `UserId` properties commented out |
+| `Domain/Casino/DiscordGameSession.cs:171`, `:216` | "Custom" bet button and "Reload Embed" button commented out |
+| `Domain/Casino/Discord/BlackjackDiscordGameSession.cs:52` | Dealer blackjack text commented out |
+| `Services/Code/Unity/UnityHelp/UnityHelpService.cs:176`, `:191`, `:265` | Commented-out statements |
+| `Extensions/StringExtensions.cs:98` | Commented-out `return` |
+| `Services/Code/Tips/TipService.cs:206` | TODO about attaching images |
 
 ---
 
-### 10. Security Concerns
+### Missing error handling
 
-| Location | Issue | Severity |
-|----------|-------|----------|
-| `EmbedModule.cs` — `EmbedCommand` | `attachment.Url` is passed to `BuildEmbedFromUrl` without `IsValidHost()`. The command is `[RequireAdmin]` and the URL is a Discord CDN attachment, so the risk is low; pastebin/hastebin redirects remain a concern for the URL overload. *(verified)* | Low |
-| `CasinoRepository.cs` — 37+ SQL methods | SQL injection surface is large. All queries are likely parameterized via Insight.Database, but this should be verified explicitly. | Low (verify) |
+| ID | File | Method | Issue |
+|----|------|--------|-------|
+| F22 | `Services/Utils/AirportService.cs` | `GetFlightInfo()` | Returns null on a failed HTTP response without logging. *(verified)* |
+| F23 | `Services/DatabaseService.cs` | Constructor background task | Bare `catch` treats any failure (network, permissions, a failed `ALTER TABLE`) as "table does not exist" and goes on to `CREATE TABLE`, without logging the original exception. Same pattern for the casino tables. *(verified)* |
+| F24 | `Services/Code/Tips/TipService.cs` | `CommitTipDatabase()` | No try-catch around the file write. *(verified)* |
+| F25 | `Program.cs` | `Ready` handler | No try-catch around service resolution; `_isInitialized` is already set, so a failure leaves the bot partly initialized and never retries. *(verified)* |
 
 ---
 
-### 11. Naming Inconsistencies
+### Security
 
-| Pattern | Examples | Issue |
-|---------|----------|-------|
-| Service name strings | Some include "Service" suffix, some don't | Inconsistent |
-| Method naming | `GetOrAddUser` vs `GetOrCreateCasinoUser` | No consistent convention |
-| Async method naming | `Thanks()` (async void) vs `Thanks` (async Task) | Some void, some Task |
-| Private field prefix | `_settings` in some classes, `Settings` in others | Inconsistent underscore |
-| Event handlers | `MessageReceived`, `OnMessageReceived`, `GatewayOnMessageReceived` | Three different conventions |
-| Data model casing | `Kategory` vs `Category`, `Keyimage` vs `KeyImage`, `Pubdate` vs `PubDate` in `UnityAPI.cs` | Inconsistent |
-| `HasAnyPingableMention` | Exists in both `MessageExtensions` and `ContextExtension` with different behavior | Confusing |
+- **F26 `EmbedCommand` attachment URL (Low).** `Modules/Server/EmbedModule.cs:25`: `attachment.Url` is passed to `BuildEmbedFromUrl` without `IsValidHost()`. The command is `[RequireAdmin]` and the URL is a Discord CDN attachment, so the risk is low. *(verified)* The URL overload checks the host before download, but `EmbedParsingService.BuildEmbedFromUrl` uses a default `HttpClient`, which follows redirects; whether the allow-listed hosts redirect elsewhere was not checked.
+
+---
+
+### Naming inconsistencies
+
+- **F27 Event handler names.** Handlers are named by action (`Thanks`, `UpdateXp`, `CodeCheck`), `GatewayOn*` (`RecruitService`, `UnityHelpService`) or `On*` (`UnityHelpService`, the inner method behind each `GatewayOn*` wrapper). `UnityHelpService` and `RecruitService` also subscribe without `EventGuard.Guarded`. *(verified)*
+- **F28 Get-or-create methods.** `DatabaseService.GetOrAddUser` and `CasinoService.GetOrCreateCasinoUser` do the same kind of thing under two verbs. Low. *(verified)*
+- **F29 Data model casing.** `Data/UnityAPI.cs`: `Kategory` next to `Category`, `Keyimage`, `Pubdate`. Properties map to the API's JSON, so a rename needs `[JsonProperty]`. Low. *(verified)*
 
 ---
 
 ## Open actions
 
-- Create an `EmbedFactory` to reduce embed construction duplication (2b).
-- Decide on service lifetimes: every service is a singleton today (6e); either keep that as the rule or move interaction-scoped services to `Scoped`.
-- Remove dead and commented-out code (8). *(verified: still present in `GameSession`, `BlackjackDiscordGameSession`, `AirportModule`, `AirportService`, `MikuService`, `UpdateService`, `UnityHelpService`, `StringExtensions`)*
-- Standardize naming: event handlers, async methods, service name constants (11).
-- Split `ICasinoRepo` into focused interfaces (1).
-- Expire and clean up idle casino game sessions (3e).
-- Refactor the skin module hierarchy: `BaseTextSkinModule` exists for text modules; coordinates are still hardcoded (7).
-- Fix the verified bugs in 3d: `MessageSplitToSize`, `FlyTo` day-of-week, Blackjack double down.
+All confirmed against the current code.
+
+- Fix the logic bugs: `MessageSplitToSize` (F10), `FlyTo` day offset (F11), Blackjack double down (F12).
+- Expire and clean up idle and finished casino game sessions (F13).
+- Dispose the images and stream in `GenerateProfileCard` (F8).
+- Guard `_reminders` and `GameSession.Players` against concurrent access (F7).
+- Correct the `ServiceName` values (`WeatherService`, `RecruitService`) and derive the constant instead of retyping it (F4).
+- Log the original exception in the `DatabaseService` bare catch blocks (F23).
+- Create an `EmbedFactory` to reduce embed construction duplication (F3).
+- Remove dead and commented-out code (F21).
+- Standardize event handler names (F27).
+- Cache the parsed skin and the module type lookup (F17); reuse `BaseTextSkinModule` in `CustomTextSkinModule` (F20).
+- Split `CasinoSlashModule` (F2) and `UpdateService` (F1).
