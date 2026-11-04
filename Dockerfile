@@ -15,10 +15,11 @@ WORKDIR /app/
 
 COPY --from=build /app/publish/ ./
 
-# Bake immutable static assets (fonts, images, skins) into the image
+# Bake immutable static assets (fonts, images, skins, slots) into the image
 COPY ./DiscordBot/Assets/fonts/ ./Assets/fonts/
 COPY ./DiscordBot/Assets/images/ ./Assets/images/
 COPY ./DiscordBot/Assets/skins/ ./Assets/skins/
+COPY ./DiscordBot/Assets/slots/ ./Assets/slots/
 
 # Add contrib repo for MS fonts, matching the base image's Debian codename
 RUN . /etc/os-release && \

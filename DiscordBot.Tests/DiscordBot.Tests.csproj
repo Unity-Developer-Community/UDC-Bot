@@ -18,6 +18,12 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- SlotsRenderer reads the slot art and the font of the 7 from the assets folder next to the test binaries. -->
+        <Content Include="..\DiscordBot\Assets\slots\**" Link="Assets\slots\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+        <Content Include="..\DiscordBot\Assets\fonts\ConsolasBold.ttf" Link="Assets\fonts\ConsolasBold.ttf" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\DiscordBot\DiscordBot.csproj" />
     </ItemGroup>
 

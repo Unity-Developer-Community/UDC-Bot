@@ -195,6 +195,19 @@ public class DatabaseService
                     ExtendedLogSeverity.Positive);
                 c.Close();
             }
+
+            // Not part of the block above, which only runs when casino_users is missing
+            try
+            {
+                foreach (var statement in JackpotProps.EnsureStatements)
+                    c.ExecuteSql(statement);
+            }
+            catch (Exception e)
+            {
+                await _logging.LogAction(
+                    $"SQL Exception: Failed to create the slots jackpot table.\nMessage: {e}",
+                    ExtendedLogSeverity.Critical);
+            }
         });
     }
 

@@ -49,6 +49,32 @@ public interface ICasinoRepo
     [Sql($"SELECT * FROM {CasinoProps.TransactionTableName} WHERE {CasinoProps.TransactionType} = @transactionType ORDER BY {CasinoProps.TransactionCreatedAt} DESC")]
     Task<IList<TokenTransaction>> GetTransactionsOfType(string transactionType);
 
+    // Slots jackpot (amounts in hundredths of a token)
+    [Sql($"SELECT * FROM {JackpotProps.TableName} WHERE {JackpotProps.Id} = {JackpotProps.RowId}")]
+    Task<CasinoJackpot?> GetJackpot();
+
+    /// <returns>The pot after the contribution.</returns>
+    [Sql($@"
+    UPDATE {JackpotProps.TableName}
+    SET {JackpotProps.Amount} = {JackpotProps.Amount} + @contributionHundredths, {JackpotProps.UpdatedAt} = @updatedAt
+    WHERE {JackpotProps.Id} = {JackpotProps.RowId}
+    RETURNING {JackpotProps.Amount}")]
+    Task<long> AddJackpotContribution(long contributionHundredths, DateTime updatedAt);
+
+    /// <summary>
+    /// Takes bet/100 of the pot, rounded down to whole tokens (same math as <c>SlotSettlementMath.JackpotShare</c>),
+    /// and tops the rest up to the floor. One statement: the row is locked, so two claims never read the same pot.
+    /// </summary>
+    /// <returns>The share taken, in hundredths of a token.</returns>
+    [Sql($@"
+    UPDATE {JackpotProps.TableName} AS j
+    SET {JackpotProps.Amount} = GREATEST(old.{JackpotProps.Amount} - (old.{JackpotProps.Amount} * @bet / 10000) * 100, @floorHundredths),
+        {JackpotProps.UpdatedAt} = @updatedAt
+    FROM (SELECT {JackpotProps.Amount} FROM {JackpotProps.TableName} WHERE {JackpotProps.Id} = {JackpotProps.RowId} FOR UPDATE) AS old
+    WHERE j.{JackpotProps.Id} = {JackpotProps.RowId}
+    RETURNING (old.{JackpotProps.Amount} * @bet / 10000) * 100")]
+    Task<long> ClaimJackpotShare(int bet, long floorHundredths, DateTime updatedAt);
+
     // Test connection
     [Sql($"SELECT COUNT(*) FROM {CasinoProps.CasinoTableName}")]
     Task<long> TestCasinoConnection();

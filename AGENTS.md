@@ -29,7 +29,7 @@ cd DiscordBot && dotnet run          # run the bot (needs Settings/Settings.json
 | `DiscordBot/Attributes/` | Custom preconditions (`RequireModerator`, `RequireAdmin`, `BotCommandChannel`, …) |
 | `DiscordBot/Skin/` | Profile card renderer: one `ISkinModule` per drawn element, layout in `Assets/skins/skin.json` |
 | `DiscordBot/Settings/` | `Settings.json` (gitignored, copy `Settings.example.json`), `Rules.json`, `UserSettings.json`, `FAQs.json`; C# models in `Deserialized/` |
-| `DiscordBot/Assets/` | Read-only fonts, images and skins, baked into the Docker image |
+| `DiscordBot/Assets/` | Read-only fonts, images, skins and slot art, baked into the Docker image |
 | `DiscordBot/SERVER/` | Runtime data (logs, generated images, caches), gitignored, created on demand |
 | `DiscordBot.Tests/` | xUnit tests, mirroring the `DiscordBot/` folders |
 | `k8s/dev/`, `k8s/prod/` | Kubernetes manifests, synced to the cluster by Argo CD |
