@@ -33,7 +33,7 @@ public class SlotsRenderer
     private const double BrakeSeconds = 0.35;
     private const double BlurAboveSpeed = 6;
 
-    private static readonly double[] StopSeconds = [1.2, 1.8, 2.4];
+    private static readonly double[] StopSeconds = [0.8, 1.2, 1.7];
 
     private readonly string _assetsRoot;
     private readonly SemaphoreSlim _renderLock = new(1, 1);
@@ -82,7 +82,7 @@ public class SlotsRenderer
         var lastFrame = (int)Math.Ceiling(StopSeconds[^1] / FrameSeconds);
         for (var frame = 0; frame <= lastFrame; frame++)
         {
-            var image = RenderFrame(assets, result, frame * FrameSeconds);
+            var image = frame == 0 ? RenderFrame(assets, result, 0) : RenderChangedArea(assets, result, frame);
             image.AnimationDelay = (uint)(frame == lastFrame ? FinalDelayTicks : FrameDelayTicks);
             image.AnimationIterations = 1;
             frames.Add(image);
@@ -107,6 +107,28 @@ public class SlotsRenderer
     {
         using var frame = Compose(assets.Scene, result.Stops, seconds);
         return assets.Palette.Apply(frame);
+    }
+
+    /// <summary>
+    /// Draws a frame after the first one as only the reels that moved since the previous frame, placed where they sit on the
+    /// machine. The GIF keeps everything else from the earlier frames, so the file is smaller and quicker to write.
+    /// </summary>
+    private static MagickImage RenderChangedArea(Assets assets, SlotResult result, int frame)
+    {
+        // Reels stop left to right, so the reels still moving at the previous frame are always the rightmost ones.
+        var previousSeconds = (frame - 1) * FrameSeconds;
+        var firstMoving = Enumerable.Range(0, SlotMachine.ReelCount)
+            .FirstOrDefault(reel => StopSeconds[reel] > previousSeconds, SlotMachine.ReelCount - 1);
+        var left = ReelX(firstMoving);
+        var area = new MagickGeometry(left, WindowTop, (uint)(ReelX(SlotMachine.ReelCount - 1) + ReelWidth - left), WindowHeight);
+
+        using var full = Compose(assets.Scene, result.Stops, frame * FrameSeconds);
+        full.Crop(area);
+        full.ResetPage();
+        var image = assets.Palette.Apply(full);
+        image.Page = new MagickGeometry(left, WindowTop, Width, Height);
+        image.GifDisposeMethod = GifDisposeMethod.None;
+        return image;
     }
 
     /// <summary>Draws the machine at a time of the spin, in full color.</summary>
@@ -270,9 +292,10 @@ public class SlotsRenderer
             samples.Add(Compose(scene, stops, StopSeconds[^1]));
         }
 
+        // Moments as shares of the spin's length, so every phase of the motion is sampled whatever the timing.
         var moving = new[] { 0, 0, 0 };
-        foreach (var seconds in new[] { 0.1, 0.5, 0.9, 1.3, 1.5, 1.7, 2.0, 2.2 })
-            samples.Add(Compose(scene, moving, seconds));
+        foreach (var share in new[] { 0.04, 0.21, 0.375, 0.54, 0.625, 0.71, 0.83, 0.92 })
+            samples.Add(Compose(scene, moving, share * StopSeconds[^1]));
 
         using var combined = samples.AppendVertically();
         combined.Quantize(new QuantizeSettings { Colors = 256, DitherMethod = DitherMethod.No });

@@ -83,6 +83,32 @@ public class SlotsRendererTests
     }
 
     [Fact]
+    public async Task Spin_LaterFramesOnlyCoverTheReelsStillMoving()
+    {
+        using var gif = await Renderer.RenderSpinAsync(Sample("loss"));
+        using var frames = new MagickImageCollection(gif); // not coalesced: each frame as stored in the file
+
+        Assert.True(frames[1].Width < frames[0].Width, "later frames leave out the cabinet");
+        Assert.True(frames[^1].Width < frames[1].Width, "stopped reels are left out");
+
+        // Reels stop left to right: the drawn area only shrinks, and always ends at the right edge of the last reel.
+        var later = frames.Skip(1).ToList();
+        Assert.All(later.Zip(later.Skip(1)), pair => Assert.True(pair.Second.Width <= pair.First.Width));
+        Assert.Single(later.Select(frame => frame.Page.X + frame.Width).Distinct());
+        Assert.Single(later.Select(frame => frame.Page.Y).Distinct());
+    }
+
+    [Fact]
+    public async Task Spin_ReelsStopWithinTwoSeconds()
+    {
+        using var gif = await Renderer.RenderSpinAsync(Sample("loss"));
+        using var frames = new MagickImageCollection(gif);
+
+        var ticksBeforeResult = frames.Take(frames.Count - 1).Sum(frame => (long)frame.AnimationDelay);
+        Assert.InRange(ticksBeforeResult, 1, 200);
+    }
+
+    [Fact]
     public async Task Static_DependsOnTheStopsOnly()
     {
         using var first = await Renderer.RenderStaticAsync(Sample("loss"));
