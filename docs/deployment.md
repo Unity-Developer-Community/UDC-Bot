@@ -181,16 +181,16 @@ kubectl -n udc-bot-prod logs deployment/udc-bot
 
 ### Updating the Bot
 
-Build and push a new image, then update the image tag in `bot.yaml`:
+The UDC servers update through CI and [Argo CD](https://argo-cd.readthedocs.io/), which syncs the cluster with the manifests in `k8s/`:
+
+- **Prod:** every push to `master` (except changes limited to `k8s/`, `docs/` or Markdown) builds `ghcr.io/unity-developer-community/udc-bot:<short-sha>`, commits that tag to `k8s/prod/bot.yaml`, and Argo CD rolls it out.
+- **Dev:** the **Deploy to Dev** workflow (run manually with a PR number or a ref) builds `udc-bot-dev:<short-sha>` and commits that tag to `k8s/dev/bot.yaml` on `master`. A `/build` comment on a PR only builds and pushes the image; to run it with the PR's manifest changes, set the tag in `k8s/dev/bot.yaml` on the PR branch and point the `udc-bot-dev` Argo CD app at that branch (the comments posted on the PR give these steps).
+
+Without Argo CD, build and push an image yourself, set its tag in `bot.yaml`, and re-apply:
 
 ```bash
 docker build -t ghcr.io/unity-developer-community/udc-bot:NEW_TAG .
 docker push ghcr.io/unity-developer-community/udc-bot:NEW_TAG
-```
-
-Edit `bot.yaml` to use the new tag, then re-apply:
-
-```bash
 kubectl apply -f k8s/prod/bot.yaml
 ```
 
@@ -378,11 +378,11 @@ adminer:
 | Setting | Production (k8s) | Dev Server (k8s) | Local (Compose) |
 |---------|------------------|-------------------|-----------------|
 | Namespace | `udc-bot-prod` | `udc-bot-dev` | N/A |
-| Bot image | Pinned commit SHA | `latest` | Built from source |
+| Bot image | Commit SHA of `master` | Commit SHA of the deployed PR or ref | Built from source |
 | CPU request | 100m | 50m | Unlimited |
 | Memory limit | 512Mi | 512Mi | Unlimited |
 | PostgreSQL storage | 5 Gi PVC | 5 Gi PVC | Docker volume |
-| Backups | User's choice | User's choice | Manual |
+| Backups | Daily CronJob to S3 | Daily CronJob to S3 | Manual |
 | Secrets | Manual or External Secrets | Manual or External Secrets | Hardcoded / `.env` file |
 | Adminer | TLS ingress + IP allowlist | TLS ingress + IP allowlist | `localhost:8080` |
 

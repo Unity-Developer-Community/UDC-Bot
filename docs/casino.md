@@ -140,20 +140,20 @@ The Casino module is a comprehensive gaming system for the Discord bot that enab
 - **BlackjackPlayerAction**: Hit, Stand, DoubleDown actions
 - **BlackjackPlayerData**: Player cards and action history
 - **Blackjack**: Core game logic with dealer AI and payout calculation
-- **BlackjackDiscordGameSession**: Discord UI for blackjack games
+- **BlackjackDiscordGameSession** (`Domain/Casino/Discord/`): Discord UI for blackjack games
 
 ##### Poker (`Domain/Casino/Games/Cards/Poker/`)
 
 - **PokerPlayerAction**: Call, Raise, Fold, Check actions
 - **PokerPlayerData**: Hole cards, betting state
 - **Poker**: Texas Hold'em implementation
-- **PokerDiscordGameSession**: Discord UI with private hand support
+- **PokerDiscordGameSession** (`Domain/Casino/Discord/`): Discord UI with private hand support
 
 ##### Rock Paper Scissors (`Domain/Casino/Games/RockPaperScissors/`)
 
 - **RPSPlayerAction**: Rock, Paper, Scissors choices
 - **RockPaperScissors**: Simple simultaneous choice game
-- **RockPaperScissorsDiscordGameSession**: Discord UI for RPS
+- **RockPaperScissorsDiscordGameSession** (`Domain/Casino/Discord/`): Discord UI for RPS
 
 ### 4. Data Layer
 
@@ -218,7 +218,7 @@ Game End Condition → GameService.EndGame() → Payout Calculation → CasinoSe
 
 1. **Create Game Logic**:
 
-   *(Example: `Domain/Casino/Games/Blackjack.cs`)*
+   *(Example: `Domain/Casino/Games/Cards/Blackjack/Blackjack.cs`)*
    - Define player action enum with `ButtonMetadata` attributes
    - Create player data class implementing `ICasinoGamePlayerData`
    - Implement game class extending `ACasinoGame<TPlayerData, TPlayerAction>`
@@ -230,7 +230,7 @@ Game End Condition → GameService.EndGame() → Payout Calculation → CasinoSe
    - Override embed and component generation methods
 
 3. **Register Game**:
-   - Add to `CasinoGame` enum in `CasinoSlashModule.cs`
+   - Add to `CasinoGame` enum in `CasinoSlashModule.Games.cs`
    - Update factory methods in `GameService`
 
 ### Configuration
