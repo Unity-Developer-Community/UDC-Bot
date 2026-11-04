@@ -2,7 +2,7 @@
 
 Branch: `feat/slot-machine`.
 
-Status: `slots-animation` committed; next open item is `JackpotProps`, table creation in `DatabaseService` and repository methods (Jackpot storage). The four sample GIFs still await the user's approval.
+Status: `slots-animation` and `slots-jackpot` committed; next open item is `SlotsService`, the commands item (Slots commands). The four sample GIFs still await the user's approval.
 
 ## Goal
 
@@ -61,8 +61,11 @@ A solo slot machine in the casino: each spin shows an animated GIF of three reel
 
 ### Jackpot storage
 
-- [ ] `JackpotProps`, table creation in `DatabaseService`, repository methods on `ICasinoRepo`
-- [ ] Run the creation and the three statements twice against a throwaway `docker run --rm postgres:16` (never the dev database): AC12, atomic claim, floor
+- [x] `JackpotProps`, table creation in `DatabaseService`, repository methods on `ICasinoRepo`
+- [x] Run the creation and the three statements twice against a throwaway `docker run --rm postgres:16` (never the dev database): AC12, atomic claim, floor
+- Decided during the run: the repository has three methods, `GetJackpot`, `AddJackpotContribution` (returns the pot) and `ClaimJackpotShare(bet, floor, updatedAt)` (returns the share in hundredths); a jackpot win calls contribute, then claim, so the share is computed on the pot including that bet's contribution, as `SlotSettlementMath.Settle` does. The claim is one `UPDATE … FROM (SELECT … FOR UPDATE)` statement whose integer math (`amount * bet / 10000 * 100`) matches `SlotSettlementMath.JackpotShare`; the floor is a parameter, since a `long` constant cannot sit in the attribute's constant string. Alternative: a stored function or a transaction with two statements; change `ICasinoRepo.ClaimJackpotShare`.
+- Decided during the run: the table DDL lives in `JackpotProps.EnsureStatements` (`Domain/Casino/CasinoJackpot.cs`, with the `CasinoJackpot` row model) and `DatabaseService` runs it after the casino block on every start; a failure is logged as Critical and does not stop the other startup work. Alternative: inline the SQL in `DatabaseService`; the statements would then not be reusable by a test.
+- Checked against a throwaway `postgres:16` container (since removed): creation run twice leaves one row at 100,000 hundredths and keeps a changed pot; the repository's claim matches `SlotSettlementMath` for bets 100 and 10, 20 concurrent claims give the same total as 20 sequential ones, 50 concurrent contributions add up exactly, a pot below the floor is topped up. The throwaway test file was deleted; the suite stays database-free.
 - Visible after: nothing: used by the commands item.
 - Needs you: nothing (the new table is approved with this plan).
 
