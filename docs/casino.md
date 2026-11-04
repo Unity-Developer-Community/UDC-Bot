@@ -170,6 +170,42 @@ The Casino module is a comprehensive gaming system for the Discord bot that enab
 - **Transaction logging**: Audit trail for all token movements
 - **Statistics tracking**: Game results and player performance data
 
+## Slots
+
+A solo three-reel slot machine with one payline and a jackpot shared by the whole server. Players run `/casino slots spin bet:<1-100>` and get a private reply with an animated GIF of the reels stopping, then buttons to spin again. `/casino slots info` shows the paytable, the rules and the current jackpot.
+
+### Why it is not a table game
+
+Slots has no join, ready or seats, so it does not go through `GameSession` / `CasinoGame` / `GameService`. It has its own engine, service and commands. Its settled spins are `Game` transactions with `game = Slots`, so they appear in `/casino statistics`, the token history and the global leaderboard. The leaderboard's per-game filter lists only the `CasinoGame` enum, so Slots is not in it.
+
+### Pieces
+
+| Piece | Path | Holds |
+| --- | --- | --- |
+| Engine | `Domain/Casino/Slots/` | Pure rules, no Discord: symbols, the three reel strips, the paytable, `Spin` / `Respin` over an `ISlotRandom` (cryptographically secure in production, seeded in tests), the settlement math (`SlotSettlementMath`) and the exact-return analysis (`SlotReturnAnalysis`) |
+| Service | `Services/Fun/Casino/SlotsService.cs` | Validates the bet, guards against a second spin of the same player, spins, settles the player and the jackpot, renders the GIF, keeps the pending hold offers in memory. Balances and the jackpot go through `ISlotsLedger` (`CasinoSlotsLedger` in production) so the service is tested without a database |
+| Renderer | `Services/Fun/Casino/SlotsRenderer.cs` | The GIF (Magick.NET) and the static picture, one render at a time. Resolved and warmed in the `Ready` handler so no player waits for the first render |
+| Messages | `Services/Fun/Casino/SlotsMessageBuilder.cs` | The private result, the public announcement, the buttons and the info page |
+| Commands | `Modules/Fun/Casino/CasinoSlashModule.Slots.cs` | `/casino slots spin` and `info`, and the `slots_spin`, `slots_hold` and `slots_respin` buttons |
+| Art | `Assets/slots/` | Fluent Emoji 3D PNGs (MIT, notice beside them); the red 7 is drawn from `Assets/fonts/ConsolasBold.ttf`. The `Dockerfile` copies this folder explicitly |
+
+### Rules
+
+- **Return to players:** the paytable, the strips and the 5% jackpot contribution are tuned together and guarded by `SlotMachineTests`, which enumerates every reel combination (no simulation): the return is between 92% and 96%, wins land on 20-35% of spins, and three diamonds on about 1 spin in 3,000-10,000. The figure assumes the jackpot at its long-run size; as with any shared progressive jackpot, a player who only plays when the pot is far above it has an edge.
+- **Jackpot:** 5% of every paid bet, small bets included, is added to the pot (kept in hundredths of a token so a 1-token bet adds exactly 0.05). Three diamonds pay `bet / 100` of the pot, rounded down to whole tokens, so a 100-token bet takes it all and the rest stays in the pot. The pot is topped up to 1,000 tokens when a win leaves it lower.
+- **Hold and respin:** about 1 losing spin in 4 offers a hold. The player toggles a hold per reel, then takes one free respin of the other reels at the original bet. A respin feeds nothing, never offers another hold, and an offer can be used once (`SlotsService` removes it when spent, because the engine itself would accept a second respin). It expires after 10 minutes, at the player's next spin, or at a bot restart. Button ids carry the offer id, so a button of an older message is refused.
+- **Public posts:** a jackpot and any win of 20x the bet or more are also posted in the channel with the GIF, naming the player without pinging them.
+- **Failures:** the spin is settled before the GIF is rendered, so a rendering failure only costs the animation: the reply is the text result. The jackpot is claimed before the player is credited; when crediting fails after a claim, the amount and the player are logged as an error so an admin can credit it with `/admin casino tokens-add`.
+
+### Jackpot storage
+
+The `casino_jackpot` table (`Id integer PRIMARY KEY, Amount bigint, UpdatedAt timestamptz`) holds one row, `Id = 1`. `DatabaseService` creates it and the row with `JackpotProps.EnsureStatements` on every start, independently of the casino tables, which are only created when `casino_users` is missing. `ICasinoRepo` has three methods: `GetJackpot`, `AddJackpotContribution` and `ClaimJackpotShare`, the last one a single atomic statement that locks the row, takes the share and applies the floor.
+
+### Known limits
+
+- Pending bets in table games are not counted against the balance used for the bet check (#347).
+- `UpdateUserTokens` reads then writes the balance, so two games settling the same player at the same moment can overwrite each other. The per-user guard only stops slots against slots.
+
 ## Game Flow Architecture
 
 ### 1. Game Creation Flow

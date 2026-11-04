@@ -10,7 +10,7 @@ The code is provided as-is and there will be no guaranteed support to help make 
 - **Profiles:** XP and levels, karma, profile cards with skins, badges, birthdays, leaderboards
 - **Unity help:** help-forum thread management, canned responses, FAQ, tips, documentation and manual search
 - **Server:** welcome messages, audit logging, rules, tickets, reminders, quotes, embeds, recruitment
-- **Fun:** casino with a token economy (Blackjack, Poker, Rock Paper Scissors, see [docs/casino.md](docs/casino.md)), duels, dice rolls
+- **Fun:** casino with a token economy (Blackjack, Poker, Rock Paper Scissors, slots with a shared jackpot, see [docs/casino.md](docs/casino.md)), duels, dice rolls
 - **Utilities:** weather, currency and temperature conversion, flight lookups, Unity release feeds
 
 Commands exist as slash commands and as `!` text commands. [docs/features.md](docs/features.md) describes each feature and the code behind it; `/help` and `!help` list the commands in Discord.

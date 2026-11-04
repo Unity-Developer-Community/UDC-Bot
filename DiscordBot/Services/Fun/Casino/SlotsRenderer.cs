@@ -46,10 +46,21 @@ public class SlotsRenderer
     }
 
     /// <summary>Renders the reels spinning and stopping on the result, as an animated GIF.</summary>
-    public Task<MemoryStream> RenderSpinAsync(SlotResult result) => RunAsync(assets => RenderSpin(assets, result));
+    public virtual Task<MemoryStream> RenderSpinAsync(SlotResult result) => RunAsync(assets => RenderSpin(assets, result));
 
     /// <summary>Renders the reels at rest on the result, as a PNG with the same pixels as the last GIF frame.</summary>
-    public Task<MemoryStream> RenderStaticAsync(SlotResult result) => RunAsync(assets => RenderStatic(assets, result));
+    public virtual Task<MemoryStream> RenderStaticAsync(SlotResult result) => RunAsync(assets => RenderStatic(assets, result));
+
+    /// <summary>
+    /// Loads the art and builds the palette with one static render, so the first player's spin does not pay for it (about 2.7 s).
+    /// </summary>
+    public async Task WarmUpAsync()
+    {
+        int[] stops = [0, 0, 0];
+        var symbols = stops.Select((stop, reel) => SlotMachine.Reels[reel][stop]).ToArray();
+        var (multiplier, isJackpot) = SlotMachine.Evaluate(symbols);
+        using var _ = await RenderStaticAsync(new SlotResult(stops, symbols, multiplier, isJackpot, false, false));
+    }
 
     // One render at a time: production has half a CPU, and the shared strips are not thread-safe to clone from.
     private async Task<MemoryStream> RunAsync(Func<Assets, MemoryStream> render)

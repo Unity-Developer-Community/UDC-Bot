@@ -2,7 +2,7 @@
 
 Branch: `feat/slot-machine`.
 
-Status: `slots-animation` and `slots-jackpot` committed; next open item is `SlotsService`, the commands item (Slots commands). The four sample GIFs still await the user's approval.
+Status: finished, waiting for the user's review.
 
 ## Goal
 
@@ -71,8 +71,13 @@ A solo slot machine in the casino: each spin shows an animated GIF of three reel
 
 ### Slots commands
 
-- [ ] `SlotsService`, `CasinoSlashModule.Slots.cs`, registration in `Program.ConfigureServices`
-- [ ] Message builder tests: private result, public post for ≥ 20× and jackpot (AC8, AC7), render-failure text fallback (AC11), per-user guard (AC4)
-- [ ] Docs: `docs/casino.md` (Slots section: engine, service, renderer, jackpot table, why it is not a table game), `docs/features.md` Casino row, `README.md` feature line
+- [x] `SlotsService`, `CasinoSlashModule.Slots.cs`, registration in `Program.ConfigureServices`
+- [x] Message builder tests: private result, public post for ≥ 20× and jackpot (AC8, AC7), render-failure text fallback (AC11), per-user guard (AC4)
+- [x] Docs: `docs/casino.md` (Slots section: engine, service, renderer, jackpot table, why it is not a table game), `docs/features.md` Casino row, `README.md` feature line
+- Decided during the run: `SlotsService` reaches balances and the jackpot through a small `ISlotsLedger` interface (`CasinoSlotsLedger` is the production implementation) and takes a `TimeProvider`, and `SlotsRenderer.RenderSpinAsync` / `RenderStaticAsync` are `virtual`, so the settlement, guard, single-use respin, expiry and render-failure tests run without a database or the art. The message builder is a static class, `SlotsMessageBuilder`. Alternative: concrete `CasinoService` / `DatabaseService` dependencies, which cannot be tested without PostgreSQL; change `SlotsService`'s second constructor.
+- Decided during the run: the hold and respin buttons carry the offer id (`slots_hold:<offer>:<reel>`, `slots_respin:<offer>`) instead of `slots_hold:<reel>`, so a button of an older private message is refused rather than toggling the player's newer offer. Alternative: reel-only ids, which would act on whichever offer is pending; change `SlotsMessageBuilder.BuildComponents` and the two handlers.
+- Decided during the run: a free respin that wins nothing records no transaction (a 0-token line would only clutter `/casino tokens history`); a respin that wins records its payout with no bet. Alternative: always record, change `SlotsService.SettleAsync`.
+- Decided during the run: the result texts format numbers with the invariant culture (`1,234`), so the message does not depend on the host's regional settings. Alternative: current culture like the older casino messages; change `SlotsMessageBuilder.N`.
+- Decided during the run: the `Ready` handler warms the renderer through a new `SlotsRenderer.WarmUpAsync()` (one static render), only when `Casino.Enabled`, as fire-and-forget. Alternative: warm always, or on the first spin.
 - Visible after: `/casino slots spin` and `/casino slots info` in Discord.
 - Needs you: run the bot locally against your test server and play a few spins, a hold and a respin (at the end).
