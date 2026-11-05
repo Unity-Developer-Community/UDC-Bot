@@ -41,7 +41,7 @@ The Casino module is a comprehensive gaming system for the Discord bot that enab
 - **User Management**: Core service for token and user data management
 
 - **Key Features**:
-  - User creation and token balance management
+  - User creation and token balance management: every balance change is one atomic SQL statement (see "Balance changes" below)
   - Transaction recording and audit trails
   - Daily reward system
   - Game statistics and leaderboard generation
@@ -140,20 +140,20 @@ The Casino module is a comprehensive gaming system for the Discord bot that enab
 - **BlackjackPlayerAction**: Hit, Stand, DoubleDown actions
 - **BlackjackPlayerData**: Player cards and action history
 - **Blackjack**: Core game logic with dealer AI and payout calculation
-- **BlackjackDiscordGameSession**: Discord UI for blackjack games
+- **BlackjackDiscordGameSession** (`Domain/Casino/Discord/`): Discord UI for blackjack games
 
 ##### Poker (`Domain/Casino/Games/Cards/Poker/`)
 
 - **PokerPlayerAction**: Call, Raise, Fold, Check actions
 - **PokerPlayerData**: Hole cards, betting state
 - **Poker**: Texas Hold'em implementation
-- **PokerDiscordGameSession**: Discord UI with private hand support
+- **PokerDiscordGameSession** (`Domain/Casino/Discord/`): Discord UI with private hand support
 
 ##### Rock Paper Scissors (`Domain/Casino/Games/RockPaperScissors/`)
 
 - **RPSPlayerAction**: Rock, Paper, Scissors choices
 - **RockPaperScissors**: Simple simultaneous choice game
-- **RockPaperScissorsDiscordGameSession**: Discord UI for RPS
+- **RockPaperScissorsDiscordGameSession** (`Domain/Casino/Discord/`): Discord UI for RPS
 
 ### 4. Data Layer
 
@@ -169,6 +169,57 @@ The Casino module is a comprehensive gaming system for the Discord bot that enab
 - **DatabaseService**: Handles all database operations
 - **Transaction logging**: Audit trail for all token movements
 - **Statistics tracking**: Game results and player performance data
+
+## Slots
+
+A solo three-reel slot machine with one payline and a jackpot shared by the whole server. Players run `/casino slots spin bet:<1-100>` and get a private reply with an animated GIF of the reels stopping, then buttons to spin again. `/casino slots info` shows the paytable, the rules and the current jackpot.
+
+### Why it is not a table game
+
+Slots has no join, ready or seats, so it does not go through `GameSession` / `CasinoGame` / `GameService`. It has its own engine, service and commands. Its settled spins are `Game` transactions with `game = Slots`, so they appear in `/casino statistics`, the token history and the global leaderboard. The leaderboard's per-game filter lists only the `CasinoGame` enum, so Slots is not in it.
+
+### Pieces
+
+| Piece | Path | Holds |
+| --- | --- | --- |
+| Engine | `Domain/Casino/Slots/` | Pure rules, no Discord: symbols, the three reel strips, the paytable, `Spin` / `Respin` over an `ISlotRandom` (cryptographically secure in production, seeded in tests), the settlement math (`SlotSettlementMath`) and the exact-return analysis (`SlotReturnAnalysis`) |
+| Service | `Services/Fun/Casino/SlotsService.cs` | Validates the bet, guards against a second spin of the same player, spins, settles the player and the jackpot, renders the GIF, keeps the pending hold offers in memory. Balances and the jackpot go through `ISlotsLedger` (`CasinoSlotsLedger` in production) so the service is tested without a database |
+| Renderer | `Services/Fun/Casino/SlotsRenderer.cs` | The GIF (Magick.NET) and the static picture, one render at a time. Resolved and warmed in the `Ready` handler so no player waits for the first render |
+| Messages | `Services/Fun/Casino/SlotsMessageBuilder.cs` | The private result, the public announcement, the buttons and the info page |
+| Commands | `Modules/Fun/Casino/CasinoSlashModule.Slots.cs` | `/casino slots spin` and `info`, and the `slots_spin`, `slots_hold` and `slots_respin` buttons |
+| Art | `Assets/slots/` | Fluent Emoji 3D PNGs (MIT, notice beside them); the red 7 is drawn from `Assets/fonts/ConsolasBold.ttf`. The `Dockerfile` copies this folder explicitly |
+
+### Rules
+
+- **Paytable:** three of a kind (🍋 3×, 🍇 5×, 🔔 10×, ⭐ 20×, 🍒 25×, 7️⃣ 100×, 💎 the jackpot) or exactly two of a symbol anywhere on the line (🍇, 🔔, ⭐ and 🍒 2×, 7️⃣ 3×; lemon and diamond pairs pay nothing, so two diamonds stay a near miss that can offer a hold). The design favours frequent small wins so a player's tokens last: no line only gives the bet back, a rarer three of a kind always pays more, and in a simulation of players starting with 20 tokens at 1 per spin, half last more than about 100 spins.
+- **Return to players:** the paytable, the strips and the 5% jackpot contribution are tuned together and guarded by `SlotMachineTests`, which enumerates every reel combination (no simulation): the return is between 92% and 96% (about 94.4%), wins land on 1 spin in 3 to 4 (about 1 in 3.65), and three diamonds on about 1 spin in 3,000-10,000 (about 1 in 8,400, holds included). The figure assumes the jackpot at its long-run size; as with any shared progressive jackpot, a player who only plays when the pot is far above it has an edge.
+- **Jackpot:** 5% of every paid bet, small bets included, is added to the pot (kept in hundredths of a token so a 1-token bet adds exactly 0.05). Three diamonds pay `bet / 100` of the pot, rounded down to whole tokens, so a 100-token bet takes it all and the rest stays in the pot. The pot is topped up to 1,000 tokens when a win leaves it lower.
+- **Hold and respin:** about 1 losing spin in 4 offers a hold. The player toggles a hold per reel, then takes one free respin of the other reels at the original bet. A respin feeds nothing, never offers another hold, and an offer can be used once (`SlotsService` removes it when spent, because the engine itself would accept a second respin). It expires after 10 minutes, at the player's next spin, or at a bot restart. Button ids carry the offer id, so a button of an older message is refused.
+- **Public posts:** a jackpot and any win on a line that lands less than once in 200 first spins (`SlotMachine.PublicWinOneIn`; currently three bells and better) are also posted in the channel with the GIF, naming the player without pinging them. Each paytable line's chance is computed exactly from the reel strips, so retuning the reels keeps the rule right. Expect about one post per 190 spins.
+- **Failures:** the spin is settled before the GIF is rendered, so a rendering failure only costs the animation: the reply is the text result. The bet is reserved first and the jackpot is claimed before the player is credited; when crediting fails after a claim, the amount and the player are logged as an error so an admin can credit it with `/admin casino tokens-add`. Any other failed crediting of a win is logged the same way, with the payout and bet. A spin or respin is refused and logged, before anything changes and without spending a hold offer, when the `casino_jackpot` row is missing or below its floor; a jackpot claim that returns nothing is treated as the same fault.
+
+### Balance changes
+
+A balance is never read and written back as a total: two changes for the same player at the same moment would overwrite each other. `ICasinoRepo` changes it with single `UPDATE ... RETURNING` statements, which PostgreSQL runs one after the other for the same row:
+
+| Statement | Used by | Behavior |
+| --- | --- | --- |
+| `AdjustTokens` | `CasinoService.UpdateUserTokens`: table-game payouts, slots payouts, admin add | Adds a signed amount, stops at 0 |
+| `TryDebitTokens` | `CasinoService.TryReserveTokens`: the slots bet | Subtracts only when the balance covers it |
+| `TransferTokens` | `/casino tokens gift` | Debits the sender and credits the receiver in one statement, locking both rows in user ID order so opposite gifts cannot deadlock |
+| `ClaimDailyReward` | `/casino tokens daily` | Pays only when the last claim is old enough, so a double claim pays once |
+
+The slots bet is taken with `TryDebitTokens` before the spin. The payout is credited at settlement and one `Game` transaction records the net result. A spin that fails before settlement gives the bet back without a history row; a failed settlement of a win keeps the bet taken and logs the payout owed. The admin `set` command is the one absolute write, by intent. `CasinoServiceTests` runs these against a real PostgreSQL started with Testcontainers.
+
+### Jackpot storage
+
+The `casino_jackpot` table (`Id integer PRIMARY KEY, Amount bigint, UpdatedAt timestamptz`) holds one row, `Id = 1`. `DatabaseService` creates it and the row with `JackpotProps.EnsureStatements` on every start, independently of the casino tables, which are only created when `casino_users` is missing. `ICasinoRepo` has three methods: `GetJackpot`, `AddJackpotContribution` and `ClaimJackpotShare`, the last one a single atomic statement that locks the row, takes the share and applies the floor.
+
+### Known limits
+
+- Pending bets in table games are not counted against the balance used for the bet check (#347).
+- Table-game bets are not reserved while a game runs: a player can join games with tokens they then spend elsewhere, and a loss that exceeds the balance at settlement stops at 0 (#347).
+- A restart between the reservation and the settlement of a slots spin loses that bet, with no history row and no log. The window is a few database round trips.
 
 ## Game Flow Architecture
 
@@ -218,7 +269,7 @@ Game End Condition → GameService.EndGame() → Payout Calculation → CasinoSe
 
 1. **Create Game Logic**:
 
-   *(Example: `Domain/Casino/Games/Blackjack.cs`)*
+   *(Example: `Domain/Casino/Games/Cards/Blackjack/Blackjack.cs`)*
    - Define player action enum with `ButtonMetadata` attributes
    - Create player data class implementing `ICasinoGamePlayerData`
    - Implement game class extending `ACasinoGame<TPlayerData, TPlayerAction>`
@@ -230,7 +281,7 @@ Game End Condition → GameService.EndGame() → Payout Calculation → CasinoSe
    - Override embed and component generation methods
 
 3. **Register Game**:
-   - Add to `CasinoGame` enum in `CasinoSlashModule.cs`
+   - Add to `CasinoGame` enum in `CasinoSlashModule.Games.cs`
    - Update factory methods in `GameService`
 
 ### Configuration

@@ -128,7 +128,7 @@ spec:
                 - ALL
       containers:
         - name: bot
-          image: ghcr.io/unity-developer-community/udc-bot:9cd3b48
+          image: ghcr.io/unity-developer-community/udc-bot:ceee1c8
           volumeMounts:
             - name: app-settings
               mountPath: /app/Settings
@@ -140,7 +140,7 @@ spec:
               memory: 256Mi
             limits:
               cpu: 500m
-              memory: 512Mi
+              memory: 768Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

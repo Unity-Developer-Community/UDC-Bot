@@ -94,6 +94,12 @@ public class Program
             _services.GetRequiredService<MikuService>();
             _services.GetRequiredService<KarmaResetService>();
 
+            // The first slots render loads the art and builds the palette (about 2.7 s): do it now, not on a player's first spin.
+            if (_settings.Casino.Enabled)
+            {
+                _services.GetRequiredService<SlotsRenderer>().WarmUpAsync().SafeFireAndForget(nameof(SlotsRenderer));
+            }
+
             return Task.CompletedTask;
         };
 
@@ -156,6 +162,8 @@ public class Program
             .AddSingleton<CasinoService>()
             .AddSingleton<TransactionFormatter>()
             .AddSingleton<GameService>()
+            .AddSingleton<SlotsRenderer>()
+            .AddSingleton<SlotsService>()
             .AddSingleton<KarmaResetService>()
             .BuildServiceProvider();
 
