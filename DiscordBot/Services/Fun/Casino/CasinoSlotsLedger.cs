@@ -3,7 +3,7 @@ using DiscordBot.Domain;
 namespace DiscordBot.Services.Fun.Casino;
 
 /// <summary>The production <see cref="ISlotsLedger"/>: balances through <see cref="CasinoService"/>, the jackpot through the casino repository.</summary>
-public class CasinoSlotsLedger(CasinoService casinoService, DatabaseService databaseService) : ISlotsLedger
+public class CasinoSlotsLedger(CasinoService casinoService, ICasinoDatabase databaseService) : ISlotsLedger
 {
     private ICasinoRepo Repo => databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
 

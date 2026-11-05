@@ -122,9 +122,9 @@ public class SlotsServiceTests
         public FakeLogging Logging { get; } = new();
         public SlotsService Service { get; }
 
-        public Fixture(bool renderFails = false)
+        public Fixture(bool renderFails = false, bool noRenderer = false)
         {
-            Service = new SlotsService(Ledger, Random, new StubRenderer(renderFails), Logging, Time);
+            Service = new SlotsService(Ledger, Random, noRenderer ? null : new StubRenderer(renderFails), Logging, Time);
         }
 
         /// <summary>Queues the stops that put these symbols on the payline.</summary>
@@ -629,6 +629,20 @@ public class SlotsServiceTests
         var play = await f.Service.SpinAsync(UserId, 5);
 
         Assert.Equal(new byte[] { 1, 2, 3 }, play.Gif);
+    }
+
+    [Fact]
+    public async Task Spin_WithoutARenderer_SettlesWithoutAGifAndLogsNothing()
+    {
+        var f = new Fixture(noRenderer: true);
+        f.Stops(SlotSymbol.Seven, SlotSymbol.Seven, SlotSymbol.Seven);
+
+        var play = await f.Service.SpinAsync(UserId, 5);
+
+        Assert.Equal(SlotsStatus.Ok, play.Status);
+        Assert.Null(play.Gif);
+        Assert.Equal(1_495, f.Ledger.Tokens);
+        Assert.Empty(f.Logging.Messages);
     }
 
     #endregion

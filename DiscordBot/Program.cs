@@ -127,6 +127,7 @@ public class Program
             .AddSingleton<CommandHandlingService>()
             .AddSingleton<ILoggingService, LoggingService>()
             .AddSingleton<DatabaseService>()
+            .AddSingleton<ICasinoDatabase>(sp => sp.GetRequiredService<DatabaseService>())
             .AddSingleton<WelcomeService>()
             .AddSingleton<XpService>()
             .AddSingleton<KarmaService>()

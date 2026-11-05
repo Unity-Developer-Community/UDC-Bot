@@ -82,7 +82,7 @@ public class SlotsService
 
     private readonly ISlotsLedger _ledger;
     private readonly ISlotRandom _random;
-    private readonly SlotsRenderer _renderer;
+    private readonly SlotsRenderer? _renderer;
     private readonly ILoggingService _logging;
     private readonly TimeProvider _time;
 
@@ -90,12 +90,12 @@ public class SlotsService
     private readonly ConcurrentDictionary<ulong, PendingHold> _holds = new();
     private long _lastOfferId;
 
-    public SlotsService(CasinoService casinoService, DatabaseService databaseService, SlotsRenderer renderer, ILoggingService logging)
+    public SlotsService(CasinoService casinoService, ICasinoDatabase databaseService, SlotsRenderer? renderer, ILoggingService logging)
         : this(new CasinoSlotsLedger(casinoService, databaseService), new SecureSlotRandom(), renderer, logging, TimeProvider.System)
     {
     }
 
-    public SlotsService(ISlotsLedger ledger, ISlotRandom random, SlotsRenderer renderer, ILoggingService logging, TimeProvider time)
+    public SlotsService(ISlotsLedger ledger, ISlotRandom random, SlotsRenderer? renderer, ILoggingService logging, TimeProvider time)
     {
         _ledger = ledger;
         _random = random;
@@ -308,9 +308,12 @@ public class SlotsService
             throw new InvalidOperationException($"The jackpot is {pot} hundredths, below its floor: the casino_jackpot row is missing or damaged.");
     }
 
-    // The spin is already settled: a rendering failure only costs the animation.
+    // The spin is already settled: a rendering failure only costs the animation. Without a renderer (the web casino animates in the browser) there is none.
     private async Task<byte[]?> TryRenderAsync(SlotResult result)
     {
+        if (_renderer is null)
+            return null;
+
         try
         {
             using var stream = await _renderer.RenderSpinAsync(result);
