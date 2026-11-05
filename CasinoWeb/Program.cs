@@ -2,6 +2,7 @@ using CasinoWeb.Auth;
 using CasinoWeb.Configuration;
 using CasinoWeb.Data;
 using CasinoWeb.Endpoints;
+using CasinoWeb.Hubs;
 using CasinoWeb.Logging;
 using DiscordBot.Services;
 using DiscordBot.Services.Fun.Casino;
@@ -33,6 +34,7 @@ builder.Services.AddSingleton<ILoggingService, WebLoggingService>();
 builder.Services.AddSingleton<CasinoService>();
 
 builder.Services.AddCasinoAuthentication();
+builder.Services.AddCasinoHub();
 builder.Services.AddAuthorization();
 builder.Services.AddProblemDetails();
 
@@ -58,9 +60,11 @@ app.Use((context, next) =>
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+app.UseHubOriginCheck();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapAccountEndpoints();
+app.MapHub<CasinoHub>(HubSetup.HubPath);
 
 app.Run();
 

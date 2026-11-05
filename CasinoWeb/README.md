@@ -20,6 +20,7 @@ The web front end of the UDC casino: a separate ASP.NET Core 8 process that sign
    - the client, from `CasinoWeb/ClientApp/`: `npm install` once, then `npm run dev` (listens on `http://localhost:5080` and proxies the API to the server). The Discord redirect URL, the cookie and the Origin check all use `:5080`, so browse there, not on `:5081`.
    - `GET /login` goes through Discord; a guild member lands back on `/` with a cookie and sees the lobby, anyone else lands on `/access-denied`.
    - `GET /api/me` answers with the logged-in member's name, avatar and balance (`401` without a login).
+   - The games talk to the SignalR hub `/hub/casino` (`CasinoHub`): `GetState`, `SlotsSpin`, `SlotsToggleHold`, `SlotsRespin`. Every call goes through `CasinoHubFilter`: for game actions the limit of 5 actions per second per player, then the membership recheck (the socket outlives the cookie), then the casino switch. The handshake refuses another site's `Origin`.
 
 `npm run build` in `ClientApp/` writes the client to `CasinoWeb/wwwroot/` (gitignored), which the server serves; this is how it runs in production.
 
@@ -34,4 +35,4 @@ The web front end of the UDC casino: a separate ASP.NET Core 8 process that sign
 
 ## Tests
 
-`dotnet test CasinoWeb.Tests` runs without Discord or PostgreSQL: Discord and the casino table are replaced by fakes. The tests need the ASP.NET Core 8 runtime (`winget install Microsoft.DotNet.AspNetCore.8`): on a newer runtime only, JSON responses fail inside the test server.
+`dotnet test CasinoWeb.Tests` runs without Discord or PostgreSQL: Discord, the casino table, the slots balance and the dice are replaced by fakes, and a real SignalR client connects to the test server. The tests need the ASP.NET Core 8 runtime (`winget install Microsoft.DotNet.AspNetCore.8`): on a newer runtime only, JSON responses fail inside the test server.

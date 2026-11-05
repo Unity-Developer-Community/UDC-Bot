@@ -1,17 +1,22 @@
 import type { Session } from '@/api';
 import type { CasinoConnection } from '@/connection';
+import type { SlotsScreen } from '@/games/slots/slotsPage';
 
 import { fetchSession, logout } from '@/api';
+import { CasinoApi } from '@/casinoApi';
+import { renderSlotsScreen } from '@/games/slots/slotsPage';
 import { loginUrl, resolveScreen } from '@/routes';
 import { renderHeader } from '@/views/header';
 import { renderLobby } from '@/views/lobby';
 import { statusPage } from '@/views/pages';
 
 export interface AppDeps {
-  /** Started once the lobby is shown. Absent until the server has a hub to connect to. */
+  /** Started once the lobby is shown. Without one the games are not playable. */
   connection?: CasinoConnection;
   fetchFn?: typeof fetch;
+  /** Called when the login no longer holds; a full page load of the login so no state of the old session stays. */
   pathname?: string;
+  goToLogin?: () => void;
   /** Called after a logout to go back to the start; a full page load so no state of the old player stays. */
   restart?: () => void;
 }
@@ -20,6 +25,7 @@ export async function startApp(root: HTMLElement, deps: AppDeps = {}): Promise<v
   const fetchFn = deps.fetchFn ?? fetch;
   const pathname = deps.pathname ?? window.location.pathname;
   const restart = deps.restart ?? (() => window.location.assign('/'));
+  const goToLogin = deps.goToLogin ?? (() => window.location.assign(loginUrl(pathname)));
   const show = (...nodes: Node[]): void => root.replaceChildren(...nodes);
 
   const retry = (): void => void startApp(root, deps);
@@ -63,15 +69,28 @@ export async function startApp(root: HTMLElement, deps: AppDeps = {}): Promise<v
       if (connection) {
         connection.onStatus(header.setStatus);
         header.setStatus(connection.status);
+        connection.onSessionLost(goToLogin);
         void connection.start();
       }
-      const closed = !session.me.casinoEnabled;
-      show(
-        header.element,
-        closed
-          ? statusPage('Casino closed', 'The casino is closed right now. Come back later.')
-          : renderLobby(),
-      );
+      if (!session.me.casinoEnabled) {
+        show(header.element, statusPage('Casino closed', 'The casino is closed right now. Come back later.'));
+        return;
+      }
+
+      const api = connection ? new CasinoApi(connection) : undefined;
+      let screen: SlotsScreen | undefined;
+      function showLobby(): void {
+        screen?.destroy();
+        screen = undefined;
+        show(header.element, renderLobby(new Set(api ? ['slots'] : []), openGame));
+      }
+      function openGame(gameId: string): void {
+        if (gameId !== 'slots' || !api)
+          return;
+        screen = renderSlotsScreen({ api, onBack: showLobby, onBalance: header.setBalance });
+        show(header.element, screen.element);
+      }
+      showLobby();
     }
   }
 }

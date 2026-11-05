@@ -26,12 +26,15 @@ export function formatBalance(balance: number | null): string {
 
 export interface Header {
   element: HTMLElement;
+  setBalance: (balance: number) => void;
   setStatus: (status: ConnectionStatus) => void;
 }
 
 export function renderHeader(me: Me, onLogout: () => void): Header {
   const status = h('span', { 'class': 'status', 'data-status': 'idle', 'role': 'status' });
   status.hidden = true;
+
+  const balance = h('span', { 'class': 'balance', 'data-testid': 'balance' }, me.balance === null ? formatBalance(null) : `${formatBalance(me.balance)} tokens`);
 
   const logoutButton = h('button', { class: 'button secondary', type: 'button' }, 'Log out');
   logoutButton.addEventListener('click', onLogout);
@@ -48,13 +51,16 @@ export function renderHeader(me: Me, onLogout: () => void): Header {
       { class: 'player' },
       avatar,
       h('span', { class: 'player-name' }, me.name),
-      h('span', { 'class': 'balance', 'data-testid': 'balance' }, me.balance === null ? formatBalance(null) : `${formatBalance(me.balance)} tokens`),
+      balance,
       logoutButton,
     ),
   );
 
   return {
     element,
+    setBalance(next) {
+      balance.textContent = `${formatBalance(next)} tokens`;
+    },
     setStatus(next) {
       status.hidden = next === 'idle';
       status.dataset.status = next;

@@ -20,6 +20,8 @@ export default defineConfig({
   build: {
     // Kestrel serves the built files from wwwroot in production.
     emptyOutDir: true,
+    // Phaser alone is about 1.4 MB; it is a separate chunk that loads only when a game opens.
+    chunkSizeWarningLimit: 1500,
     outDir: '../wwwroot',
   },
   server: {
@@ -27,6 +29,8 @@ export default defineConfig({
     // OAuth callback, the cookie and the Origin check all see one site. Kestrel listens one port above.
     port: 5080,
     strictPort: true,
+    // The slot pictures stay in the bot's asset folder, the single copy, which is outside this project.
+    fs: { allow: ['.', '../../DiscordBot/Assets/slots'] },
     proxy: {
       '/api': kestrel,
       '/hub': { ...kestrel, ws: true },

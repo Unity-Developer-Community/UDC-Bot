@@ -3,6 +3,8 @@ using System.Text;
 using DiscordBot.Domain;
 using DiscordBot.Extensions;
 using DiscordBot.Services;
+using DiscordBot.Services.Fun.Casino;
+using DiscordBot.Services.Logging;
 
 namespace CasinoWeb.Tests;
 
@@ -98,4 +100,67 @@ public sealed class FakeCasinoRepo : ICasinoRepo
     public Task<long> AddJackpotContribution(long contributionHundredths, DateTime updatedAt) => throw new NotSupportedException();
     public Task<long> ClaimJackpotShare(int bet, long floorHundredths, DateTime updatedAt) => throw new NotSupportedException();
     public Task<long> TestCasinoConnection() => throw new NotSupportedException();
+}
+
+/// <summary>The slots' balance, jackpot and transactions in memory, so a hub test sees exactly what a spin settled.</summary>
+public sealed class FakeSlotsLedger : ISlotsLedger
+{
+    public long Tokens { get; set; } = 1_000;
+    public long Pot { get; set; } = SlotSettlementMath.JackpotFloorHundredths;
+
+    /// <summary>One entry per settlement: the recorded net amount and the transaction details.</summary>
+    public List<(long Net, Dictionary<string, string> Details)> Settlements { get; } = [];
+
+    public Task<long> GetTokens(string userId) => Task.FromResult(Tokens);
+
+    public Task<bool> Reserve(string userId, long bet)
+    {
+        if (Tokens < bet)
+            return Task.FromResult(false);
+        Tokens -= bet;
+        return Task.FromResult(true);
+    }
+
+    public Task Release(string userId, long bet)
+    {
+        Tokens += bet;
+        return Task.CompletedTask;
+    }
+
+    public Task<long> Settle(string userId, long payout, long net, Dictionary<string, string> details)
+    {
+        Tokens += payout;
+        Settlements.Add((net, details));
+        return Task.FromResult(Tokens);
+    }
+
+    public Task<long> GetPot() => Task.FromResult(Pot);
+
+    public Task<long> AddContribution(long hundredths) => Task.FromResult(Pot += hundredths);
+
+    public Task<long> ClaimShare(int bet)
+    {
+        var share = SlotSettlementMath.JackpotShare(Pot, bet);
+        Pot = SlotSettlementMath.PotAfterClaim(Pot, share);
+        return Task.FromResult(share);
+    }
+}
+
+/// <summary>Hands out the scripted values in order, so a test chooses the reel stops and the hold roll.</summary>
+public sealed class ScriptedSlotRandom : ISlotRandom
+{
+    private readonly Queue<int> _values = new();
+
+    public void Enqueue(params int[] values)
+    {
+        foreach (var value in values)
+            _values.Enqueue(value);
+    }
+
+    public int Next(int maxExclusive)
+    {
+        var value = _values.Dequeue();
+        Assert.InRange(value, 0, maxExclusive - 1);
+        return value;
+    }
 }

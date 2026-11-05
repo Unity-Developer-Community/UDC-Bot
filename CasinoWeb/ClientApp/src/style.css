@@ -26,6 +26,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--color-bg);
@@ -152,4 +156,96 @@ h1, h2, p {
 
 .game p {
   color: var(--color-muted);
+}
+
+.button.small {
+  padding: 0.25rem 0.75rem;
+}
+
+.game-screen {
+  display: grid;
+  gap: 1rem;
+  max-width: 34rem;
+  margin: 1.5rem auto;
+  padding: 0 1rem;
+}
+
+.game-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+}
+
+.game-bar h1 {
+  font-size: 1.5rem;
+}
+
+.pot-line {
+  margin-left: auto;
+  color: var(--color-muted);
+}
+
+.pot {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.slots-stage {
+  width: 100%;
+  aspect-ratio: 480 / 380;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.controls {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.bet,
+.holds,
+.presets,
+.spin-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.bet-input {
+  width: 6rem;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.message {
+  min-height: 1.5em;
+}
+
+.message[data-error='true'] {
+  font-weight: 600;
+}
+
+.message[data-error='true']::before {
+  content: '⚠ ';
+}
+
+.paytable {
+  color: var(--color-muted);
+}
+
+.paytable ul {
+  padding-left: 1.25rem;
+}
+
+.paytable p {
+  margin-top: 0.5rem;
 }

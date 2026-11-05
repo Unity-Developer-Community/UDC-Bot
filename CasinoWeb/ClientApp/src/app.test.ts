@@ -83,6 +83,7 @@ describe('startApp', () => {
     const start = vi.fn(async () => Promise.resolve());
     const connection = {
       status: 'idle',
+      onSessionLost: () => () => {},
       onStatus: (l: (status: ConnectionStatus) => void) => {
         listener = l;
         return () => {};
@@ -98,5 +99,49 @@ describe('startApp', () => {
     expect(status.hidden).toBe(false);
     expect(status.textContent).toContain('Reconnecting');
     expect(start).toHaveBeenCalled();
+  });
+
+  it('marks every game as coming soon while there is no connection to play over', async () => {
+    const root = await render({ fetchFn: serve(200, me), pathname: '/' });
+
+    expect([...root.querySelectorAll('.game button')].map(b => b.textContent)).toEqual(['Coming soon', 'Coming soon']);
+  });
+
+  it('opens the slots from the lobby and returns to it', async () => {
+    const connection = {
+      invoke: vi.fn(async () => new Promise(() => {})),
+      onSessionLost: () => () => {},
+      onStatus: () => () => {},
+      start: async () => Promise.resolve(),
+      status: 'idle',
+    } as unknown as CasinoConnection;
+    const root = await render({ connection, fetchFn: serve(200, me), pathname: '/' });
+
+    root.querySelector<HTMLButtonElement>('[data-game=slots] button')!.click();
+    expect(root.querySelector('.game-screen h1')?.textContent).toBe('Slots');
+    expect(root.querySelector('.header')).not.toBeNull();
+
+    root.querySelector<HTMLButtonElement>('.game-bar button')!.click();
+    expect(root.querySelector('.lobby')).not.toBeNull();
+    expect(root.querySelector('[data-game=blackjack] button')?.textContent).toBe('Coming soon');
+  });
+
+  it('sends the player to the login when the connection finds the login gone', async () => {
+    let lost: () => void = () => {};
+    const goToLogin = vi.fn();
+    const connection = {
+      onSessionLost: (listener: () => void) => {
+        lost = listener;
+        return () => {};
+      },
+      onStatus: () => () => {},
+      start: async () => Promise.resolve(),
+      status: 'idle',
+    } as unknown as CasinoConnection;
+    await render({ connection, fetchFn: serve(200, me), goToLogin, pathname: '/' });
+
+    lost();
+
+    expect(goToLogin).toHaveBeenCalledTimes(1);
   });
 });

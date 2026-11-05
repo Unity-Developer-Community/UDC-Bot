@@ -11,8 +11,10 @@ export const GAMES: readonly Game[] = [
   { id: 'blackjack', title: 'Blackjack', description: 'Beat the dealer to 21.' },
 ];
 
-/** The game entries are not playable yet; each says so in text. */
-export function renderLobby(): HTMLElement {
+/**
+ * The game entries. The games in `playable` open through `onOpen`; the others say in text that they are not available yet.
+ */
+export function renderLobby(playable: ReadonlySet<string>, onOpen: (gameId: string) => void): HTMLElement {
   return h(
     'main',
     { class: 'lobby' },
@@ -20,13 +22,19 @@ export function renderLobby(): HTMLElement {
     h(
       'ul',
       { class: 'games' },
-      ...GAMES.map(game => h(
-        'li',
-        { 'class': 'game', 'data-game': game.id },
-        h('h2', {}, game.title),
-        h('p', {}, game.description),
-        h('button', { class: 'button', disabled: '', type: 'button' }, 'Coming soon'),
-      )),
+      ...GAMES.map((game) => {
+        const open = playable.has(game.id);
+        const button = h('button', { class: 'button', type: 'button', ...(open ? {} : { disabled: '' }) }, open ? 'Play' : 'Coming soon');
+        if (open)
+          button.addEventListener('click', () => onOpen(game.id));
+        return h(
+          'li',
+          { 'class': 'game', 'data-game': game.id },
+          h('h2', {}, game.title),
+          h('p', {}, game.description),
+          button,
+        );
+      }),
     ),
   );
 }

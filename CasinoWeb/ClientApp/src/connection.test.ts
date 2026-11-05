@@ -11,6 +11,7 @@ class FakeHub {
   closed: () => void = () => {};
   failNextStart = false;
   reconnected: () => void = () => {};
+  invoke = vi.fn(async (_method: string, ..._args: unknown[]) => Promise.resolve('answer'));
   reconnecting: () => void = () => {};
   state = HubConnectionState.Disconnected;
   start = vi.fn(async () => {
@@ -38,9 +39,9 @@ class FakeHub {
   }
 }
 
-function setup() {
+function setup(isSessionLost: () => Promise<boolean> = async () => Promise.resolve(false)) {
   const hub = new FakeHub();
-  const connection = new CasinoConnection(hub as unknown as HubConnection);
+  const connection = new CasinoConnection(hub as unknown as HubConnection, isSessionLost);
   const seen: ConnectionStatus[] = [];
   connection.onStatus(status => seen.push(status));
   return { connection, hub, seen };
@@ -86,6 +87,7 @@ describe('casinoConnection', () => {
 
     hub.state = HubConnectionState.Disconnected;
     hub.closed();
+    await vi.advanceTimersByTimeAsync(0);
     expect(connection.status).toBe('offline');
 
     await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS.at(-1)!);
@@ -129,5 +131,70 @@ describe('casinoConnection', () => {
 
     expect(hub.start).toHaveBeenCalledTimes(1);
     expect(connection.status).toBe('idle');
+  });
+
+  it('passes a hub call and its answer through', async () => {
+    const { connection, hub } = setup();
+
+    const answer = await connection.invoke<string>('GetState', 1, 'a');
+
+    expect(answer).toBe('answer');
+    expect(hub.invoke).toHaveBeenCalledWith('GetState', 1, 'a');
+  });
+
+  describe('when the login no longer holds', () => {
+    it('reports it instead of retrying when the first connect fails', async () => {
+      const { connection, hub } = setup(async () => Promise.resolve(true));
+      const lost = vi.fn();
+      connection.onSessionLost(lost);
+      hub.failNextStart = true;
+
+      await connection.start();
+      await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS.at(-1)! * 2);
+
+      expect(lost).toHaveBeenCalledTimes(1);
+      expect(hub.start).toHaveBeenCalledTimes(1);
+      expect(connection.status).toBe('idle');
+    });
+
+    it('reports it as soon as the server drops a connection, without waiting for the reconnect attempts', async () => {
+      const { connection, hub } = setup(async () => Promise.resolve(true));
+      const lost = vi.fn();
+      connection.onSessionLost(lost);
+      await connection.start();
+
+      hub.reconnecting();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(lost).toHaveBeenCalledTimes(1);
+      expect(hub.stop).toHaveBeenCalled();
+    });
+
+    it('keeps retrying when the session is fine or cannot be checked', async () => {
+      const { connection, hub } = setup(async () => Promise.reject(new Error('offline')));
+      const lost = vi.fn();
+      connection.onSessionLost(lost);
+      hub.failNextStart = true;
+
+      await connection.start();
+      await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS.at(-1)!);
+
+      expect(lost).not.toHaveBeenCalled();
+      expect(hub.start).toHaveBeenCalledTimes(2);
+    });
+
+    it('reports a loss the hub announced once, and never starts again', async () => {
+      const { connection, hub } = setup();
+      const lost = vi.fn();
+      connection.onSessionLost(lost);
+      await connection.start();
+
+      connection.reportSessionLost();
+      connection.reportSessionLost();
+      await connection.start();
+
+      expect(lost).toHaveBeenCalledTimes(1);
+      expect(hub.start).toHaveBeenCalledTimes(1);
+    });
   });
 });

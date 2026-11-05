@@ -66,15 +66,21 @@ Needs you: log in locally once with your account (at the end).
 
 Decided during the work: the SignalR connection wrapper (`src/connection.ts`, tested with a fake hub) exists but `main.ts` does not start it, because the hub arrives in #411.4 and a connection to a missing hub would show "Offline" forever; #411.4 passes `createCasinoConnection()` in `main.ts`. It must also send the player back to login when the negotiation answers 401 (the wrapper retries every 30 s on any failure).
 
-Status: #411.3 done, uncommitted until approved; next #411.4.
+Status: #411.4 done and committed, waiting for the user's play test (see its "Needs you"); next #411.5.
 
 ### #411.4 Slots
 
-- [ ] `CasinoHub` with the Origin check, rate-limit filter (AC9) and the three slots methods over `SlotsService` (renderer `null`); the hub filter also refuses actions when the casino is closed (AC10) and, per invocation, runs the same membership revalidation as the cookie (`SessionRevalidator`: an open socket outlives cookie validation, AC3); hub tests for AC3, AC4, AC5, AC9, AC10.
-- [ ] Phaser slots scene: bet picker within `SlotMachine.MinBet`–`MaxBet`, reel spin animation that stops on the server result, win display, hold toggles and free respin, jackpot pot display, balance update in the header.
+- [x] `CasinoHub` with the Origin check, rate-limit filter (AC9) and the three slots methods over `SlotsService` (renderer `null`); the hub filter also refuses actions when the casino is closed (AC10) and, per invocation, runs the same membership revalidation as the cookie (`SessionRevalidator`: an open socket outlives cookie validation, AC3); hub tests for AC3, AC4, AC5, AC9, AC10.
+- [x] Phaser slots scene: bet picker within `SlotMachine.MinBet`–`MaxBet`, reel spin animation that stops on the server result, win display, hold toggles and free respin, jackpot pot display, balance update in the header.
 
 Visible after: slots playable in the browser, balance shared with Discord.
-Needs you: play a few spins, then check `/casino tokens balance` and `/casino statistics` in Discord match (at the end).
+Needs you: restart `dotnet run` in `CasinoWeb/` (the hub is new), play a few spins, then check `/casino tokens balance` and `/casino statistics` in Discord match (at the end).
+
+Decided during the work:
+- The Phaser scene draws only the machine (reels, payline, held frames, result banner). The bet, spin, hold and respin controls are DOM, so keyboard and screen readers work and they stay testable; clicking a reel also toggles its hold. Phaser loads only when the slots open.
+- A refused hub call (`slow-down`, `casino-closed`, `session-expired`) is a `HubException` whose message is the code; the other results are typed (`SlotsStatus` as a lower-case word). A call refused because the membership check failed aborts the socket instead of waiting for the client: the client library hides the 401 of a failed negotiation, so `CasinoConnection` asks `/api/me` when a connection drops or cannot start and reports a lost login (`onSessionLost`), which sends the player to `/login`.
+- The origin check covers `/hub`: an `Origin` that is not the site's own is refused, and a WebSocket upgrade without any `Origin` too (browsers always send it there).
+- The slot pictures stay in `DiscordBot/Assets/slots` (one copy): Vite imports them from there (`server.fs.allow` in `vite.config.ts`), and the paytable section links the license text.
 
 ### #411.5 Solo blackjack
 
@@ -86,9 +92,9 @@ Needs you: play a few hands, including a double down and leaving a hand idle (at
 
 ### #411.6 Packaging and deployment
 
-- [ ] `CasinoWeb/Dockerfile` (multi-stage: node builds the client, `dotnet publish`, `aspnet:8.0` runtime, non-root, read-only root filesystem with a writable keys volume).
+- [ ] `CasinoWeb/Dockerfile` (multi-stage: node builds the client with `DiscordBot/Assets/slots` copied in at the same relative path, since the client imports the slot pictures from there, `dotnet publish`, `aspnet:8.0` runtime, non-root, read-only root filesystem with a writable keys volume).
 - [ ] CI: client lint/test/build job; `Deploy Casino` workflow building `udc-casino:<sha>` and committing the tag to `k8s/prod/casino.yaml`, triggered by `CasinoWeb/**` and `DiscordBot/**`; the bot's Deploy Prod ignores `CasinoWeb/**` (AC11). Actions pinned to SHAs.
-- [ ] `k8s/prod/casino.yaml`: Deployment (initContainer rendering `Settings.json` with `${DB_PASSWORD}` only, from `bot-settings-config`), Service, Ingress (Traefik, `letsencrypt-prod`), PVC for keys; `ExternalSecret` for the OAuth client secret. Security headers (CSP, HSTS, `nosniff`) in the app.
+- [ ] `k8s/prod/casino.yaml`: Deployment (initContainer rendering `Settings.json` with `${DB_PASSWORD}` only, from `bot-settings-config`), Service, Ingress (Traefik, `letsencrypt-prod`), PVC for keys; `ExternalSecret` for the OAuth client secret. Security headers (CSP, HSTS, `nosniff`) in the app; the CSP allows the client's own scripts, styles and images, and Phaser draws on a canvas.
 - [ ] Docs: `AGENTS.md` (commands, layout), `docs/features.md`, `docs/deployment.md`, `docs/casino.md` (web front end section).
 
 Visible after: nothing until pushed to `master`; then the casino is online at its domain.

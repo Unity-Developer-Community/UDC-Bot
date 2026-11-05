@@ -4,6 +4,8 @@ using System.Web;
 using AspNet.Security.OAuth.Discord;
 using CasinoWeb.Auth;
 using DiscordBot.Services;
+using DiscordBot.Services.Fun.Casino;
+using DiscordBot.Services.Logging;
 using DiscordBot.Settings;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -25,6 +27,8 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
     public string WebRootPath { get; }
     public FakeDiscordHandler Discord { get; } = new();
     public FakeCasinoDatabase Database { get; } = new();
+    public FakeSlotsLedger SlotsLedger { get; } = new();
+    public ScriptedSlotRandom SlotRandom { get; } = new();
     public FakeTimeProvider Clock { get; } = new(DateTimeOffset.UtcNow);
     public BotSettings BotSettings { get; } = new()
     {
@@ -50,6 +54,9 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
             services.AddSingleton(BotSettings);
             services.RemoveAll<ICasinoDatabase>();
             services.AddSingleton<ICasinoDatabase>(Database);
+            // The slots rules and settlement run for real; only the balance, the dice and the clock are the test's.
+            services.RemoveAll<SlotsService>();
+            services.AddSingleton(sp => new SlotsService(SlotsLedger, SlotRandom, null, sp.GetRequiredService<ILoggingService>(), Clock));
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
 
