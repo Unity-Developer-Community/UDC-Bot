@@ -28,7 +28,7 @@ UDC members play the casino in a browser page, which responds immediately, with 
 - **Settings:** the casino reads the bot's `Settings.json` (same file locally, same ConfigMap in prod) and uses only `GuildId`, `DbConnectionString` and `Casino`, so starting tokens and timeouts never drift. In prod the initContainer substitutes only `${DB_PASSWORD}`; the other placeholders stay unrendered and unread. Its own settings come from environment / user-secrets: `Discord__ClientId`, `Discord__ClientSecret`, `Casino__PublicOrigin`, `Casino__KeysPath`.
 - **Auth:** OAuth2 code flow with `AspNet.Security.OAuth.Discord` (aspnet-contrib, approved runtime dependency) on the bot's Discord application, scopes `identify guilds.members.read`. At login, `GET /users/@me/guilds/{GuildId}/member` with the user's access token: 404 → access denied. The access token stays in the encrypted auth ticket; a revalidation runs on cookie validation when the last check is older than 10 minutes, and a non-member is signed out; when Discord cannot answer (5xx, rate limit, timeout) the session is kept and asked again after a minute, so a removed member keeps access for the length of a Discord outage. Cookie `HttpOnly`, `Secure`, `SameSite=Lax`. Data Protection keys persist to `Casino__KeysPath` (a PVC in prod) so a deploy does not log everyone out. The bot token is never used.
 - **Transport:** one SignalR hub `CasinoHub` (`[Authorize]`) from the start, since multiplayer tables need it next. Methods return results to the caller: `GetState`, `SlotsSpin(bet)`, `SlotsToggleHold(offerId, reel)`, `SlotsRespin(offerId)`, `BlackjackDeal(bet)`, `BlackjackAct(action)`. A hub filter applies the per-user rate limit (AC9) and maps service errors to typed results. The handshake checks `Origin` against `Casino__PublicOrigin`. The server makes every decision; the client sends intents and animates results.
-- **Blackjack:** `WebBlackjackService` (singleton) keeps one `GameSession<Blackjack>` per user (one human + dealer, no AI). Deal: `TryReserveTokens(bet)` then start; double down: reserve the second bet first. End: `UpdateUserTokens(bet + payout, Game, {game: Blackjack}, recordedAmount: payout)`. A timer sweeps hands idle past `GameTimeoutMinutes` (stand + settle). `IHostApplicationLifetime.ApplicationStopping` releases every open reservation. Each reservation and settlement is logged with user, hand id and amount, so a crash (no graceful stop) leaves an audit trail for `/admin casino tokens-add`. The Discord table games do not reserve bets yet; that is #347, not this plan.
+- **Blackjack:** `WebBlackjackService` (singleton) keeps one `GameSession<Blackjack>` per user (one human + dealer, no AI). Deal: `TryReserveTokens(bet)` then start; double down: reserve the second bet first. End: `UpdateUserTokens(bet + payout, Game, {game: Blackjack}, recordedAmount: payout)`. A timer sweeps hands idle past `GameTimeoutMinutes` (stand + settle). On a graceful stop, a hosted service's `StopAsync` releases every open reservation. Each reservation and settlement is logged with user, hand id and amount, so a crash (no graceful stop) leaves an audit trail for `/admin casino tokens-add`. The Discord table games do not reserve bets yet; that is #347, not this plan.
 - **Logging:** `WebLoggingService : ILoggingService` writes to ASP.NET `ILogger` (console, collected by Loki). It does not post to the Discord log channel.
 - **Client:** scaffolded with `create-corniflex` (Vite, strict TypeScript, Vitest, ESLint), plus `phaser` and `@microsoft/signalr` (approved runtime dependencies, newest versions the release-age gate allows). The header (avatar, name, balance, logout) is DOM; each game is a Phaser scene, so the 2D room becomes one more scene later. Slot symbols reuse `DiscordBot/Assets/slots/*.png` (Fluent Emoji, MIT, license file kept). Cards are drawn in code (no card art to license). In dev Vite listens on :5080, which stays the public origin and the Discord redirect URL, and proxies `/api`, `/hub`, `/login` and `/signin-discord` to Kestrel on :5081; in prod Kestrel serves the built files from `wwwroot`. The server answers `/access-denied` and `/login-failed` with the client's `index.html` and the failure status.
 - **Look: prototype first.** The screens stay plain and functional in this plan. The visual design is decided only once slots and blackjack work end to end in the browser, so no design effort goes into a casino that might not hold up. A paused draft exists (top-down pixel art, each game as a panel over the walkable room, phone layouts): the Claude Design canvas <https://claude.ai/artifact/8Yn1iMfb2gACcHXaQQewYR>, private to the maintainer. It is a starting point for that later decision, not a spec for #411.3–#411.5.
@@ -66,7 +66,7 @@ Needs you: log in locally once with your account (at the end).
 
 Decided during the work: the SignalR connection wrapper (`src/connection.ts`, tested with a fake hub) exists but `main.ts` does not start it, because the hub arrives in #411.4 and a connection to a missing hub would show "Offline" forever; #411.4 passes `createCasinoConnection()` in `main.ts`. It must also send the player back to login when the negotiation answers 401 (the wrapper retries every 30 s on any failure).
 
-Status: #411.4 done and committed, waiting for the user's play test (see its "Needs you"); next #411.5.
+Status: #411.4 play-tested by the user; #411.5 implemented, waiting for the user's play test (see its "Needs you"); next #411.6.
 
 ### #411.4 Slots
 
@@ -84,11 +84,18 @@ Decided during the work:
 
 ### #411.5 Solo blackjack
 
-- [ ] `WebBlackjackService` as in Design, with unit tests for AC6–AC8; hub methods `BlackjackDeal`, `BlackjackAct`.
-- [ ] Phaser blackjack scene: bet, deal animation, hit / stand / double down (disabled when not allowed), dealer reveal, result and payout.
+- [x] `WebBlackjackService` as in Design, with unit tests for AC6–AC8; hub methods `BlackjackDeal`, `BlackjackAct`.
+- [x] Phaser blackjack scene: bet, deal animation, hit / stand / double down (disabled when not allowed), dealer reveal, result and payout.
 
 Visible after: solo blackjack playable in the browser.
-Needs you: play a few hands, including a double down and leaving a hand idle (at the end).
+Needs you: restart `dotnet run` in `CasinoWeb/` (new hub methods), play a few hands, including a double down and leaving a hand idle (at the end).
+
+Decided during the work:
+- The rules are the Discord ones, unchanged: a blackjack pays 2× like any win and beats a dealer blackjack, the dealer hits a soft 17, a double down is allowed at any point of the player's turn, a tie records a transaction of 0. The bet has a minimum of 1 and no maximum but the balance, as in Discord. Changing a rule means changing `Blackjack` for both front ends.
+- The idle sweep and the shutdown release run in a hosted service (`BlackjackSweeper`): its `StopAsync` is awaited during a graceful stop, which `ApplicationStopping`'s synchronous callbacks are not. The sweep runs every 30 s, so an idle hand settles between the timeout and 30 s after it. After the release, new deals are refused.
+- `GetState` carries the open hand (`blackjack.hand`) and a deal while a hand is open returns that hand (`handInProgress`), so leaving the page or reloading mid-hand resumes it instead of losing track of a reserved bet. The dealer's face-down card is not in the hand until it ends.
+- Tests deal fixed cards through a `RiggedBlackjack` subclass (`CasinoWeb.Tests/Fakes.cs`), so the bot needs no deck seam; the balance runs through the real `CasinoService` over the in-memory `FakeCasinoRepo`.
+- Cards are drawn in code with fixed white faces and red or black suits (a picture, like the slots' seven); the suit symbol and the rank, repeated as text under the table, carry the meaning.
 
 ### #411.6 Packaging and deployment
 

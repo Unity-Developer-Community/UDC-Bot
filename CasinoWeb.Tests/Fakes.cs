@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Discord;
 using DiscordBot.Domain;
 using DiscordBot.Extensions;
 using DiscordBot.Services;
@@ -69,6 +70,9 @@ public sealed class FakeCasinoRepo : ICasinoRepo
     public Dictionary<string, CasinoUser> Users { get; } = [];
     public List<TokenTransaction> Transactions { get; } = [];
 
+    /// <summary>Makes every balance change fail, as when the database drops.</summary>
+    public bool FailAdjust { get; set; }
+
     public Task<CasinoUser> InsertCasinoUser(CasinoUser user)
     {
         Users[user.UserID] = user;
@@ -86,8 +90,24 @@ public sealed class FakeCasinoRepo : ICasinoRepo
 
     public Task<IList<CasinoUser>> GetTopTokenHolders(int limit) => throw new NotSupportedException();
     public Task UpdateTokens(string userId, long tokens, DateTime updatedAt) => throw new NotSupportedException();
-    public Task<long?> AdjustTokens(string userId, long delta, DateTime updatedAt) => throw new NotSupportedException();
-    public Task<long?> TryDebitTokens(string userId, long amount, DateTime updatedAt) => throw new NotSupportedException();
+    /// <summary>Like the SQL statement: the balance never goes below 0, and a missing user changes nothing.</summary>
+    public Task<long?> AdjustTokens(string userId, long delta, DateTime updatedAt)
+    {
+        if (FailAdjust)
+            throw new InvalidOperationException("The database is down.");
+        if (!Users.TryGetValue(userId, out var user))
+            return Task.FromResult<long?>(null);
+        user.Tokens = Math.Max(0, user.Tokens + delta);
+        return Task.FromResult<long?>(user.Tokens);
+    }
+
+    public Task<long?> TryDebitTokens(string userId, long amount, DateTime updatedAt)
+    {
+        if (!Users.TryGetValue(userId, out var user) || user.Tokens < amount)
+            return Task.FromResult<long?>(null);
+        user.Tokens -= amount;
+        return Task.FromResult<long?>(user.Tokens);
+    }
     public Task<long?> TransferTokens(string fromUserId, string toUserId, long amount, DateTime updatedAt) => throw new NotSupportedException();
     public Task<long?> ClaimDailyReward(string userId, long reward, DateTime now, DateTime eligibleBefore) => throw new NotSupportedException();
     public Task DeleteCasinoUser(string userId) => throw new NotSupportedException();
@@ -162,5 +182,42 @@ public sealed class ScriptedSlotRandom : ISlotRandom
         var value = _values.Dequeue();
         Assert.InRange(value, 0, maxExclusive - 1);
         return value;
+    }
+}
+
+/// <summary>A blackjack dealt from a fixed order of cards: player, dealer, player, dealer, then the draws in order.</summary>
+public sealed class RiggedBlackjack(params Card[] order) : Blackjack
+{
+    protected override void InitializeGame()
+    {
+        base.InitializeGame();
+        Deck = new Deck(order);
+        foreach (var player in Players)
+            GameData[player].PlayerCards.Clear();
+        DealerCards.Clear();
+        for (var i = 0; i < 2; i++)
+        {
+            foreach (var player in Players)
+                GameData[player].PlayerCards.Add(Deck.DrawCard()!);
+            DealerCards.Add(Deck.DrawCard()!);
+        }
+    }
+
+    /// <summary>Spades of the given values: 1 is an ace, 11–13 are faces.</summary>
+    public static Card[] Cards(params int[] values) => values.Select(v => new Card(v, CardSuit.Spades)).ToArray();
+}
+
+/// <summary>Keeps the log lines, so a test can check the audit trail.</summary>
+public sealed class RecordingLoggingService : ILoggingService
+{
+    public List<(ExtendedLogSeverity Severity, string Message)> Lines { get; } = [];
+
+    public void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, int totalXp) { }
+
+    public Task Log(LogBehaviour behaviour, string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed? embed = null)
+    {
+        lock (Lines)
+            Lines.Add((severity, message));
+        return Task.CompletedTask;
     }
 }

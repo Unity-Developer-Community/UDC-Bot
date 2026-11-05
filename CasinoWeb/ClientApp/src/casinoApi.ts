@@ -1,4 +1,4 @@
-import type { HubErrorCode, HubState, SlotsHold, SlotsPlay } from '@/protocol';
+import type { BlackjackAction, BlackjackPlay, HubErrorCode, HubState, SlotsHold, SlotsPlay } from '@/protocol';
 
 import { hubErrorCode } from '@/protocol';
 
@@ -24,6 +24,14 @@ export class CasinoApi {
 
   constructor(hub: HubCaller) {
     this.hub = hub;
+  }
+
+  async blackjackAct(action: BlackjackAction): Promise<BlackjackPlay> {
+    return this.call('BlackjackAct', action);
+  }
+
+  async blackjackDeal(bet: number): Promise<BlackjackPlay> {
+    return this.call('BlackjackDeal', bet);
   }
 
   async getState(): Promise<HubState> {

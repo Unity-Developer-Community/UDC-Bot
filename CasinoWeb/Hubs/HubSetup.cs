@@ -1,5 +1,7 @@
 using CasinoWeb.Auth;
 using CasinoWeb.Configuration;
+using CasinoWeb.Games;
+using DiscordBot.Domain;
 using DiscordBot.Services;
 using DiscordBot.Services.Fun.Casino;
 using DiscordBot.Services.Logging;
@@ -21,6 +23,10 @@ public static class HubSetup
             sp.GetRequiredService<ICasinoDatabase>(),
             renderer: null,
             sp.GetRequiredService<ILoggingService>()));
+        // A fresh shuffled game per hand; the tests replace it to deal fixed cards.
+        services.AddSingleton<Func<Blackjack>>(_ => () => new Blackjack());
+        services.AddSingleton<WebBlackjackService>();
+        services.AddHostedService<BlackjackSweeper>();
         services.AddSignalR(options => options.AddFilter<CasinoHubFilter>());
         return services;
     }

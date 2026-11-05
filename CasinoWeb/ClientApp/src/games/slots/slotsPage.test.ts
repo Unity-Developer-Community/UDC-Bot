@@ -43,7 +43,7 @@ function unusedApi(getState: SlotsApi['getState']): SlotsApi {
 
 async function setup(api: Partial<SlotsApi> = {}, spinTo?: SlotsStage['spinTo']) {
   const fullApi: SlotsApi = {
-    getState: async () => Promise.resolve<HubState>({ balance: 500, casinoEnabled: true, slots: info }),
+    getState: async () => Promise.resolve<HubState>({ balance: 500, blackjack: { hand: null, minBet: 1 }, casinoEnabled: true, slots: info }),
     slotsRespin: async () => Promise.resolve(loss),
     slotsSpin: vi.fn(async () => Promise.resolve(loss)),
     slotsToggleHold: async () => Promise.resolve<SlotsHold | null>(null),
@@ -112,7 +112,7 @@ describe('slots screen', () => {
 
   it('says so when the casino is closed', async () => {
     const screen = renderSlotsScreen({
-      api: unusedApi(async () => Promise.resolve({ balance: 0, casinoEnabled: false, slots: info })),
+      api: unusedApi(async () => Promise.resolve({ balance: 0, blackjack: { hand: null, minBet: 1 }, casinoEnabled: false, slots: info })),
       onBack: vi.fn(),
       onBalance: vi.fn(),
     });
@@ -124,7 +124,7 @@ describe('slots screen', () => {
   it('offers a retry when the first load fails, then loads', async () => {
     let fail = true;
     const screen = renderSlotsScreen({
-      api: unusedApi(async () => (fail ? Promise.reject(new Error('not connected')) : Promise.resolve({ balance: 5, casinoEnabled: true, slots: info }))),
+      api: unusedApi(async () => (fail ? Promise.reject(new Error('not connected')) : Promise.resolve({ balance: 5, blackjack: { hand: null, minBet: 1 }, casinoEnabled: true, slots: info }))),
       mountStage: async () => Promise.resolve({ destroy: vi.fn(), stage: fakeStage() }),
       onBack: vi.fn(),
       onBalance: vi.fn(),

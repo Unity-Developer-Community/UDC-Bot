@@ -107,7 +107,7 @@ describe('startApp', () => {
     expect([...root.querySelectorAll('.game button')].map(b => b.textContent)).toEqual(['Coming soon', 'Coming soon']);
   });
 
-  it('opens the slots from the lobby and returns to it', async () => {
+  it('opens each game from the lobby and returns to it', async () => {
     const connection = {
       invoke: vi.fn(async () => new Promise(() => {})),
       onSessionLost: () => () => {},
@@ -123,7 +123,11 @@ describe('startApp', () => {
 
     root.querySelector<HTMLButtonElement>('.game-bar button')!.click();
     expect(root.querySelector('.lobby')).not.toBeNull();
-    expect(root.querySelector('[data-game=blackjack] button')?.textContent).toBe('Coming soon');
+
+    root.querySelector<HTMLButtonElement>('[data-game=blackjack] button')!.click();
+    expect(root.querySelector('.game-screen h1')?.textContent).toBe('Blackjack');
+    root.querySelector<HTMLButtonElement>('.game-bar button')!.click();
+    expect(root.querySelector('.lobby')).not.toBeNull();
   });
 
   it('sends the player to the login when the connection finds the login gone', async () => {

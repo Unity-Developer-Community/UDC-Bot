@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Web;
 using AspNet.Security.OAuth.Discord;
 using CasinoWeb.Auth;
+using DiscordBot.Domain;
 using DiscordBot.Services;
 using DiscordBot.Services.Fun.Casino;
 using DiscordBot.Services.Logging;
@@ -30,6 +31,9 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
     public FakeSlotsLedger SlotsLedger { get; } = new();
     public ScriptedSlotRandom SlotRandom { get; } = new();
     public FakeTimeProvider Clock { get; } = new(DateTimeOffset.UtcNow);
+
+    /// <summary>The cards of the next blackjack hands, one array per hand; a random deck when empty.</summary>
+    public Queue<Card[]> BlackjackDecks { get; } = new();
     public BotSettings BotSettings { get; } = new()
     {
         GuildId = GuildId,
@@ -57,6 +61,8 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
             // The slots rules and settlement run for real; only the balance, the dice and the clock are the test's.
             services.RemoveAll<SlotsService>();
             services.AddSingleton(sp => new SlotsService(SlotsLedger, SlotRandom, null, sp.GetRequiredService<ILoggingService>(), Clock));
+            services.RemoveAll<Func<Blackjack>>();
+            services.AddSingleton<Func<Blackjack>>(_ => () => BlackjackDecks.TryDequeue(out var cards) ? new RiggedBlackjack(cards) : new Blackjack());
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
 

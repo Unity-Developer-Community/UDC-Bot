@@ -261,6 +261,53 @@ public sealed class HubTests : IAsyncDisposable
 
     #endregion
 
+    #region Blackjack (AC6, AC7)
+
+    [Fact]
+    public async Task A_blackjack_hand_is_dealt_played_and_settled_through_the_hub()
+    {
+        var connection = await ConnectAsync();
+        _factory.BlackjackDecks.Enqueue(RiggedBlackjack.Cards(10, 10, 9, 7));
+
+        var deal = await connection.InvokeAsync<BlackjackPlayDto>(nameof(CasinoHub.BlackjackDeal), 100L);
+
+        Assert.Equal("ok", deal.Status);
+        Assert.Equal(CasinoWebFactory.StartingTokens - 100, deal.Balance);
+        Assert.Equal([new CardDto("10", "spades"), new CardDto("9", "spades")], deal.Hand!.Player);
+        Assert.Equal([new CardDto("10", "spades")], deal.Hand.Dealer);
+        Assert.Equal(["hit", "stand", "doubleDown"], deal.Hand.Actions);
+        Assert.Null(deal.Hand.Result);
+
+        var state = await connection.InvokeAsync<HubState>(nameof(CasinoHub.GetState));
+        Assert.Equal(deal.Hand.HandId, state.Blackjack.Hand!.HandId);
+
+        var stand = await connection.InvokeAsync<BlackjackPlayDto>(nameof(CasinoHub.BlackjackAct), "stand");
+
+        Assert.Equal("ok", stand.Status);
+        Assert.True(stand.Hand!.Finished);
+        Assert.Equal("win", stand.Hand.Result);
+        Assert.Equal(2, stand.Hand.Dealer.Count);
+        Assert.Equal(CasinoWebFactory.StartingTokens + 100, stand.Balance);
+        var transaction = Assert.Single(_factory.Database.Repo.Transactions, t => t.Kind == TransactionKind.Game);
+        Assert.Equal(100, transaction.Amount);
+        Assert.Equal("Blackjack", transaction.Details!["game"]);
+        Assert.Null((await connection.InvokeAsync<HubState>(nameof(CasinoHub.GetState))).Blackjack.Hand);
+    }
+
+    [Fact]
+    public async Task An_unknown_blackjack_action_is_refused()
+    {
+        var connection = await ConnectAsync();
+        _factory.BlackjackDecks.Enqueue(RiggedBlackjack.Cards(10, 10, 9, 7));
+        await connection.InvokeAsync<BlackjackPlayDto>(nameof(CasinoHub.BlackjackDeal), 100L);
+
+        var play = await connection.InvokeAsync<BlackjackPlayDto>(nameof(CasinoHub.BlackjackAct), "split");
+
+        Assert.Equal("notAllowed", play.Status);
+    }
+
+    #endregion
+
     #region Rate limit (AC9)
 
     [Fact]
@@ -308,9 +355,11 @@ public sealed class HubTests : IAsyncDisposable
 
         var state = await connection.InvokeAsync<HubState>(nameof(CasinoHub.GetState));
         var refusal = await RefusalAsync(() => connection.InvokeAsync<SlotsPlayDto>(nameof(CasinoHub.SlotsSpin), 10));
+        var blackjackRefusal = await RefusalAsync(() => connection.InvokeAsync<BlackjackPlayDto>(nameof(CasinoHub.BlackjackDeal), 10L));
 
         Assert.False(state.CasinoEnabled);
         Assert.Contains(HubErrors.CasinoClosed, refusal);
+        Assert.Contains(HubErrors.CasinoClosed, blackjackRefusal);
         Assert.Equal(1000, _factory.SlotsLedger.Tokens);
     }
 

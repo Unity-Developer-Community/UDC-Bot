@@ -1,9 +1,9 @@
 import type { Session } from '@/api';
 import type { CasinoConnection } from '@/connection';
-import type { SlotsScreen } from '@/games/slots/slotsPage';
 
 import { fetchSession, logout } from '@/api';
 import { CasinoApi } from '@/casinoApi';
+import { renderBlackjackScreen } from '@/games/blackjack/blackjackPage';
 import { renderSlotsScreen } from '@/games/slots/slotsPage';
 import { loginUrl, resolveScreen } from '@/routes';
 import { renderHeader } from '@/views/header';
@@ -78,17 +78,23 @@ export async function startApp(root: HTMLElement, deps: AppDeps = {}): Promise<v
       }
 
       const api = connection ? new CasinoApi(connection) : undefined;
-      let screen: SlotsScreen | undefined;
+      const screens: Record<string, typeof renderSlotsScreen | typeof renderBlackjackScreen> = {
+        blackjack: renderBlackjackScreen,
+        slots: renderSlotsScreen,
+      };
+      let screen: { destroy: () => void } | undefined;
       function showLobby(): void {
         screen?.destroy();
         screen = undefined;
-        show(header.element, renderLobby(new Set(api ? ['slots'] : []), openGame));
+        show(header.element, renderLobby(new Set(api ? Object.keys(screens) : []), openGame));
       }
       function openGame(gameId: string): void {
-        if (gameId !== 'slots' || !api)
+        const render = screens[gameId];
+        if (!render || !api)
           return;
-        screen = renderSlotsScreen({ api, onBack: showLobby, onBalance: header.setBalance });
-        show(header.element, screen.element);
+        const opened = render({ api, onBack: showLobby, onBalance: header.setBalance });
+        screen = opened;
+        show(header.element, opened.element);
       }
       showLobby();
     }

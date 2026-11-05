@@ -1,3 +1,4 @@
+using CasinoWeb.Games;
 using DiscordBot.Services.Fun.Casino;
 using DiscordBot.Settings;
 using Microsoft.AspNetCore.Authorization;
@@ -10,17 +11,22 @@ namespace CasinoWeb.Hubs;
 /// results. The membership, rate limit and casino switch are applied by <see cref="CasinoHubFilter"/>.
 /// </summary>
 [Authorize]
-public sealed class CasinoHub(SlotsService slots, CasinoService casino, BotSettings settings) : Hub
+public sealed class CasinoHub(SlotsService slots, WebBlackjackService blackjack, CasinoService casino, BotSettings settings) : Hub
 {
     private ulong UserId => ulong.TryParse(Context.UserIdentifier, out var id) ? id : throw new HubException(HubErrors.BadUser);
 
     public async Task<HubState> GetState()
     {
         if (!settings.Casino.Enabled)
-            return new HubState(false, 0, SlotsInfo.Create(0));
+            return new HubState(false, 0, SlotsInfo.Create(0), new BlackjackInfo(WebBlackjackService.MinBet, null));
 
         var user = await casino.GetOrCreateCasinoUser(UserId.ToString());
-        return new HubState(true, user.Tokens, SlotsInfo.Create(await slots.GetPotHundredths()));
+        var hand = await blackjack.GetOpenHandAsync(UserId, user.Tokens);
+        return new HubState(
+            true,
+            user.Tokens,
+            SlotsInfo.Create(await slots.GetPotHundredths()),
+            new BlackjackInfo(WebBlackjackService.MinBet, hand is null ? null : BlackjackHandDto.From(hand)));
     }
 
     [GameAction]
@@ -33,4 +39,13 @@ public sealed class CasinoHub(SlotsService slots, CasinoService casino, BotSetti
 
     [GameAction]
     public async Task<SlotsPlayDto> SlotsRespin(long offerId) => SlotsPlayDto.From(await slots.RespinAsync(UserId, offerId));
+
+    [GameAction]
+    public async Task<BlackjackPlayDto> BlackjackDeal(long bet) => BlackjackPlayDto.From(await blackjack.DealAsync(UserId, bet));
+
+    /// <param name="action"><c>hit</c>, <c>stand</c> or <c>doubleDown</c>.</param>
+    [GameAction]
+    public async Task<BlackjackPlayDto> BlackjackAct(string action) => BlackjackWire.ParseAction(action) is { } parsed
+        ? BlackjackPlayDto.From(await blackjack.ActAsync(UserId, parsed))
+        : BlackjackPlayDto.From(new BlackjackPlay(BlackjackStatus.NotAllowed));
 }

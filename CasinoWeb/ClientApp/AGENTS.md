@@ -17,6 +17,7 @@ Run lint, test and build before considering work done.
 - `src/connection.ts`: the SignalR connection as a status (`connecting`, `connected`, `reconnecting`, `offline`) for the header, `invoke` for hub calls, and `onSessionLost` when `/api/me` says the login is gone (the library hides the 401 of a failed negotiation). `app.ts` starts it and sends the player to `/login` on a lost session; without one the games are not playable.
 - `src/protocol.ts`: the hub's wire types (mirror of `CasinoWeb/Hubs/HubModels.cs`) and the refusal codes. `src/casinoApi.ts`: the typed hub calls; a refused call becomes `CallRefusedError`.
 - `src/games/slots/`: `slotsGame.ts` the controller (intents to the server, no game rules, tested with a fake stage and api), `slotsScene.ts` the Phaser machine (loaded lazily), `slotsPage.ts` the DOM around it, `reels.ts` the reel geometry, `art.ts` the pictures from `DiscordBot/Assets/slots`.
+- `src/games/blackjack/`: the same split: `blackjackGame.ts` the controller, `blackjackScene.ts` the Phaser table (cards drawn in code, loaded lazily), `blackjackPage.ts` the DOM around it, `table.ts` the order cards are dealt and turned over. The server never sends the dealer's face-down card before the hand ends.
 - `src/views/`: DOM rendering (`pages`, `header`, `lobby`). `src/dom.ts`: element builder using `textContent` only, so nothing from the server is parsed as HTML.
 - `/access-denied` and `/login-failed` are redirect targets of the server, which answers them with `index.html` and the failure status; the client draws the message.
 
