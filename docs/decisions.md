@@ -1,6 +1,6 @@
 # Decisions
 
-Next ID: D4
+Next ID: D5
 
 ## D1 Karma resets run in the bot, not in the database
 
@@ -25,3 +25,11 @@ The `transactiontype` column holds a readable string (`Game`, `Gift`, …) and `
 Why: rows migrated from MySQL hold these strings, and some descriptions are plain text rather than JSON.
 
 Rejected: an integer enum column; a `jsonb` description column.
+
+## D4 Casino balances change only through single relative SQL statements
+
+Every change to `casino_users.tokens` is one `UPDATE ... SET tokens = tokens + @delta ... RETURNING tokens` (or a conditional debit), never a read of the balance followed by a write of a total. Slots reserves its bet with a conditional debit before the spin.
+
+Why: two token changes for one player at the same moment (a slots win and a table-game loss, two gifts, two `/daily` claims) each read the same starting balance, and the second write erased the first (#409). The row lock of a single statement serializes them with no application lock to keep in step across services.
+
+Rejected: one per-user lock shared by every token-changing path (fragile: each new path must remember it, and it does not span bot instances); `SlotsService` keeps its per-user in-flight guard only for the hold-offer state and double clicks.

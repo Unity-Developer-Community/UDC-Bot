@@ -41,7 +41,7 @@ The Casino module is a comprehensive gaming system for the Discord bot that enab
 - **User Management**: Core service for token and user data management
 
 - **Key Features**:
-  - User creation and token balance management
+  - User creation and token balance management: every balance change is one atomic SQL statement (see "Balance changes" below)
   - Transaction recording and audit trails
   - Daily reward system
   - Game statistics and leaderboard generation
@@ -196,7 +196,20 @@ Slots has no join, ready or seats, so it does not go through `GameSession` / `Ca
 - **Jackpot:** 5% of every paid bet, small bets included, is added to the pot (kept in hundredths of a token so a 1-token bet adds exactly 0.05). Three diamonds pay `bet / 100` of the pot, rounded down to whole tokens, so a 100-token bet takes it all and the rest stays in the pot. The pot is topped up to 1,000 tokens when a win leaves it lower.
 - **Hold and respin:** about 1 losing spin in 4 offers a hold. The player toggles a hold per reel, then takes one free respin of the other reels at the original bet. A respin feeds nothing, never offers another hold, and an offer can be used once (`SlotsService` removes it when spent, because the engine itself would accept a second respin). It expires after 10 minutes, at the player's next spin, or at a bot restart. Button ids carry the offer id, so a button of an older message is refused.
 - **Public posts:** a jackpot and any win on a line that lands less than once in 200 first spins (`SlotMachine.PublicWinOneIn`; currently three bells and better) are also posted in the channel with the GIF, naming the player without pinging them. Each paytable line's chance is computed exactly from the reel strips, so retuning the reels keeps the rule right. Expect about one post per 190 spins.
-- **Failures:** the spin is settled before the GIF is rendered, so a rendering failure only costs the animation: the reply is the text result. The jackpot is claimed before the player is credited; when crediting fails after a claim, the amount and the player are logged as an error so an admin can credit it with `/admin casino tokens-add`. Any other crediting failure is logged the same way, with the net, payout and bet. A spin or respin is refused and logged, before anything changes and without spending a hold offer, when the `casino_jackpot` row is missing or below its floor; a jackpot claim that returns nothing is treated as the same fault.
+- **Failures:** the spin is settled before the GIF is rendered, so a rendering failure only costs the animation: the reply is the text result. The bet is reserved first and the jackpot is claimed before the player is credited; when crediting fails after a claim, the amount and the player are logged as an error so an admin can credit it with `/admin casino tokens-add`. Any other failed crediting of a win is logged the same way, with the payout and bet. A spin or respin is refused and logged, before anything changes and without spending a hold offer, when the `casino_jackpot` row is missing or below its floor; a jackpot claim that returns nothing is treated as the same fault.
+
+### Balance changes
+
+A balance is never read and written back as a total: two changes for the same player at the same moment would overwrite each other. `ICasinoRepo` changes it with single `UPDATE ... RETURNING` statements, which PostgreSQL runs one after the other for the same row:
+
+| Statement | Used by | Behavior |
+| --- | --- | --- |
+| `AdjustTokens` | `CasinoService.UpdateUserTokens`: table-game payouts, slots payouts, admin add | Adds a signed amount, stops at 0 |
+| `TryDebitTokens` | `CasinoService.TryReserveTokens`: the slots bet | Subtracts only when the balance covers it |
+| `TransferTokens` | `/casino tokens gift` | Debits the sender and credits the receiver in one statement, locking both rows in user ID order so opposite gifts cannot deadlock |
+| `ClaimDailyReward` | `/casino tokens daily` | Pays only when the last claim is old enough, so a double claim pays once |
+
+The slots bet is taken with `TryDebitTokens` before the spin. The payout is credited at settlement and one `Game` transaction records the net result. A spin that fails before settlement gives the bet back without a history row; a failed settlement of a win keeps the bet taken and logs the payout owed. The admin `set` command is the one absolute write, by intent. `CasinoServiceTests` runs these against a real PostgreSQL started with Testcontainers.
 
 ### Jackpot storage
 
@@ -205,7 +218,8 @@ The `casino_jackpot` table (`Id integer PRIMARY KEY, Amount bigint, UpdatedAt ti
 ### Known limits
 
 - Pending bets in table games are not counted against the balance used for the bet check (#347).
-- `UpdateUserTokens` reads then writes the balance, so two games settling the same player at the same moment can overwrite each other. The per-user guard only stops slots against slots.
+- Table-game bets are not reserved while a game runs: a player can join games with tokens they then spend elsewhere, and a loss that exceeds the balance at settlement stops at 0 (#347).
+- A restart between the reservation and the settlement of a slots spin loses that bet, with no history row and no log. The window is a few database round trips.
 
 ## Game Flow Architecture
 
