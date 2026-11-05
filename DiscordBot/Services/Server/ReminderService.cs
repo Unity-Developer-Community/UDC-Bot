@@ -34,6 +34,8 @@ public class ReminderService
     private readonly CancellationToken _shutdownToken;
 
     private const int _maxUserReminders = 10;
+    /// <summary>Discord's privileged-intent review requires stored message content to be kept 30 days or less.</summary>
+    public static readonly TimeSpan MaxReminderDelay = TimeSpan.FromDays(30);
 
     public ReminderService(DiscordSocketClient client, ILoggingService loggingService, BotSettings settings,
         CancellationTokenSource cts)
@@ -84,6 +86,8 @@ public class ReminderService
     {
         return _reminders.FindAll(x => x.UserId == userId).Count >= _maxUserReminders;
     }
+
+    public static bool IsTooFarAway(DateTime when, DateTime now) => when - now > MaxReminderDelay;
 
     public List<ReminderItem> GetUserReminders(ulong userId)
     {

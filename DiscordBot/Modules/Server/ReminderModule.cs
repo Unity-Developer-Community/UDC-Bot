@@ -20,7 +20,7 @@ public class ReminderModule : ModuleBase
     // Command where user types !remindme followed by a time and a message
     // The time is human readable and is converted to a DateTime object
     [Command("remindme"), Alias("reminder"), Priority(80)]
-    [Summary("Reminds users of a message based on time. Syntax : !remindme 1hour30min Watch a tutorial")]
+    [Summary("Reminds users of a message based on time, up to 30 days away. Syntax : !remindme 1hour30min Watch a tutorial")]
     public async Task RemindMe(string time, [Remainder] string message)
     {
         if (Context.Message.MentionedEveryone || Context.Message.MentionedRoleIds.Count > 0)
@@ -53,6 +53,13 @@ public class ReminderModule : ModuleBase
             // There isn't really a way to add negative time
             await (ReplyAsync(
 "Invalid format for reminder.\\nCorrect Syntax: ``!remindme <1hour5m> <optional message>``")
+                .DeleteAfterSeconds(seconds: 10) ?? Task.CompletedTask);
+            return;
+        }
+
+        if (ReminderService.IsTooFarAway(reminderDate, DateTime.Now))
+        {
+            await (ReplyAsync($"Reminders can be set at most {ReminderService.MaxReminderDelay.Days} days away.")
                 .DeleteAfterSeconds(seconds: 10) ?? Task.CompletedTask);
             return;
         }
