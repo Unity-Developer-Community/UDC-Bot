@@ -34,16 +34,18 @@ Two token changes for the same player at the same moment never overwrite each ot
 - A gift now also refuses a zero or negative amount and a gift to oneself (the old code let a self-gift mint tokens); `/gift` already blocked both.
 - Two gifts in opposite directions lock both rows in user ID order inside the statement, so they cannot deadlock.
 - A receiver deleted by an admin reset in the middle of a gift would make the sender lose the amount; accepted as too rare to guard.
+- A failure of the settlement after a bet was reserved keeps the bet taken and logs the payout owed (the settlement may be half applied, so no refund); a losing spin credits nothing, so it gives the bet back instead.
+- A restart between the reservation and the settlement of a spin loses that bet (no row, no log): accepted, the window is a few database round trips.
 - Deploying changes how every casino path writes balances: take a production backup first (`docs/deployment.md`). Nothing persisted changes shape, so a rollback is redeploying the previous image.
 
 ## Checklist
 
-Status: #409.1 done and reviewed; next is #409.2.
+Status: #409.1 and #409.2 done and reviewed; next is #409.3.
 
 - [x] #409.1 Atomic repository statements and `CasinoService` paths (`UpdateUserTokens`, `TransferTokens`, `TryClaimDailyReward`), with the Testcontainers fixture and integration tests for AC1–AC4 (each written first and seen failing against the old read-then-write code where practical). Verify: `dotnet build`, `dotnet test`.
   - Visible after: nothing: balances behave the same for a single action; only simultaneous actions stop losing tokens.
   - Needs you: nothing
-- [ ] #409.2 Slots bet reservation, refund on failure, `SlotsServiceTests` for AC2 (slots part) and AC5, existing slots tests still pass. Verify: `dotnet test`.
+- [x] #409.2 Slots bet reservation, refund on failure, `SlotsServiceTests` for AC2 (slots part) and AC5, existing slots tests still pass. Verify: `dotnet test`.
   - Visible after: nothing: a slots bet beyond the balance is refused the same way, now also under simultaneous commands.
   - Needs you: nothing
 - [ ] #409.3 Docs: add the decision to `docs/decisions.md` (balances change only through single relative statements, never read-then-write) and update `docs/casino.md` if it describes token handling; delete this plan in the same commit, naming its path.

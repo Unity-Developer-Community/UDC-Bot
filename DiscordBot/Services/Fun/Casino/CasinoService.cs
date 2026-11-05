@@ -78,7 +78,13 @@ public class CasinoService
         return true;
     }
 
-    public async Task UpdateUserTokens(string userId, long deltaTokens, TransactionKind transactionType, Dictionary<string, string>? details = null)
+    /// <summary>
+    /// Changes the balance by <paramref name="deltaTokens"/> (never below 0) and records a transaction of
+    /// <paramref name="recordedAmount"/>, which defaults to the change: a caller that reserved a bet earlier settles only the
+    /// payout but records the net result.
+    /// </summary>
+    /// <returns>The new balance.</returns>
+    public async Task<long> UpdateUserTokens(string userId, long deltaTokens, TransactionKind transactionType, Dictionary<string, string>? details = null, long? recordedAmount = null)
     {
         try
         {
@@ -86,10 +92,11 @@ public class CasinoService
             await GetOrCreateCasinoUser(userId);
 
             // The balance never goes below 0: the statement clamps it.
-            if (await casinoQuery.AdjustTokens(userId, deltaTokens, DateTime.UtcNow) is null)
-                throw new InvalidOperationException($"Casino user {userId} has no balance row");
+            var balance = await casinoQuery.AdjustTokens(userId, deltaTokens, DateTime.UtcNow)
+                ?? throw new InvalidOperationException($"Casino user {userId} has no balance row");
 
-            await RecordTransaction(userId, deltaTokens, transactionType, details);
+            await RecordTransaction(userId, recordedAmount ?? deltaTokens, transactionType, details);
+            return balance;
         }
         catch (Exception ex)
         {
@@ -97,6 +104,26 @@ public class CasinoService
             await _loggingService.LogChannelAndFile($"{ServiceName}: UpdateUserTokens Exception Details: {ex}");
             throw new InvalidOperationException($"Failed to update user tokens: {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// Takes <paramref name="amount"/> from the balance when it covers it, and records nothing: whoever reserves settles
+    /// later with <see cref="UpdateUserTokens"/>, or gives the amount back with <see cref="ReleaseTokens"/>.
+    /// </summary>
+    /// <returns><c>false</c> when the balance is too low.</returns>
+    public async Task<bool> TryReserveTokens(string userId, long amount)
+    {
+        var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
+        await GetOrCreateCasinoUser(userId);
+        return await casinoQuery.TryDebitTokens(userId, amount, DateTime.UtcNow) is not null;
+    }
+
+    /// <summary>Gives back tokens taken by <see cref="TryReserveTokens"/>, without a transaction row.</summary>
+    public async Task ReleaseTokens(string userId, long amount)
+    {
+        var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
+        if (await casinoQuery.AdjustTokens(userId, amount, DateTime.UtcNow) is null)
+            throw new InvalidOperationException($"Casino user {userId} has no balance row");
     }
 
     public async Task SetUserTokens(string userId, long amount, string adminUserId)

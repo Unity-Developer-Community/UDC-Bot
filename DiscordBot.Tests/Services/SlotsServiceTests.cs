@@ -18,9 +18,15 @@ public class SlotsServiceTests
         public long Tokens { get; set; } = 1_000;
         public long Pot { get; set; } = Floor;
         public List<(long Delta, Dictionary<string, string> Details)> Credits { get; } = [];
+        /// <summary>The bets given back by <see cref="Release"/>.</summary>
+        public List<long> Releases { get; } = [];
         public bool FailCredit { get; set; }
+        public bool FailRelease { get; set; }
         public bool ClaimReturnsNothing { get; set; }
         public Func<Task>? BeforeGetTokens { get; set; }
+
+        /// <summary>Runs right before a bet is reserved, to change the balance the way a concurrent command would.</summary>
+        public Action? BeforeReserve { get; set; }
 
         public async Task<long> GetTokens(string userId)
         {
@@ -28,12 +34,29 @@ public class SlotsServiceTests
             return Tokens;
         }
 
-        public Task Credit(string userId, long delta, Dictionary<string, string> details)
+        public Task<bool> Reserve(string userId, long bet)
+        {
+            BeforeReserve?.Invoke();
+            if (Tokens < bet) return Task.FromResult(false);
+            Tokens -= bet;
+            return Task.FromResult(true);
+        }
+
+        public Task Release(string userId, long bet)
+        {
+            if (FailRelease) throw new InvalidOperationException("database down");
+            Tokens += bet;
+            Releases.Add(bet);
+            return Task.CompletedTask;
+        }
+
+        /// <summary>Credits are recorded with the net amount, like the transaction row.</summary>
+        public Task<long> Settle(string userId, long payout, long net, Dictionary<string, string> details)
         {
             if (FailCredit) throw new InvalidOperationException("database down");
-            Tokens += delta;
-            Credits.Add((delta, details));
-            return Task.CompletedTask;
+            Tokens += payout;
+            Credits.Add((net, details));
+            return Task.FromResult(Tokens);
         }
 
         public Task<long> GetPot() => Task.FromResult(Pot);
@@ -230,7 +253,10 @@ public class SlotsServiceTests
         var play = await f.Service.SpinAsync(UserId, 10);
 
         Assert.Equal(SlotsStatus.Failed, play.Status);
-        Assert.Contains(f.Logging.Messages, m => m.Contains(UserId.ToString()) && m.Contains("190 tokens for a spin") && m.Contains("bet 10"));
+        Assert.Contains(f.Logging.Messages, m => m.Contains(UserId.ToString()) && m.Contains("200 tokens for a spin") && m.Contains("bet 10"));
+        // The bet stays taken, which is why the log owes the whole payout.
+        Assert.Equal(990, f.Ledger.Tokens);
+        Assert.Empty(f.Ledger.Releases);
     }
 
     [Fact]
@@ -260,8 +286,52 @@ public class SlotsServiceTests
 
         Assert.Equal(SlotsStatus.Failed, play.Status);
         Assert.Equal(1_000, f.Ledger.Tokens);
+        Assert.Equal([10L], f.Ledger.Releases);
         Assert.Empty(f.Ledger.Credits);
         Assert.Contains(f.Logging.Messages, m => m.Contains("returned 0"));
+    }
+
+    [Fact]
+    public async Task Spin_LosingSpinSettlementFails_GivesTheBetBack()
+    {
+        var f = new Fixture();
+        f.Ledger.FailCredit = true;
+        f.LosingSpinWithoutHold();
+
+        var play = await f.Service.SpinAsync(UserId, 10);
+
+        Assert.Equal(SlotsStatus.Failed, play.Status);
+        Assert.Equal(1_000, f.Ledger.Tokens);
+        Assert.Equal([10L], f.Ledger.Releases);
+    }
+
+    [Fact]
+    public async Task Spin_FailsAfterTheBetWasTaken_AndTheRefundFails_LogsTheBetThePlayerIsOwed()
+    {
+        var f = new Fixture();
+        f.Ledger.ClaimReturnsNothing = true;
+        f.Ledger.FailRelease = true;
+        f.Stops(SlotSymbol.Diamond, SlotSymbol.Diamond, SlotSymbol.Diamond);
+
+        var play = await f.Service.SpinAsync(UserId, 10);
+
+        Assert.Equal(SlotsStatus.Failed, play.Status);
+        Assert.Contains(f.Logging.Messages, m => m.Contains(UserId.ToString()) && m.Contains("bet of 10 tokens could not be given back"));
+    }
+
+    [Fact]
+    public async Task Spin_BalanceSpentAfterTheCheck_IsRefusedAndChangesNothing()
+    {
+        var f = new Fixture();
+        // A gift or a table game spends the tokens between the balance check and the reservation.
+        f.Ledger.BeforeReserve = () => f.Ledger.Tokens = 5;
+        f.LosingSpinWithoutHold();
+
+        var play = await f.Service.SpinAsync(UserId, 10);
+
+        Assert.Equal(SlotsStatus.InsufficientTokens, play.Status);
+        Assert.Equal(5, f.Ledger.Tokens);
+        AssertUntouched(f);
     }
 
     #endregion

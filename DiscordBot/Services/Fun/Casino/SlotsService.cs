@@ -8,8 +8,15 @@ public interface ISlotsLedger
 {
     Task<long> GetTokens(string userId);
 
-    /// <summary>Changes the balance by <paramref name="delta"/> and records a <c>Game</c> transaction.</summary>
-    Task Credit(string userId, long delta, Dictionary<string, string> details);
+    /// <summary>Takes the bet from the balance when it covers it, without a transaction row. <c>false</c> when the balance is too low.</summary>
+    Task<bool> Reserve(string userId, long bet);
+
+    /// <summary>Gives a reserved bet back, without a transaction row.</summary>
+    Task Release(string userId, long bet);
+
+    /// <summary>Adds the payout to the balance and records one <c>Game</c> transaction of <paramref name="net"/>, payout minus bet.</summary>
+    /// <returns>The new balance.</returns>
+    Task<long> Settle(string userId, long payout, long net, Dictionary<string, string> details);
 
     /// <summary>The jackpot in hundredths of a token, 0 when its database row is missing.</summary>
     Task<long> GetPot();
@@ -117,11 +124,17 @@ public class SlotsService
             // Refuse before anything changes: a missing jackpot would charge the bet and pay a win of 0.
             await EnsureJackpotAsync();
 
+            var result = SlotMachine.Spin(_random);
+
+            // The check above can be stale by now (a gift or a table game may have spent the tokens): the reservation decides.
+            // It comes last, right before the settlement that gives the bet back on failure, so nothing that can throw sits between.
+            if (!await _ledger.Reserve(userId.ToString(), bet))
+                return SlotsPlay.Refused(SlotsStatus.InsufficientTokens);
+
             DiscardExpiredHolds();
             _holds.TryRemove(userId, out _); // a new spin ends the previous offer
 
-            var result = SlotMachine.Spin(_random);
-            return await PlayAsync(userId, result, bet, balance);
+            return await PlayAsync(userId, result, bet, balance, betReserved: true);
         }
         catch (Exception ex)
         {
@@ -154,7 +167,7 @@ public class SlotsService
 
             var balance = await _ledger.GetTokens(userId.ToString());
             var result = SlotMachine.Respin(hold.Result, hold.Snapshot(), _random);
-            return await PlayAsync(userId, result, hold.Bet, balance);
+            return await PlayAsync(userId, result, hold.Bet, balance, betReserved: false);
         }
         catch (Exception ex)
         {
@@ -179,9 +192,9 @@ public class SlotsService
         return new SlotsHold(hold.OfferId, hold.Bet, hold.Snapshot());
     }
 
-    private async Task<SlotsPlay> PlayAsync(ulong userId, SlotResult result, int bet, long balanceBefore)
+    private async Task<SlotsPlay> PlayAsync(ulong userId, SlotResult result, int bet, long balanceBefore, bool betReserved)
     {
-        var (payout, net, pot, shareHundredths) = await SettleAsync(userId, result, bet);
+        var (payout, net, balance, pot, shareHundredths) = await SettleAsync(userId, result, bet, balanceBefore, betReserved);
 
         SlotsHold? hold = null;
         if (result.HoldOffered)
@@ -198,7 +211,7 @@ public class SlotsService
             Bet = bet,
             Payout = payout,
             Net = net,
-            Balance = balanceBefore + net,
+            Balance = balance,
             PotHundredths = pot,
             Gif = await TryRenderAsync(result),
             Hold = hold
@@ -206,55 +219,86 @@ public class SlotsService
     }
 
     /// <summary>
-    /// Feeds or claims the jackpot first, then settles the player. A failure after a claim is logged with the amount so an admin
-    /// can credit it back.
+    /// Feeds or claims the jackpot first, then settles the player. A failure before the settlement gives the reserved bet back;
+    /// a failure of the settlement itself is logged with the amount so an admin can credit it.
     /// </summary>
-    private async Task<(long Payout, long Net, long PotHundredths, long ShareHundredths)> SettleAsync(ulong userId, SlotResult result, int bet)
+    private async Task<(long Payout, long Net, long Balance, long PotHundredths, long ShareHundredths)> SettleAsync(
+        ulong userId, SlotResult result, int bet, long balanceBefore, bool betReserved)
     {
-        var contribution = result.IsRespin ? 0 : SlotSettlementMath.Contribution(bet);
-        var pot = contribution > 0 ? await _ledger.AddContribution(contribution) : await _ledger.GetPot();
-
+        long pot;
         long share = 0;
         long payout;
-        if (result.IsJackpot)
+        try
         {
-            share = await _ledger.ClaimShare(bet);
-            if (share <= 0)
-                throw new InvalidOperationException($"The jackpot claim for a bet of {bet} returned {share}: the jackpot row is missing or was changed.");
-            pot = SlotSettlementMath.PotAfterClaim(pot, share);
-            payout = share / SlotSettlementMath.HundredthsPerToken;
+            var contribution = result.IsRespin ? 0 : SlotSettlementMath.Contribution(bet);
+            pot = contribution > 0 ? await _ledger.AddContribution(contribution) : await _ledger.GetPot();
+
+            if (result.IsJackpot)
+            {
+                share = await _ledger.ClaimShare(bet);
+                if (share <= 0)
+                    throw new InvalidOperationException($"The jackpot claim for a bet of {bet} returned {share}: the jackpot row is missing or was changed.");
+                pot = SlotSettlementMath.PotAfterClaim(pot, share);
+                payout = share / SlotSettlementMath.HundredthsPerToken;
+            }
+            else
+            {
+                payout = (long)result.Multiplier * bet;
+            }
         }
-        else
+        catch when (betReserved)
         {
-            payout = (long)result.Multiplier * bet;
+            await ReleaseBetAsync(userId, bet);
+            throw;
         }
 
         var net = payout - (result.IsRespin ? 0 : bet);
 
         // A respin that wins nothing changes nothing: it would only add an empty line to the history.
         if (result.IsRespin && net == 0)
-            return (payout, net, pot, share);
+            return (payout, net, balanceBefore, pot, share);
 
         var details = new Dictionary<string, string> { ["game"] = GameName };
         if (result.IsRespin) details["respin"] = "true";
         if (result.IsJackpot) details["jackpot"] = payout.ToString();
 
+        long balance;
         try
         {
-            await _ledger.Credit(userId.ToString(), net, details);
+            balance = await _ledger.Settle(userId.ToString(), payout, net, details);
         }
         catch
         {
-            // The jackpot and the balance are separate writes, so say what the player is owed for an admin to settle.
+            // Nothing is credited for a loss, so giving the bet back cannot pay twice: the player is left as if the spin never ran.
+            if (betReserved && payout == 0)
+            {
+                await ReleaseBetAsync(userId, bet);
+                throw;
+            }
+
+            // The jackpot and the balance are separate writes and the bet is already taken, so say what the player is owed for an admin to settle.
             await _logging.LogChannelAndFile(
                 share > 0
-                    ? $"SlotsService: jackpot share of {payout} tokens claimed for user {userId} but not credited. Owed: {net} tokens (payout {payout} minus bet {bet}). The balance update may have been partly applied: check it, then fix it with /admin casino tokens-add."
-                    : $"SlotsService: could not credit user {userId} {net} tokens for a {(result.IsRespin ? "free respin" : "spin")} (payout {payout}, bet {bet}). The balance update may have been partly applied: check it, then fix it with /admin casino tokens-add if needed.",
+                    ? $"SlotsService: jackpot share of {payout} tokens claimed for user {userId} but not credited. Owed: {payout} tokens (the bet of {bet} was already taken). The balance update may have been partly applied: check it, then fix it with /admin casino tokens-add."
+                    : $"SlotsService: could not credit user {userId} {payout} tokens for a {(result.IsRespin ? "free respin" : "spin")} (payout {payout}, bet {bet}, the bet was already taken). The balance update may have been partly applied: check it, then fix it with /admin casino tokens-add if needed.",
                 ExtendedLogSeverity.Error);
             throw;
         }
 
-        return (payout, net, pot, share);
+        return (payout, net, balance, pot, share);
+    }
+
+    // Best effort: the spin already failed, so a failure to give the bet back is logged instead of masking the original error.
+    private async Task ReleaseBetAsync(ulong userId, int bet)
+    {
+        try
+        {
+            await _ledger.Release(userId.ToString(), bet);
+        }
+        catch (Exception ex)
+        {
+            await _logging.LogChannelAndFile($"SlotsService: a spin failed and its bet of {bet} tokens could not be given back to user {userId}: {ex.Message}. Credit it with /admin casino tokens-add.", ExtendedLogSeverity.Error);
+        }
     }
 
     private async Task EnsureJackpotAsync()

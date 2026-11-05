@@ -9,8 +9,12 @@ public class CasinoSlotsLedger(CasinoService casinoService, DatabaseService data
 
     public async Task<long> GetTokens(string userId) => (await casinoService.GetOrCreateCasinoUser(userId)).Tokens;
 
-    public Task Credit(string userId, long delta, Dictionary<string, string> details) =>
-        casinoService.UpdateUserTokens(userId, delta, TransactionKind.Game, details);
+    public Task<bool> Reserve(string userId, long bet) => casinoService.TryReserveTokens(userId, bet);
+
+    public Task Release(string userId, long bet) => casinoService.ReleaseTokens(userId, bet);
+
+    public Task<long> Settle(string userId, long payout, long net, Dictionary<string, string> details) =>
+        casinoService.UpdateUserTokens(userId, payout, TransactionKind.Game, details, recordedAmount: net);
 
     public async Task<long> GetPot() => (await Repo.GetJackpot())?.Amount ?? 0;
 

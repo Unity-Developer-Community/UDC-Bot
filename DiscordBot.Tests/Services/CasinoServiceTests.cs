@@ -12,7 +12,7 @@ namespace DiscordBot.Tests.Services;
 /// <summary>A throwaway PostgreSQL with the casino tables, created by the same code the bot runs at startup.</summary>
 public sealed class CasinoDatabaseFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder().WithImage("postgres:16-alpine").Build();
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16-alpine").Build();
 
     public BotSettings Settings { get; private set; } = new();
     public DatabaseService Database { get; private set; } = null!;
@@ -100,6 +100,43 @@ public class CasinoServiceTests(CasinoDatabaseFixture db) : IClassFixture<Casino
 
         Assert.Single(results, r => r is not null);
         Assert.Equal(0, await Balance(user));
+    }
+
+    [Fact]
+    public async Task TwoReservationsOfTheWholeBalance_OnlyOneSucceeds()
+    {
+        var user = await NewUser(100);
+
+        var results = await Task.WhenAll(Casino.TryReserveTokens(user, 100), Casino.TryReserveTokens(user, 100));
+
+        Assert.Single(results, r => r);
+        Assert.Equal(0, await Balance(user));
+    }
+
+    [Fact]
+    public async Task AReleasedReservation_GivesTheTokensBack_WithoutAHistoryRow()
+    {
+        var user = await NewUser(100);
+        var rowsBefore = (await Casino.GetUserTransactionHistory(user, 50)).Count;
+
+        Assert.True(await Casino.TryReserveTokens(user, 40));
+        Assert.Equal(60, await Balance(user));
+        await Casino.ReleaseTokens(user, 40);
+
+        Assert.Equal(100, await Balance(user));
+        Assert.Equal(rowsBefore, (await Casino.GetUserTransactionHistory(user, 50)).Count);
+    }
+
+    [Fact]
+    public async Task SettlingAReservedBet_ChangesTheBalanceByThePayoutAndRecordsTheNet()
+    {
+        var user = await NewUser(100);
+        Assert.True(await Casino.TryReserveTokens(user, 10));
+
+        var balance = await Casino.UpdateUserTokens(user, 25, TransactionKind.Game, recordedAmount: 15);
+
+        Assert.Equal(115, balance);
+        Assert.Equal(15, (await Casino.GetUserTransactionHistory(user, 1)).Single().Amount);
     }
 
     [Fact]
