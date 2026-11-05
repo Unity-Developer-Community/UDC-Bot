@@ -147,6 +147,14 @@ public class SlotsMessageBuilderTests
         Assert.Null(SlotsMessageBuilder.BuildPublicEmbed(Play(Jackpot, 5_000, gif: null)).Image);
     }
 
+    [Fact]
+    public void PublicEmbed_FooterRemindsHowToPlay()
+    {
+        var footer = SlotsMessageBuilder.BuildPublicEmbed(Play(Jackpot, 5_000)).Footer?.Text;
+
+        Assert.Contains("/casino slots spin", footer);
+    }
+
     #endregion
 
     #region Refusals and info (AC3, AC10)

@@ -106,7 +106,8 @@ public static class SlotsMessageBuilder
         var embed = new EmbedBuilder()
             .WithTitle("🎰 Slots")
             .WithDescription($"**{Symbols(play.Result!)}**")
-            .WithColor(play.Result!.IsJackpot ? Color.Gold : Color.Green);
+            .WithColor(play.Result!.IsJackpot ? Color.Gold : Color.Green)
+            .WithFooter($"Play with /casino slots spin ({SlotMachine.MinBet}–{SlotMachine.MaxBet} tokens).");
 
         if (play.Gif is not null)
             embed.WithImageUrl($"attachment://{GifFileName}");
