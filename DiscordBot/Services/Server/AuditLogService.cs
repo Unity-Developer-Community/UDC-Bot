@@ -193,7 +193,10 @@ public class AuditLogService
                 owner = AuthorCard(ownerUser, guild);
         }
 
-        var starter = thread?.GetCachedMessage(threadId);
+        // A forum post's first message lives in the thread. A thread started from a message shares
+        // that message's ID, but the message lives in the parent channel's cache.
+        var starter = thread?.GetCachedMessage(threadId)
+                      ?? (thread?.ParentChannel as SocketTextChannel)?.GetCachedMessage(threadId);
         var info = new AuditLogCards.DeletedThread(
             threadId,
             thread?.Name ?? auditData?.ThreadName,
