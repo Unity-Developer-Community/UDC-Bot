@@ -3,8 +3,8 @@ using System.Collections.Concurrent;
 namespace DiscordBot.Services.Moderation;
 
 /// <summary>
-/// Message IDs the bot is deleting itself and has already reported, so the audit log
-/// doesn't post a second card for them. Entries expire after <see cref="Lifetime"/>.
+/// Message IDs the bot is deleting itself, so the audit log doesn't post a card for them
+/// (they are already reported elsewhere, or are the bot's own housekeeping). Entries expire after <see cref="Lifetime"/>.
 /// </summary>
 public sealed class BotDeletionRegistry
 {

@@ -1,6 +1,7 @@
 using System.Net;
 using Discord.Net;
 using Discord.WebSocket;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 
 namespace DiscordBot.Services.Server;
@@ -17,10 +18,13 @@ public class IntroductionWatcherService
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(1);
     private static readonly Color AccentColour = new(0x12D687);
+    // Also how a prompt is recognised in channel history, so changing it orphans any existing prompt.
+    public const string PromptHeading = "### 👋 New here? Introduce yourself!";
 
     private readonly DiscordSocketClient _client;
     private readonly BotSettings _settings;
     private readonly ILoggingService _loggingService;
+    private readonly BotDeletionRegistry _botDeletions;
     private readonly CancellationToken _shutdownToken;
     private readonly ITextChannel _channel = null!;
     private readonly IntroductionPromptSchedule _schedule = null!;
@@ -29,11 +33,12 @@ public class IntroductionWatcherService
     private ulong? _promptId;
 
     public IntroductionWatcherService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService,
-        CancellationTokenSource cts)
+        BotDeletionRegistry botDeletions, CancellationTokenSource cts)
     {
         _client = client;
         _settings = settings;
         _loggingService = loggingService;
+        _botDeletions = botDeletions;
         _shutdownToken = cts.Token;
 
         if (!settings.IntroductionWatch.Enabled)
@@ -61,7 +66,7 @@ public class IntroductionWatcherService
         new ComponentBuilderV2()
             .WithContainer(new ContainerBuilder()
                 .WithAccentColor(AccentColour)
-                .WithTextDisplay("### 👋 New here? Introduce yourself!\n" +
+                .WithTextDisplay($"{PromptHeading}\n" +
                                  "We'd love to know a little about you.\n" +
                                  "**Some ideas:** a nickname, what you're making or learning, and what brought you here.")
                 .WithSeparator(SeparatorSpacingSize.Small, true)
@@ -91,7 +96,14 @@ public class IntroductionWatcherService
     private bool IsPrompt(IMessage message) =>
         message.Author.Id == _client.CurrentUser.Id
         && message.Flags is { } flags
-        && flags.HasFlag(MessageFlags.ComponentsV2);
+        && flags.HasFlag(MessageFlags.ComponentsV2)
+        && IsPromptComponents(message.Components);
+
+    /// <summary>True if the components start with a container whose first text is the prompt heading.</summary>
+    public static bool IsPromptComponents(IEnumerable<IMessageComponent> components) =>
+        components.FirstOrDefault() is ContainerComponent container
+        && container.Components.OfType<TextDisplayComponent>().FirstOrDefault() is { } text
+        && text.Content.StartsWith(PromptHeading, StringComparison.Ordinal);
 
     private async Task RunAsync()
     {
@@ -196,6 +208,9 @@ public class IntroductionWatcherService
 
     private async Task DeleteMessageAsync(ulong messageId)
     {
+        // Register first: the prompt is often uncached (fetched over REST after a restart), so the
+        // audit log would otherwise post an "uncached message deleted" card for it.
+        _botDeletions.Register([messageId], DateTimeOffset.UtcNow);
         try
         {
             await _channel.DeleteMessageAsync(messageId);
