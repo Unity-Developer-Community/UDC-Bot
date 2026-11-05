@@ -172,6 +172,12 @@ Adminer is exposed via Traefik ingress with TLS at `adminer.bot.udc.ovh` (prod)
 or `adminer.dev.bot.udc.ovh` (dev). Edit the ingress host to match your domain.
 Access is restricted by IP allowlist.
 
+The manifest sets no replica count, so Adminer can be switched off when unused:
+`kubectl scale deployment adminer -n udc-bot-prod --replicas=0` (`1` to switch it
+back on, `-n udc-bot-dev` for dev), or the Scale action on the `adminer` Deployment
+in the Argo CD UI. Argo CD leaves the count as set. The on/off state lives only in
+the cluster: a recreated Deployment starts with Adminer on.
+
 ### Verify
 
 ```bash

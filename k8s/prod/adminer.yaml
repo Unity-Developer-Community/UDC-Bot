@@ -9,7 +9,8 @@ metadata:
     app.kubernetes.io/part-of: udc-bot
     environment: prod
 spec:
-  replicas: 1
+  # No replicas field: Argo CD then leaves the count alone, so Adminer is turned
+  # on and off with the Scale action in the Argo CD UI (0 or 1) and stays that way.
   selector:
     matchLabels:
       app.kubernetes.io/name: adminer
