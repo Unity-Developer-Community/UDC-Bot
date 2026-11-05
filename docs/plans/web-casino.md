@@ -66,7 +66,7 @@ Needs you: log in locally once with your account (at the end).
 
 Decided during the work: the SignalR connection wrapper (`src/connection.ts`, tested with a fake hub) exists but `main.ts` does not start it, because the hub arrives in #411.4 and a connection to a missing hub would show "Offline" forever; #411.4 passes `createCasinoConnection()` in `main.ts`. It must also send the player back to login when the negotiation answers 401 (the wrapper retries every 30 s on any failure).
 
-Status: #411.4 play-tested by the user; #411.5 implemented, waiting for the user's play test (see its "Needs you"); next #411.6.
+Status: #411.4 and #411.5 play-tested by the user, no findings (good enough for the prototype); next #411.6.
 
 ### #411.4 Slots
 
