@@ -54,6 +54,10 @@ app.Use((context, next) =>
     return next(context);
 });
 
+// The built client (CasinoWeb/wwwroot). In development Vite serves it and proxies the API here.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapAccountEndpoints();

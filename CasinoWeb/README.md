@@ -15,9 +15,13 @@ The web front end of the UDC casino: a separate ASP.NET Core 8 process that sign
    dotnet user-secrets set Discord:ClientSecret <client secret>
    ```
 
-4. **Run**, from `CasinoWeb/`: `dotnet run`. It listens on `http://localhost:5080`.
-   - `GET /login` goes through Discord; a guild member lands back on `/` with a cookie, anyone else on `/access-denied`.
+4. **Run** two processes, then open `http://localhost:5080`:
+   - the server, from `CasinoWeb/`: `dotnet run` (listens on `http://localhost:5081`);
+   - the client, from `CasinoWeb/ClientApp/`: `npm install` once, then `npm run dev` (listens on `http://localhost:5080` and proxies the API to the server). The Discord redirect URL, the cookie and the Origin check all use `:5080`, so browse there, not on `:5081`.
+   - `GET /login` goes through Discord; a guild member lands back on `/` with a cookie and sees the lobby, anyone else lands on `/access-denied`.
    - `GET /api/me` answers with the logged-in member's name, avatar and balance (`401` without a login).
+
+`npm run build` in `ClientApp/` writes the client to `CasinoWeb/wwwroot/` (gitignored), which the server serves; this is how it runs in production.
 
 ## Settings
 

@@ -20,9 +20,9 @@ public static class AccountEndpoints
             new AuthenticationProperties { RedirectUri = LocalPathOrRoot(returnUrl) },
             [DiscordAuthenticationDefaults.AuthenticationScheme]));
 
-        app.MapGet("/access-denied", () => Page(StatusCodes.Status403Forbidden, "Access denied",
+        app.MapGet("/access-denied", (IWebHostEnvironment env) => Page(env, StatusCodes.Status403Forbidden, "Access denied",
             "Only members of the Unity Developer Community Discord server can play."));
-        app.MapGet("/login-failed", () => Page(StatusCodes.Status401Unauthorized, "Login failed",
+        app.MapGet("/login-failed", (IWebHostEnvironment env) => Page(env, StatusCodes.Status401Unauthorized, "Login failed",
             "Discord login did not complete. Try again."));
 
         var api = app.MapGroup("/api");
@@ -64,7 +64,22 @@ public static class AccountEndpoints
             ? returnUrl
             : "/";
 
-    private static IResult Page(int status, string title, string message) => Results.Content(
-        $"<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>{title}</title><h1>{title}</h1><p>{message}</p>",
-        "text/html; charset=utf-8", statusCode: status);
+    /// <summary>
+    /// The client's page (it draws the message itself) with the status the failure deserves. Without a built client,
+    /// such as in tests or before the first <c>npm run build</c>, a plain page carries the message.
+    /// </summary>
+    private static async Task<IResult> Page(IWebHostEnvironment env, int status, string title, string message)
+    {
+        var index = env.WebRootFileProvider.GetFileInfo("index.html");
+        if (index.Exists)
+        {
+            await using var stream = index.CreateReadStream();
+            using var reader = new StreamReader(stream);
+            return Results.Content(await reader.ReadToEndAsync(), "text/html; charset=utf-8", statusCode: status);
+        }
+
+        return Results.Content(
+            $"<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>{title}</title><h1>{title}</h1><p>{message}</p>",
+            "text/html; charset=utf-8", statusCode: status);
+    }
 }

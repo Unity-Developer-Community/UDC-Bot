@@ -22,9 +22,10 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
     public const long StartingTokens = 1000;
 
     public string KeysPath { get; } = Directory.CreateTempSubdirectory().FullName;
+    public string WebRootPath { get; }
     public FakeDiscordHandler Discord { get; } = new();
     public FakeCasinoDatabase Database { get; } = new();
-    public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 11, 5, 12, 0, 0, TimeSpan.Zero));
+    public FakeTimeProvider Clock { get; } = new(DateTimeOffset.UtcNow);
     public BotSettings BotSettings { get; } = new()
     {
         GuildId = GuildId,
@@ -35,6 +36,7 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Production");
+        builder.UseWebRoot(WebRootPath);
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Casino:PublicOrigin"] = PublicOrigin,
@@ -60,9 +62,24 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing && Directory.Exists(KeysPath))
-            Directory.Delete(KeysPath, recursive: true);
+        if (!disposing)
+            return;
+        foreach (var folder in new[] { KeysPath, WebRootPath })
+        {
+            if (Directory.Exists(folder))
+                Directory.Delete(folder, recursive: true);
+        }
     }
+
+    /// <param name="withClient">Whether the web root holds a built client; false is a checkout that never ran <c>npm run build</c>.</param>
+    public CasinoWebFactory(bool withClient = true)
+    {
+        WebRootPath = Directory.CreateTempSubdirectory().FullName;
+        if (withClient)
+            File.WriteAllText(Path.Combine(WebRootPath, "index.html"), ClientHtml);
+    }
+
+    public const string ClientHtml = "<!doctype html><title>client</title>";
 
     /// <summary>A browser: keeps cookies, does not follow redirects so a test can read them.</summary>
     public HttpClient CreateBrowser() => CreateClient(new WebApplicationFactoryClientOptions

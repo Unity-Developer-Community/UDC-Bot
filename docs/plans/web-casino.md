@@ -30,7 +30,7 @@ UDC members play the casino in a browser page, which responds immediately, with 
 - **Transport:** one SignalR hub `CasinoHub` (`[Authorize]`) from the start, since multiplayer tables need it next. Methods return results to the caller: `GetState`, `SlotsSpin(bet)`, `SlotsToggleHold(offerId, reel)`, `SlotsRespin(offerId)`, `BlackjackDeal(bet)`, `BlackjackAct(action)`. A hub filter applies the per-user rate limit (AC9) and maps service errors to typed results. The handshake checks `Origin` against `Casino__PublicOrigin`. The server makes every decision; the client sends intents and animates results.
 - **Blackjack:** `WebBlackjackService` (singleton) keeps one `GameSession<Blackjack>` per user (one human + dealer, no AI). Deal: `TryReserveTokens(bet)` then start; double down: reserve the second bet first. End: `UpdateUserTokens(bet + payout, Game, {game: Blackjack}, recordedAmount: payout)`. A timer sweeps hands idle past `GameTimeoutMinutes` (stand + settle). `IHostApplicationLifetime.ApplicationStopping` releases every open reservation. Each reservation and settlement is logged with user, hand id and amount, so a crash (no graceful stop) leaves an audit trail for `/admin casino tokens-add`. The Discord table games do not reserve bets yet; that is #347, not this plan.
 - **Logging:** `WebLoggingService : ILoggingService` writes to ASP.NET `ILogger` (console, collected by Loki). It does not post to the Discord log channel.
-- **Client:** scaffolded with `create-corniflex` (Vite, strict TypeScript, Vitest, ESLint), plus `phaser` and `@microsoft/signalr` (approved runtime dependencies, newest versions the release-age gate allows). The header (avatar, name, balance, logout) is DOM; each game is a Phaser scene, so the 2D room becomes one more scene later. Slot symbols reuse `DiscordBot/Assets/slots/*.png` (Fluent Emoji, MIT, license file kept). Cards are drawn in code (no card art to license). Vite proxies `/api`, `/hub`, `/signin-discord` to Kestrel in dev; in prod Kestrel serves the built files from `wwwroot`.
+- **Client:** scaffolded with `create-corniflex` (Vite, strict TypeScript, Vitest, ESLint), plus `phaser` and `@microsoft/signalr` (approved runtime dependencies, newest versions the release-age gate allows). The header (avatar, name, balance, logout) is DOM; each game is a Phaser scene, so the 2D room becomes one more scene later. Slot symbols reuse `DiscordBot/Assets/slots/*.png` (Fluent Emoji, MIT, license file kept). Cards are drawn in code (no card art to license). In dev Vite listens on :5080, which stays the public origin and the Discord redirect URL, and proxies `/api`, `/hub`, `/login` and `/signin-discord` to Kestrel on :5081; in prod Kestrel serves the built files from `wwwroot`. The server answers `/access-denied` and `/login-failed` with the client's `index.html` and the failure status.
 - **Look: prototype first.** The screens stay plain and functional in this plan. The visual design is decided only once slots and blackjack work end to end in the browser, so no design effort goes into a casino that might not hold up. A paused draft exists (top-down pixel art, each game as a panel over the walkable room, phone layouts): the Claude Design canvas <https://claude.ai/artifact/8Yn1iMfb2gACcHXaQQewYR>, private to the maintainer. It is a starting point for that later decision, not a spec for #411.3–#411.5.
 - **Not in this plan:** the visual design (see Look); daily reward, gifts, leaderboards (they stay in Discord); multiplayer tables (#412), the 2D room (#413), announcing web big wins in Discord (#414), a dev environment deployment (#415). All are sub-issues of #410.
 
@@ -57,12 +57,16 @@ Needs you: add the local redirect URL to the bot's Discord application and give 
 
 ### #411.3 Client shell
 
-- [ ] Scaffold `CasinoWeb/ClientApp` with `create-corniflex`, add `phaser` and `@microsoft/signalr`; Vite proxy; build output to `CasinoWeb/wwwroot` (gitignored).
-- [ ] Login page, access-denied page, casino-closed page, lobby with header and two entries (Slots, Blackjack); SignalR connection with reconnect and a visible "reconnecting" state.
-- [ ] Lint, `tsc`, Vitest green; headless browser check of the pages with a stubbed `/api/me`.
+- [x] Scaffold `CasinoWeb/ClientApp` with `create-corniflex`, add `phaser` and `@microsoft/signalr`; Vite proxy; build output to `CasinoWeb/wwwroot` (gitignored).
+- [x] Login page, access-denied page, casino-closed page, lobby with header and two entries (Slots, Blackjack); SignalR connection with reconnect and a visible "reconnecting" state.
+- [x] Lint, `tsc`, Vitest green; headless browser check of the pages with a stubbed `/api/me`.
 
 Visible after: you can log in locally and see your avatar, name and real balance.
 Needs you: log in locally once with your account (at the end).
+
+Decided during the work: the SignalR connection wrapper (`src/connection.ts`, tested with a fake hub) exists but `main.ts` does not start it, because the hub arrives in #411.4 and a connection to a missing hub would show "Offline" forever; #411.4 passes `createCasinoConnection()` in `main.ts`. It must also send the player back to login when the negotiation answers 401 (the wrapper retries every 30 s on any failure).
+
+Status: #411.3 done, uncommitted until approved; next #411.4.
 
 ### #411.4 Slots
 

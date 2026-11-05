@@ -14,6 +14,13 @@
     <PackageReference Include="AspNet.Security.OAuth.Discord" Version="8.3.0" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The client has its own toolchain; its sources and node_modules are not part of this project. -->
+    <Content Remove="ClientApp\**" />
+    <None Remove="ClientApp\**" />
+    <Compile Remove="ClientApp\**" />
+    <EmbeddedResource Remove="ClientApp\**" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\DiscordBot\DiscordBot.csproj" />
   </ItemGroup>
 </Project>
