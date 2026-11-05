@@ -86,32 +86,36 @@ public class ImageSpamGuardService
         var timeoutResult = await TryTimeout(member);
         // Copy the images before deleting, since their links stop working once the message is gone.
         var (files, copyNote) = await CopyImages(lastAttachments);
-        var (deleted, failures) = await DeleteHits(hits);
-
-        LoggingService.LogToConsole(
-            $"[{ServiceName}] Triggered for {member.GetUserLoggingString()}: deleted {deleted}/{hits.Count}, timeout: {timeoutResult}",
-            ExtendedLogSeverity.Warning);
-
-        var report = new AuditLogCards.ImageSpamReport(
-            CardUser.From(member),
-            _guardSettings.ImageCount,
-            _guardSettings.WindowMinutes,
-            hits.Select(h => new AuditLogCards.SpamMessage(h.ChannelId, h.MessageId, h.Text, h.FileNames)).ToList(),
-            deleted,
-            failures,
-            timeoutResult,
-            files.Select(f => $"attachment://{f.FileName}").ToList(),
-            copyNote);
-
+        // The copies hold the image bytes in memory: release them however the rest goes.
         try
         {
-            await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow), files);
-        }
-        catch (HttpException e) when (files.Count > 0)
-        {
-            // Most likely the upload was too large: send the report without the images.
-            report = report with { CopiedImageUrls = [], CopyNote = $"Couldn't upload the copied images ({e.HttpCode})." };
-            await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow));
+            var (deleted, failures) = await DeleteHits(hits);
+
+            LoggingService.LogToConsole(
+                $"[{ServiceName}] Triggered for {member.GetUserLoggingString()}: deleted {deleted}/{hits.Count}, timeout: {timeoutResult}",
+                ExtendedLogSeverity.Warning);
+
+            var report = new AuditLogCards.ImageSpamReport(
+                CardUser.From(member),
+                _guardSettings.ImageCount,
+                _guardSettings.WindowMinutes,
+                hits.Select(h => new AuditLogCards.SpamMessage(h.ChannelId, h.MessageId, h.Text, h.FileNames)).ToList(),
+                deleted,
+                failures,
+                timeoutResult,
+                files.Select(f => $"attachment://{f.FileName}").ToList(),
+                copyNote);
+
+            try
+            {
+                await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow), files);
+            }
+            catch (HttpException e) when (files.Count > 0)
+            {
+                // Most likely the upload was too large: send the report without the images.
+                report = report with { CopiedImageUrls = [], CopyNote = $"Couldn't upload the copied images ({e.HttpCode})." };
+                await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow));
+            }
         }
         finally
         {
@@ -142,38 +146,50 @@ public class ImageSpamGuardService
 
     private async Task<(List<FileAttachment> Files, string? Note)> CopyImages(IReadOnlyCollection<IAttachment> attachments)
     {
-        var files = new List<FileAttachment>();
+        // Choose what fits the upload limit first, so the downloads can run in parallel.
+        var toCopy = new List<IAttachment>();
         long total = 0;
-        var skipped = 0;
-        using var http = _httpClientFactory.CreateClient();
-        http.Timeout = TimeSpan.FromSeconds(15);
-
         foreach (var attachment in attachments)
         {
             if (total + attachment.Size > MaxCopyBytes)
-            {
-                skipped++;
                 continue;
-            }
-            try
-            {
-                var bytes = await http.GetByteArrayAsync(attachment.Url);
-                total += bytes.Length;
-                var extension = Path.GetExtension(attachment.Filename);
-                if (extension.Length is 0 or > 6)
-                    extension = ".png";
-                files.Add(new FileAttachment(new MemoryStream(bytes), $"spam-{files.Count + 1}{extension.ToLowerInvariant()}"));
-            }
-            catch (Exception e) when (e is HttpRequestException or TaskCanceledException)
-            {
-                skipped++;
-            }
+            total += attachment.Size;
+            toCopy.Add(attachment);
         }
 
+        using var http = _httpClientFactory.CreateClient();
+        http.Timeout = TimeSpan.FromSeconds(15);
+        var downloads = await Task.WhenAll(toCopy.Select(a => TryDownload(http, a.Url)));
+
+        var files = new List<FileAttachment>();
+        foreach (var (attachment, bytes) in toCopy.Zip(downloads))
+        {
+            if (bytes == null)
+                continue;
+            var extension = Path.GetExtension(attachment.Filename);
+            if (extension.Length is 0 or > 6)
+                extension = ".png";
+            // FileAttachment.Dispose disposes the stream; ActOnSpam disposes every file.
+            files.Add(new FileAttachment(new MemoryStream(bytes), $"spam-{files.Count + 1}{extension.ToLowerInvariant()}"));
+        }
+
+        var skipped = attachments.Count - files.Count;
         var note = skipped == 0 ? null
             : files.Count == 0 ? "Couldn't copy the images (too large or no longer available)."
             : $"{skipped} image{(skipped == 1 ? "" : "s")} not copied (too large or no longer available).";
         return (files, note);
+    }
+
+    private static async Task<byte[]?> TryDownload(HttpClient http, string url)
+    {
+        try
+        {
+            return await http.GetByteArrayAsync(url);
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException)
+        {
+            return null;
+        }
     }
 
     private async Task<(int Deleted, List<string> Failures)> DeleteHits(IReadOnlyList<ImageSpamHit> hits)
