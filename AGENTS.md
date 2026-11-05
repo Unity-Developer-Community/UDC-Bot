@@ -7,7 +7,7 @@ Discord bot for the Unity Developer Community server: C# 12 on .NET 8, [Discord.
 ```bash
 dotnet restore
 dotnet build
-dotnet test                          # xUnit, DiscordBot.Tests/ (the casino database tests start PostgreSQL in Docker)
+dotnet test                          # xUnit, DiscordBot.Tests/ (the casino database tests start PostgreSQL in Docker) and CasinoWeb.Tests/ (needs the ASP.NET Core 8 runtime)
 docker compose up db adminer        # local PostgreSQL 16 on :5432, Adminer on :8080
 cd DiscordBot && dotnet run          # run the bot (needs Settings/Settings.json, see below)
 ```
@@ -32,6 +32,7 @@ cd DiscordBot && dotnet run          # run the bot (needs Settings/Settings.json
 | `DiscordBot/Assets/` | Read-only fonts, images, skins and slot art, baked into the Docker image |
 | `DiscordBot/SERVER/` | Runtime data (logs, generated images, caches), gitignored, created on demand |
 | `DiscordBot.Tests/` | xUnit tests, mirroring the `DiscordBot/` folders |
+| `CasinoWeb/`, `CasinoWeb.Tests/` | The web casino, a separate ASP.NET Core process that reuses the bot's casino services (`CasinoWeb/README.md`) |
 | `k8s/dev/`, `k8s/prod/` | Kubernetes manifests, synced to the cluster by Argo CD |
 
 Domains used under `Modules/` and `Services/`: `Profiles`, `Server`, `Fun` (with `Casino/`), `Utils`, `Code`. Cross-domain pieces sit at the root of each folder (`AdminSlashModule`, `BadgeSlashModule`, `CommandHandlingService`, `DatabaseService`, `LoggingService`, …). `docs/features.md` maps each feature to its modules and services.
