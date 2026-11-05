@@ -7,7 +7,7 @@ Discord bot for the Unity Developer Community server: C# 12 on .NET 8, [Discord.
 ```bash
 dotnet restore
 dotnet build
-dotnet test                          # xUnit, DiscordBot.Tests/
+dotnet test                          # xUnit, DiscordBot.Tests/ (the casino database tests start PostgreSQL in Docker)
 docker compose up db adminer        # local PostgreSQL 16 on :5432, Adminer on :8080
 cd DiscordBot && dotnet run          # run the bot (needs Settings/Settings.json, see below)
 ```

@@ -55,15 +55,15 @@ public class CasinoService
     public async Task<bool> TransferTokens(string fromUserId, string toUserId, long amount)
     {
         var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
-        var fromUser = await GetOrCreateCasinoUser(fromUserId);
-        var toUser = await GetOrCreateCasinoUser(toUserId);
-
-        if (fromUser.Tokens < amount)
+        // The statement moves both sides at once, which would touch one row twice for a self-transfer.
+        if (amount <= 0 || fromUserId == toUserId)
             return false;
 
-        // Update balances
-        await casinoQuery.UpdateTokens(fromUserId, fromUser.Tokens - amount, DateTime.UtcNow);
-        await casinoQuery.UpdateTokens(toUserId, toUser.Tokens + amount, DateTime.UtcNow);
+        await GetOrCreateCasinoUser(fromUserId);
+        await GetOrCreateCasinoUser(toUserId);
+
+        if (await casinoQuery.TransferTokens(fromUserId, toUserId, amount, DateTime.UtcNow) is null)
+            return false;
 
         // Record transactions
         await RecordTransaction(fromUserId, -amount, TransactionKind.Gift, new Dictionary<string, string>
@@ -83,12 +83,12 @@ public class CasinoService
         try
         {
             var casinoQuery = _databaseService.CasinoQuery ?? throw new InvalidOperationException("Casino database is not available");
-            var user = await GetOrCreateCasinoUser(userId);
-            var newBalance = user.Tokens + deltaTokens;
-            // Prevent negative balance
-            if (newBalance < 0) newBalance = 0;
+            await GetOrCreateCasinoUser(userId);
 
-            await casinoQuery.UpdateTokens(userId, newBalance, DateTime.UtcNow);
+            // The balance never goes below 0: the statement clamps it.
+            if (await casinoQuery.AdjustTokens(userId, deltaTokens, DateTime.UtcNow) is null)
+                throw new InvalidOperationException($"Casino user {userId} has no balance row");
+
             await RecordTransaction(userId, deltaTokens, transactionType, details);
         }
         catch (Exception ex)
@@ -341,8 +341,15 @@ public class CasinoService
 
             // User can claim daily reward
             var tokensAwarded = _settings.Casino.DailyRewardTokens;
-            var newBalance = user.Tokens + tokensAwarded;
-            await casinoQuery.UpdateTokensAndDailyReward(userId, newBalance, now, now);
+            var interval = TimeSpan.FromSeconds(_settings.Casino.DailyRewardIntervalSeconds);
+            var claimedBalance = await casinoQuery.ClaimDailyReward(userId, tokensAwarded, now, now - interval);
+            if (claimedBalance is not { } newBalance)
+            {
+                // A claim that ran at the same moment won: re-read to report its time.
+                var current = await GetOrCreateCasinoUser(userId);
+                return (false, 0, current.Tokens, current.LastDailyReward.AddSeconds(_settings.Casino.DailyRewardIntervalSeconds));
+            }
+
             await RecordTransaction(userId, tokensAwarded, TransactionKind.DailyReward);
 
             await _loggingService.LogChannelAndFile($"{ServiceName}: User {userId} claimed daily reward of {tokensAwarded} tokens");

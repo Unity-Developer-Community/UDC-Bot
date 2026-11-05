@@ -40,7 +40,7 @@ The bot creates its tables on first run. Runtime data (logs, generated images) g
 
 To run everything in Docker instead, set `Host=db` in the connection string and run `docker compose up --build`.
 
-Tests: `dotnet test`.
+Tests: `dotnet test` (the casino database tests start a temporary PostgreSQL, so Docker must be running).
 
 Production runs on Kubernetes: see the [Deployment Guide](docs/deployment.md).
 
