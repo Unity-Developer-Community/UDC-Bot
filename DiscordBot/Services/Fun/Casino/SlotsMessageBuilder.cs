@@ -113,7 +113,8 @@ public static class SlotsMessageBuilder
     {
         var paytable = string.Join("\n", SlotMachine.Paytable.Select(entry => entry.IsJackpot
             ? $"{entry.Pattern} → **Jackpot**: bet ÷ 100 of the pot"
-            : $"{entry.Pattern} → **{entry.Multiplier}×** your bet"));
+            : $"{entry.Pattern} → **{entry.Multiplier}×** your bet"))
+            + "\n\"+ any\" means exactly two of that symbol anywhere on the line. Other pairs pay nothing.";
 
         return new EmbedBuilder()
             .WithTitle("🎰 Slots")
@@ -129,7 +130,9 @@ public static class SlotsMessageBuilder
                 $"About 1 in {100 / SlotMachine.HoldOfferPercent} losing spins offers a hold: keep the reels you like and respin the others once, for free, at the same bet. "
                 + "A respin never offers another hold. The offer ends after 10 minutes or when you spin again.")
             .AddField("📣 Big wins",
-                $"Wins of {SlotMachine.PublicWinMultiplier}× the bet or more, and every jackpot, are announced in the channel.")
+                $"Lines that land less than once in {SlotMachine.PublicWinOneIn} spins ("
+                + string.Join(" ", SlotMachine.Paytable.Where(e => e.IsAnnounced && !e.IsJackpot).Select(e => e.Pattern))
+                + "), and every jackpot, are announced in the channel.")
             .Build();
     }
 }

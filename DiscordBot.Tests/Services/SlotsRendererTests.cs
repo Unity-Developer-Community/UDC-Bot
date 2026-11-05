@@ -27,7 +27,7 @@ public class SlotsRendererTests
     private static readonly (string Name, SlotResult Result)[] Samples =
     [
         ("loss", ResultFor(SlotSymbol.Lemon, SlotSymbol.Bell, SlotSymbol.Grape)),
-        ("cherry-win", ResultFor(SlotSymbol.Cherry, SlotSymbol.Grape, SlotSymbol.Star)),
+        ("pair-win", ResultFor(SlotSymbol.Bell, SlotSymbol.Grape, SlotSymbol.Bell)),
         ("seven-seven-seven", ResultFor(SlotSymbol.Seven, SlotSymbol.Seven, SlotSymbol.Seven)),
         ("diamond-jackpot", ResultFor(SlotSymbol.Diamond, SlotSymbol.Diamond, SlotSymbol.Diamond))
     ];

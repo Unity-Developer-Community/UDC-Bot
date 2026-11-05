@@ -173,6 +173,11 @@ public class SlotsMessageBuilderTests
         Assert.Contains("2,500", text);
         Assert.Contains($"{SlotMachine.MinBet}–{SlotMachine.MaxBet}", text);
         Assert.Contains("respin", text);
+
+        var bigWins = Assert.Single(embed.Fields, f => f.Name == "📣 Big wins").Value;
+        Assert.Contains($"{SlotMachine.PublicWinOneIn}", bigWins);
+        Assert.Contains("🔔🔔🔔", bigWins);
+        Assert.DoesNotContain("🍇🍇🍇", bigWins);
     }
 
     #endregion

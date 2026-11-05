@@ -35,9 +35,9 @@ public class SlotMachineTests
     }
 
     [Fact]
-    public void ExactReturn_WinsOnTwentyToThirtyFivePercentOfSpins()
+    public void ExactReturn_WinsOnOneSpinInThreeToFour()
     {
-        Assert.InRange(SlotReturnAnalysis.Compute().HitRate, 0.20, 0.35);
+        Assert.InRange(SlotReturnAnalysis.Compute().HitRate, 1 / 4.0, 1 / 3.0);
     }
 
     [Fact]
@@ -109,42 +109,83 @@ public class SlotMachineTests
         var paytable = SlotMachine.Paytable;
 
         Assert.Single(paytable, e => e.IsJackpot);
-        foreach (var symbol in Enum.GetValues<SlotSymbol>().Where(s => s != SlotSymbol.Diamond))
+        foreach (var symbol in Enum.GetValues<SlotSymbol>())
+            Assert.Single(paytable, e => e.Symbol == symbol && e.Count == 3);
+        Assert.Equal(paytable.Count, paytable.Select(e => e.Pattern).Distinct().Count());
+        foreach (var entry in paytable)
         {
-            var entry = Assert.Single(paytable, e => e.Pattern == string.Concat(Enumerable.Repeat(symbol.Emoji(), 3)));
-            Assert.Equal(SlotMachine.Evaluate([symbol, symbol, symbol]).Multiplier, entry.Multiplier);
+            SlotSymbol[] line = entry.Count == 3 ? [entry.Symbol, entry.Symbol, entry.Symbol] : [entry.Symbol, SlotSymbol.Lemon, entry.Symbol];
+            Assert.Equal((entry.Multiplier, entry.IsJackpot), SlotMachine.Evaluate(line));
         }
-
-        Assert.Equal(SlotMachine.Evaluate([SlotSymbol.Cherry, SlotSymbol.Cherry, SlotSymbol.Lemon]).Multiplier,
-            Assert.Single(paytable, e => e.Pattern == "🍒🍒 + any").Multiplier);
-        Assert.Equal(SlotMachine.Evaluate([SlotSymbol.Cherry, SlotSymbol.Lemon, SlotSymbol.Grape]).Multiplier,
-            Assert.Single(paytable, e => e.Pattern == "🍒 + any").Multiplier);
     }
 
     [Fact]
-    public void Paytable_HasWinsOfAtLeastTwentyTimesTheBet()
+    public void Paytable_ChancesMatchEveryStopCombination()
     {
-        Assert.Contains(SlotMachine.Paytable, e => e.Multiplier >= SlotMachine.PublicWinMultiplier);
+        var reels = SlotMachine.Reels;
+        var counted = SlotMachine.Paytable.ToDictionary(e => e, _ => 0.0);
+        var weight = 1.0 / (reels[0].Count * reels[1].Count * reels[2].Count);
+        foreach (var a in reels[0])
+        foreach (var b in reels[1])
+        foreach (var c in reels[2])
+            if (SlotMachine.Match([a, b, c]) is { } entry)
+                counted[entry] += weight;
+
+        foreach (var (entry, chance) in counted)
+            Assert.Equal(chance, entry.Chance, 12);
+    }
+
+    [Fact]
+    public void Paytable_EveryWinPaysMoreThanTheBet()
+    {
+        // A win that only gives the bet back feels like a loss; every line is a real gain instead.
+        Assert.All(SlotMachine.Paytable.Where(e => !e.IsJackpot), e => Assert.True(e.Multiplier >= 2, e.Pattern));
+    }
+
+    [Fact]
+    public void Paytable_ARarerLineNeverPaysLessThanAMoreCommonOneOfTheSameKind()
+    {
+        var lines = SlotMachine.Paytable.Where(e => !e.IsJackpot).ToList();
+        foreach (var rare in lines)
+            foreach (var common in lines.Where(e => e.Count == rare.Count && e.Chance > rare.Chance))
+            {
+                // Three of a kind strictly, so its payout ranks the symbols; pairs may share a multiplier.
+                if (rare.Count == 3) Assert.True(rare.Multiplier > common.Multiplier, $"{rare.Pattern} vs {common.Pattern}");
+                else Assert.True(rare.Multiplier >= common.Multiplier, $"{rare.Pattern} vs {common.Pattern}");
+            }
+    }
+
+    [Fact]
+    public void Paytable_AnnouncesExactlyTheLinesRarerThanTheThreshold()
+    {
+        var paytable = SlotMachine.Paytable;
+
+        Assert.All(paytable, e => Assert.Equal(e.Chance < 1.0 / SlotMachine.PublicWinOneIn, e.IsAnnounced));
+        Assert.Contains(paytable, e => e.IsAnnounced && !e.IsJackpot);
+        Assert.Contains(paytable, e => e.IsJackpot && e.IsAnnounced);
+        Assert.DoesNotContain(paytable, e => e.Count == 2 && e.IsAnnounced);
     }
 
     [Theory]
     [InlineData(SlotSymbol.Lemon, SlotSymbol.Grape, SlotSymbol.Bell)]
-    [InlineData(SlotSymbol.Star, SlotSymbol.Star, SlotSymbol.Seven)]
+    [InlineData(SlotSymbol.Cherry, SlotSymbol.Lemon, SlotSymbol.Grape)]
+    [InlineData(SlotSymbol.Lemon, SlotSymbol.Lemon, SlotSymbol.Seven)]
     [InlineData(SlotSymbol.Diamond, SlotSymbol.Diamond, SlotSymbol.Seven)]
     public void Evaluate_NoWinningLine_PaysNothing(SlotSymbol a, SlotSymbol b, SlotSymbol c)
     {
         Assert.Equal((0, false), SlotMachine.Evaluate([a, b, c]));
+        Assert.False(SlotMachine.IsRareWin([a, b, c]));
     }
 
     [Fact]
-    public void Evaluate_CherriesPayAnywhereOnTheLine()
+    public void Evaluate_PairsPayAnywhereOnTheLine()
     {
-        var one = SlotMachine.Evaluate([SlotSymbol.Lemon, SlotSymbol.Cherry, SlotSymbol.Bell]).Multiplier;
-        var two = SlotMachine.Evaluate([SlotSymbol.Cherry, SlotSymbol.Bell, SlotSymbol.Cherry]).Multiplier;
+        var pair = SlotMachine.Evaluate([SlotSymbol.Bell, SlotSymbol.Bell, SlotSymbol.Lemon]).Multiplier;
 
-        Assert.True(one > 0);
-        Assert.True(two > one);
-        Assert.Equal(one, SlotMachine.Evaluate([SlotSymbol.Cherry, SlotSymbol.Lemon, SlotSymbol.Bell]).Multiplier);
+        Assert.True(pair > 0);
+        Assert.Equal(pair, SlotMachine.Evaluate([SlotSymbol.Bell, SlotSymbol.Lemon, SlotSymbol.Bell]).Multiplier);
+        Assert.Equal(pair, SlotMachine.Evaluate([SlotSymbol.Lemon, SlotSymbol.Bell, SlotSymbol.Bell]).Multiplier);
+        Assert.True(SlotMachine.Evaluate([SlotSymbol.Bell, SlotSymbol.Bell, SlotSymbol.Bell]).Multiplier > pair);
     }
 
     [Fact]

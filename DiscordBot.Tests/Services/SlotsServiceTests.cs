@@ -230,7 +230,7 @@ public class SlotsServiceTests
         var play = await f.Service.SpinAsync(UserId, 10);
 
         Assert.Equal(SlotsStatus.Failed, play.Status);
-        Assert.Contains(f.Logging.Messages, m => m.Contains(UserId.ToString()) && m.Contains("290 tokens for a spin") && m.Contains("bet 10"));
+        Assert.Contains(f.Logging.Messages, m => m.Contains(UserId.ToString()) && m.Contains("190 tokens for a spin") && m.Contains("bet 10"));
     }
 
     [Fact]
@@ -386,7 +386,7 @@ public class SlotsServiceTests
         var spin = await f.Service.SpinAsync(UserId, 10);
         var hold = f.Service.ToggleHold(UserId, spin.Hold!.OfferId, 0)!;
         Assert.True(hold.Held[0]);
-        // Reel 0 stays on the lemon; the other two land on lemons.
+        // Reel 0 stays on the lemon; the other two land on lemons: three lemons pay 3x.
         f.Random.Enqueue(StopOf(1, SlotSymbol.Lemon), StopOf(2, SlotSymbol.Lemon));
         var potBefore = f.Ledger.Pot;
 
@@ -395,14 +395,14 @@ public class SlotsServiceTests
         Assert.Equal(SlotsStatus.Ok, respin.Status);
         Assert.True(respin.Result!.IsRespin);
         Assert.Equal(spin.Result!.Stops[0], respin.Result.Stops[0]);
-        Assert.Equal(40, respin.Payout);
-        Assert.Equal(40, respin.Net);
+        Assert.Equal(30, respin.Payout);
+        Assert.Equal(30, respin.Net);
         Assert.Null(respin.Hold);
         Assert.Equal(potBefore, f.Ledger.Pot);
         var credit = f.Ledger.Credits[^1];
-        Assert.Equal(40, credit.Delta);
+        Assert.Equal(30, credit.Delta);
         Assert.Equal("Slots", credit.Details["game"]);
-        Assert.Equal(1_030, f.Ledger.Tokens);
+        Assert.Equal(1_020, f.Ledger.Tokens);
     }
 
     [Fact]
@@ -464,12 +464,12 @@ public class SlotsServiceTests
         f.LosingSpinWithHold();
         var spin = await f.Service.SpinAsync(UserId, 10);
         f.Ledger.FailCredit = true;
-        f.Random.Enqueue(StopOf(0, SlotSymbol.Cherry), StopOf(1, SlotSymbol.Bell), StopOf(2, SlotSymbol.Grape));
+        f.Random.Enqueue(StopOf(0, SlotSymbol.Grape), StopOf(1, SlotSymbol.Bell), StopOf(2, SlotSymbol.Grape));
 
         var respin = await f.Service.RespinAsync(UserId, spin.Hold!.OfferId);
 
         Assert.Equal(SlotsStatus.Failed, respin.Status);
-        Assert.Contains(f.Logging.Messages, m => m.Contains(UserId.ToString()) && m.Contains("10 tokens for a free respin") && m.Contains("payout 10, bet 10"));
+        Assert.Contains(f.Logging.Messages, m => m.Contains(UserId.ToString()) && m.Contains("20 tokens for a free respin") && m.Contains("payout 20, bet 10"));
     }
 
     [Fact]
@@ -566,12 +566,14 @@ public class SlotsServiceTests
     #region Public posts (AC7, AC8)
 
     [Theory]
-    [InlineData(SlotSymbol.Seven, SlotSymbol.Seven, SlotSymbol.Seven, true)]   // 100x
-    [InlineData(SlotSymbol.Star, SlotSymbol.Star, SlotSymbol.Star, true)]      // 30x
-    [InlineData(SlotSymbol.Bell, SlotSymbol.Bell, SlotSymbol.Bell, false)]     // 15x
-    [InlineData(SlotSymbol.Cherry, SlotSymbol.Lemon, SlotSymbol.Grape, false)] // 1x
+    [InlineData(SlotSymbol.Seven, SlotSymbol.Seven, SlotSymbol.Seven, true)]   // about 1 spin in 3,300
+    [InlineData(SlotSymbol.Star, SlotSymbol.Star, SlotSymbol.Star, true)]      // about 1 in 1,200
+    [InlineData(SlotSymbol.Cherry, SlotSymbol.Cherry, SlotSymbol.Cherry, true)] // about 1 in 2,200
+    [InlineData(SlotSymbol.Bell, SlotSymbol.Bell, SlotSymbol.Bell, true)]      // about 1 in 270
+    [InlineData(SlotSymbol.Grape, SlotSymbol.Grape, SlotSymbol.Grape, false)]  // about 1 in 120
+    [InlineData(SlotSymbol.Seven, SlotSymbol.Lemon, SlotSymbol.Seven, false)]  // a pair, about 1 in 80
     [InlineData(SlotSymbol.Diamond, SlotSymbol.Diamond, SlotSymbol.Diamond, true)]
-    public async Task Play_IsPostedPublicly_OnlyForBigWinsAndTheJackpot(SlotSymbol a, SlotSymbol b, SlotSymbol c, bool expected)
+    public async Task Play_IsPostedPublicly_OnlyForRareWinsAndTheJackpot(SlotSymbol a, SlotSymbol b, SlotSymbol c, bool expected)
     {
         var f = new Fixture();
         f.Stops(a, b, c);

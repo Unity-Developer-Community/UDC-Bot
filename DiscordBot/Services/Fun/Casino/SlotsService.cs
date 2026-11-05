@@ -57,9 +57,9 @@ public sealed record SlotsPlay
     /// <summary>The hold offer of a losing spin, <c>null</c> when none was made.</summary>
     public SlotsHold? Hold { get; init; }
 
-    /// <summary>A jackpot or a win of at least <see cref="SlotMachine.PublicWinMultiplier"/> times the bet is announced in the channel.</summary>
+    /// <summary>A jackpot or a line rarer than one spin in <see cref="SlotMachine.PublicWinOneIn"/> is announced in the channel.</summary>
     public bool PostPublicly => Status == SlotsStatus.Ok && Result is { } result
-        && (result.IsJackpot || result.Multiplier >= SlotMachine.PublicWinMultiplier);
+        && (result.IsJackpot || SlotMachine.IsRareWin(result.Symbols));
 
     public static SlotsPlay Refused(SlotsStatus status) => new() { Status = status };
 }

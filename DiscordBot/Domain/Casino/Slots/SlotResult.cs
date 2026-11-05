@@ -21,7 +21,18 @@ public sealed record SlotResult(
 }
 
 /// <summary>One row of the paytable shown to players.</summary>
-/// <param name="Pattern">The symbols as they appear on the line, for example "🍒🍒🍒" or "🍒 + any".</param>
+/// <param name="Symbol">The symbol the line is made of.</param>
+/// <param name="Count">How many of it the line needs: 3 for three of a kind, 2 for exactly two anywhere on the line.</param>
 /// <param name="Multiplier">Win as a multiple of the bet, 0 for the jackpot.</param>
-/// <param name="IsJackpot">This row pays a share of the shared jackpot.</param>
-public sealed record SlotPaytableEntry(string Pattern, int Multiplier, bool IsJackpot);
+/// <param name="Chance">Exact chance of the line on a first spin.</param>
+public sealed record SlotPaytableEntry(SlotSymbol Symbol, int Count, int Multiplier, double Chance)
+{
+    /// <summary>Three diamonds: this row pays a share of the shared jackpot.</summary>
+    public bool IsJackpot => Symbol == SlotSymbol.Diamond && Count == SlotMachine.ReelCount;
+
+    /// <summary>Rarer than one first spin in <see cref="SlotMachine.PublicWinOneIn"/>, so a win on it is announced in the channel.</summary>
+    public bool IsAnnounced => Chance * SlotMachine.PublicWinOneIn < 1;
+
+    /// <summary>The symbols as they appear on the line, for example "🍒🍒🍒" or "🍒🍒 + any".</summary>
+    public string Pattern => string.Concat(Enumerable.Repeat(Symbol.Emoji(), Count)) + (Count < SlotMachine.ReelCount ? " + any" : "");
+}
