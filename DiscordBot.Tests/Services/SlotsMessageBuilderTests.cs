@@ -96,14 +96,13 @@ public class SlotsMessageBuilderTests
     }
 
     [Fact]
-    public void Components_WithAHold_ShowAToggleForEachReelAndTheRespin()
+    public void Components_WithAHold_ShowAToggleForEachReelAndTheRespinInPlaceOfSpinAgain()
     {
         var hold = new SlotsHold(7, 10, [false, true, false]);
 
         var buttons = Buttons(SlotsMessageBuilder.BuildComponents(10, hold));
 
-        Assert.Equal(5, buttons.Count);
-        Assert.Equal(["slots_hold:7:0", "slots_hold:7:1", "slots_hold:7:2", "slots_respin:7", "slots_spin:10"], buttons.Select(b => b.CustomId));
+        Assert.Equal(["slots_hold:7:0", "slots_hold:7:1", "slots_hold:7:2", "slots_respin:7"], buttons.Select(b => b.CustomId));
     }
 
     [Fact]

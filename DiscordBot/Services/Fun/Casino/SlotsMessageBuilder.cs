@@ -65,7 +65,7 @@ public static class SlotsMessageBuilder
         return embed.Build();
     }
 
-    /// <summary>Spin again at the same bet, plus the hold toggles and the free respin when an offer is open.</summary>
+    /// <summary>Spin again at the same bet, or, when a hold offer is open, the hold toggles and the free respin in its place.</summary>
     public static MessageComponent BuildComponents(int bet, SlotsHold? hold)
     {
         var builder = new ComponentBuilder();
@@ -81,10 +81,14 @@ public static class SlotsMessageBuilder
                     held ? ButtonStyle.Success : ButtonStyle.Secondary,
                     row: 0);
             }
-            builder.WithButton("🔁 Free respin", $"{RespinButtonPrefix}:{hold.OfferId}", ButtonStyle.Primary, row: 0);
+            // Takes the place of "Spin again" so the free one cannot be skipped by a misclick.
+            builder.WithButton("🔁 Free respin", $"{RespinButtonPrefix}:{hold.OfferId}", ButtonStyle.Primary, row: 1);
+        }
+        else
+        {
+            builder.WithButton($"🎰 Spin again ({N(bet)})", $"{SpinButtonPrefix}:{bet}", ButtonStyle.Primary);
         }
 
-        builder.WithButton($"🎰 Spin again ({N(bet)})", $"{SpinButtonPrefix}:{bet}", ButtonStyle.Primary, row: hold is null ? 0 : 1);
         return builder.Build();
     }
 
