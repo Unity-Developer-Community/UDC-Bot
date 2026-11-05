@@ -19,3 +19,6 @@ dotnet_diagnostic.IDE0051.severity = none
 
 [*.json]
 indent_size = 2
+
+[*.{yml,yaml}]
+indent_size = 2
