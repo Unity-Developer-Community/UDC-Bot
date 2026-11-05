@@ -129,6 +129,16 @@ public class LoggingService : ILoggingService
         await _logChannel.SendMessageAsync(message, false, embed);
     }
 
+    public async Task LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null)
+    {
+        if (_logChannel == null)
+            return;
+        if (files is { Count: > 0 })
+            await _logChannel.SendFilesAsync(files, components: components, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
+        else
+            await _logChannel.SendMessageAsync(components: components, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
+    }
+
     public async Task LogToFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info)
     {
         PrepareLogFile(_logFilePath);
@@ -268,6 +278,12 @@ public interface ILoggingService
     /// <param name="severity">Info, Error, Warn, etc (Included in File and Console logging)</param>
     /// <param name="embed">Embed, only used by Channel Logging</param>
     Task Log(LogBehaviour behaviour, string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed? embed = null);
+
+    /// <summary>
+    /// Sends a Components V2 message to the log channel. Mentions never ping.
+    /// Files are uploaded with the message so components can show them via <c>attachment://name</c>.
+    /// </summary>
+    Task LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null);
 
     /// <summary>
     /// 'Short hand' for logging to all CURRENT supported behaviours, console, channel and file.

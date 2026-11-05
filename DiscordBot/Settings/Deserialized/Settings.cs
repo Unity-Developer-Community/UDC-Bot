@@ -20,8 +20,10 @@ public class BotSettings
     public UnityHelpSettings UnityHelp { get; set; } = new();
     public CasinoSettings Casino { get; set; } = new();
     public BirthdaySettings Birthday { get; set; } = new();
+    public IntroductionWatchSettings IntroductionWatch { get; set; } = new();
     public ApiKeySettings ApiKeys { get; set; } = new();
     public FunCommandSettings FunCommands { get; set; } = new();
+    public ImageSpamGuardSettings ImageSpamGuard { get; set; } = new();
 
     public (List<string> Errors, List<string> Warnings) Validate()
     {
@@ -51,6 +53,9 @@ public class BotSettings
         if (Birthday.Enabled)
             ValidateChannel(warnings, Channels.BirthdayAnnouncement, nameof(Channels.BirthdayAnnouncement));
 
+        if (IntroductionWatch.Enabled && IntroductionWatch.DelayMinutes < 1)
+            warnings.Add("IntroductionWatch.DelayMinutes is less than 1 — 1 minute will be used");
+
         if (Recruitment.Enabled)
         {
             ValidateChannel(warnings, Channels.Recruitment, nameof(Channels.Recruitment));
@@ -73,6 +78,16 @@ public class BotSettings
 
         if (Casino.Enabled && Casino.StartingTokens < 0)
             errors.Add("Casino.StartingTokens is negative");
+
+        if (ImageSpamGuard.Enabled)
+        {
+            if (ImageSpamGuard.ImageCount < 1)
+                warnings.Add("ImageSpamGuard.ImageCount must be at least 1 — the guard will not act until it is fixed");
+            if (ImageSpamGuard.WindowMinutes < 1)
+                warnings.Add("ImageSpamGuard.WindowMinutes must be at least 1");
+            if (ImageSpamGuard.TimeoutHours is < 1 or > ImageSpamGuardSettings.MaxTimeoutHours)
+                warnings.Add($"ImageSpamGuard.TimeoutHours must be between 1 and {ImageSpamGuardSettings.MaxTimeoutHours} (Discord's 28-day limit)");
+        }
 
         return (errors, warnings);
     }
@@ -147,6 +162,12 @@ public class BirthdaySettings
     public int CheckIntervalMinutes { get; set; } = 240;
 }
 
+public class IntroductionWatchSettings
+{
+    public bool Enabled { get; set; } = false;
+    public int DelayMinutes { get; set; } = 5;
+}
+
 public class ApiKeySettings
 {
     public string Weather { get; set; } = string.Empty;
@@ -160,6 +181,19 @@ public class FunCommandSettings
     public string? SlapObjectsTable { get; set; } = null;
     public List<string> SlapChoices { get; set; } = [];
     public List<string> SlapFails { get; set; } = [];
+}
+
+public class ImageSpamGuardSettings
+{
+    /// <summary>Discord timeouts can't be longer than 28 days.</summary>
+    public const int MaxTimeoutHours = 28 * 24;
+
+    public bool Enabled { get; set; } = false;
+    /// <summary>A message counts when it has exactly this many attachments, all images.</summary>
+    public int ImageCount { get; set; } = 4;
+    /// <summary>A second matching message from the same user within this window triggers the guard.</summary>
+    public int WindowMinutes { get; set; } = 15;
+    public int TimeoutHours { get; set; } = 24;
 }
 
 public class ChannelInfo

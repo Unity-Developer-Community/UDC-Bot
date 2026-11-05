@@ -3,6 +3,7 @@ using Discord.Commands;
 using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -83,7 +84,9 @@ public class Program
             _services.GetRequiredService<RecruitService>();
             _services.GetRequiredService<BirthdayAnnouncementService>();
             _services.GetRequiredService<AuditLogService>();
+            _services.GetRequiredService<ImageSpamGuardService>();
             _services.GetRequiredService<WelcomeService>();
+            _services.GetRequiredService<IntroductionWatcherService>();
             _services.GetRequiredService<XpService>();
             _services.GetRequiredService<KarmaService>();
             _services.GetRequiredService<CodeCheckService>();
@@ -128,6 +131,7 @@ public class Program
             .AddSingleton<ILoggingService, LoggingService>()
             .AddSingleton<DatabaseService>()
             .AddSingleton<WelcomeService>()
+            .AddSingleton<IntroductionWatcherService>()
             .AddSingleton<XpService>()
             .AddSingleton<KarmaService>()
             .AddSingleton<CodeCheckService>()
@@ -137,6 +141,8 @@ public class Program
             .AddSingleton<DuelService>()
             .AddSingleton<ProfileCardService>()
             .AddSingleton<AuditLogService>()
+            .AddSingleton<BotDeletionRegistry>()
+            .AddSingleton<ImageSpamGuardService>()
             .AddSingleton<EmbedParsingService>()
             .AddSingleton<ReleaseNotesParser>()
             .AddSingleton<FeedService>()
