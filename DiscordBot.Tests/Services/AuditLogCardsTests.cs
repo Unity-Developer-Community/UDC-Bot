@@ -195,7 +195,7 @@ public class AuditLogCardsTests
     }
 
     [Fact]
-    public void ImageSpamReportCard_ShowsActionsAndCopiedImages()
+    public void ImageSpamReportCard_ShowsActionsAndCopiedImage()
     {
         var report = new AuditLogCards.ImageSpamReport(
             User, 4, 15,
@@ -203,7 +203,7 @@ public class AuditLogCardsTests
                 new AuditLogCards.SpamMessage(10, 1001, "free nitro https://scam.example", ["1.png", "2.png", "3.png", "4.png"]),
                 new AuditLogCards.SpamMessage(20, 1002, new string('x', 5000), ["1.png", "2.png", "3.png", "4.png"]),
             ],
-            2, [], "✅ 24 hours", ["attachment://spam-1.png", "attachment://spam-2.png"], null);
+            2, [], "✅ 24 hours", ["attachment://spam.jpg"], "Showing 1 of 4 images, picked at random and resized.");
 
         var card = AuditLogCards.ImageSpamReportCard(report, Now);
         var text = Text(card);
@@ -214,8 +214,10 @@ public class AuditLogCardsTests
         Assert.Contains("**Deleted:** 2 of 2 messages", text);
         Assert.Contains("<#10>", text);
         Assert.Contains("Message IDs: 1001, 1002", text);
+        Assert.Contains("One image from the last message", text);
+        Assert.Contains("Showing 1 of 4 images", text);
 
         var gallery = Assert.Single(card.Components.OfType<ContainerComponent>().Single().Components.OfType<MediaGalleryComponent>());
-        Assert.Equal(2, gallery.Items.Count);
+        Assert.Single(gallery.Items);
     }
 }
