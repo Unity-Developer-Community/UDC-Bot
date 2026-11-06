@@ -28,6 +28,9 @@ RUN dotnet publish CasinoWeb/CasinoWeb.csproj --configuration Release --no-resto
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app/publish/ ./
+# The art and font of the slots picture posted with a big win (Casino__AssetsPath defaults to ./Assets).
+COPY DiscordBot/Assets/slots/ Assets/slots/
+COPY DiscordBot/Assets/fonts/ConsolasBold.ttf Assets/fonts/ConsolasBold.ttf
 USER $APP_UID
 ENV Casino__KeysPath=/keys
 # Listens on 8080 (ASPNETCORE_HTTP_PORTS default of the .NET 8 images)

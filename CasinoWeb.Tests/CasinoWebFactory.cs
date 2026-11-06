@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Web;
 using AspNet.Security.OAuth.Discord;
 using CasinoWeb.Auth;
+using CasinoWeb.Games;
 using DiscordBot.Domain;
 using DiscordBot.Services;
 using DiscordBot.Services.Fun.Casino;
@@ -14,6 +15,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace CasinoWeb.Tests;
 
@@ -24,6 +26,10 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
     public const ulong GuildId = 777;
     public const long StartingTokens = 1000;
 
+    /// <summary>A valid webhook address whose token must never reach a log line.</summary>
+    public const string WebhookToken = "fake-webhook-token_123";
+    public const string WebhookUrl = "https://discord.com/api/webhooks/9876543210/" + WebhookToken;
+
     public string KeysPath { get; } = Directory.CreateTempSubdirectory().FullName;
     public string WebRootPath { get; }
     public FakeDiscordHandler Discord { get; } = new();
@@ -31,6 +37,16 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
     public FakeSlotsLedger SlotsLedger { get; } = new();
     public ScriptedSlotRandom SlotRandom { get; } = new();
     public FakeTimeProvider Clock { get; } = new(DateTimeOffset.UtcNow);
+    public FakeWebhookHandler Webhook { get; } = new();
+    public FakeSlotsRenderer Renderer { get; } = new();
+    public CapturingLoggerProvider Logs { get; } = new();
+
+    /// <summary>Set before the first request, when the host is built. Production, like the real deploy, unless a test needs Development.</summary>
+    public string Environment { get; set; } = "Production";
+    public string? AnnouncementWebhookUrl { get; set; } = WebhookUrl;
+
+    /// <summary>How long the announcement client waits for the webhook; a test of a webhook that never answers shortens it.</summary>
+    public TimeSpan? WebhookTimeout { get; set; }
 
     /// <summary>The cards of the next blackjack hands, one array per hand; a random deck when empty.</summary>
     public Queue<Card[]> BlackjackDecks { get; } = new();
@@ -43,7 +59,8 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Production");
+        builder.UseEnvironment(Environment);
+        builder.ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Trace).AddProvider(Logs));
         builder.UseWebRoot(WebRootPath);
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -51,6 +68,8 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
             ["Casino:KeysPath"] = KeysPath,
             ["Discord:ClientId"] = "client-id",
             ["Discord:ClientSecret"] = "client-secret",
+            // Always set, so a developer's user-secrets webhook never leaks into the tests.
+            ["Casino:AnnouncementWebhookUrl"] = AnnouncementWebhookUrl ?? string.Empty,
         }));
         builder.ConfigureTestServices(services =>
         {
@@ -69,6 +88,14 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
             services.Configure<DiscordAuthenticationOptions>(DiscordAuthenticationDefaults.AuthenticationScheme,
                 options => options.BackchannelHttpHandler = Discord);
             services.AddHttpClient(nameof(IGuildMembershipChecker)).ConfigurePrimaryHttpMessageHandler(() => Discord);
+
+            // No picture drawing on the test machine and no warm-up racing the tests: the warm-up has its own test.
+            services.RemoveAll<SlotsRenderer>();
+            services.AddSingleton<SlotsRenderer>(Renderer);
+            services.Remove(services.Single(d => d.ImplementationType == typeof(SlotsPictureWarmUp)));
+            var webhookClient = services.AddHttpClient(SlotsWinAnnouncer.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Webhook);
+            if (WebhookTimeout is { } timeout)
+                webhookClient.ConfigureHttpClient(client => client.Timeout = timeout);
         });
     }
 

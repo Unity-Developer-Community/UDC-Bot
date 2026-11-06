@@ -1,5 +1,7 @@
 # #414 Web casino: announce big wins in Discord
 
+Status: #414.1 done; next open item #414.2 (production secret).
+
 ## Goal
 
 A jackpot or a rare slots win played in the web casino is announced in the Discord casino channel, like the same win played with `/casino slots spin`: the same text and a picture of the reels, marked as won on the web with a link to the web casino. The web casino posts through a Discord webhook, so it still never holds the bot token. Big wins are the only thing it posts in Discord.
@@ -34,16 +36,18 @@ A jackpot or a rare slots win played in the web casino is announced in the Disco
 
 ### #414.1 Announce web big wins through a webhook
 
-- [ ] `SlotsMessageBuilder.BuildPublicEmbed(play, webCasino, pictureFileName)` as in Design; a `DiscordBot.Tests` test of the web footer, link and image, existing tests unchanged (AC7).
-- [ ] `CasinoHostOptions.AnnouncementWebhookUrl` and `AssetsPath` with the validation and the Development / non-Development rule; `appsettings.Development.json`; `StartupTests` for AC5.
-- [ ] The casino's `SlotsRenderer` registration and warm-up hosted service, `SlotsWinAnnouncer` with its named `HttpClient` without default logging, registration in `HubSetup.AddCasinoHub`, calls in `CasinoHub.SlotsSpin` and `SlotsRespin`.
-- [ ] `CasinoWebFactory`: a fake webhook URL, a fake renderer (a `SlotsRenderer` subclass returning fixed bytes, or throwing) and a fake handler for the named client; hub tests for AC1–AC4 and AC6.
-- [ ] `CasinoWeb/Dockerfile` copies the slots art and the font (Design); build the image and run the AC8 check.
-- [ ] Docs: `CasinoWeb/README.md` (settings table, local setup: an optional webhook on a test channel through user-secrets), `docs/casino.md` (Slots "Public posts" and "Web Casino": web wins go through the webhook with a static picture), `docs/features.md` (Web Casino row).
-- [ ] `dotnet build` with no new warnings, `dotnet test` green.
+- [x] `SlotsMessageBuilder.BuildPublicEmbed(play, webCasino, pictureFileName)` as in Design; a `DiscordBot.Tests` test of the web footer, link and image, existing tests unchanged (AC7).
+- [x] `CasinoHostOptions.AnnouncementWebhookUrl` and `AssetsPath` with the validation and the Development / non-Development rule; `appsettings.Development.json`; `StartupTests` for AC5.
+- [x] The casino's `SlotsRenderer` registration and warm-up hosted service, `SlotsWinAnnouncer` with its named `HttpClient` without default logging, registration in `HubSetup.AddCasinoHub`, calls in `CasinoHub.SlotsSpin` and `SlotsRespin`.
+- [x] `CasinoWebFactory`: a fake webhook URL, a fake renderer (a `SlotsRenderer` subclass returning fixed bytes, or throwing) and a fake handler for the named client; hub tests for AC1–AC4 and AC6.
+- [x] `CasinoWeb/Dockerfile` copies the slots art and the font (Design); build the image and run the AC8 check.
+- [x] Docs: `CasinoWeb/README.md` (settings table, local setup: an optional webhook on a test channel through user-secrets), `docs/casino.md` (Slots "Public posts" and "Web Casino": web wins go through the webhook with a static picture), `docs/features.md` (Web Casino row).
+- [x] `dotnet build` with no new warnings, `dotnet test` green.
 
 Visible after: locally, with a webhook URL set in user-secrets, a big win in the browser appears with a picture of the reels in that webhook's channel. Without one, nothing changes.
 Needs you: optionally, create a webhook on a test channel, set it with `dotnet user-secrets set Casino:AnnouncementWebhookUrl <url>` in `CasinoWeb/` and spin until a big win (or trust the tests) (at the end).
+Decided during the run: the casino's `SlotsRenderer` and its warm-up hosted service are always registered and stay idle when no webhook URL is set (the renderer loads its art on first use, the warm-up returns at once, the announcer returns before rendering), instead of not being registered at all. Why: `AddCasinoHub` cannot read the setting at registration without reading configuration eagerly, which `WebApplicationFactory` test overrides do not reach reliably. Alternative: pass `IConfiguration` to `AddCasinoHub` and register conditionally. To change: move the three registrations in `HubSetup.AddSlotsAnnouncements` behind that check.
+Decided during the run: the casino's renderer is built from `new BotSettings { AssetsRootPath = <Casino:AssetsPath> }` instead of a copy of the full bot settings. Why: the renderer reads only `AssetsRootPath` (`SlotsRenderer` constructor), and a minimal object leaves the shared `BotSettings` singleton, which holds the bot's secrets, untouched. Alternative: deserialize the bot settings and replace `AssetsRootPath`. To change: build the settings in `HubSetup.AddSlotsAnnouncements` from `BotSettingsPath`.
 
 ### #414.2 Production secret
 

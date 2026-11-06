@@ -7,6 +7,7 @@ namespace DiscordBot.Services.Fun.Casino;
 public static class SlotsMessageBuilder
 {
     public const string GifFileName = "spin.gif";
+    public const string PictureFileName = "spin.png";
     public const string SpinButtonPrefix = "slots_spin";
     public const string HoldButtonPrefix = "slots_hold";
     public const string RespinButtonPrefix = "slots_respin";
@@ -101,15 +102,26 @@ public static class SlotsMessageBuilder
             : $"🎰 **Big win!** {playerMention} won **{N(play.Payout)}** tokens ({result.Multiplier}× the bet) on the slots!";
     }
 
-    public static Embed BuildPublicEmbed(SlotsPlay play)
+    /// <summary>
+    /// The embed of the public announcement. The bot attaches the GIF; the web casino passes its address and the file name
+    /// of the static picture it attaches, which links the title to the site and says where the win was played.
+    /// </summary>
+    public static Embed BuildPublicEmbed(SlotsPlay play, Uri? webCasino = null, string? pictureFileName = null)
     {
         var embed = new EmbedBuilder()
             .WithTitle("🎰 Slots")
             .WithDescription($"**{Symbols(play.Result!)}**")
             .WithColor(play.Result!.IsJackpot ? Color.Gold : Color.Green)
-            .WithFooter($"Play with /casino slots spin ({SlotMachine.MinBet}–{SlotMachine.MaxBet} tokens).");
+            .WithFooter(webCasino is null
+                ? $"Play with /casino slots spin ({SlotMachine.MinBet}–{SlotMachine.MaxBet} tokens)."
+                : $"Won on the web casino · play at {webCasino.Authority} or with /casino slots spin ({SlotMachine.MinBet}–{SlotMachine.MaxBet} tokens).");
 
-        if (play.Gif is not null)
+        if (webCasino is not null)
+            embed.WithUrl(webCasino.AbsoluteUri);
+
+        if (pictureFileName is not null)
+            embed.WithImageUrl($"attachment://{pictureFileName}");
+        else if (play.Gif is not null)
             embed.WithImageUrl($"attachment://{GifFileName}");
         return embed.Build();
     }
