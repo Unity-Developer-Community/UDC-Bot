@@ -1,6 +1,6 @@
 # #415 Web casino: deploy to the dev environment
 
-Status: #415.1 and #415.2 done; next open item #415.3 Docs.
+Status: finished, waiting for the user's review.
 
 ## Goal
 
@@ -50,8 +50,8 @@ Needs you: run **Deploy to Dev** once after the push and log in at the dev addre
 
 ### #415.3 Docs
 
-- [ ] `docs/deployment.md`: a dev paragraph in "The Web Casino" (address, the two 1Password items, redirect URL, image `udc-casino-dev`, deployed with **Deploy to Dev**), the casino row in "Updating the Bot", the table "Environment Differences".
-- [ ] `AGENTS.md`: the Deployment dev bullet names the casino dev image and manifest.
+- [x] `docs/deployment.md`: a dev paragraph in "The Web Casino" (address, the two 1Password items, redirect URL, image `udc-casino-dev`, deployed with **Deploy to Dev**), the casino row in "Updating the Bot", the table "Environment Differences".
+- [x] `AGENTS.md`: the Deployment dev bullet names the casino dev image and manifest.
 
 Visible after: nothing: documentation.
 Needs you: nothing.

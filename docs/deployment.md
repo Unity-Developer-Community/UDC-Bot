@@ -191,7 +191,9 @@ kubectl -n udc-bot-prod logs deployment/udc-bot
 The UDC servers update through CI and [Argo CD](https://argo-cd.readthedocs.io/), which syncs the cluster with the manifests in `k8s/`:
 
 - **Prod:** every push to `master` (except changes limited to `k8s/`, `docs/`, `CasinoWeb/`, `CasinoWeb.Tests/` or Markdown) builds `ghcr.io/unity-developer-community/udc-bot:<short-sha>`, commits that tag to `k8s/prod/bot.yaml`, and Argo CD rolls it out.
-- **Dev:** the **Deploy to Dev** workflow (run manually with a PR number or a ref) builds `udc-bot-dev:<short-sha>` and commits that tag to `k8s/dev/bot.yaml` on `master`. A `/build` comment on a PR only builds and pushes the image; to run it with the PR's manifest changes, set the tag in `k8s/dev/bot.yaml` on the PR branch and point the `udc-bot-dev` Argo CD app at that branch (the comments posted on the PR give these steps).
+- **Prod web casino:** a push to `master` that changes `CasinoWeb/**`, `DiscordBot/**` or `NuGet.config` (Markdown aside) builds `ghcr.io/unity-developer-community/udc-casino:<short-sha>` and commits that tag to `k8s/prod/casino.yaml` (see [The Web Casino](#the-web-casino)).
+- **Dev:** the **Deploy to Dev** workflow (run manually with a PR number or a ref) builds the bot and the web casino from the same commit, as `udc-bot-dev:<short-sha>` and `udc-casino-dev:<short-sha>`, and commits both tags to `k8s/dev/bot.yaml` and `k8s/dev/casino.yaml` on `master`. Both deploys wait for both builds, so a failed build commits neither tag. A `/build` comment on a PR only builds and pushes both images; to run them with the PR's manifest changes, set the two tags in `k8s/dev/bot.yaml` and `k8s/dev/casino.yaml` on the PR branch and point the `udc-bot-dev` Argo CD app at that branch (the comments posted on the PR give these steps).
+- **Workflow changes:** a push to `master` that changes any file under `.github/` runs **Deploy Prod**, because its filter does not ignore `.github/**`; the run redeploys the production bot from `master` and changes nothing in production.
 
 Without Argo CD, build and push an image yourself, set its tag in `bot.yaml`, and re-apply:
 
@@ -214,6 +216,16 @@ kubectl apply -f k8s/prod/bot.yaml
 - **Keys volume:** the PVC `casino-keys` holds the Data Protection keys (unencrypted on disk, private to the pod), so a deploy keeps everyone logged in. Losing it only logs players out.
 - **One replica, recreated on deploy:** open Blackjack hands and slots hold offers live in the process. A graceful stop gives back every open Blackjack bet; a crash does not, and the log has a `WebBlackjack: reserved …` line per bet and a `settled` or `gave back` line per finished hand, so a bet with neither can be credited with `/admin casino tokens-add`.
 - **Verify:** `kubectl -n udc-bot-prod get pods -l app.kubernetes.io/name=udc-casino`, `kubectl -n udc-bot-prod logs deployment/udc-casino`, then log in at the address with a guild member account.
+
+#### Dev environment
+
+`k8s/dev/casino.yaml` runs the same casino in the `udc-bot-dev` namespace, next to the dev bot. It reads the dev `bot-config` and the dev `postgresql-credentials`, so it sees only the dev database and the dev Discord server; nothing in it refers to production. It differs from the production manifest in these environment values:
+
+- **Address:** `https://casino.dev.udc.ovh` (Ingress host, TLS secret `casino-dev-tls`, and `Casino__PublicOrigin`). Point the DNS record at the cluster, as for `adminer.dev.bot.udc.ovh`.
+- **Discord application:** in the dev bot's application, add the redirect URL `https://casino.dev.udc.ovh/signin-discord`.
+- **Secrets:** `casino-oauth` reads the fields `Client ID` and `Client Secret` of the 1Password item `Discord App - Dev`; `casino-announcements` reads the field `Announcement Webhook URL` of the item `Casino - Dev`, a webhook on the dev server's casino channel (the setting is required outside Development, so the dev pod needs its webhook too). Both items are in the UDC vault.
+- **Image and rollout:** `ghcr.io/unity-developer-community/udc-casino-dev:<short-sha>`, built and committed to the manifest by **Deploy to Dev** together with the dev bot. No push to `master` deploys the dev casino. The manifest starts at `:latest`, so the pod may show `ImagePullBackOff` until the first **Deploy to Dev** run has committed the real tag.
+- **Verify:** `kubectl -n udc-bot-dev get pods -l app.kubernetes.io/name=udc-casino`, then log in at the address with a dev-server account.
 
 ### Advanced: Optional Integrations
 
@@ -402,6 +414,9 @@ adminer:
 |---------|------------------|-------------------|-----------------|
 | Namespace | `udc-bot-prod` | `udc-bot-dev` | N/A |
 | Bot image | Commit SHA of `master` | Commit SHA of the deployed PR or ref | Built from source |
+| Casino image | `udc-casino`, commit SHA of `master` | `udc-casino-dev`, commit SHA of the deployed PR or ref | Built from source |
+| Casino address | `https://casino.udc.ovh` | `https://casino.dev.udc.ovh` | `localhost:5080` |
+| Casino secrets | 1Password items `Discord App` and `Casino` | 1Password items `Discord App - Dev` and `Casino - Dev` | `dotnet user-secrets` |
 | CPU request | 100m | 50m | Unlimited |
 | Memory limit | 512Mi | 512Mi | Unlimited |
 | PostgreSQL storage | 5 Gi PVC | 5 Gi PVC | Docker volume |

@@ -61,7 +61,7 @@ Domains used under `Modules/` and `Services/`: `Profiles`, `Server`, `Fun` (with
 ## Deployment
 
 - A push to `master` (unless it only changes `k8s/`, `docs/`, `CasinoWeb/`, `CasinoWeb.Tests/` or `*.md`) builds `ghcr.io/unity-developer-community/udc-bot:<sha>`, commits the new tag to `k8s/prod/bot.yaml`, and Argo CD syncs it.
-- Dev: the **Deploy to Dev** workflow (manual, by PR number or ref) builds `udc-bot-dev:<sha>` and commits the tag to `k8s/dev/bot.yaml` on `master`. A `/build` comment on a PR only builds and pushes the image, then comments the manual steps (set the tag in `k8s/dev/bot.yaml` on the branch, point the `udc-bot-dev` Argo CD app at it).
+- Dev: the **Deploy to Dev** workflow (manual, by PR number or ref) builds `udc-bot-dev:<sha>` and `udc-casino-dev:<sha>` from the same commit and commits the tags to `k8s/dev/bot.yaml` and `k8s/dev/casino.yaml` on `master`. A `/build` comment on a PR only builds and pushes both images, then comments the manual steps (set the tags in both manifests on the branch, point the `udc-bot-dev` Argo CD app at it).
 - The web casino has its own image and workflow: a push to `master` that changes `CasinoWeb/**` or `DiscordBot/**` or `NuGet.config` (Markdown aside) builds `ghcr.io/unity-developer-community/udc-casino:<sha>` and commits the tag to `k8s/prod/casino.yaml`. Deploy Prod ignores `CasinoWeb/**`.
 - Full setup, secrets and backups: `docs/deployment.md`.
 
