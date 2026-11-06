@@ -4,6 +4,7 @@ using System.Web;
 using AspNet.Security.OAuth.Discord;
 using CasinoWeb.Auth;
 using CasinoWeb.Games;
+using CasinoWeb.Hubs;
 using DiscordBot.Domain;
 using DiscordBot.Services;
 using DiscordBot.Services.Fun.Casino;
@@ -140,5 +141,5 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
     public static async Task<MeBody> GetMeAsync(HttpClient browser) =>
         (await browser.GetFromJsonAsync<MeBody>("/api/me"))!;
 
-    public sealed record MeBody(string Id, string Name, string AvatarUrl, long? Balance, bool CasinoEnabled);
+    public sealed record MeBody(string Id, string Name, string AvatarUrl, long? Balance, bool CasinoEnabled, DailyInfo? Daily);
 }

@@ -1,5 +1,7 @@
 # #416 Web casino: claim the daily reward
 
+Status: #416.1 done; next open item #416.2 Daily button in the header.
+
 ## Goal
 
 A member claims the daily token reward from the web casino's header, with the same amount and cooldown as `/casino tokens daily`. When the reward is not available yet, the header shows how long until the next claim. Claiming in Discord and on the web at the same moment pays once, and a web claim shows in the token history like a Discord one.
@@ -31,11 +33,11 @@ A member claims the daily token reward from the web casino's header, with the sa
 
 ### #416.1 Claim through the hub
 
-- [ ] `DailyInfo`, `DailyClaimDto` in `CasinoWeb/Hubs/HubModels.cs`; `CasinoHub.ClaimDailyReward` as in Design; `MeResponse.Daily` in `Endpoints/AccountEndpoints.cs`.
-- [ ] `FakeCasinoRepo.ClaimDailyReward` behaves like the SQL statement (pays and stamps `LastDailyReward = now` only when the last claim is at or before `eligibleBefore`, otherwise null).
-- [ ] Hub tests for AC1, AC2, AC4; `/api/me` test for AC5 (open and closed).
-- [ ] `CasinoWeb/README.md`: add `ClaimDailyReward` to the hub methods list.
-- [ ] `dotnet build` with no new warnings, `dotnet test` green.
+- [x] `DailyInfo`, `DailyClaimDto` in `CasinoWeb/Hubs/HubModels.cs`; `CasinoHub.ClaimDailyReward` as in Design; `MeResponse.Daily` in `Endpoints/AccountEndpoints.cs`.
+- [x] `FakeCasinoRepo.ClaimDailyReward` behaves like the SQL statement (pays and stamps `LastDailyReward = now` only when the last claim is at or before `eligibleBefore`, otherwise null).
+- [x] Hub tests for AC1, AC2, AC4; `/api/me` test for AC5 (open and closed).
+- [x] `CasinoWeb/README.md`: add `ClaimDailyReward` to the hub methods list.
+- [x] `dotnet build` with no new warnings, `dotnet test` green.
 
 Visible after: nothing: the server can pay the reward, but no button calls it yet.
 Needs you: nothing.

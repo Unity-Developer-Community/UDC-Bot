@@ -55,4 +55,15 @@ public sealed class CasinoHub(SlotsService slots, SlotsWinAnnouncer announcer, W
     public async Task<BlackjackPlayDto> BlackjackAct(string action) => BlackjackWire.ParseAction(action) is { } parsed
         ? BlackjackPlayDto.From(await blackjack.ActAsync(UserId, parsed))
         : BlackjackPlayDto.From(new BlackjackPlay(BlackjackStatus.NotAllowed));
+
+    /// <summary>The same claim as <c>/casino tokens daily</c>: one statement in the database decides, so a claim from Discord at the same moment pays once.</summary>
+    [GameAction]
+    public async Task<DailyClaimDto> ClaimDailyReward()
+    {
+        var reward = settings.Casino.DailyRewardTokens;
+        var (success, awarded, balance, nextRewardTime) = await casino.TryClaimDailyReward(UserId.ToString());
+        return success
+            ? new DailyClaimDto("ok", awarded, balance, new DailyInfo(reward, settings.Casino.DailyRewardIntervalSeconds))
+            : new DailyClaimDto("notYet", 0, balance, DailyInfo.Create(reward, nextRewardTime));
+    }
 }

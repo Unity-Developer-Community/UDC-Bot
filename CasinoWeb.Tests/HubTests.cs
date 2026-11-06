@@ -492,6 +492,89 @@ public sealed class HubTests : IAsyncDisposable
 
     #endregion
 
+    #region Daily reward (#416 AC1, AC2, AC4)
+
+    private const long DailyTokens = 100;
+    private const int DailyInterval = 86_400;
+
+    [Fact]
+    public async Task A_claim_pays_the_reward_records_one_transaction_and_starts_the_wait()
+    {
+        var connection = await ConnectAsync();
+
+        var claim = await connection.InvokeAsync<DailyClaimDto>(nameof(CasinoHub.ClaimDailyReward));
+
+        Assert.Equal("ok", claim.Status);
+        Assert.Equal(DailyTokens, claim.Awarded);
+        Assert.Equal(CasinoWebFactory.StartingTokens + DailyTokens, claim.Balance);
+        Assert.Equal(new DailyInfo(DailyTokens, DailyInterval), claim.Daily);
+        Assert.Equal(claim.Balance, _factory.Database.Repo.Users[FakeDiscordHandler.UserId].Tokens);
+        var transaction = Assert.Single(_factory.Database.Repo.Transactions, t => t.TransactionType == TransactionKind.DailyReward.ToString());
+        Assert.Equal(DailyTokens, transaction.Amount);
+    }
+
+    [Fact]
+    public async Task A_second_claim_right_after_pays_nothing_and_reports_the_full_wait()
+    {
+        var connection = await ConnectAsync();
+        await connection.InvokeAsync<DailyClaimDto>(nameof(CasinoHub.ClaimDailyReward));
+
+        var again = await connection.InvokeAsync<DailyClaimDto>(nameof(CasinoHub.ClaimDailyReward));
+
+        Assert.Equal("notYet", again.Status);
+        Assert.Equal(0, again.Awarded);
+        Assert.Equal(CasinoWebFactory.StartingTokens + DailyTokens, again.Balance);
+        Assert.InRange(again.Daily.SecondsUntilNext, DailyInterval - 5, DailyInterval);
+        Assert.Equal(DailyTokens, again.Daily.Tokens);
+        Assert.Single(_factory.Database.Repo.Transactions, t => t.TransactionType == TransactionKind.DailyReward.ToString());
+    }
+
+    [Fact]
+    public async Task A_claim_made_in_discord_recently_is_not_paid_again_and_the_seconds_left_are_rounded_up()
+    {
+        var connection = await ConnectAsync();
+        await connection.InvokeAsync<HubState>(nameof(CasinoHub.GetState)); // creates the row
+        var user = _factory.Database.Repo.Users[FakeDiscordHandler.UserId];
+        user.LastDailyReward = DateTime.UtcNow.AddSeconds(-(DailyInterval - 3_600));
+
+        var claim = await connection.InvokeAsync<DailyClaimDto>(nameof(CasinoHub.ClaimDailyReward));
+
+        Assert.Equal("notYet", claim.Status);
+        Assert.Equal(0, claim.Awarded);
+        Assert.Equal(CasinoWebFactory.StartingTokens, claim.Balance);
+        Assert.InRange(claim.Daily.SecondsUntilNext, 3_599, 3_600);
+        Assert.Equal(CasinoWebFactory.StartingTokens, user.Tokens);
+        Assert.DoesNotContain(_factory.Database.Repo.Transactions, t => t.TransactionType == TransactionKind.DailyReward.ToString());
+    }
+
+    [Fact]
+    public async Task While_the_casino_is_closed_a_claim_is_refused_and_pays_nothing()
+    {
+        var connection = await ConnectAsync();
+        await connection.InvokeAsync<HubState>(nameof(CasinoHub.GetState));
+        _factory.BotSettings.Casino.Enabled = false;
+
+        var refusal = await RefusalAsync(() => connection.InvokeAsync<DailyClaimDto>(nameof(CasinoHub.ClaimDailyReward)));
+
+        Assert.Contains(HubErrors.CasinoClosed, refusal);
+        Assert.Equal(CasinoWebFactory.StartingTokens, _factory.Database.Repo.Users[FakeDiscordHandler.UserId].Tokens);
+    }
+
+    [Fact]
+    public async Task A_claim_counts_as_a_game_action_for_the_rate_limit()
+    {
+        var connection = await ConnectAsync();
+        for (var i = 0; i < ActionRateLimiter.MaxActions; i++)
+            await connection.InvokeAsync<SlotsHoldDto?>(nameof(CasinoHub.SlotsToggleHold), 1L, 0);
+
+        var refusal = await RefusalAsync(() => connection.InvokeAsync<DailyClaimDto>(nameof(CasinoHub.ClaimDailyReward)));
+
+        Assert.Contains(HubErrors.SlowDown, refusal);
+        Assert.DoesNotContain(_factory.Database.Repo.Transactions, t => t.TransactionType == TransactionKind.DailyReward.ToString());
+    }
+
+    #endregion
+
     #region Casino closed (AC10)
 
     [Fact]
