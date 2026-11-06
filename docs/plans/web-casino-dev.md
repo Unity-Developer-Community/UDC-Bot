@@ -1,6 +1,6 @@
 # #415 Web casino: deploy to the dev environment
 
-Status: #415.1 done; next open item #415.2 Dev workflows.
+Status: #415.1 and #415.2 done; next open item #415.3 Docs.
 
 ## Goal
 
@@ -11,7 +11,7 @@ The web casino runs in the dev environment next to the dev bot, against the dev 
 - AC1 WHEN **Deploy to Dev** runs (PR number or ref), THE SYSTEM SHALL build `udc-bot-dev` and `udc-casino-dev` from the same commit and commit both tags, to `k8s/dev/bot.yaml` and `k8s/dev/casino.yaml` on `master`; WHEN a `/build` comment is posted on a PR, it SHALL build both images and name both tags in its reply. Check: read the workflows (`actionlint` if installed, otherwise a YAML parse); the first real run, by the user.
 - AC2 WHEN `k8s/dev/casino.yaml` is synced and its secrets exist, THE SYSTEM SHALL serve the casino at `https://casino.dev.udc.ovh`, and a member of the dev Discord server who logs in sees their name, avatar and the balance of the dev database. Check: manual, by the user.
 - AC3 The dev casino touches nothing of production: no reference to `udc-bot-prod`, the prod hosts or the prod 1Password items. Check: `grep` on `k8s/dev/casino.yaml`; a diff against `k8s/prod/casino.yaml` showing only environment differences.
-- AC4 Production deployment is unchanged: no change under `k8s/prod/`, `deploy-prod.yml` or `deploy-casino.yml`, and a push to `master` that touches only `k8s/dev/` or the dev workflows triggers neither. Check: `git diff --stat`; reading the path filters.
+- AC4 Production deployment is unchanged: no change under `k8s/prod/`, `deploy-prod.yml` or `deploy-casino.yml`, and a push to `master` that touches only `k8s/dev/` triggers neither (a change to any workflow file runs Deploy Prod, as today: its filter does not ignore `.github/**`). Check: `git diff --stat`; reading the path filters.
 
 ## Design
 
@@ -34,9 +34,16 @@ Needs you: before the push, create the 1Password items `Discord App - Dev` and `
 
 ### #415.2 Dev workflows
 
-- [ ] `deploy-to-dev.yml`: add the casino build (`image_name: udc-casino-dev`, `dockerfile: CasinoWeb/Dockerfile`) and deploy (`manifest_path: k8s/dev/casino.yaml`, own commit message) jobs; the PR comment lists both images.
-- [ ] `pr-build.yml`: build both images; the reply names both tags and both manifests. `pr-deploy-instructions.yml`: mention `k8s/dev/casino.yaml` in the manifest-change steps.
-- [ ] Verify AC1 and AC4 by reading (keep the SHA-pinned actions and the 4-space style of `deploy-to-dev.yml`).
+- [x] `deploy-to-dev.yml`: add the casino build (`image_name: udc-casino-dev`, `dockerfile: CasinoWeb/Dockerfile`) and deploy (`manifest_path: k8s/dev/casino.yaml`, own commit message) jobs; the PR comment lists both images.
+- [x] `pr-build.yml`: build both images; the reply names both tags and both manifests. `pr-deploy-instructions.yml`: mention `k8s/dev/casino.yaml` in the manifest-change steps.
+- [x] Verify AC1 and AC4 by reading (keep the SHA-pinned actions and the 4-space style of `deploy-to-dev.yml`).
+
+Decided during the run: `deploy-to-dev.yml` resolves a branch or tag `ref` to its commit SHA in the `resolve` job (`repos.getCommit`), so the bot and casino builds, which run as separate jobs, cannot pick up different commits if the branch moves between them (AC1 "same commit"). Alternative: pass the ref name through as before. Change: set `checkout_ref` back to `ref`.
+Decided during the run: the success comment needs both deploys to succeed and the failure comment fires when any job failed (`contains(needs.*.result, 'failure')`), so a failed casino build is reported and a half-deployed dev is not announced as done. Alternative: test `deploy` only. Change: edit the two `if:` lines of `notify`.
+Decided during the run: the casino deploy commits with its own message (`chore(k8s): deploy <ref or PR #n> casino to dev ({sha})`), from a new `casino_commit_message` output of `resolve`.
+Decided during the run: both deploy jobs wait for both builds (`needs: [resolve, build, build-casino]`), so a failed build of either image commits no tag and dev never ends up with a new casino next to an old bot, or the reverse (the goal's "coherent dev"). Alternative: independent chains, which deploy whichever image built. Change: set `deploy` back to `needs: [resolve, build]` and `deploy-casino` to `needs: [resolve, build-casino]`.
+
+Decided during the run: AC4 is reworded, not met by editing `deploy-prod.yml`: `deploy-prod.yml` does not ignore `.github/**`, so the push carrying this item redeploys the production bot once from `master` (existing behavior, no change in production). Alternative: add the three dev workflow files to its `paths-ignore`, which edits a production workflow. Change: add them and restore the original AC4 wording.
 
 Visible after: the next **Deploy to Dev** run also deploys the casino.
 Needs you: run **Deploy to Dev** once after the push and log in at the dev address with a dev-server account (AC2) (at the end).

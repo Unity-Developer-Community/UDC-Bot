@@ -31,6 +31,7 @@ jobs:
         outputs:
             checkout_ref: ${{ steps.resolve.outputs.checkout_ref }}
             commit_message: ${{ steps.resolve.outputs.commit_message }}
+            casino_commit_message: ${{ steps.resolve.outputs.casino_commit_message }}
             is_pr: ${{ steps.resolve.outputs.is_pr }}
             short_sha: ${{ steps.resolve.outputs.short_sha }}
         steps:
@@ -63,11 +64,19 @@ jobs:
                         }
                         core.setOutput('checkout_ref', pr.head.sha);
                         core.setOutput('commit_message', `chore(k8s): deploy PR #${prNumber} to dev ({sha})`);
+                        core.setOutput('casino_commit_message', `chore(k8s): deploy PR #${prNumber} casino to dev ({sha})`);
                         core.setOutput('is_pr', 'true');
                         core.setOutput('short_sha', pr.head.sha.substring(0, 7));
                       } else {
-                        core.setOutput('checkout_ref', ref);
+                        // Pin the ref to a commit: the bot and casino images are built by separate jobs and must come from the same one.
+                        const { data: commit } = await github.rest.repos.getCommit({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          ref,
+                        });
+                        core.setOutput('checkout_ref', commit.sha);
                         core.setOutput('commit_message', `chore(k8s): deploy ${ref} to dev ({sha})`);
+                        core.setOutput('casino_commit_message', `chore(k8s): deploy ${ref} casino to dev ({sha})`);
                         core.setOutput('is_pr', 'false');
                       }
 
@@ -82,7 +91,7 @@ jobs:
             packages: write
 
     deploy:
-        needs: [resolve, build]
+        needs: [resolve, build, build-casino]
         uses: ./.github/workflows/deploy.yml
         with:
             image_name: udc-bot-dev
@@ -97,30 +106,58 @@ jobs:
         permissions:
             contents: write
 
+    build-casino:
+        needs: resolve
+        uses: ./.github/workflows/build.yml
+        with:
+            checkout_ref: ${{ needs.resolve.outputs.checkout_ref }}
+            image_name: udc-casino-dev
+            dockerfile: CasinoWeb/Dockerfile
+        permissions:
+            contents: read
+            packages: write
+
+    deploy-casino:
+        needs: [resolve, build, build-casino]
+        uses: ./.github/workflows/deploy.yml
+        with:
+            image_name: udc-casino-dev
+            short_sha: ${{ needs.build-casino.outputs.short_sha }}
+            manifest_path: k8s/dev/casino.yaml
+            manifest_ref: master
+            commit_message: ${{ needs.resolve.outputs.casino_commit_message }}
+            environment: dev
+        secrets:
+            APP_ID: ${{ secrets.APP_ID }}
+            APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+        permissions:
+            contents: write
+
     notify:
-        needs: [resolve, build, deploy]
+        needs: [resolve, build, deploy, build-casino, deploy-casino]
         if: always() && needs.resolve.outputs.is_pr == 'true'
         name: Notify PR
         runs-on: ubuntu-latest
         steps:
             - name: Post success comment
-              if: needs.deploy.result == 'success'
+              if: needs.deploy.result == 'success' && needs.deploy-casino.result == 'success'
               continue-on-error: true
               uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
               env:
                   PR_NUMBER: ${{ inputs.pr_number }}
                   SHORT_SHA: ${{ needs.build.outputs.short_sha }}
+                  CASINO_SHORT_SHA: ${{ needs.build-casino.outputs.short_sha }}
                   REPO_OWNER: ${{ github.repository_owner }}
                   CHECKOUT_REF: ${{ needs.resolve.outputs.checkout_ref }}
               with:
                   script: |
-                      const { PR_NUMBER, SHORT_SHA, REPO_OWNER, CHECKOUT_REF } = process.env;
+                      const { PR_NUMBER, SHORT_SHA, CASINO_SHORT_SHA, REPO_OWNER, CHECKOUT_REF } = process.env;
                       const owner = REPO_OWNER.toLowerCase();
                       await github.rest.issues.createComment({
                         owner: context.repo.owner,
                         repo: context.repo.repo,
                         issue_number: Number(PR_NUMBER),
-                        body: `✅ PR deployed to dev!\n\nImage: \`ghcr.io/${owner}/udc-bot-dev:${SHORT_SHA}\`\nArgoCD will sync shortly.`,
+                        body: `✅ PR deployed to dev!\n\nImages:\n- \`ghcr.io/${owner}/udc-bot-dev:${SHORT_SHA}\`\n- \`ghcr.io/${owner}/udc-casino-dev:${CASINO_SHORT_SHA}\`\n\nArgoCD will sync shortly.`,
                       });
                       
                       try {
@@ -146,7 +183,7 @@ jobs:
                       }
 
             - name: Post failure comment
-              if: needs.deploy.result == 'failure'
+              if: contains(needs.*.result, 'failure')
               continue-on-error: true
               uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
               env:
