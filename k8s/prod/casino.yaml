@@ -87,7 +87,7 @@ spec:
             - -c
             - |
               set -e
-              apk add --no-cache gettext >/dev/null 2>&1
+              apk add --no-cache gettext >/dev/null
               # Only the database password: the casino never gets the bot token or the API keys, and the other
               # placeholders stay as they are in a file the casino does not read.
               envsubst '${DB_PASSWORD}' < /config-template/Settings.json > /app-settings/Settings.json
@@ -104,8 +104,10 @@ spec:
             - name: app-settings
               mountPath: /app-settings
           securityContext:
-            # apk needs root to install envsubst; the container exits before the casino starts.
+            # apk needs root to install envsubst; the container exits before the casino starts. Group 0 too: apk sets
+            # file groups to root, which fails without CAP_CHOWN when the pod-level runAsGroup (1654) applies.
             runAsUser: 0
+            runAsGroup: 0
             runAsNonRoot: false
             allowPrivilegeEscalation: false
             capabilities:
