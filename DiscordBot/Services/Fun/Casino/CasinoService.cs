@@ -7,11 +7,11 @@ public class CasinoService
 {
     private const string ServiceName = "CasinoService";
 
-    private readonly DatabaseService _databaseService;
+    private readonly ICasinoDatabase _databaseService;
     private readonly ILoggingService _loggingService;
     private readonly BotSettings _settings;
 
-    public CasinoService(DatabaseService databaseService, ILoggingService loggingService, BotSettings settings)
+    public CasinoService(ICasinoDatabase databaseService, ILoggingService loggingService, BotSettings settings)
     {
         _databaseService = databaseService;
         _loggingService = loggingService;

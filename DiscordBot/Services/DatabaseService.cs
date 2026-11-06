@@ -8,7 +8,7 @@ using Npgsql;
 
 namespace DiscordBot.Services;
 
-public class DatabaseService
+public class DatabaseService : ICasinoDatabase
 {
     private const string ServiceName = "DatabaseService";
 
