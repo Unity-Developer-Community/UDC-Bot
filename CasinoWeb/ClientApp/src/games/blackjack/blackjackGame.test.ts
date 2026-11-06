@@ -77,6 +77,20 @@ describe('blackjackGame', () => {
     expect(onBalance).toHaveBeenCalledWith(500);
   });
 
+  it('raises the bet limit when tokens are added, without reporting them back', async () => {
+    const { game, onBalance } = setup({ getState: vi.fn(async () => Promise.resolve(state({ balance: 50 }))) });
+    await game.load();
+    game.setBet(500);
+    expect(game.state.bet).toBe(50);
+    onBalance.mockClear();
+
+    game.addTokens(100);
+    game.setBet(500);
+
+    expect(game.state).toMatchObject({ balance: 150, bet: 150 });
+    expect(onBalance).not.toHaveBeenCalled();
+  });
+
   it('resumes a hand left open, without dealing it again', async () => {
     const open = hand();
     const { game, stage } = setup({ getState: async () => Promise.resolve(state({ blackjack: { hand: open, minBet: 1 } })) });

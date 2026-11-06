@@ -1,6 +1,6 @@
 # #416 Web casino: claim the daily reward
 
-Status: #416.1 done; next open item #416.2 Daily button in the header.
+Status: #416.1 and #416.2 done; finished, waiting for the user's review.
 
 ## Goal
 
@@ -44,12 +44,12 @@ Needs you: nothing.
 
 ### #416.2 Daily button in the header
 
-- [ ] `protocol.ts` (`DailyInfo`, `DailyClaim`), `api.ts` (`Me.daily`), `CasinoApi.claimDailyReward`.
-- [ ] `views/header.ts`: button, countdown, toast (AC6–AC8); styles in `style.css` with theme variables only.
-- [ ] `app.ts`: claim callback and `addTokens` on the open screen; `BlackjackGame.addTokens` and the Blackjack screen exposing it.
-- [ ] Vitest tests: header (both states, countdown reaching 0 with fake timers, success, `notYet`, refusal), app (button only when open and connected), `blackjackGame.addTokens`.
-- [ ] Docs: `docs/casino.md` (Balance changes table: `ClaimDailyReward` also used by the web casino's header; Web Casino intro mentions the daily reward), `docs/features.md` (Web Casino row).
-- [ ] In `CasinoWeb/ClientApp`: `npm run lint`, `npm test`, `npm run build` with no new problems; `dotnet test` green.
+- [x] `protocol.ts` (`DailyInfo`, `DailyClaim`), `api.ts` (`Me.daily`), `CasinoApi.claimDailyReward`.
+- [x] `views/header.ts`: button, countdown, toast (AC6–AC8); styles in `style.css` with theme variables only.
+- [x] `app.ts`: claim callback and `addTokens` on the open screen; `BlackjackGame.addTokens` and the Blackjack screen exposing it.
+- [x] Vitest tests: header (both states, countdown reaching 0 with fake timers, success, `notYet`, refusal), app (button only when open and connected), `blackjackGame.addTokens`.
+- [x] Docs: `docs/casino.md` (Balance changes table: `ClaimDailyReward` also used by the web casino's header; Web Casino intro mentions the daily reward), `docs/features.md` (Web Casino row).
+- [x] In `CasinoWeb/ClientApp`: `npm run lint`, `npm test`, `npm run build` with no new problems; `dotnet test` green.
 
 Visible after: the web casino's header shows `Claim 100 tokens`; clicking it adds 100 tokens and turns it into a countdown to the next claim.
 Needs you: run the casino locally (`CasinoWeb/README.md`), log in, check the button's look in light and dark mode, claim once and see the balance rise and the countdown appear (at the end). The agent cannot do this check: the page needs a real Discord login.

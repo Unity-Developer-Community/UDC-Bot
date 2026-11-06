@@ -96,6 +96,22 @@ export interface BlackjackPlay {
   status: BlackjackStatus;
 }
 
+/** The daily reward: its amount and the seconds until the next claim (0 when it can be claimed now). */
+export interface DailyInfo {
+  secondsUntilNext: number;
+  tokens: number;
+}
+
+export type DailyClaimStatus = 'notYet' | 'ok';
+
+/** `awarded` is 0 unless `ok`; `daily` always holds the seconds until the next claim. */
+export interface DailyClaim {
+  awarded: number;
+  balance: number;
+  daily: DailyInfo;
+  status: DailyClaimStatus;
+}
+
 /** The messages of the `HubException`s a refused call carries (`CasinoWeb/Hubs/HubErrors.cs`). */
 export const HUB_ERRORS = ['casino-closed', 'session-expired', 'slow-down'] as const;
 export type HubErrorCode = typeof HUB_ERRORS[number];

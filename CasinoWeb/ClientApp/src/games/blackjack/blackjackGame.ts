@@ -134,6 +134,11 @@ export class BlackjackGame {
     await this.play(async () => this.api.blackjackAct(action));
   }
 
+  /** Raises the balance that caps the bet after a claim made elsewhere on the page; the header already shows it. */
+  addTokens(tokens: number): void {
+    this.patch({ balance: this.current.balance + tokens });
+  }
+
   async deal(): Promise<void> {
     if (this.current.phase !== 'betting')
       return;

@@ -7,7 +7,9 @@ import { cardLabel } from '@/games/blackjack/table';
 import { formatTokens } from '@/games/slots/slotsGame';
 
 export interface BlackjackScreen {
+  /** Raises the bet limit after the header claimed the daily reward. */
   element: HTMLElement;
+  addTokens: (tokens: number) => void;
   destroy: () => void;
 }
 
@@ -204,6 +206,7 @@ export function renderBlackjackScreen(deps: BlackjackScreenDeps): BlackjackScree
   void start();
 
   return {
+    addTokens: tokens => game.addTokens(tokens),
     destroy() {
       destroyed = true;
       leave();
