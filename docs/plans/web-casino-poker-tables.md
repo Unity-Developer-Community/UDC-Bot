@@ -1,6 +1,6 @@
 # #412 Web casino: multiplayer tables, starting with poker
 
-Status: #412.1 to #412.4 committed; next open item #412.5 Dev environment and docs.
+Status: #412.1 to #412.5 committed; finished, waiting for the user's review.
 
 ## Goal
 
@@ -88,8 +88,8 @@ Needs you: restart `dotnet run` in `CasinoWeb/`, create a table, add an AI seat,
 
 ### #412.5 Dev environment and docs
 
-- [ ] `k8s/dev/casino.yaml`: `Casino__AllowAiSeats=true`.
-- [ ] `docs/casino.md` (Web Casino: Tables and Poker; correct the Discord poker description, which is five-card draw, not Hold'em), `docs/features.md`.
+- [x] `k8s/dev/casino.yaml`: `Casino__AllowAiSeats=true`.
+- [x] `docs/casino.md` (Web Casino: Tables and Poker; correct the Discord poker description, which is five-card draw, not Hold'em), `docs/features.md`.
 
 Visible after: once deployed to dev, tables can be tried with several accounts.
 Needs you: run Deploy to Dev, then play a hand with two Discord accounts in two browsers and check the other's cards stay hidden until showdown and `/casino statistics` shows the hands as Texas Hold'em (at the end).

@@ -144,9 +144,12 @@ The Casino module is a comprehensive gaming system for the Discord bot that enab
 
 ##### Poker (`Domain/Casino/Games/Cards/Poker/`)
 
+Five-card draw: each player is dealt five cards, may replace some once, and the best hand wins. It is not Texas Hold'em; the web casino's Hold'em tables are separate (see Web Casino: Tables and Poker).
+
 - **PokerPlayerAction**: Call, Raise, Fold, Check actions
 - **PokerPlayerData**: Hole cards, betting state
-- **Poker**: Texas Hold'em implementation
+- **Poker**: Five-card draw implementation
+- **PokerHelper**: Hand ranking and comparison, also used by the web Hold'em tables
 - **PokerDiscordGameSession** (`Domain/Casino/Discord/`): Discord UI with private hand support
 
 ##### Rock Paper Scissors (`Domain/Casino/Games/RockPaperScissors/`)
@@ -223,7 +226,7 @@ The `casino_jackpot` table (`Id integer PRIMARY KEY, Amount bigint, UpdatedAt ti
 
 ## Web Casino
 
-`CasinoWeb/` lets guild members play slots and solo Blackjack in the browser, on the same balance as the Discord casino. Setup, settings and the hub's methods are in `CasinoWeb/README.md`; deployment is in `docs/deployment.md`.
+`CasinoWeb/` lets guild members play slots, solo Blackjack and Texas Hold'em tables in the browser, on the same balance as the Discord casino. Setup, settings and the hub's methods are in `CasinoWeb/README.md`; deployment is in `docs/deployment.md`.
 
 - **A separate process.** It references the `DiscordBot` project and reuses `CasinoService`, `SlotsService` and the Blackjack rules as they are, but never runs inside the bot and never holds the bot token. Balances stay correct across both processes because every change is one relative SQL statement (`docs/decisions.md` D4). Open Blackjack hands and slots hold offers live in the process that created them.
 - **Seams in the bot.** `ICasinoDatabase` (implemented by `DatabaseService`) gives `CasinoService` the repository without the bot's schema setup: the casino implements it from the connection string alone, and the bot owns the schema. `SlotsService` accepts a `null` renderer and then returns no GIF, since the browser animates the reels; the picture of an announced win comes from a separate `SlotsRenderer` of the casino, reading the art from `Casino:AssetsPath`.
@@ -233,6 +236,30 @@ The `casino_jackpot` table (`Id integer PRIMARY KEY, Amount bigint, UpdatedAt ti
 - **Blackjack.** `WebBlackjackService` keeps one `GameSession<Blackjack>` per player, with the bet taken from the balance before the deal (a double down reserves a second bet first) and `bet + payout` credited when the hand ends, recorded as one `Game` transaction of the net amount. A hand idle for `Casino.GameTimeoutMinutes` stands and settles; a graceful stop gives back every open bet. The Discord table games do not reserve bets yet (#347).
 - **Big-win announcements.** A web spin or respin that `SlotsPlay.PostPublicly` marks (a jackpot, or a line rarer than one spin in `SlotMachine.PublicWinOneIn`) is posted in the casino channel through a Discord webhook (`Casino:AnnouncementWebhookUrl`), so the web casino still never holds the bot token. `SlotsWinAnnouncer` reuses `SlotsMessageBuilder`, so the text matches the bot's; the embed title links to the web casino, the footer says the win was played on the web, and the picture is a static PNG of the reels (`SlotsRenderer.RenderStaticAsync`, the last frame of the bot's GIF) instead of the animation. The webhook's name and avatar, set in Discord, are the author members see; the player is named with a mention that pings nobody. The post runs in the background and is never retried: a webhook error, timeout or unreachable host, or a picture that cannot be drawn (the post then goes out without it), only costs the announcement and logs a warning, and the spin result is unaffected. The webhook address carries its token, so the announcement's HTTP client drops the default request logging and no log line contains it. A hosted service draws one picture at start to load the art (`slots pictures ready` in the log). The setting is required outside Development, where an empty value turns the announcements off.
 - **Headers.** Every response, error pages included, carries a Content-Security-Policy that allows only the site's own scripts and styles (plus Discord avatars), `nosniff`, and HSTS when the public address is HTTPS. `index.html` is sent with `Cache-Control: no-cache` so a deploy is picked up at once.
+
+### Tables and Poker
+
+Texas Hold'em tables are the web casino's multiplayer game: members share a table of up to 6 seats, live, on the Discord casino's token balance. The table system is generic over a thin `ITableGame`; poker (`PokerTableGame`) is its only game, and later multiplayer games reuse the rest.
+
+| Piece | Path | Holds |
+| --- | --- | --- |
+| Rules engine | `CasinoWeb/Games/Poker/` | `HoldemHand`: pure rules with no tokens or time. Blinds and button, no-limit betting, side pots, the best five of seven cards (through `PokerHelper`), split pots. The deck is shuffled with `RandomNumberGenerator` because players compete against each other; tests deal fixed cards through a seam |
+| Table | `CasinoWeb/Tables/Table.cs` | Seats, watchers, presence, the turn deadline and missed turns. Every change runs through one `SemaphoreSlim` gate per table, and pushes leave in order |
+| Registry | `CasinoWeb/Tables/TableService.cs` | Lobby summaries, one seat per member, at most 20 open tables, AI seats |
+| Ledger | `CasinoWeb/Tables/TableLedger.cs` | Takes each blind, bet and call from the balance with `TryReserveTokens`, credits the winnings at the end of the hand, gives committed tokens back on a stop |
+| Presence | `CasinoWeb/Tables/PresenceTracker.cs` | Counts connections per user from the hub's connect and disconnect, so a SignalR reconnect (a new connection) is not a departure |
+| Clock | `CasinoWeb/Tables/TablesSweeper.cs` | A hosted service ticking every second (`TimeProvider`): turn deadlines, the grace period, the next hand, AI moves. Its `StopAsync` gives back the tokens of unfinished hands |
+| Hub and pushes | `CasinoWeb/Hubs/`, `HubTableNotifier` | The table methods of `CasinoHub`, `TablesChanged` to every connection and `TableUpdated` to each seated member and watcher with their own view |
+| Client | `CasinoWeb/ClientApp/src/games/poker/`, `src/views/tables.ts` | The tables list and the Phaser table; card drawing is shared with Blackjack in `src/games/cards/` |
+
+- **Rules.** Stakes presets are 1/2, 5/10 and 25/50. A member sits with at least 10 big blinds and commits at most 100 big blinds, or their balance when the hand starts if lower, in one hand. A hand starts 5 s after the previous one ended when 2 seated players can cover 10 big blinds, and the button moves one seat each hand (heads-up, the button posts the small blind). An all-in for less than a full raise does not reopen the betting, and several short all-ins are not added up into a full raise. There are no burn cards.
+- **Money.** A blind, bet, call or raise leaves the balance at once. When a balance spent in Discord no longer covers an action, the action is refused and the player's stake is lowered to what is left. At the end of a hand each player is credited their winnings and one `Game` transaction with `game = Texas Hold'em` records their net result, so `/casino statistics` and the history show it apart from Discord's five-card draw `Poker`. The per-game leaderboard filter lists only the Discord games, so Texas Hold'em is not in it.
+- **Hidden cards.** A player's hole cards are sent only to them while a hand runs; other players' cards are sent at showdown and only for hands still in. Folded hands and the deck never leave the server, and a watcher sees public information only.
+- **Timers.** A turn lasts 30 s, then the server checks for the player if it can and folds otherwise; two missed turns in a row stand the player up at the end of the hand. When a seated player's last connection drops, the seat is kept for 60 s with turns still timing out; a reconnect shows the table with their own cards, and otherwise the player folds and leaves.
+- **AI seats.** With `Casino__AllowAiSeats` true (local Development and the dev environment only), a seated player can add AI seats that take a fixed 100 big blinds each hand, check when free and otherwise call, with no ledger. Tokens a human wins from them are created out of nothing, so the setting is false by default and the server logs a warning at start when it is on.
+- **A stop or crash.** One replica holds all tables. A graceful stop gives back every token committed to an unfinished hand and closes the tables, so every casino deploy closes them. A crash loses the tokens of the running hands: the `WebPoker` log has a `took` line per debit and no `settled` or `gave back` line to credit them from (`CasinoWeb/README.md`). Surviving a restart is #418.
+- **Casino closed.** When `Casino.Enabled` is false no new hand starts and only leaving and watching are allowed.
+
 
 ## Game Flow Architecture
 

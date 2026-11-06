@@ -79,7 +79,7 @@ metadata:
     app.kubernetes.io/part-of: udc-bot
     environment: dev
 spec:
-  # One replica: open blackjack hands and slots hold offers live in the process, and the keys volume is ReadWriteOnce.
+  # One replica: open blackjack hands, poker tables and slots hold offers live in the process, and the keys volume is ReadWriteOnce.
   replicas: 1
   strategy:
     type: Recreate
@@ -93,7 +93,7 @@ spec:
         app.kubernetes.io/part-of: udc-bot
         environment: dev
     spec:
-      # Longer than the host's 30 s shutdown wait, so open hub connections cannot cut the release of open Blackjack bets short.
+      # Longer than the host's 30 s shutdown wait, so open hub connections cannot cut the release of open Blackjack bets and poker hands short.
       terminationGracePeriodSeconds: 45
       securityContext:
         runAsNonRoot: true
@@ -161,6 +161,10 @@ spec:
                 secretKeyRef:
                   name: casino-announcements
                   key: webhook-url
+            # Lets a seated player add AI seats at a poker table, to try tables alone. Dev only: tokens won from AI seats are created
+            # out of nothing, so this stays out of k8s/prod/casino.yaml.
+            - name: Casino__AllowAiSeats
+              value: "true"
           volumeMounts:
             - name: app-settings
               mountPath: /app/Settings
