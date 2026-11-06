@@ -66,7 +66,7 @@ Needs you: log in locally once with your account (at the end).
 
 Decided during the work: the SignalR connection wrapper (`src/connection.ts`, tested with a fake hub) exists but `main.ts` does not start it, because the hub arrives in #411.4 and a connection to a missing hub would show "Offline" forever; #411.4 passes `createCasinoConnection()` in `main.ts`. It must also send the player back to login when the negotiation answers 401 (the wrapper retries every 30 s on any failure).
 
-Status: #411.4 and #411.5 play-tested by the user, no findings (good enough for the prototype); next #411.6.
+Status: #411.4 and #411.5 play-tested by the user, no findings (good enough for the prototype); #411.6 done and committed, domain, 1Password item and Discord redirect URL are in place; next: the push (asked for by the user), then the first rollout check.
 
 ### #411.4 Slots
 
@@ -99,10 +99,18 @@ Decided during the work:
 
 ### #411.6 Packaging and deployment
 
-- [ ] `CasinoWeb/Dockerfile` (multi-stage: node builds the client with `DiscordBot/Assets/slots` copied in at the same relative path, since the client imports the slot pictures from there, `dotnet publish`, `aspnet:8.0` runtime, non-root, read-only root filesystem with a writable keys volume).
-- [ ] CI: client lint/test/build job; `Deploy Casino` workflow building `udc-casino:<sha>` and committing the tag to `k8s/prod/casino.yaml`, triggered by `CasinoWeb/**` and `DiscordBot/**`; the bot's Deploy Prod ignores `CasinoWeb/**` (AC11). Actions pinned to SHAs.
-- [ ] `k8s/prod/casino.yaml`: Deployment (initContainer rendering `Settings.json` with `${DB_PASSWORD}` only, from `bot-settings-config`), Service, Ingress (Traefik, `letsencrypt-prod`), PVC for keys; `ExternalSecret` for the OAuth client secret. Security headers (CSP, HSTS, `nosniff`) in the app; the CSP allows the client's own scripts, styles and images, and Phaser draws on a canvas.
-- [ ] Docs: `AGENTS.md` (commands, layout), `docs/features.md`, `docs/deployment.md`, `docs/casino.md` (web front end section).
+- [x] `CasinoWeb/Dockerfile` (multi-stage: node builds the client with `DiscordBot/Assets/slots` copied in at the same relative path, since the client imports the slot pictures from there, `dotnet publish`, `aspnet:8.0` runtime, non-root, read-only root filesystem with a writable keys volume).
+- [x] CI: client lint/test/build job; `Deploy Casino` workflow building `udc-casino:<sha>` and committing the tag to `k8s/prod/casino.yaml`, triggered by `CasinoWeb/**` and `DiscordBot/**`; the bot's Deploy Prod ignores `CasinoWeb/**` (AC11). Actions pinned to SHAs.
+- [x] `k8s/prod/casino.yaml`: Deployment (initContainer rendering `Settings.json` with `${DB_PASSWORD}` only, from `bot-settings-config`), Service, Ingress (Traefik, `letsencrypt-prod`), PVC for keys; `ExternalSecret` for the OAuth client secret. Security headers (CSP, HSTS, `nosniff`) in the app; the CSP allows the client's own scripts, styles and images, and Phaser draws on a canvas.
+- [x] Docs: `AGENTS.md` (commands, layout), `docs/features.md`, `docs/deployment.md`, `docs/casino.md` (web front end section).
+
+Decided during the work:
+- The casino manifest takes the Settings.json template from the ConfigMap `bot-config` (the plan said `bot-settings-config`, which holds Rules, FAQs and the other settings files). It lives in `k8s/prod/casino.yaml` with the ExternalSecret `casino-oauth` (1Password item `Discord App` in the UDC vault, fields `Client ID` and `Client Secret`).
+- The domain is `casino.udc.ovh` (Ingress host, TLS host, `Casino__PublicOrigin`, docs), next to `adminer.bot.udc.ovh`: confirmed by the user.
+- `build.yml` gained a `dockerfile` input (default `Dockerfile`, so the bot's workflows are unchanged); `deploy.yml`'s push step rebases and retries, since the bot and casino deploys of one push both commit to `master`. Every action in the workflows is pinned to a SHA, `github-script` in `pr-build`, `pr-deploy-instructions` and `deploy-to-dev` included.
+- The casino image has its own `CasinoWeb/Dockerfile.dockerignore` (BuildKit picks it over the root `.dockerignore`, which is the bot's). Deploy Casino also triggers on `NuGet.config`, which both images use.
+- Security headers are set in `Response.OnStarting`, because the exception handler clears headers set earlier; `index.html` is sent `no-cache` so a deploy is picked up at once. The CSP was checked in headless Chrome against the built image: the lobby, slots and blackjack scenes load with no violation.
+- The Deployment sets `terminationGracePeriodSeconds: 45` (the host waits 30 s for the Blackjack release) and starts at `udc-casino:latest` until the first Deploy Casino run commits a real tag.
 
 Visible after: nothing until pushed to `master`; then the casino is online at its domain.
 Needs you: choose the domain and point its DNS at the cluster; create the 1Password item with the OAuth client secret; add the prod redirect URL in the Discord application; ask for the push (stops the run).

@@ -221,6 +221,17 @@ The `casino_jackpot` table (`Id integer PRIMARY KEY, Amount bigint, UpdatedAt ti
 - Table-game bets are not reserved while a game runs: a player can join games with tokens they then spend elsewhere, and a loss that exceeds the balance at settlement stops at 0 (#347).
 - A restart between the reservation and the settlement of a slots spin loses that bet, with no history row and no log. The window is a few database round trips.
 
+## Web Casino
+
+`CasinoWeb/` lets guild members play slots and solo Blackjack in the browser, on the same balance as the Discord casino. Setup, settings and the hub's methods are in `CasinoWeb/README.md`; deployment is in `docs/deployment.md`.
+
+- **A separate process.** It references the `DiscordBot` project and reuses `CasinoService`, `SlotsService` and the Blackjack rules as they are, but never runs inside the bot and never holds the bot token. Balances stay correct across both processes because every change is one relative SQL statement (`docs/decisions.md` D4). Open Blackjack hands and slots hold offers live in the process that created them.
+- **Seams in the bot.** `ICasinoDatabase` (implemented by `DatabaseService`) gives `CasinoService` the repository without the bot's schema setup: the casino implements it from the connection string alone, and the bot owns the schema. `SlotsService` accepts a `null` renderer and then returns no GIF, since the browser animates the reels.
+- **Login.** Discord OAuth2 on the bot's application. At login the member's guild membership is checked with their own access token, and rechecked at most every 10 minutes (on cookie validation and on every hub call), so a removed member is refused soon after. Hub connections are `[Authorize]`d and refuse a WebSocket `Origin` that is not the site's own.
+- **Hub.** One SignalR hub, `CasinoHub`. The server makes every decision; the client sends intents (`SlotsSpin`, `BlackjackDeal`, `BlackjackAct`, …) and animates the results. A filter limits each player to 5 game actions per second and refuses actions while `Casino.Enabled` is false.
+- **Blackjack.** `WebBlackjackService` keeps one `GameSession<Blackjack>` per player, with the bet taken from the balance before the deal (a double down reserves a second bet first) and `bet + payout` credited when the hand ends, recorded as one `Game` transaction of the net amount. A hand idle for `Casino.GameTimeoutMinutes` stands and settles; a graceful stop gives back every open bet. The Discord table games do not reserve bets yet (#347).
+- **Headers.** Every response, error pages included, carries a Content-Security-Policy that allows only the site's own scripts and styles (plus Discord avatars), `nosniff`, and HSTS when the public address is HTTPS. `index.html` is sent with `Cache-Control: no-cache` so a deploy is picked up at once.
+
 ## Game Flow Architecture
 
 ### 1. Game Creation Flow

@@ -26,6 +26,8 @@ Blackjack (`Games/WebBlackjackService`) keeps each player's open hand in memory,
 
 `npm run build` in `ClientApp/` writes the client to `CasinoWeb/wwwroot/` (gitignored), which the server serves; this is how it runs in production.
 
+The production image is built from the repository root: `docker build -f CasinoWeb/Dockerfile .` (it builds the client, publishes the server and runs as a non-root user with `Casino__KeysPath=/keys`). It expects the bot's rendered `Settings.json` at `/app/Settings/` and a writable `/keys`. Deployment is described in `docs/deployment.md`.
+
 ## Settings
 
 | Key (environment variable) | Meaning |

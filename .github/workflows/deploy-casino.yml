@@ -1,0 +1,44 @@
+name: Deploy Casino
+
+# The web casino is its own image and its own manifest (k8s/prod/casino.yaml). It reuses the bot's code, so a change
+# under DiscordBot/ rebuilds it too; the bot's Deploy Prod ignores CasinoWeb/.
+on:
+  push:
+    branches: [master]
+    paths:
+      - "CasinoWeb/**"
+      - "DiscordBot/**"
+      - "NuGet.config"
+      - "!**/*.md"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-casino
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      checkout_ref: master
+      image_name: udc-casino
+      dockerfile: CasinoWeb/Dockerfile
+    permissions:
+      contents: read
+      packages: write
+
+  deploy:
+    needs: build
+    uses: ./.github/workflows/deploy.yml
+    with:
+      image_name: udc-casino
+      short_sha: ${{ needs.build.outputs.short_sha }}
+      manifest_path: k8s/prod/casino.yaml
+      manifest_ref: master
+      commit_message: "chore(k8s): update prod casino image to {sha}"
+      environment: prod
+    secrets:
+      APP_ID: ${{ secrets.APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+    permissions:
+      contents: write

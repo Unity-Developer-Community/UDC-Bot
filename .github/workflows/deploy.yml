@@ -46,13 +46,13 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Checkout manifest branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ inputs.manifest_ref }}
           token: ${{ steps.app-token.outputs.token }}
@@ -77,6 +77,7 @@ jobs:
           COMMIT_MSG: ${{ inputs.commit_message }}
           SHORT_SHA: ${{ inputs.short_sha }}
           MANIFEST_PATH: ${{ inputs.manifest_path }}
+          MANIFEST_REF: ${{ inputs.manifest_ref }}
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           git config user.name "github-actions[bot]"
@@ -86,4 +87,12 @@ jobs:
           git add "${MANIFEST_PATH}"
           FINAL_MSG=$(echo "${COMMIT_MSG}" | sed "s/{sha}/${SHORT_SHA}/g")
           git diff --cached --quiet || git commit -m "${FINAL_MSG}"
-          git push
+          # The bot and the casino deploys can finish together and each commits its own manifest to the same branch:
+          # the loser of the race rebases onto the winner's commit and pushes again.
+          for attempt in 1 2 3 4 5; do
+            git push && exit 0
+            echo "Push rejected (attempt ${attempt}), rebasing"
+            git pull --rebase origin "${MANIFEST_REF}"
+          done
+          echo "::error::Could not push the manifest update"
+          exit 1

@@ -7,6 +7,9 @@ on:
       - "k8s/**"
       - "**/*.md"
       - "docs/**"
+      # The casino has its own workflow (deploy-casino.yml) and image.
+      - "CasinoWeb/**"
+      - "CasinoWeb.Tests/**"
   workflow_dispatch:
 
 concurrency:

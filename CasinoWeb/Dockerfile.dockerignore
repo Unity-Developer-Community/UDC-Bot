@@ -1,0 +1,17 @@
+# Used by CasinoWeb/Dockerfile instead of the root .dockerignore (which is the bot image's).
+.git/
+.github/
+.vscode/
+.idea/
+**/bin/
+**/obj/
+**/node_modules/
+CasinoWeb/wwwroot/
+CasinoWeb.Tests/
+DiscordBot.Tests/
+docs/
+k8s/
+
+# The bot's local settings hold its token; none of it belongs in an image.
+DiscordBot/Settings/Settings.json
+DiscordBot/SERVER/

@@ -2,6 +2,7 @@ using CasinoWeb.Auth;
 using CasinoWeb.Configuration;
 using CasinoWeb.Data;
 using CasinoWeb.Endpoints;
+using CasinoWeb.Http;
 using CasinoWeb.Hubs;
 using CasinoWeb.Logging;
 using DiscordBot.Services;
@@ -56,9 +57,20 @@ app.Use((context, next) =>
     return next(context);
 });
 
+app.UseSecurityHeaders();
+
 // The built client (CasinoWeb/wwwroot). In development Vite serves it and proxies the API here.
 app.UseDefaultFiles();
-app.UseStaticFiles();
+// index.html names the hashed asset files of one build: a browser must revalidate it, or after a deploy it could keep
+// pointing at files that no longer exist.
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        if (context.File.Name == "index.html")
+            context.Context.Response.Headers.CacheControl = "no-cache";
+    },
+});
 
 app.UseHubOriginCheck();
 app.UseAuthentication();

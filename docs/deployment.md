@@ -29,6 +29,7 @@ Both methods run the same Docker image and use PostgreSQL as the database.
     - [Step 8 (Optional): Backups and Adminer](#step-8-optional-backups-and-adminer)
     - [Verify](#verify)
     - [Updating the Bot](#updating-the-bot)
+    - [The Web Casino](#the-web-casino)
     - [Advanced: Optional Integrations](#advanced-optional-integrations)
       - [Using 1Password with External Secrets](#using-1password-with-external-secrets)
       - [Using S3 Backups](#using-s3-backups)
@@ -189,7 +190,7 @@ kubectl -n udc-bot-prod logs deployment/udc-bot
 
 The UDC servers update through CI and [Argo CD](https://argo-cd.readthedocs.io/), which syncs the cluster with the manifests in `k8s/`:
 
-- **Prod:** every push to `master` (except changes limited to `k8s/`, `docs/` or Markdown) builds `ghcr.io/unity-developer-community/udc-bot:<short-sha>`, commits that tag to `k8s/prod/bot.yaml`, and Argo CD rolls it out.
+- **Prod:** every push to `master` (except changes limited to `k8s/`, `docs/`, `CasinoWeb/`, `CasinoWeb.Tests/` or Markdown) builds `ghcr.io/unity-developer-community/udc-bot:<short-sha>`, commits that tag to `k8s/prod/bot.yaml`, and Argo CD rolls it out.
 - **Dev:** the **Deploy to Dev** workflow (run manually with a PR number or a ref) builds `udc-bot-dev:<short-sha>` and commits that tag to `k8s/dev/bot.yaml` on `master`. A `/build` comment on a PR only builds and pushes the image; to run it with the PR's manifest changes, set the tag in `k8s/dev/bot.yaml` on the PR branch and point the `udc-bot-dev` Argo CD app at that branch (the comments posted on the PR give these steps).
 
 Without Argo CD, build and push an image yourself, set its tag in `bot.yaml`, and re-apply:
@@ -199,6 +200,19 @@ docker build -t ghcr.io/unity-developer-community/udc-bot:NEW_TAG .
 docker push ghcr.io/unity-developer-community/udc-bot:NEW_TAG
 kubectl apply -f k8s/prod/bot.yaml
 ```
+
+### The Web Casino
+
+`k8s/prod/casino.yaml` runs the web casino (`CasinoWeb/`) in the same namespace as the bot, as its own Deployment: a casino crash or deploy does not touch the bot, and the casino never holds the bot token. It plays against the bot's PostgreSQL and reads the bot's `Settings.json` (the `bot-config` ConfigMap) for `GuildId`, `DbConnectionString` and `Casino`; its `render-config` init container fills in only `${DB_PASSWORD}`.
+
+- **Image and rollout:** a push to `master` that changes `CasinoWeb/**`, `DiscordBot/**` or `NuGet.config` (Markdown aside) runs the **Deploy Casino** workflow: it builds `CasinoWeb/Dockerfile` into `ghcr.io/unity-developer-community/udc-casino:<short-sha>`, commits the tag to `k8s/prod/casino.yaml`, and Argo CD syncs it. **Deploy Prod** ignores `CasinoWeb/**`, so a casino-only change never rebuilds the bot. A change under `DiscordBot/**` rebuilds both. Both workflows commit to `master`: the push step rebases and retries when the other one wins.
+- **Address:** `https://casino.udc.ovh`, set in the Ingress host and in `Casino__PublicOrigin`. The OAuth redirect URLs, the cookie and the WebSocket Origin check all derive from `Casino__PublicOrigin`. Point the DNS record at the cluster, as for Adminer.
+- **Discord application:** in the bot's application (developer portal, OAuth2), add the redirect URL `https://casino.udc.ovh/signin-discord`.
+- **Secret:** the ExternalSecret `casino-oauth` reads the fields `Client ID` and `Client Secret` of the 1Password item `Discord App` in the UDC vault (the bot's whole Discord application).
+- **First rollout:** the manifest starts at `udc-casino:latest`, which exists once the first Deploy Casino run has pushed it, so the pod may show `ImagePullBackOff` until that run has committed the real tag.
+- **Keys volume:** the PVC `casino-keys` holds the Data Protection keys (unencrypted on disk, private to the pod), so a deploy keeps everyone logged in. Losing it only logs players out.
+- **One replica, recreated on deploy:** open Blackjack hands and slots hold offers live in the process. A graceful stop gives back every open Blackjack bet; a crash does not, and the log has a `WebBlackjack: reserved …` line per bet and a `settled` or `gave back` line per finished hand, so a bet with neither can be credited with `/admin casino tokens-add`.
+- **Verify:** `kubectl -n udc-bot-prod get pods -l app.kubernetes.io/name=udc-casino`, `kubectl -n udc-bot-prod logs deployment/udc-casino`, then log in at the address with a guild member account.
 
 ### Advanced: Optional Integrations
 
@@ -260,6 +274,7 @@ This creates the following secrets automatically from 1Password:
 | `postgresql-credentials` | PostgreSQL password |
 | `discord-bot-token` | Discord bot token |
 | `bot-api-keys` | Weather, IP Geo, Flight, Airlab API keys |
+| `casino-oauth` | Discord OAuth client ID and secret of the web casino (declared in `k8s/prod/casino.yaml`) |
 | `postgresql-backup-credentials` | AWS S3 keys (only needed for S3 backups) |
 
 Secrets are refreshed every hour automatically.
