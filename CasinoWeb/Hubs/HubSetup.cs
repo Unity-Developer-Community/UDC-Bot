@@ -1,6 +1,7 @@
 using CasinoWeb.Auth;
 using CasinoWeb.Configuration;
 using CasinoWeb.Games;
+using CasinoWeb.Tables;
 using DiscordBot.Domain;
 using DiscordBot.Services;
 using DiscordBot.Services.Fun.Casino;
@@ -28,8 +29,22 @@ public static class HubSetup
         services.AddSingleton<Func<Blackjack>>(_ => () => new Blackjack());
         services.AddSingleton<WebBlackjackService>();
         services.AddHostedService<BlackjackSweeper>();
+        services.AddCasinoTables();
         services.AddSlotsAnnouncements();
         services.AddSignalR(options => options.AddFilter<CasinoHubFilter>());
+        return services;
+    }
+
+    /// <summary>The poker tables; the hub replaces <see cref="ITableNotifier"/> with the one that pushes to clients.</summary>
+    private static IServiceCollection AddCasinoTables(this IServiceCollection services)
+    {
+        services.AddSingleton<PresenceTracker>();
+        services.AddSingleton<TableLedger>();
+        services.AddSingleton<ITableNotifier, NullTableNotifier>();
+        // A fresh game per table; the tests replace it to deal fixed cards.
+        services.AddSingleton<Func<TableStakes, ITableGame>>(_ => stakes => new PokerTableGame(stakes));
+        services.AddSingleton<TableService>();
+        services.AddHostedService<TablesSweeper>();
         return services;
     }
 

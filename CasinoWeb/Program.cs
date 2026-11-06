@@ -53,6 +53,9 @@ app.Services.GetRequiredService<BotSettings>();
 if (!app.Services.GetRequiredService<IOptions<CasinoHostOptions>>().Value.AnnouncementsConfigured)
     app.Logger.LogInformation("Casino:AnnouncementWebhookUrl is not set: big wins are not announced in Discord.");
 
+if (app.Services.GetRequiredService<IOptions<CasinoHostOptions>>().Value.AllowAiSeats)
+    app.Logger.LogWarning("Casino:AllowAiSeats is on: poker players can add AI seats, and tokens they win from them are created out of nothing. Never enable it in production.");
+
 if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler();
 

@@ -23,6 +23,12 @@ public sealed class CasinoHostOptions
     /// <summary>The folder holding <c>slots/</c> and <c>fonts/</c>, from which the announcement picture is drawn. Relative paths start at the working directory.</summary>
     public string AssetsPath { get; set; } = "Assets";
 
+    /// <summary>
+    /// Lets a seated player add AI seats at a poker table. They check or call and never touch a balance, so a human who wins
+    /// from them is paid tokens created out of nothing: on only in the dev environment and local Development.
+    /// </summary>
+    public bool AllowAiSeats { get; set; }
+
     public Uri PublicOriginUri => new(PublicOrigin);
 
     public bool AnnouncementsConfigured => !string.IsNullOrWhiteSpace(AnnouncementWebhookUrl);

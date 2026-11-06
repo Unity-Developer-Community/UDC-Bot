@@ -1,6 +1,6 @@
 # #412 Web casino: multiplayer tables, starting with poker
 
-Status: #412.1 committed; next open item #412.2 Tables, money and timers.
+Status: #412.1 and #412.2 committed; next open item #412.3 Hub.
 
 ## Goal
 
@@ -55,8 +55,11 @@ Needs you: nothing.
 
 ### #412.2 Tables, money and timers
 
-- [ ] `CasinoWeb/Tables/`: `ITableGame`, `PokerTableGame`, `Table`, `TableService`, `TableLedger`, `PresenceTracker`, `TablesSweeper`, AI seats; register in `HubSetup.AddCasinoHub`; `AllowAiSeats` in `CasinoHostOptions` and `appsettings.Development.json`.
-- [ ] Unit tests with `FakeTimeProvider` and `FakeCasinoRepo` for AC2, AC3, AC5, AC7, AC9, AC10, AC11, AC12.
+- [x] `CasinoWeb/Tables/`: `ITableGame`, `PokerTableGame`, `Table`, `TableService`, `TableLedger`, `PresenceTracker`, `TablesSweeper`, AI seats; register in `HubSetup.AddCasinoHub`; `AllowAiSeats` in `CasinoHostOptions` and `appsettings.Development.json`.
+- [x] Unit tests with `FakeTimeProvider` and `FakeCasinoRepo` for AC2, AC3, AC5, AC7, AC9, AC10, AC11, AC12.
+
+Decided during the run: the table system pushes through an `ITableNotifier` (lobby list, and one view per seated user or watcher, `null` meaning "closed or no longer at it"), with a `NullTableNotifier` registered for now; #412.3 replaces it with the `IHubContext` one. Why: the hub item needs a seam to push through and the services must not know SignalR. Alternative: the services take `IHubContext<CasinoHub>` directly. To change: `ITableNotifier` in `CasinoWeb/Tables/ITableGame.cs` and its registration in `HubSetup.AddCasinoTables`.
+Decided during the run: a table with no human seated closes, even with AI seats left (a hand still running is played down by the AI seats first, so the leaver's tokens settle); a player away (all connections dropped) is not dealt into new hands; a seat of the running hand stays reserved after its player left, until the hand ends; a member watches or sits at one table at a time; callers pass the display name when they sit (stored on the seat), table ids are sequential ints; an AI seat moves one action per 1 s tick. Why: smallest rules that keep hidden cards and money consistent. Alternative: AI moves at once in the same call, or ids as Guids. To change: `Table.cs` (`AfterChangeAsync`, `StartHandAsync`, `IsFree`, `TickAsync`).
 
 Visible after: nothing: no hub method calls it yet.
 Needs you: nothing.
