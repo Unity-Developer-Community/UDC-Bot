@@ -131,7 +131,8 @@ export function renderHeader(me: Me, onLogout: () => void, options: HeaderOption
     renderDaily();
     void onClaim().then((claim) => {
       dailyTokens = claim.daily.tokens;
-      startCountdown(claim.daily.secondsUntilNext);
+      // At least a second for notYet: a countdown of 0 would turn the button straight back into the claim button.
+      startCountdown(claim.status === 'ok' ? claim.daily.secondsUntilNext : Math.max(1, claim.daily.secondsUntilNext));
       if (claim.status === 'ok') {
         // Added to what is shown instead of taking the returned balance: that one already holds the result of a hand or
         // a spin whose animation may still be running, which the games hold back until it ends.

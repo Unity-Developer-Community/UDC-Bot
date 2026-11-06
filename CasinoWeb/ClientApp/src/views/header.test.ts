@@ -107,6 +107,16 @@ describe('renderHeader daily reward', () => {
     expect(toast(element).textContent).toBe('Already claimed. Next daily in 5h 12m');
   });
 
+  it('keeps the countdown for a second when notYet arrives with nothing left', async () => {
+    const onClaim = vi.fn(async () => Promise.resolve(claim({ awarded: 0, daily: { secondsUntilNext: 0, tokens: 100 }, status: 'notYet' })));
+    const { element } = renderHeader(me, vi.fn(), { onClaim });
+
+    await click(element);
+
+    expect(button(element).textContent).toBe('Next daily in 1s');
+    expect(toast(element).textContent).toBe('Already claimed. Next daily in 1s');
+  });
+
   it.each([
     [new CallRefusedError('slow-down'), 'Slow down: try again in a moment.'],
     [new CallRefusedError('casino-closed'), 'The casino is closed right now.'],
