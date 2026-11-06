@@ -81,6 +81,7 @@ public sealed class TableService(
             return result;
         }
 
+        await UnwatchAsync(userId);
         await PublishListAsync();
         return result;
     }
@@ -106,6 +107,11 @@ public sealed class TableService(
         if (!result.Ok)
         {
             _seatOf.TryRemove(new KeyValuePair<ulong, int>(userId, tableId));
+        }
+        else
+        {
+            // A member follows one table at a time: sitting ends any watching, so another table's view stops coming.
+            await UnwatchAsync(userId);
         }
 
         await AfterAsync(table);

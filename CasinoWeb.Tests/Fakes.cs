@@ -24,6 +24,9 @@ public sealed class FakeDiscordHandler : HttpMessageHandler
     public const string UserId = "4242";
     public const string AccessToken = "access-token-of-4242";
 
+    /// <summary>The Discord account the next login signs in as; a test with several players changes it before each login.</summary>
+    public string LoginUserId { get; set; } = UserId;
+
     public HttpStatusCode MemberStatus { get; set; } = HttpStatusCode.OK;
     public int MemberLookups { get; private set; }
     public string? LastMemberLookupToken { get; private set; }
@@ -38,7 +41,8 @@ public sealed class FakeDiscordHandler : HttpMessageHandler
 
         if (path.EndsWith("/users/@me", StringComparison.Ordinal))
         {
-            return Json($$"""{"id":"{{UserId}}","username":"ada","global_name":"Ada Lovelace","avatar":"abc123","discriminator":"0"}""");
+            var name = LoginUserId == UserId ? "Ada Lovelace" : $"Player {LoginUserId}";
+            return Json($$"""{"id":"{{LoginUserId}}","username":"ada","global_name":"{{name}}","avatar":"abc123","discriminator":"0"}""");
         }
 
         if (path.Contains("/guilds/", StringComparison.Ordinal) && path.EndsWith("/member", StringComparison.Ordinal))

@@ -1,6 +1,6 @@
 # #412 Web casino: multiplayer tables, starting with poker
 
-Status: #412.1 and #412.2 committed; next open item #412.3 Hub.
+Status: #412.1, #412.2 and #412.3 committed; next open item #412.4 Poker in the browser.
 
 ## Goal
 
@@ -66,9 +66,11 @@ Needs you: nothing.
 
 ### #412.3 Hub
 
-- [ ] Hub methods, `GetState` additions, pushes and DTOs (`HubModels.cs`, cards as `CardDto`), presence hooks in `CasinoHub`.
-- [ ] Hub tests with real SignalR clients for AC1, AC8, AC10, AC12, AC13.
-- [ ] `CasinoWeb/README.md`: hub methods, the `Casino__AllowAiSeats` setting, the `WebPoker` log lines.
+- [x] Hub methods, `GetState` additions, pushes and DTOs (`HubModels.cs`, cards as `CardDto`), presence hooks in `CasinoHub`.
+- [x] Hub tests with real SignalR clients for AC1, AC8, AC10, AC12, AC13.
+- [x] `CasinoWeb/README.md`: hub methods, the `Casino__AllowAiSeats` setting, the `WebPoker` log lines.
+
+Decided during the run: the poker DTOs are in `CasinoWeb/Hubs/TableHubModels.cs` (the push `HubTableNotifier.cs` beside it) instead of `HubModels.cs`, which already holds slots and blackjack; `GetState` also carries the seated table while the casino is closed, so a reload can still offer to leave it; wire words for statuses, refusals, streets and actions are the C# enum names with a lower-case first letter (`TableWire`); a seated member's display name is stored on the seat, capped at 32 characters. `TableService.CreateAsync` / `SitAsync` now end the member's watching (the plan says a member follows one table at a time), with a test. Why: smallest shape that keeps hidden cards and the one-table rule consistent. Alternative: everything in `HubModels.cs`, explicit wire switches per enum. To change: the files named.
 
 Visible after: nothing in the browser yet; the tables exist on the server.
 Needs you: nothing.

@@ -35,12 +35,12 @@ public static class HubSetup
         return services;
     }
 
-    /// <summary>The poker tables; the hub replaces <see cref="ITableNotifier"/> with the one that pushes to clients.</summary>
+    /// <summary>The poker tables; they push to the browsers through <see cref="HubTableNotifier"/>.</summary>
     private static IServiceCollection AddCasinoTables(this IServiceCollection services)
     {
         services.AddSingleton<PresenceTracker>();
         services.AddSingleton<TableLedger>();
-        services.AddSingleton<ITableNotifier, NullTableNotifier>();
+        services.AddSingleton<ITableNotifier, HubTableNotifier>();
         // A fresh game per table; the tests replace it to deal fixed cards.
         services.AddSingleton<Func<TableStakes, ITableGame>>(_ => stakes => new PokerTableGame(stakes));
         services.AddSingleton<TableService>();

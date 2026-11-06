@@ -1,11 +1,13 @@
 using CasinoWeb.Games;
+using CasinoWeb.Games.Poker;
+using CasinoWeb.Tables;
 using DiscordBot.Domain;
 using DiscordBot.Services.Fun.Casino;
 
 namespace CasinoWeb.Hubs;
 
 /// <summary>What the client needs when it opens a game: the rules to display and the numbers that change.</summary>
-public sealed record HubState(bool CasinoEnabled, long Balance, SlotsInfo Slots, BlackjackInfo Blackjack);
+public sealed record HubState(bool CasinoEnabled, long Balance, SlotsInfo Slots, BlackjackInfo Blackjack, PokerInfo Poker);
 
 /// <param name="MinBet">Smallest accepted bet.</param>
 /// <param name="MaxBet">Largest accepted bet.</param>

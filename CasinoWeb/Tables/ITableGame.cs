@@ -61,10 +61,3 @@ public interface ITableNotifier
     /// <summary>A table changed: each seated user and watcher gets their own view, <c>null</c> when the table closed or they are no longer at it.</summary>
     Task TableUpdatedAsync(int tableId, IReadOnlyDictionary<ulong, TableView?> views);
 }
-
-public sealed class NullTableNotifier : ITableNotifier
-{
-    public Task TablesChangedAsync(IReadOnlyList<TableSummary> tables) => Task.CompletedTask;
-
-    public Task TableUpdatedAsync(int tableId, IReadOnlyDictionary<ulong, TableView?> views) => Task.CompletedTask;
-}

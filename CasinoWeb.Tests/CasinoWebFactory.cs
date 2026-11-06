@@ -4,14 +4,18 @@ using System.Web;
 using AspNet.Security.OAuth.Discord;
 using CasinoWeb.Auth;
 using CasinoWeb.Games;
+using CasinoWeb.Games.Poker;
 using CasinoWeb.Hubs;
+using CasinoWeb.Tables;
 using DiscordBot.Domain;
 using DiscordBot.Services;
 using DiscordBot.Services.Fun.Casino;
 using DiscordBot.Services.Logging;
 using DiscordBot.Settings;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -51,6 +55,12 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
 
     /// <summary>The cards of the next blackjack hands, one array per hand; a random deck when empty.</summary>
     public Queue<Card[]> BlackjackDecks { get; } = new();
+
+    /// <summary>The cards of the next poker hands, one list per hand (see <c>HoldemTestKit.Deck</c>); a shuffled deck when empty.</summary>
+    public Queue<List<Card>> PokerDecks { get; } = new();
+
+    /// <summary>Set before the first request, when the host is built.</summary>
+    public bool AllowAiSeats { get; set; }
     public BotSettings BotSettings { get; } = new()
     {
         GuildId = GuildId,
@@ -71,6 +81,7 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
             ["Discord:ClientSecret"] = "client-secret",
             // Always set, so a developer's user-secrets webhook never leaks into the tests.
             ["Casino:AnnouncementWebhookUrl"] = AnnouncementWebhookUrl ?? string.Empty,
+            ["Casino:AllowAiSeats"] = AllowAiSeats ? "true" : "false",
         }));
         builder.ConfigureTestServices(services =>
         {
@@ -83,6 +94,11 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
             services.AddSingleton(sp => new SlotsService(SlotsLedger, SlotRandom, null, sp.GetRequiredService<ILoggingService>(), Clock));
             services.RemoveAll<Func<Blackjack>>();
             services.AddSingleton<Func<Blackjack>>(_ => () => BlackjackDecks.TryDequeue(out var cards) ? new RiggedBlackjack(cards) : new Blackjack());
+            services.RemoveAll<Func<TableStakes, ITableGame>>();
+            services.AddSingleton<Func<TableStakes, ITableGame>>(_ => stakes =>
+                new PokerTableGame(stakes, () => PokerDecks.TryDequeue(out var cards) ? cards : HoldemDeck.Shuffled()));
+            // The tables' clocks move only when a test ticks them (TableService.TickAsync), not on a real second.
+            services.Remove(services.Single(d => d.ImplementationType == typeof(TablesSweeper)));
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
 
@@ -137,6 +153,36 @@ public sealed class CasinoWebFactory : WebApplicationFactory<Program>
         var state = HttpUtility.ParseQueryString(start.Headers.Location!.Query)["state"];
         return await browser.GetAsync($"/signin-discord?code=the-code&state={Uri.EscapeDataString(state!)}");
     }
+
+    /// <summary>Logs in as another Discord account and returns the cookie to connect with.</summary>
+    public async Task<string> LogInAsAsync(string discordUserId)
+    {
+        Discord.LoginUserId = discordUserId;
+        var callback = await LogInAsync(CreateBrowser());
+        var cookie = callback.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("udc_casino=", StringComparison.Ordinal));
+        return cookie[..cookie.IndexOf(';')];
+    }
+
+    /// <summary>A hub connection over the test server, signed in with <paramref name="cookie"/>. The caller starts and disposes it.</summary>
+    public HubConnection CreateHubConnection(string cookie) => new HubConnectionBuilder()
+        .WithUrl(new Uri(PublicOrigin + HubSetup.HubPath), options =>
+        {
+            options.Transports = HttpTransportType.WebSockets;
+            options.HttpMessageHandlerFactory = _ => Server.CreateHandler();
+            options.Headers["Cookie"] = cookie;
+            options.Headers["Origin"] = PublicOrigin;
+            options.WebSocketFactory = async (context, cancellationToken) =>
+            {
+                var client = Server.CreateWebSocketClient();
+                client.ConfigureRequest = request =>
+                {
+                    request.Headers["Cookie"] = cookie;
+                    request.Headers["Origin"] = PublicOrigin;
+                };
+                return await client.ConnectAsync(context.Uri, cancellationToken);
+            };
+        })
+        .Build();
 
     public static async Task<MeBody> GetMeAsync(HttpClient browser) =>
         (await browser.GetFromJsonAsync<MeBody>("/api/me"))!;

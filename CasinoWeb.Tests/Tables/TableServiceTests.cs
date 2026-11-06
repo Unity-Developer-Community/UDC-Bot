@@ -752,6 +752,21 @@ public sealed class TableServiceTests
         Assert.Null(last.Views[Cid]);
     }
 
+    [Fact]
+    public async Task Sitting_down_ends_watching_so_no_other_table_keeps_pushing_to_the_member()
+    {
+        await OpenTableAsync();
+        await OpenTableAsync(Bob);
+        await _tables.WatchAsync(Cid, 2);
+        await SitAsync(4, 2);
+        Assert.Contains(Cid, _notifier.Updates.Last(u => u.TableId == 2).Views.Keys);
+
+        await SitAsync(Cid, 1);
+        await SitAsync(5, 2);
+
+        Assert.DoesNotContain(Cid, _notifier.Updates.Last(u => u.TableId == 2).Views.Keys);
+    }
+
     #endregion
 
     private sealed class RecordingNotifier : ITableNotifier
