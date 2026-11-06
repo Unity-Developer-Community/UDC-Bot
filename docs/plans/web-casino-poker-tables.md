@@ -1,5 +1,7 @@
 # #412 Web casino: multiplayer tables, starting with poker
 
+Status: #412.1 committed; next open item #412.2 Tables, money and timers.
+
 ## Goal
 
 Members play Texas Hold'em against each other at shared tables in the web casino, live, with the same token balance as the Discord casino. The table system built for it (seats, turns, timers, disconnects, hidden cards, bets taken as they are made) is what later multiplayer games reuse.
@@ -42,8 +44,11 @@ Members play Texas Hold'em against each other at shared tables in the web casino
 
 ### #412.1 Hold'em engine
 
-- [ ] `CasinoWeb/Games/Poker/`: `HoldemHand`, best-of-seven ranking, pots and side pots, as in Design.
-- [ ] `CasinoWeb.Tests/Poker/`: blinds and button (heads-up included), min-raise and all-in for less, betting round ends, side pots with three all-ins, split pot with an odd token, best-of-seven kickers and the wheel, fold-out win, `CapStake`, `Forfeit` out of turn.
+- [x] `CasinoWeb/Games/Poker/`: `HoldemHand`, best-of-seven ranking, pots and side pots, as in Design.
+- [x] `CasinoWeb.Tests/Poker/`: blinds and button (heads-up included), min-raise and all-in for less, betting round ends, side pots with three all-ins, split pot with an odd token, best-of-seven kickers and the wheel, fold-out win, `CapStake`, `Forfeit` out of turn.
+
+Decided during the run: the engine deals with no burn cards and does not add several short all-ins up into a full raise (they never reopen the betting), both documented on `HoldemHand`; the dealt order is what the tests rig. Why: burn cards add nothing when the deck never leaves the server, and the cumulative rule is rare and costs state. Alternative: burn one card before each street, or track the sum of short raises in `PutIn`. To change: `HoldemHand.NextStreet` / `PutIn`.
+Decided during the run: the namespace is `CasinoWeb.Games.Poker` and the types are prefixed `Holdem`. A `DiscordBot.Domain.Poker` class exists, so code in `CasinoWeb.Games.*` that ever needs Discord's five-card draw (#417) must qualify it. Alternative: namespace `CasinoWeb.Games.Holdem`. To change: rename the namespace in `CasinoWeb/Games/Poker/` and `CasinoWeb.Tests/Poker/`.
 
 Visible after: nothing: rules only, nothing calls them yet.
 Needs you: nothing.
