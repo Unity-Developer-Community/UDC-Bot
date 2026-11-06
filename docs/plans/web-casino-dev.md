@@ -1,5 +1,7 @@
 # #415 Web casino: deploy to the dev environment
 
+Status: #415.1 done; next open item #415.2 Dev workflows.
+
 ## Goal
 
 The web casino runs in the dev environment next to the dev bot, against the dev database and the dev Discord server, at its own address. The maintainers can try a casino change (multiplayer tables, #412, is next) with several accounts before it reaches production. Production does not change.
@@ -24,8 +26,8 @@ The web casino runs in the dev environment next to the dev bot, against the dev 
 
 ### #415.1 Dev manifest
 
-- [ ] Create `k8s/dev/casino.yaml` as in Design, from `k8s/prod/casino.yaml` (header comment adapted).
-- [ ] Verify AC3 (grep, diff against prod); `kubectl apply --dry-run=client -f` if `kubectl` is installed.
+- [x] Create `k8s/dev/casino.yaml` as in Design, from `k8s/prod/casino.yaml` (header comment adapted).
+- [x] Verify AC3 (grep, diff against prod); `kubectl apply --dry-run=client -f` if `kubectl` is installed.
 
 Visible after: nothing: the file is only synced once pushed, and the pod needs its secrets and DNS first.
 Needs you: before the push, create the 1Password items `Discord App - Dev` and `Casino - Dev`, point the DNS record `casino.dev.udc.ovh` at the cluster, and add the redirect URL `https://casino.dev.udc.ovh/signin-discord` to the dev Discord application (at the end).
