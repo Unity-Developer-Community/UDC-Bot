@@ -1,4 +1,4 @@
-import type { BlackjackHand, Card, CardSuit } from '@/protocol';
+import type { BlackjackHand, Card } from '@/protocol';
 
 /** What the table shows so far: how many of each hand's cards lie face up, and whether the dealer's second card lies face down. */
 export interface Drawn {
@@ -13,21 +13,6 @@ export const EMPTY_TABLE: Drawn = { dealer: 0, hole: false, player: 0 };
 export type Step
   = | { card: Card; kind: 'dealer' | 'player' | 'reveal' }
     | { kind: 'hole' };
-
-const SUIT_SYMBOLS: Record<CardSuit, string> = { clubs: '♣', diamonds: '♦', hearts: '♥', spades: '♠' };
-
-export function suitSymbol(suit: CardSuit): string {
-  return SUIT_SYMBOLS[suit];
-}
-
-export function isRedSuit(suit: CardSuit): boolean {
-  return suit === 'hearts' || suit === 'diamonds';
-}
-
-/** A short card name such as `10♠`, for the text that repeats the table in words. */
-export function cardLabel(card: Card): string {
-  return `${card.rank}${suitSymbol(card.suit)}`;
-}
 
 /**
  * The movements that take the table from what it shows to `hand`, in the order a dealer would make them. The opening

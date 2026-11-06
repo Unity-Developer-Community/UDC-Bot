@@ -24,6 +24,7 @@ function state(overrides: Partial<HubState> = {}): HubState {
     balance: 500,
     blackjack: { hand: null, minBet: 1 },
     casinoEnabled: true,
+    poker: { allowAiSeats: false, stakes: [], table: null },
     slots: { maxBet: 100, minBet: 1, paytable: [], potTokens: 0, reels: [] },
     ...overrides,
   };

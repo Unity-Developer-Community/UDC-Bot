@@ -26,6 +26,9 @@ class FakeHub {
     this.state = HubConnectionState.Disconnected;
   });
 
+  off = vi.fn();
+  on = vi.fn();
+
   onclose(handler: () => void): void {
     this.closed = handler;
   }
@@ -50,6 +53,17 @@ function setup(isSessionLost: () => Promise<boolean> = async () => Promise.resol
 describe('casinoConnection', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
+
+  it('registers a pushed message on the hub and stops listening on request', () => {
+    const { connection, hub } = setup();
+    const handler = vi.fn();
+
+    const stop = connection.on('TableUpdated', handler);
+    stop();
+
+    expect(hub.on).toHaveBeenCalledWith('TableUpdated', handler);
+    expect(hub.off).toHaveBeenCalledWith('TableUpdated', handler);
+  });
 
   it('goes from connecting to connected', async () => {
     const { connection, seen } = setup();

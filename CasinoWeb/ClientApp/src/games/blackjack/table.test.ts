@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { BlackjackHand, Card } from '@/protocol';
 
-import { cardLabel, EMPTY_TABLE, tableSteps } from '@/games/blackjack/table';
+import { EMPTY_TABLE, tableSteps } from '@/games/blackjack/table';
 
 const c = (rank: string): Card => ({ rank, suit: 'spades' });
 
@@ -65,9 +65,5 @@ describe('blackjack table', () => {
     const first = tableSteps(EMPTY_TABLE, hand(['10', '9'], ['7']));
 
     expect(tableSteps(first.drawn, hand(['10', '9'], ['7'])).steps).toEqual([]);
-  });
-
-  it('names a card with its rank and suit symbol', () => {
-    expect(cardLabel({ rank: 'Q', suit: 'hearts' })).toBe('Q♥');
   });
 });

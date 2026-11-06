@@ -58,6 +58,12 @@ export class CasinoConnection {
     return this.hub.invoke<T>(method, ...args);
   }
 
+  /** Listens to a message the server pushes; the handlers stay registered across reconnects. */
+  on<A extends unknown[]>(method: string, handler: (...args: A) => void): () => void {
+    this.hub.on(method, handler);
+    return () => this.hub.off(method, handler);
+  }
+
   onSessionLost(listener: () => void): () => void {
     this.lostListeners.add(listener);
     return () => this.lostListeners.delete(listener);

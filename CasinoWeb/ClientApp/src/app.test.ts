@@ -31,7 +31,7 @@ describe('startApp', () => {
     expect(root.querySelector('[data-testid=balance]')?.textContent).toBe('12,345 tokens');
     expect(root.querySelector('.player-name b')).toBeNull();
     expect(root.querySelector('img.avatar')?.getAttribute('src')).toBe(me.avatarUrl);
-    expect([...root.querySelectorAll('.game h2')].map(e => e.textContent)).toEqual(['Slots', 'Blackjack']);
+    expect([...root.querySelectorAll('.game h2')].map(e => e.textContent)).toEqual(['Slots', 'Blackjack', 'Poker']);
   });
 
   it('shows the daily button only when the casino is open and there is a connection', async () => {
@@ -140,7 +140,7 @@ describe('startApp', () => {
   it('marks every game as coming soon while there is no connection to play over', async () => {
     const root = await render({ fetchFn: serve(200, me), pathname: '/' });
 
-    expect([...root.querySelectorAll('.game button')].map(b => b.textContent)).toEqual(['Coming soon', 'Coming soon']);
+    expect([...root.querySelectorAll('.game button')].map(b => b.textContent)).toEqual(['Coming soon', 'Coming soon', 'Coming soon']);
   });
 
   it('opens each game from the lobby and returns to it', async () => {

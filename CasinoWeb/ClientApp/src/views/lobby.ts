@@ -9,6 +9,7 @@ export interface Game {
 export const GAMES: readonly Game[] = [
   { id: 'slots', title: 'Slots', description: 'Spin the reels, hold a symbol, win the jackpot.' },
   { id: 'blackjack', title: 'Blackjack', description: 'Beat the dealer to 21.' },
+  { id: 'poker', title: 'Poker', description: 'Texas Hold\'em against other members at shared tables.' },
 ];
 
 /**

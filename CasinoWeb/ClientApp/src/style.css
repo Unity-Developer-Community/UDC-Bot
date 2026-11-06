@@ -265,3 +265,86 @@ h1, h2, p {
 .paytable p {
   margin-top: 0.5rem;
 }
+
+.poker-screen {
+  max-width: 44rem;
+}
+
+.poker-stage {
+  width: 100%;
+  aspect-ratio: 640 / 440;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.poker-table {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.tables-view {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.tables-view h2 {
+  font-size: 1.1rem;
+}
+
+.tables {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.table-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+}
+
+.table-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.stakes-select {
+  width: auto;
+  max-width: 100%;
+}
+
+.turn {
+  font-weight: 600;
+}
+
+.poker-table progress {
+  width: 100%;
+  accent-color: var(--color-accent);
+}
+
+.poker-seats,
+.results {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.results:empty {
+  display: none;
+}
+
+.poker-controls {
+  display: grid;
+  gap: 0.75rem;
+}

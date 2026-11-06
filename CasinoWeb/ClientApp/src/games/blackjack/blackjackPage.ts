@@ -3,7 +3,7 @@ import type { BlackjackAction } from '@/protocol';
 
 import { h } from '@/dom';
 import { BlackjackGame } from '@/games/blackjack/blackjackGame';
-import { cardLabel } from '@/games/blackjack/table';
+import { cardLabel } from '@/games/cards/cardText';
 import { formatTokens } from '@/games/slots/slotsGame';
 
 export interface BlackjackScreen {

@@ -5,6 +5,7 @@ import type { DailyClaim } from '@/protocol';
 import { fetchSession, logout } from '@/api';
 import { CasinoApi } from '@/casinoApi';
 import { renderBlackjackScreen } from '@/games/blackjack/blackjackPage';
+import { renderPokerScreen } from '@/games/poker/pokerPage';
 import { renderSlotsScreen } from '@/games/slots/slotsPage';
 import { loginUrl, resolveScreen } from '@/routes';
 import { renderHeader } from '@/views/header';
@@ -82,15 +83,16 @@ export async function startApp(root: HTMLElement, deps: AppDeps = {}): Promise<v
         connection.onStatus(header.setStatus);
         header.setStatus(connection.status);
         connection.onSessionLost(goToLogin);
-        void connection.start();
+        void connection.start().then(resumeTable);
       }
       if (!session.me.casinoEnabled) {
         show(header.element, statusPage('Casino closed', 'The casino is closed right now. Come back later.'));
         return;
       }
 
-      const screens: Record<string, typeof renderSlotsScreen | typeof renderBlackjackScreen> = {
+      const screens: Record<string, typeof renderBlackjackScreen | typeof renderPokerScreen | typeof renderSlotsScreen> = {
         blackjack: renderBlackjackScreen,
+        poker: renderPokerScreen,
         slots: renderSlotsScreen,
       };
       function showLobby(): void {
@@ -107,6 +109,21 @@ export async function startApp(root: HTMLElement, deps: AppDeps = {}): Promise<v
         show(header.element, opened.element);
       }
       showLobby();
+
+      // A reload goes back to the table the member still sits at, unless they have already opened something else.
+      const inLobby = (): boolean => screen === undefined;
+      async function resumeTable(): Promise<void> {
+        if (!api || connection?.status !== 'connected' || !inLobby())
+          return;
+        try {
+          const state = await api.getState();
+          if (state.poker.table && inLobby())
+            openGame('poker');
+        }
+        catch {
+          // The lobby is still usable; the poker entry loads the table itself.
+        }
+      }
     }
   }
 }

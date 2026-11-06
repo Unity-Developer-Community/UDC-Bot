@@ -14,7 +14,7 @@ const info: SlotsInfo = {
   reels: [['cherry', 'lemon'], ['cherry', 'lemon'], ['cherry', 'lemon']],
 };
 
-const state = (overrides: Partial<HubState> = {}): HubState => ({ balance: 500, blackjack: { hand: null, minBet: 1 }, casinoEnabled: true, slots: info, ...overrides });
+const state = (overrides: Partial<HubState> = {}): HubState => ({ balance: 500, blackjack: { hand: null, minBet: 1 }, casinoEnabled: true, poker: { allowAiSeats: false, stakes: [], table: null }, slots: info, ...overrides });
 
 function play(overrides: Partial<SlotsPlay> = {}): SlotsPlay {
   return {

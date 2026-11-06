@@ -1,6 +1,6 @@
 # #412 Web casino: multiplayer tables, starting with poker
 
-Status: #412.1, #412.2 and #412.3 committed; next open item #412.4 Poker in the browser.
+Status: #412.1 to #412.4 committed; next open item #412.5 Dev environment and docs.
 
 ## Goal
 
@@ -77,9 +77,11 @@ Needs you: nothing.
 
 ### #412.4 Poker in the browser
 
-- [ ] Lobby entry, tables list (create with a stakes preset, watch, sit), poker table page and scene, add/remove AI seat when allowed, reload resumes the seated table; `src/protocol.ts` and `src/casinoApi.ts` mirror the hub.
-- [ ] Vitest for the controller and the views; lint, `tsc`, build green; headless browser check of the tables list and a table with a stubbed hub.
-- [ ] `CasinoWeb/ClientApp/AGENTS.md` layout.
+- [x] Lobby entry, tables list (create with a stakes preset, watch, sit), poker table page and scene, add/remove AI seat when allowed, reload resumes the seated table; `src/protocol.ts` and `src/casinoApi.ts` mirror the hub.
+- [x] Vitest for the controller and the views; lint, `tsc`, build green; headless browser check of the tables list and a table with a stubbed hub.
+- [x] `CasinoWeb/ClientApp/AGENTS.md` layout.
+
+Decided during the run: the poker screen is one screen (`renderPokerScreen`, one lobby entry) that switches between the tables list and the table, driven by one controller; the table views carry no balance, so the header balance is refreshed with `GetState` when a hand reaches showdown and on joining or leaving (it shows the pre-hand balance while a hand runs). A reload resumes the seated table: `app.ts` opens the poker screen once connected when `GetState` says the member sits at one and they have not opened another game. The countdown (30 s bar) is drawn against a client constant `TURN_SECONDS` mirroring the server's timer. Why: smallest shape that meets the plan with no new server fields. Alternative: add the balance to `TableViewDto`, or an `Open` push; or ask the server for the turn length. To change: `PokerGame.refreshBalance`, `resumeTable` in `app.ts`, `TURN_SECONDS` in `pokerGame.ts`.
 
 Visible after: poker playable locally at a table with AI seats.
 Needs you: restart `dotnet run` in `CasinoWeb/`, create a table, add an AI seat, play a few hands including an all-in and a fold, leave the table idle for a missed turn (at the end).
