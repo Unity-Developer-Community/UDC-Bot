@@ -220,4 +220,6 @@ public sealed class RecordingLoggingService : ILoggingService
             Lines.Add((severity, message));
         return Task.CompletedTask;
     }
+
+    public Task LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null) => Task.CompletedTask;
 }

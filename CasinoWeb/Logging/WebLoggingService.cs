@@ -14,6 +14,9 @@ public sealed class WebLoggingService(ILogger<WebLoggingService> logger) : ILogg
         return Task.CompletedTask;
     }
 
+    // Cards are for the Discord log channel, which the casino never posts to.
+    public Task LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null) => Task.CompletedTask;
+
     private static LogLevel ToLevel(ExtendedLogSeverity severity) => severity switch
     {
         ExtendedLogSeverity.Critical => LogLevel.Critical,
