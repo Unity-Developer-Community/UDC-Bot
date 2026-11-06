@@ -14,6 +14,7 @@
     "General": { "desc": "General-Chat Channel", "id": "0" },
     "Introduction": { "desc": "Introductions Channel", "id": "0" },
     "BotAnnouncement": { "desc": "Bot-Announcement Channel", "id": "0" },
+    "MemberLog": { "desc": "Optional: join/leave/name-change log; falls back to BotAnnouncement", "id": "0" },
     "BotCommands": { "desc": "Bot-Commands Channel", "id": "0" },
     "UnityNews": { "desc": "Unity News Channel", "id": "0" },
     "UnityReleases": { "desc": "Unity Releases Channel", "id": "0" },
