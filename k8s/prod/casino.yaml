@@ -28,6 +28,30 @@ spec:
         key: "Discord App"
         property: "Client Secret"
 ---
+# Webhook of the casino channel, for announcing web big wins — from the 1Password item "Casino" (UDC vault, the item for
+# everything casino-specific). The URL carries the webhook's token: it stays in this secret and out of the logs.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: casino-announcements
+  namespace: udc-bot-prod
+  labels:
+    app.kubernetes.io/name: udc-casino
+    app.kubernetes.io/part-of: udc-bot
+    environment: prod
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: casino-announcements
+  data:
+    - secretKey: webhook-url
+      remoteRef:
+        key: "Casino"
+        property: "Announcement Webhook URL"
+---
 # Data Protection keys: without them a deploy would log every player out.
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -132,6 +156,11 @@ spec:
                 secretKeyRef:
                   name: casino-oauth
                   key: client-secret
+            - name: Casino__AnnouncementWebhookUrl
+              valueFrom:
+                secretKeyRef:
+                  name: casino-announcements
+                  key: webhook-url
           volumeMounts:
             - name: app-settings
               mountPath: /app/Settings

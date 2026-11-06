@@ -209,6 +209,7 @@ kubectl apply -f k8s/prod/bot.yaml
 - **Address:** `https://casino.udc.ovh`, set in the Ingress host and in `Casino__PublicOrigin`. The OAuth redirect URLs, the cookie and the WebSocket Origin check all derive from `Casino__PublicOrigin`. Point the DNS record at the cluster, as for Adminer.
 - **Discord application:** in the bot's application (developer portal, OAuth2), add the redirect URL `https://casino.udc.ovh/signin-discord`.
 - **Secret:** the ExternalSecret `casino-oauth` reads the fields `Client ID` and `Client Secret` of the 1Password item `Discord App` in the UDC vault (the bot's whole Discord application).
+- **Big-win announcements:** the casino posts web jackpots and rare slots wins through a Discord webhook, so it still never holds the bot token. Create the webhook in Discord on the channel where members play `/casino` (its name and avatar are the author members see) and store its URL in the field `Announcement Webhook URL` of the 1Password item `Casino` (UDC vault, the item for everything casino-specific). The ExternalSecret `casino-announcements` feeds it to `Casino__AnnouncementWebhookUrl`. The setting is required at start outside Development: the pod fails to start, with a message naming the setting, when the field is empty or not a `https://` Discord webhook URL. The URL carries the webhook's token: never paste it in an issue or a log.
 - **First rollout:** the manifest starts at `udc-casino:latest`, which exists once the first Deploy Casino run has pushed it, so the pod may show `ImagePullBackOff` until that run has committed the real tag.
 - **Keys volume:** the PVC `casino-keys` holds the Data Protection keys (unencrypted on disk, private to the pod), so a deploy keeps everyone logged in. Losing it only logs players out.
 - **One replica, recreated on deploy:** open Blackjack hands and slots hold offers live in the process. A graceful stop gives back every open Blackjack bet; a crash does not, and the log has a `WebBlackjack: reserved …` line per bet and a `settled` or `gave back` line per finished hand, so a bet with neither can be credited with `/admin casino tokens-add`.
@@ -275,6 +276,7 @@ This creates the following secrets automatically from 1Password:
 | `discord-bot-token` | Discord bot token |
 | `bot-api-keys` | Weather, IP Geo, Flight, Airlab API keys |
 | `casino-oauth` | Discord OAuth client ID and secret of the web casino (declared in `k8s/prod/casino.yaml`) |
+| `casino-announcements` | Discord webhook URL of the casino channel, for web big-win announcements (declared in `k8s/prod/casino.yaml`) |
 | `postgresql-backup-credentials` | AWS S3 keys (only needed for S3 backups) |
 
 Secrets are refreshed every hour automatically.

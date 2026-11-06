@@ -1,6 +1,6 @@
 # #414 Web casino: announce big wins in Discord
 
-Status: #414.1 done; next open item #414.2 (production secret).
+Status: finished, waiting for the user's review.
 
 ## Goal
 
@@ -53,8 +53,8 @@ Decided during the run: the casino's renderer is built from `new BotSettings { A
 
 Mechanical: edits fully specified below; check is `kubectl apply --dry-run=client -f k8s/prod/casino.yaml`, or a YAML parse when no cluster is reachable.
 
-- [ ] `k8s/prod/casino.yaml`: ExternalSecret `casino-announcements` and the `Casino__AnnouncementWebhookUrl` env var, as in Design (plus any `emptyDir` or memory change AC8 showed was needed).
-- [ ] `docs/deployment.md`: "The Web Casino" gets a webhook bullet (created on the casino channel, 1Password item `Casino`, required at start); the External Secrets table gets the `casino-announcements` row.
+- [x] `k8s/prod/casino.yaml`: ExternalSecret `casino-announcements` and the `Casino__AnnouncementWebhookUrl` env var, as in Design (plus any `emptyDir` or memory change AC8 showed was needed).
+- [x] `docs/deployment.md`: "The Web Casino" gets a webhook bullet (created on the casino channel, 1Password item `Casino`, required at start); the External Secrets table gets the `casino-announcements` row.
 
 Visible after: nothing until pushed to `master`; then web big wins appear with a picture in the casino channel.
 Needs you: after the push, check one web big win in the channel (AC9) (at the end).
