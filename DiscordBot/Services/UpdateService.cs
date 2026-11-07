@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Net.Http;
 using System.Text.RegularExpressions;
 using Discord.WebSocket;
 using DiscordBot.Domain;
@@ -69,6 +70,11 @@ public class FeedData
 public class UpdateService
 {
     private const string ServiceName = "UpdateService";
+    private const string ManualIndexUrl = "https://docs.unity3d.com/Manual/docdata/index.js";
+    private const string ApiIndexUrl = "https://docs.unity3d.com/ScriptReference/docdata/index.js";
+    private static readonly TimeSpan DocDatabaseMaxAge = TimeSpan.FromDays(1);
+
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILoggingService _loggingService = null!;
     private readonly FeedService _feedService;
     private readonly BotSettings _settings;
@@ -83,8 +89,9 @@ public class UpdateService
     private UserData _userData = null!;
 
     public UpdateService(DatabaseService databaseService, BotSettings settings, FeedService feedService, ILoggingService loggingService,
-        CancellationTokenSource cts)
+        CancellationTokenSource cts, IHttpClientFactory httpClientFactory)
     {
+        _httpClientFactory = httpClientFactory;
         _feedService = feedService;
         _loggingService = (loggingService as LoggingService)!;
 
@@ -151,45 +158,58 @@ public class UpdateService
 
     public List<FaqData> GetFaqData() => _faqData;
 
+    private string ManualPath => $"{_settings.ServerRootPath}/unitymanual.json";
+    private string ApiPath => $"{_settings.ServerRootPath}/unityapi.json";
+
     private async Task LoadDocDatabase()
     {
-        if (File.Exists($"{_settings.ServerRootPath}/unitymanual.json") &&
-            File.Exists($"{_settings.ServerRootPath}/unityapi.json"))
+        if (File.Exists(ManualPath) && File.Exists(ApiPath))
         {
-            var json = await File.ReadAllTextAsync($"{_settings.ServerRootPath}/unitymanual.json", _token);
-            _manualDatabase = JsonConvert.DeserializeObject<DocEntry[]>(json)!;
-            json = await File.ReadAllTextAsync($"{_settings.ServerRootPath}/unityapi.json", _token);
-            _apiDatabase = JsonConvert.DeserializeObject<DocEntry[]>(json)!;
+            _manualDatabase = await ReadDocFile(ManualPath);
+            _apiDatabase = await ReadDocFile(ApiPath);
         }
         else
             await DownloadDocDatabase();
+    }
+
+    /// <summary>Reads a doc file without first loading it into one large string.</summary>
+    private static async Task<DocEntry[]> ReadDocFile(string path)
+    {
+        await using var file = File.OpenRead(path);
+        using var reader = new JsonTextReader(new StreamReader(file));
+        return await Task.Run(() => JsonSerializer.CreateDefault().Deserialize<DocEntry[]>(reader)!);
     }
 
     private async Task DownloadDocDatabase()
     {
         try
         {
-            var htmlWeb = new HtmlWeb();
-            htmlWeb.CaptureRedirect = true;
+            var manual = UnityDocParser.ConvertJsToArray(await DownloadDocIndex(ManualIndexUrl), true);
+            var api = UnityDocParser.ConvertJsToArray(await DownloadDocIndex(ApiIndexUrl), false);
+            _manualDatabase = manual;
+            _apiDatabase = api;
+            _botData.LastUnityDocDatabaseUpdate = DateTime.Now;
 
-            var manual = await htmlWeb.LoadFromWebAsync("https://docs.unity3d.com/Manual/docdata/index.js");
-            var manualInput = manual.DocumentNode.OuterHtml;
-
-            var api = await htmlWeb.LoadFromWebAsync("https://docs.unity3d.com/ScriptReference/docdata/index.js");
-            var apiInput = api.DocumentNode.OuterHtml;
-
-            _manualDatabase = UnityDocParser.ConvertJsToArray(manualInput, true);
-            _apiDatabase = UnityDocParser.ConvertJsToArray(apiInput, false);
-
-            if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unitymanual.json", _manualDatabase))
+            if (!SerializeUtil.SerializeFile(ManualPath, _manualDatabase))
                 await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to save unitymanual.json", ExtendedLogSeverity.Warning);
-            if (!SerializeUtil.SerializeFile($"{_settings.ServerRootPath}/unityapi.json", _apiDatabase))
+            if (!SerializeUtil.SerializeFile(ApiPath, _apiDatabase))
                 await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to save unityapi.json", ExtendedLogSeverity.Warning);
         }
-        catch (Exception e)
+        catch (Exception e) when (e is not OperationCanceledException)
         {
             await _loggingService.Log(LogBehaviour.ConsoleChannelAndFile, $"{ServiceName}: Failed to download manual/api file\nEx:{e.ToString()}", ExtendedLogSeverity.Warning);
         }
+    }
+
+    /// <summary>The page list of a doc index. Streams the response and stops at <see cref="UnityDocParser.InfoMarker"/>, so the rest is never held in memory.</summary>
+    private async Task<string> DownloadDocIndex(string url)
+    {
+        using var client = _httpClientFactory.CreateClient();
+        using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, _token);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(_token);
+        using var reader = new StreamReader(stream);
+        return await UnityDocParser.ReadUntilAsync(reader, UnityDocParser.InfoMarker, _token);
     }
 
     private async Task UpdateDocDatabase()
@@ -198,13 +218,29 @@ public class UpdateService
         {
             while (!_token.IsCancellationRequested)
             {
-                if (_botData.LastUnityDocDatabaseUpdate < DateTime.Now - TimeSpan.FromDays(1d))
+                var lastUpdate = LastDocDatabaseUpdate(_botData.LastUnityDocDatabaseUpdate, ManualPath, ApiPath);
+                if (lastUpdate < DateTime.Now - DocDatabaseMaxAge)
                     await DownloadDocDatabase();
 
                 await Task.Delay(TimeSpan.FromHours(1), _token);
             }
         }
         catch (OperationCanceledException) { }
+    }
+
+    /// <summary>
+    /// When the doc files were last downloaded. Older versions never saved the time, so an unset time
+    /// falls back to when the files were written, and an upgrade doesn't download them again at once.
+    /// </summary>
+    internal static DateTime LastDocDatabaseUpdate(DateTime recorded, string manualPath, string apiPath)
+    {
+        if (recorded != default)
+            return recorded;
+        if (!File.Exists(manualPath) || !File.Exists(apiPath))
+            return default;
+        var manualWritten = File.GetLastWriteTime(manualPath);
+        var apiWritten = File.GetLastWriteTime(apiPath);
+        return manualWritten < apiWritten ? manualWritten : apiWritten;
     }
 
     private async Task UpdateRssFeeds()
