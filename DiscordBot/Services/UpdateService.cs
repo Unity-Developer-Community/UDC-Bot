@@ -2,6 +2,7 @@
 using System.Text.RegularExpressions;
 using Discord.WebSocket;
 using DiscordBot.Domain;
+using DiscordBot.Domain.UnityNews;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
 using HtmlAgilityPack;
@@ -34,14 +35,31 @@ public class FaqData
 
 public class FeedData
 {
+    /// <summary>The newest ids kept in <see cref="PostedIds"/>; blog feeds list far fewer items than this.</summary>
+    public const int MaxPostedIds = 200;
+
     public FeedData()
     {
         PostedIds = new List<string>();
+        ReleaseStreams = new Dictionary<string, ReleaseStreamState>();
     }
 
-    public DateTime LastUnityReleaseCheck { get; set; }
     public DateTime LastUnityBlogCheck { get; set; }
     public List<string> PostedIds { get; set; }
+
+    /// <summary>When the Unity release streams were last checked (UTC).</summary>
+    public DateTimeOffset LastUnityReleaseCheckUtc { get; set; }
+
+    /// <summary>Release post state per stream, keyed by <see cref="UnityStream"/> name.</summary>
+    public Dictionary<string, ReleaseStreamState> ReleaseStreams { get; set; }
+
+    /// <summary>Remembers an id as posted and drops the oldest ones beyond <see cref="MaxPostedIds"/>.</summary>
+    public void AddPostedId(string id)
+    {
+        PostedIds.Add(id);
+        if (PostedIds.Count > MaxPostedIds)
+            PostedIds.RemoveRange(0, PostedIds.Count - MaxPostedIds);
+    }
 }
 
 //TODO Download all avatars to cache them
@@ -191,11 +209,10 @@ public class UpdateService
                 {
                     if (_feedData != null)
                     {
-                        if (_feedData.LastUnityReleaseCheck < DateTime.Now - TimeSpan.FromMinutes(5))
+                        if (_feedData.LastUnityReleaseCheckUtc < DateTimeOffset.UtcNow - TimeSpan.FromMinutes(5))
                         {
-                            _feedData.LastUnityReleaseCheck = DateTime.Now;
+                            _feedData.LastUnityReleaseCheckUtc = DateTimeOffset.UtcNow;
 
-                            await _feedService.CheckUnityBetasAsync(_feedData);
                             await _feedService.CheckUnityReleasesAsync(_feedData);
                         }
 
