@@ -47,6 +47,9 @@ public class FeedData
     public DateTime LastUnityBlogCheck { get; set; }
     public List<string> PostedIds { get; set; }
 
+    /// <summary>True once the blog feed's existing posts were recorded as posted without posting them (the first check of a new state).</summary>
+    public bool BlogSeeded { get; set; }
+
     /// <summary>When the Unity release streams were last checked (UTC).</summary>
     public DateTimeOffset LastUnityReleaseCheckUtc { get; set; }
 

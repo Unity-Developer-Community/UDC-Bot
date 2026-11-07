@@ -18,6 +18,16 @@ public class FeedDataTests
         Assert.Equal(["a", "b"], data.PostedIds);
         Assert.Empty(data.ReleaseStreams);
         Assert.Equal(DateTimeOffset.MinValue, data.LastUnityReleaseCheckUtc);
+        // An old file has never seeded the blog feed, so the first check records the feed instead of posting it.
+        Assert.False(data.BlogSeeded);
+    }
+
+    [Fact]
+    public void BlogSeeded_RoundTrips()
+    {
+        var loaded = JsonConvert.DeserializeObject<FeedData>(JsonConvert.SerializeObject(new FeedData { BlogSeeded = true }))!;
+
+        Assert.True(loaded.BlogSeeded);
     }
 
     [Fact]

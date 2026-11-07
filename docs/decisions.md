@@ -41,3 +41,11 @@ Rejected: one per-user lock shared by every token-changing path (fragile: each n
 Why: a webhook needs one secret scoped to one channel and no running bot, so announcements do not depend on the bot being up.
 
 Rejected: a table of web wins that the bot polls and posts (a schema change, and announcements depend on the bot running).
+
+## D6 Unity releases come from the Release API and post on a cadence
+
+`FeedService` reads releases from `services.api.unity.com/unity/editor/release/v1/releases` (one request per stream: LTS, Supported, Beta, Alpha) instead of the RSS feeds. LTS and Supported post at most once a day per LTS line, Beta weekly on Friday and Alpha weekly on Thursday, each digest merging the releases since the last post (day boundaries and the 12:00 UTC window are UTC). Only LTS and blog posts ping a role.
+
+Why: the RSS items give every beta the same title (`Unity 6000.7.0 Beta`) and no `bN`, so betas were dropped as duplicates, and their description no longer holds release notes; the API gives the exact version, stream, date and notes URL. Beta and Alpha ship several times a week with notes of 300 to 500 KB, so a weekly digest keeps the channel readable without dropping a release.
+
+Rejected: the RSS feeds with the notes link scraped from them (no exact version); one post per release for every stream (noise); pinging every stream (the roles would be muted). The API is public but not formally documented, so a failure logs a warning and the next check retries.
