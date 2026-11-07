@@ -115,20 +115,58 @@ public static class MemberLogCards
 
     public enum NameKind { Nickname, DisplayName, Username }
 
-    public static MessageComponent NameChangedCard(CardUser user, NameKind kind, string? before, string? after, DateTimeOffset changedAt)
+    /// <summary>One name field's values in order, oldest first. <paramref name="Omitted"/> values were dropped after the first one.</summary>
+    public sealed record NameChange(NameKind Kind, IReadOnlyList<string?> Values, int Omitted = 0)
     {
-        var title = kind switch
-        {
-            NameKind.Nickname => "Nickname changed",
-            NameKind.DisplayName => "Display name changed",
-            _ => "Username changed",
-        };
+        public int Changes => Math.Max(0, Values.Count - 1) + Omitted;
+    }
+
+    public static MessageComponent NameChangedCard(CardUser user, NameKind kind, string? before, string? after, DateTimeOffset changedAt) =>
+        NameChangedCard(user, [new NameChange(kind, [before, after])], changedAt, changedAt);
+
+    /// <summary>
+    /// A user's name changes within one window. A single change shows Before/After; several show each
+    /// field's history, <c>a → b → c</c>.
+    /// </summary>
+    public static MessageComponent NameChangedCard(CardUser user, IReadOnlyList<NameChange> fields, DateTimeOffset firstAt, DateTimeOffset lastAt)
+    {
+        var changes = fields.Sum(f => f.Changes);
+        var title = fields.Count == 1 ? NameTitle(fields[0].Kind) : "Name changed";
+
+        string[] lines = fields is [{ Values.Count: 2, Omitted: 0 } only]
+            ? [$"**Before:** {NameText(only.Values[0])}", $"**After:** {NameText(only.Values[1])}"]
+            : fields.Select(f => $"**{NameLabel(f.Kind)}:** {NameHistory(f)}").ToArray();
+
+        var footer = changes <= 1
+            ? $"Changed {AuditLogCards.Timestamp(lastAt)}"
+            : $"Changed {AuditLogCards.Timestamp(firstAt)} – {AuditLogCards.Timestamp(lastAt, 'T')} · {changes} changes";
+
         return new AuditCard(NameChangedColor)
-            .WithHeader($"🏷️ {title}", user, null,
-                $"**Before:** {NameText(before)}",
-                $"**After:** {NameText(after)}")
-            .WithFooter($"Changed {AuditLogCards.Timestamp(changedAt)}")
+            .WithHeader($"🏷️ {title}", user, null, lines)
+            .WithFooter(footer)
             .Build();
+    }
+
+    private static string NameTitle(NameKind kind) => kind switch
+    {
+        NameKind.Nickname => "Nickname changed",
+        NameKind.DisplayName => "Display name changed",
+        _ => "Username changed",
+    };
+
+    private static string NameLabel(NameKind kind) => kind switch
+    {
+        NameKind.Nickname => "Nickname",
+        NameKind.DisplayName => "Display name",
+        _ => "Username",
+    };
+
+    private static string NameHistory(NameChange field)
+    {
+        var values = field.Values.Select(NameText).ToList();
+        if (field.Omitted > 0 && values.Count > 1)
+            values.Insert(1, "…");
+        return string.Join(" → ", values);
     }
 
     private static string NameText(string? name) =>

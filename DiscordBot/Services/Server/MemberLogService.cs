@@ -23,6 +23,9 @@ public class MemberLogService
     private readonly BotSettings _settings;
     private readonly ILoggingService _loggingService;
 
+    private readonly NameChangeTracker _nameChanges = new();
+    private readonly SemaphoreSlim _nameChangeLock = new(1, 1);
+
     private IMessageChannel? _channel;
     private int _auditLogWarned;
     private int _joinSourceWarned;
@@ -217,7 +220,7 @@ public class MemberLogService
         if (!before.HasValue || after.IsBot || after.Guild.Id != _settings.GuildId)
             return;
         if (before.Value.Nickname != after.Nickname)
-            await LogNameChange(after, MemberLogCards.NameKind.Nickname, before.Value.Nickname, after.Nickname);
+            await LogNameChanges(after, [new(MemberLogCards.NameKind.Nickname, before.Value.Nickname, after.Nickname)]);
     }
 
     private async Task UserUpdated(SocketUser before, SocketUser after)
@@ -228,25 +231,72 @@ public class MemberLogService
         if (member == null)
             return;
 
+        var changes = new List<NameChangeTracker.Change>();
         if (before.Username != after.Username)
-            await LogNameChange(member, MemberLogCards.NameKind.Username, before.Username, after.Username);
+            changes.Add(new(MemberLogCards.NameKind.Username, before.Username, after.Username));
         if (before.GlobalName != after.GlobalName)
-            await LogNameChange(member, MemberLogCards.NameKind.DisplayName, before.GlobalName, after.GlobalName);
+            changes.Add(new(MemberLogCards.NameKind.DisplayName, before.GlobalName, after.GlobalName));
+        if (changes.Count > 0)
+            await LogNameChanges(member, changes);
     }
 
-    private async Task LogNameChange(SocketGuildUser member, MemberLogCards.NameKind kind, string? before, string? after)
+    /// <summary>
+    /// Writes every change to the log file, then posts a card for the kinds the settings allow, or
+    /// edits the user's card from the last <see cref="NameChangeTracker.Window"/>.
+    /// </summary>
+    private async Task LogNameChanges(SocketGuildUser member, IReadOnlyList<NameChangeTracker.Change> changes)
     {
-        var fileLine = $"User {kind} Changed - `{before}` -> `{after}` - ID : `{member.Id}`";
-        if (!CardEnabled(kind))
-        {
-            await _loggingService.Log(LogBehaviour.File, fileLine);
+        foreach (var change in changes)
+            await _loggingService.Log(LogBehaviour.File,
+                $"User {change.Kind} Changed - `{change.Before}` -> `{change.After}` - ID : `{member.Id}`");
+
+        var shown = changes.Where(c => CardEnabled(c.Kind)).ToList();
+        if (shown.Count == 0)
             return;
+
+        // One at a time, so two quick changes can't both post a new card.
+        await _nameChangeLock.WaitAsync();
+        try
+        {
+            var entry = _nameChanges.Record(member.Id, shown, DateTimeOffset.UtcNow);
+            var card = MemberLogCards.NameChangedCard(CardUser.From(member), entry.Fields, entry.FirstAt, entry.LastAt);
+            if (entry.MessageId is { } messageId && await TryEditCardAsync(messageId, card))
+                return;
+            // New entry, or the old card is gone (deleted by a moderator, say): post a new one.
+            var message = await PostCardAsync(card);
+            if (message != null)
+                _nameChanges.SetMessage(member.Id, message.Id);
         }
-        await SendCardAsync(MemberLogCards.NameChangedCard(CardUser.From(member), kind, before, after, DateTimeOffset.UtcNow), fileLine);
+        finally
+        {
+            _nameChangeLock.Release();
+        }
     }
 
     private bool CardEnabled(MemberLogCards.NameKind kind) =>
         kind == MemberLogCards.NameKind.Username ? _settings.MemberLog.UsernameChanges : _settings.MemberLog.DisplayNameChanges;
+
+    private async Task<bool> TryEditCardAsync(ulong messageId, MessageComponent card)
+    {
+        var channel = _channel ??= ResolveChannel();
+        if (channel == null)
+            return false;
+        try
+        {
+            await channel.ModifyMessageAsync(messageId, m =>
+            {
+                m.Components = card;
+                m.Flags = MessageFlags.ComponentsV2;
+                m.AllowedMentions = AllowedMentions.None;
+            });
+            return true;
+        }
+        catch (Exception e)
+        {
+            LoggingService.LogToConsole($"[{nameof(MemberLogService)}] Couldn't update name-change card, posting a new one: {e.Message}", LogSeverity.Warning);
+            return false;
+        }
+    }
 
     #endregion
 
@@ -254,7 +304,12 @@ public class MemberLogService
     private async Task<IUserMessage?> SendCardAsync(MessageComponent card, string fileLine)
     {
         await _loggingService.Log(LogBehaviour.File, fileLine);
+        return await PostCardAsync(card);
+    }
 
+    /// <summary>Sends a card to the member-log channel. Null when it couldn't be sent.</summary>
+    private async Task<IUserMessage?> PostCardAsync(MessageComponent card)
+    {
         var channel = _channel ??= ResolveChannel();
         if (channel == null)
             return null;

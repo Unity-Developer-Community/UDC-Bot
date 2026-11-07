@@ -183,6 +183,36 @@ public class MemberLogCardsTests
         Assert.Contains("**After:** a\\_b\\_", text);
     }
 
+    [Fact]
+    public void NameChangedCard_SeveralChangesOfOneKind_ShowsHistoryAndRange()
+    {
+        var text = Text(NameChangedCard(User, [new NameChange(NameKind.Username, ["a", "b", "a"])], Now, Now.AddMinutes(3)));
+        Assert.Contains("Username changed", text);
+        Assert.Contains("**Username:** a → b → a", text);
+        Assert.DoesNotContain("**Before:**", text);
+        Assert.Contains($"Changed {AuditLogCards.Timestamp(Now)} – {AuditLogCards.Timestamp(Now.AddMinutes(3), 'T')} · 2 changes", text);
+    }
+
+    [Fact]
+    public void NameChangedCard_SeveralKinds_OneLinePerField()
+    {
+        var text = Text(NameChangedCard(User,
+            [new NameChange(NameKind.DisplayName, ["D1", null]), new NameChange(NameKind.Username, ["u_1", "u2"])],
+            Now, Now.AddMinutes(2)));
+        Assert.Contains("Name changed", text);
+        Assert.Contains("**Display name:** D1 → *(none)*", text);
+        Assert.Contains("**Username:** u\\_1 → u2", text);
+        Assert.Contains("· 2 changes", text);
+    }
+
+    [Fact]
+    public void NameChangedCard_OmittedValues_MarkedWithEllipsis()
+    {
+        var text = Text(NameChangedCard(User, [new NameChange(NameKind.Username, ["a", "e", "f"], Omitted: 3)], Now, Now.AddMinutes(1)));
+        Assert.Contains("**Username:** a → … → e → f", text);
+        Assert.Contains("· 5 changes", text);
+    }
+
     [Theory]
     [InlineData(0, 0, 0, 40, "40s")]
     [InlineData(0, 0, 12, 5, "12m")]
