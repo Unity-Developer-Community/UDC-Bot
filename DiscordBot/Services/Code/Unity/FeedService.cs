@@ -2,6 +2,7 @@ using System.IO;
 using System.ServiceModel.Syndication;
 using System.Xml;
 using Discord.WebSocket;
+using DiscordBot.Domain.UnityNews;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
 
@@ -15,61 +16,45 @@ public class FeedService
     private readonly BotSettings _settings;
     private readonly ILoggingService _logging;
     private readonly IWebClient _webClient;
-    private readonly ReleaseNotesParser _releaseNotesParser;
 
     #region Configurable Settings
 
-    private const int MaxFeedLengthBuffer = 400;
-    #region News Feed Config
+    #region Blog Feed Config
 
-    private class ForumNewsFeed
-    {
-        public string TitleFormat { get; set; } = null!;
-        public string Url { get; set; } = null!;
-        public List<string> IncludeTags { get; set; } = null!;
-        public bool IsRelease { get; set; } = false;
-    }
+    private const string BlogFeedUrl = "https://unity.com/blog/rss";
 
-    private readonly ForumNewsFeed _betaNews = new()
-    {
-        TitleFormat = "Beta Release - {0}",
-        Url = "https://unity3d.com/unity/beta/latest.xml",
-        IncludeTags = new() { "Beta Update" },
-        IsRelease = true
-    };
-    private readonly ForumNewsFeed _releaseNews = new()
-    {
-        TitleFormat = "New Release - {0}",
-        Url = "https://unity3d.com/unity/releases.xml",
-        IncludeTags = new() { "New Release" },
-        IsRelease = true
-    };
-    private readonly ForumNewsFeed _blogNews = new()
-    {
-        TitleFormat = "Blog - {0}",
-        Url = "https://blogs.unity3d.com/feed/",
-        IncludeTags = new() { "Unity Blog" },
-        IsRelease = false
-    };
+    /// <summary>The most blog posts created per check; the rest follows on the next one.</summary>
+    private const int MaxBlogPostsPerCheck = 5;
 
-    #endregion // News Feed Config
+    /// <summary>Failed attempts after which a blog post is given up (marked posted) so one bad item cannot repeat errors forever.</summary>
+    private const int MaxBlogAttempts = 3;
 
-    // We store the title of the last 40 posts, and check against them to prevent duplicate posts
-    private const int MaxHistoryCheck = 40;
-    private readonly List<string> _postedFeeds = new(MaxHistoryCheck);
+    private readonly Dictionary<string, int> _blogFailures = new();
 
-    private const int MaximumCheck = 3;
+    #endregion // Blog Feed Config
+
+    #region Release Feed Config
+
+    private const string ReleaseApiUrl = "https://services.api.unity.com/unity/editor/release/v1/releases?stream={0}&order=RELEASE_DATE_DESC&limit={1}";
+    private const int ReleaseApiLimit = 25;
+
+    private static readonly UnityStream[] ReleaseStreams = [UnityStream.Lts, UnityStream.Supported, UnityStream.Beta, UnityStream.Alpha];
+
+    #endregion // Release Feed Config
+
     private const ThreadArchiveDuration ForumArchiveDuration = ThreadArchiveDuration.OneWeek;
+
+    /// <summary>Discord allows at most 5 applied tags on a forum post.</summary>
+    private const int MaxForumTags = 5;
 
     #endregion // Configurable Settings
 
-    public FeedService(DiscordSocketClient client, BotSettings settings, ILoggingService logging, IWebClient webClient, ReleaseNotesParser releaseNotesParser)
+    public FeedService(DiscordSocketClient client, BotSettings settings, ILoggingService logging, IWebClient webClient)
     {
         _client = client;
         _settings = settings;
         _logging = logging;
         _webClient = webClient;
-        _releaseNotesParser = releaseNotesParser;
     }
 
     private async Task<SyndicationFeed> GetFeedData(string url)
@@ -90,78 +75,65 @@ public class FeedService
         return feed ??= new SyndicationFeed();
     }
 
+    /// <summary>The forum's tags with these names (case-insensitive); names the forum has no tag for are skipped.</summary>
+    private static ForumTag[] ForumTags(IForumChannel channel, IEnumerable<string> names) => names
+        .Select(name => channel.Tags.FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase)))
+        .OfType<ForumTag>()
+        .DistinctBy(t => t.Id)
+        .Take(MaxForumTags)
+        .ToArray();
+
     #region Feed Handlers
 
-    private async Task HandleFeed(FeedData feedData, ForumNewsFeed newsFeed, ulong channelId, ulong? roleId)
+    private async Task HandleBlog(FeedData feedData, ulong channelId, ulong? roleId)
     {
         try
         {
-            var feed = await GetFeedData(newsFeed.Url);
+            var feed = await GetFeedData(BlogFeedUrl);
+            var items = feed.Items.Where(i => !string.IsNullOrEmpty(i.Id)).ToList();
+            // A failed fetch gives an empty feed: nothing to post and nothing to seed from.
+            if (items.Count == 0)
+                return;
+
+            // The first check only remembers what is there, so a new feed URL or an old state file never floods the channel.
+            if (!feedData.BlogSeeded)
+            {
+                foreach (var item in items.Where(i => !feedData.PostedIds.Contains(i.Id)))
+                    feedData.AddPostedId(item.Id);
+                feedData.BlogSeeded = true;
+                await _logging.LogAction($"[{ServiceName}] Seeded the blog feed with {items.Count} posts; they are not posted.", ExtendedLogSeverity.Info);
+                return;
+            }
+
+            var pending = BlogLinks.PendingPosts(items, i => i.Id, i => i.PublishDate, feedData.PostedIds, MaxBlogPostsPerCheck);
+            if (pending.Count == 0)
+                return;
+
             if (_client.GetChannel(channelId) is not IForumChannel channel)
             {
                 await _logging.LogAction($"[{ServiceName}] Error: Channel {channelId} not found", ExtendedLogSeverity.Error);
                 return;
             }
-            foreach (var item in feed.Items.Take(MaximumCheck))
+
+            foreach (var item in pending)
             {
-                if (feedData.PostedIds.Contains(item.Id))
-                    continue;
-                feedData.PostedIds.Add(item.Id);
-
-                // Title
-                var newsTitle = string.Format(newsFeed.TitleFormat, item.Title.Text);
-                if (newsTitle.Length > 90)
-                    newsTitle = newsTitle[..90] + "...";
-
-                // Confirm we haven't posted this title before
-                if (_postedFeeds.Contains(newsTitle))
-                    continue;
-                _postedFeeds.Add(newsTitle);
-                if (_postedFeeds.Count > MaxHistoryCheck)
-                    _postedFeeds.RemoveAt(0);
-
-                // Message
-                var newsContent = string.Empty;
-                List<string> releaseNotes = new();
-                if (!newsFeed.IsRelease)
-                    newsContent = GetSummary(newsFeed, item);
-                else
+                try
                 {
-                    try
-                    {
-                        releaseNotes = _releaseNotesParser.Parse(item.Summary.Text);
-                    }
-                    catch (Exception e)
-                    {
-                        _ = _logging.LogChannelAndFile($"[{ServiceName}] Error generating release notes: {e}\nLikely updated format.", ExtendedLogSeverity.Warning);
-                        releaseNotes = new List<string> { "No release notes found" };
-                    }
-                    newsContent = releaseNotes[0];
+                    await PostBlog(channel, item, roleId);
+                    // Only after the thread exists, so a failed post is retried on the next check.
+                    feedData.AddPostedId(item.Id);
+                    _blogFailures.Remove(item.Id);
                 }
-
-                // If a role is provided we add to end of title to ping the role
-                var role = _client.GetGuild(_settings.GuildId).GetRole(roleId ?? 0);
-                if (role != null)
-                    newsContent += $"\n{role.Mention}";
-                // Link to post
-                if (item.Links.Count > 0)
-                    newsContent += $"\n\n**__Source__**\n{item.Links[0].Uri}";
-
-                newsContent = newsContent.SanitizeEveryoneHereMentions();
-
-                // The Post
-                var post = await channel.CreatePostAsync(newsTitle, ForumArchiveDuration, null, newsContent, null, null, AllowedMentions.All);
-                await AddTagsToPost(channel, post, newsFeed.IncludeTags);
-
-                if (releaseNotes.Count == 1)
-                    continue;
-
-                // post a new message for each release note after the first
-                for (int i = 1; i < releaseNotes.Count; i++)
+                catch (Exception e) when (e is not OperationCanceledException)
                 {
-                    if (releaseNotes[i].Length == 0)
-                        continue;
-                    await post.SendMessageAsync(releaseNotes[i].SanitizeEveryoneHereMentions());
+                    var attempts = _blogFailures.GetValueOrDefault(item.Id) + 1;
+                    _blogFailures[item.Id] = attempts;
+                    if (attempts >= MaxBlogAttempts)
+                    {
+                        feedData.AddPostedId(item.Id);
+                        _blogFailures.Remove(item.Id);
+                    }
+                    await _logging.LogAction($"[{ServiceName}] Error posting blog '{item.Title?.Text}' (attempt {attempts}): {e}", ExtendedLogSeverity.Error);
                 }
             }
         }
@@ -171,50 +143,170 @@ public class FeedService
         }
     }
 
-    private async Task AddTagsToPost(IForumChannel channel, IThreadChannel post, List<string> tags)
+    private async Task PostBlog(IForumChannel channel, SyndicationItem item, ulong? roleId)
     {
-        if (tags.Count <= 0)
-            return;
+        var title = item.Title?.Text ?? item.Id;
+        var url = item.Links.FirstOrDefault()?.Uri?.AbsoluteUri ?? item.Id;
+        var description = item.Summary == null ? null : global::DiscordBot.Utils.Utils.RemoveHtmlTags(item.Summary.Text);
+        var page = await GetBlogPage(url);
 
-        var includedTags = new List<ulong>();
-        foreach (var tag in tags)
-        {
-            var tagContainer = channel.Tags.FirstOrDefault(x => x.Name == tag);
-            if (tagContainer != null)
-                includedTags.Add(tagContainer.Id);
-        }
+        // Blog posts ping the news role.
+        var role = roleId is { } id ? _client.GetGuild(_settings.GuildId)?.GetRole(id) : null;
+        var allowedMentions = UnityNewsCards.RoleOnlyMentions(role?.Id);
 
-        await post.ModifyAsync(properties => { properties.AppliedTags = includedTags; });
+        var card = UnityNewsCards.BlogCard(title, url, description, item.PublishDate, page, role?.Mention);
+        var tags = ForumTags(channel, UnityNewsCards.BlogTagNames());
+
+        await channel.CreatePostAsync(UnityNewsCards.BlogForumTitle(title), ForumArchiveDuration, null, null, null, null,
+            allowedMentions, card, flags: MessageFlags.ComponentsV2, tags: tags);
     }
 
-    private string GetSummary(ForumNewsFeed feed, SyndicationItem item)
+    /// <summary>The details read from the article page; <see cref="BlogPage.Empty"/> (a card of the feed item alone) when it can't be fetched or read.</summary>
+    private async Task<BlogPage> GetBlogPage(string url)
     {
-        var summary = global::DiscordBot.Utils.Utils.RemoveHtmlTags(item.Summary.Text);
+        try
+        {
+            // The URL comes from the feed: only fetch pages of unity.com.
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps
+                || (uri.Host != "unity.com" && !uri.Host.EndsWith(".unity.com", StringComparison.Ordinal)))
+                throw new InvalidOperationException("The article is not a unity.com page.");
 
-        // If it is too long, we truncate it
-        var summaryLength = summary.Length;
-        if (summaryLength > Constants.MaxLengthChannelMessage - MaxFeedLengthBuffer)
-            summary = summary[..(Constants.MaxLengthChannelMessage - MaxFeedLengthBuffer)] + "...";
-        return summary;
+            var page = BlogPageParser.Parse(await _webClient.GetContent(url));
+            if (page.IsEmpty)
+                throw new InvalidOperationException("Nothing could be read from the article page.");
+            return page;
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            await _logging.LogChannelAndFile($"[{ServiceName}] Could not read the blog page {url}: {e.Message}", ExtendedLogSeverity.Warning);
+            return BlogPage.Empty;
+        }
     }
 
     #endregion // Feed Handlers
 
-    #region Public Feed Actions
+    #region Release Handlers
 
-    public async Task CheckUnityBetasAsync(FeedData feedData)
+    private async Task HandleReleaseStream(FeedData feedData, UnityStream stream, DateTimeOffset now)
     {
-        await HandleFeed(feedData, _betaNews, _settings.Channels.UnityReleases.Id, _settings.Roles.SubsReleases);
+        var page = await _webClient.GetObjectFromJson<UnityReleaseApiPage>(string.Format(ReleaseApiUrl, stream.ToString().ToUpperInvariant(), ReleaseApiLimit));
+        var releases = page?.ToReleases();
+        if (releases == null || releases.Count == 0)
+        {
+            LoggingService.LogToConsole($"[{ServiceName}] No {stream} releases returned by the release API.", ExtendedLogSeverity.LowWarning);
+            return;
+        }
+
+        var key = stream.ToString();
+        if (!feedData.ReleaseStreams.TryGetValue(key, out var state))
+            feedData.ReleaseStreams[key] = state = new ReleaseStreamState();
+
+        var plan = ReleaseSchedule.Plan(stream, state, releases, now);
+        if (plan.Seed)
+        {
+            ReleaseSchedule.Seed(stream, state, releases, now);
+            await _logging.LogAction($"[{ServiceName}] Seeded the {stream} release stream; the existing releases are not posted.", ExtendedLogSeverity.Info);
+            return;
+        }
+        if (plan.Posts.Count == 0)
+            return;
+
+        if (_client.GetChannel(_settings.Channels.UnityReleases.Id) is not IForumChannel channel)
+        {
+            await _logging.LogAction($"[{ServiceName}] Error: Channel {_settings.Channels.UnityReleases.Id} not found", ExtendedLogSeverity.Error);
+            return;
+        }
+
+        foreach (var post in plan.Posts)
+        {
+            try
+            {
+                await PostRelease(channel, post);
+                // Only after the thread exists, so a failed post is retried on the next check.
+                ReleaseSchedule.MarkPosted(state, post, now);
+            }
+            catch (Exception e)
+            {
+                await _logging.LogAction($"[{ServiceName}] Error posting {post.Latest.Title}: {e}", ExtendedLogSeverity.Error);
+            }
+        }
     }
 
+    /// <summary>Creates the forum post for a release (or digest); a failing reply is logged and does not fail the post.</summary>
+    private async Task PostRelease(IForumChannel channel, ReleasePost post)
+    {
+        var latest = post.Latest;
+        var items = new List<(UnityRelease, ReleaseNotes)>();
+        foreach (var release in post.Releases)
+            items.Add((release, await GetReleaseNotes(release)));
+        var summary = ReleaseSummary.Merge(items);
+
+        // Only LTS posts ping the releases role.
+        IRole? role = null;
+        if (latest.Stream == UnityStream.Lts && _settings.Roles.SubsReleases is { } roleId)
+            role = _client.GetGuild(_settings.GuildId)?.GetRole(roleId);
+        var allowedMentions = UnityNewsCards.RoleOnlyMentions(role?.Id);
+
+        var cards = UnityNewsCards.ReleaseCards(summary, role?.Mention);
+        var tags = ForumTags(channel, UnityNewsCards.ReleaseTagNames(latest));
+
+        var thread = await channel.CreatePostAsync(UnityNewsCards.ForumTitle(latest), ForumArchiveDuration, null, null, null, null,
+            allowedMentions, cards[0], flags: MessageFlags.ComponentsV2, tags: tags);
+
+        try
+        {
+            for (var i = 1; i < cards.Count; i++)
+                await thread.SendMessageAsync(components: cards[i], flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
+        }
+        catch (Exception e)
+        {
+            await _logging.LogAction($"[{ServiceName}] Error sending replies of {latest.Title}: {e}", ExtendedLogSeverity.Warning);
+        }
+    }
+
+    /// <summary>The parsed notes of a release; empty (a header-only post) when they can't be fetched or parsed.</summary>
+    private async Task<ReleaseNotes> GetReleaseNotes(UnityRelease release)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(release.NotesUrl))
+                throw new InvalidOperationException("The release has no notes URL.");
+            var markdown = await _webClient.GetContent(release.NotesUrl);
+            if (string.IsNullOrWhiteSpace(markdown))
+                throw new InvalidOperationException("The release notes are empty or could not be fetched.");
+            return ReleaseNotesMarkdownParser.Parse(markdown);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            await _logging.LogChannelAndFile($"[{ServiceName}] Could not read the release notes of {release.Version}: {e.Message}", ExtendedLogSeverity.Warning);
+            return ReleaseNotes.Empty;
+        }
+    }
+
+    #endregion // Release Handlers
+
+    #region Public Feed Actions
+
+    /// <summary>Checks every Unity release stream and posts what its schedule says is due.</summary>
     public async Task CheckUnityReleasesAsync(FeedData feedData)
     {
-        await HandleFeed(feedData, _releaseNews, _settings.Channels.UnityReleases.Id, _settings.Roles.SubsReleases);
+        var now = DateTimeOffset.UtcNow;
+        foreach (var stream in ReleaseStreams)
+        {
+            try
+            {
+                await HandleReleaseStream(feedData, stream, now);
+            }
+            catch (Exception e)
+            {
+                await _logging.LogAction($"[{ServiceName}] Error handling {stream} releases: {e}", ExtendedLogSeverity.Error);
+            }
+        }
     }
 
     public async Task CheckUnityBlogAsync(FeedData feedData)
     {
-        await HandleFeed(feedData, _blogNews, _settings.Channels.UnityNews.Id, _settings.Roles.SubsNews);
+        await HandleBlog(feedData, _settings.Channels.UnityNews.Id, _settings.Roles.SubsNews);
     }
 
     #endregion // Feed Actions

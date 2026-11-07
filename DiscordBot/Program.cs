@@ -147,7 +147,6 @@ public class Program
             .AddSingleton<BotDeletionRegistry>()
             .AddSingleton<ImageSpamGuardService>()
             .AddSingleton<EmbedParsingService>()
-            .AddSingleton<ReleaseNotesParser>()
             .AddSingleton<FeedService>()
             .AddSingleton<UnityHelpService>()
             .AddSingleton<RecruitService>()
