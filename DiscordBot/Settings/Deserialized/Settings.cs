@@ -24,6 +24,7 @@ public class BotSettings
     public ApiKeySettings ApiKeys { get; set; } = new();
     public FunCommandSettings FunCommands { get; set; } = new();
     public ImageSpamGuardSettings ImageSpamGuard { get; set; } = new();
+    public MemberLogSettings MemberLog { get; set; } = new();
 
     public (List<string> Errors, List<string> Warnings) Validate()
     {
@@ -115,7 +116,7 @@ public class ChannelSettings
     public ChannelInfo BirthdayAnnouncement { get; set; } = null!;
     public ChannelInfo AutoMod { get; set; } = null!;
 
-    /// <summary>Optional: join, leave and name-change cards. Falls back to <see cref="BotAnnouncement"/> when unset.</summary>
+    /// <summary>Optional: join, leave and name-change cards (which name changes: <see cref="MemberLogSettings"/>). Falls back to <see cref="BotAnnouncement"/> when unset.</summary>
     public ChannelInfo? MemberLog { get; set; }
 
     public ulong ComplaintCategoryId { get; set; }
@@ -199,6 +200,15 @@ public class ImageSpamGuardSettings
     /// <summary>A second matching message from the same user within this window triggers the guard.</summary>
     public int WindowMinutes { get; set; } = 15;
     public int TimeoutHours { get; set; } = 24;
+}
+
+/// <summary>Which name-change cards the member log posts. Every name change is still written to the log file.</summary>
+public class MemberLogSettings
+{
+    /// <summary>Username changes. Rare, so worth a card.</summary>
+    public bool UsernameChanges { get; set; } = true;
+    /// <summary>Global display name and server nickname changes, which people make often.</summary>
+    public bool DisplayNameChanges { get; set; } = false;
 }
 
 public class ChannelInfo

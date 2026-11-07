@@ -87,5 +87,10 @@
     "ImageCount": 4,
     "WindowMinutes": 15,
     "TimeoutHours": 24
+  },
+
+  "MemberLog": {
+    "UsernameChanges": true,
+    "DisplayNameChanges": false
   }
 }

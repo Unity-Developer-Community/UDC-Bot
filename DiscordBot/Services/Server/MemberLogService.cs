@@ -7,7 +7,8 @@ namespace DiscordBot.Services.Server;
 
 /// <summary>
 /// Posts join, leave and name-change cards to the member-log channel, or to bot-announcement when
-/// that isn't set. The layouts are in <see cref="MemberLogCards"/>.
+/// that isn't set. <see cref="MemberLogSettings"/> picks which name changes get a card; every name
+/// change is written to the log file. The layouts are in <see cref="MemberLogCards"/>.
 /// </summary>
 public class MemberLogService
 {
@@ -233,9 +234,19 @@ public class MemberLogService
             await LogNameChange(member, MemberLogCards.NameKind.DisplayName, before.GlobalName, after.GlobalName);
     }
 
-    private Task LogNameChange(SocketGuildUser member, MemberLogCards.NameKind kind, string? before, string? after) =>
-        SendCardAsync(MemberLogCards.NameChangedCard(CardUser.From(member), kind, before, after, DateTimeOffset.UtcNow),
-            $"User {kind} Changed - `{before}` -> `{after}` - ID : `{member.Id}`");
+    private async Task LogNameChange(SocketGuildUser member, MemberLogCards.NameKind kind, string? before, string? after)
+    {
+        var fileLine = $"User {kind} Changed - `{before}` -> `{after}` - ID : `{member.Id}`";
+        if (!CardEnabled(kind))
+        {
+            await _loggingService.Log(LogBehaviour.File, fileLine);
+            return;
+        }
+        await SendCardAsync(MemberLogCards.NameChangedCard(CardUser.From(member), kind, before, after, DateTimeOffset.UtcNow), fileLine);
+    }
+
+    private bool CardEnabled(MemberLogCards.NameKind kind) =>
+        kind == MemberLogCards.NameKind.Username ? _settings.MemberLog.UsernameChanges : _settings.MemberLog.DisplayNameChanges;
 
     #endregion
 
