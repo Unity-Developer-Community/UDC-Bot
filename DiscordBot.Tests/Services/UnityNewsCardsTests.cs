@@ -95,4 +95,21 @@ public class UnityNewsCardsTests
         Assert.Equal("LTS · 6000.3.28f1", UnityNewsCards.ForumTitle(UnityNewsFixtures.Release("6000.3.28f1", UnityStream.Lts)));
         Assert.True(UnityNewsCards.ForumTitle(UnityNewsFixtures.Release(new string('9', 200), UnityStream.Lts)).Length <= UnityNewsCards.MaxForumTitleLength);
     }
+
+    [Fact]
+    public void RoleOnlyMentions_AllowsOnlyThatRole_WithoutTheRolesFlag()
+    {
+        var mentions = UnityNewsCards.RoleOnlyMentions(42);
+
+        Assert.Equal([42ul], mentions.RoleIds);
+        // Discord.Net throws when the Roles flag is combined with a role id list.
+        Assert.False(mentions.AllowedTypes is { } types && types.HasFlag(AllowedMentionTypes.Roles));
+        Assert.False(mentions.MentionRepliedUser ?? false);
+    }
+
+    [Fact]
+    public void RoleOnlyMentions_WithoutRole_AllowsNone()
+    {
+        Assert.Same(AllowedMentions.None, UnityNewsCards.RoleOnlyMentions(null));
+    }
 }

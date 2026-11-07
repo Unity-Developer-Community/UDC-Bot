@@ -153,9 +153,7 @@ public class FeedService
 
         // Blog posts ping the news role.
         var role = roleId is { } id ? _client.GetGuild(_settings.GuildId)?.GetRole(id) : null;
-        var allowedMentions = role == null
-            ? AllowedMentions.None
-            : new AllowedMentions(AllowedMentionTypes.Roles) { RoleIds = [role.Id] };
+        var allowedMentions = UnityNewsCards.RoleOnlyMentions(role?.Id);
 
         var card = UnityNewsCards.BlogCard(title, url, description, item.PublishDate, page, role?.Mention);
         var wanted = UnityNewsCards.BlogTagNames(page);
@@ -254,9 +252,7 @@ public class FeedService
         IRole? role = null;
         if (latest.Stream == UnityStream.Lts && _settings.Roles.SubsReleases is { } roleId)
             role = _client.GetGuild(_settings.GuildId)?.GetRole(roleId);
-        var allowedMentions = role == null
-            ? AllowedMentions.None
-            : new AllowedMentions(AllowedMentionTypes.Roles) { RoleIds = [role.Id] };
+        var allowedMentions = UnityNewsCards.RoleOnlyMentions(role?.Id);
 
         var cards = UnityNewsCards.ReleaseCards(summary, role?.Mention);
         var tag = channel.Tags.Where(t => t.Name == ForumTagName(latest.Stream)).ToArray();

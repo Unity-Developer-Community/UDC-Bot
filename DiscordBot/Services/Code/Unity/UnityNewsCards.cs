@@ -21,6 +21,13 @@ public static class UnityNewsCards
         _ => LtsColor,
     };
 
+    /// <summary>
+    /// Mentions a post may ping: only <paramref name="roleId"/>, or none when it is null.
+    /// Discord.Net rejects the <see cref="AllowedMentionTypes.Roles"/> flag together with a role id list, so only the list is set.
+    /// </summary>
+    public static AllowedMentions RoleOnlyMentions(ulong? roleId) =>
+        roleId is { } id ? new AllowedMentions { RoleIds = [id] } : AllowedMentions.None;
+
     /// <summary>Forum post title, for example <c>LTS · 6000.3.28f1</c>.</summary>
     public static string ForumTitle(UnityRelease release) => AuditCard.Fit(release.Title, MaxForumTitleLength, "…");
 
