@@ -5,6 +5,7 @@ using DiscordBot.Domain;
 using DiscordBot.Services;
 using DiscordBot.Services.Fun.Casino;
 using DiscordBot.Services.Logging;
+using DiscordBot.Settings;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 
@@ -27,7 +28,28 @@ public static class HubSetup
         services.AddSingleton<Func<Blackjack>>(_ => () => new Blackjack());
         services.AddSingleton<WebBlackjackService>();
         services.AddHostedService<BlackjackSweeper>();
+        services.AddSlotsAnnouncements();
         services.AddSignalR(options => options.AddFilter<CasinoHubFilter>());
+        return services;
+    }
+
+    /// <summary>
+    /// Big wins go to a Discord webhook with a picture drawn here. The pieces stay idle when no webhook is configured
+    /// (Development only): the renderer loads its art on first use and the warm-up does nothing.
+    /// </summary>
+    private static IServiceCollection AddSlotsAnnouncements(this IServiceCollection services)
+    {
+        // The bot's settings copy only moves the art folder: the renderer reads nothing else, and the bot's own ./Assets stays the bot's.
+        services.AddSingleton(sp => new SlotsRenderer(new BotSettings { AssetsRootPath = sp.GetRequiredService<IOptions<CasinoHostOptions>>().Value.AssetsPath }));
+        services.AddHostedService<SlotsPictureWarmUp>();
+        services.AddSingleton<SlotsWinAnnouncer>();
+        // RemoveAllLoggers: the factory logs every request address at Information level, and a webhook address carries its token.
+        services.AddHttpClient(SlotsWinAnnouncer.HttpClientName, client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(10);
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("UDC-Casino (https://github.com/Unity-Developer-Community/UDC-Bot)");
+            })
+            .RemoveAllLoggers();
         return services;
     }
 

@@ -34,6 +34,42 @@ describe('startApp', () => {
     expect([...root.querySelectorAll('.game h2')].map(e => e.textContent)).toEqual(['Slots', 'Blackjack']);
   });
 
+  it('shows the daily button only when the casino is open and there is a connection', async () => {
+    const connection = {
+      invoke: vi.fn(async () => new Promise(() => {})),
+      onSessionLost: () => () => {},
+      onStatus: () => () => {},
+      start: async () => Promise.resolve(),
+      status: 'idle',
+    } as unknown as CasinoConnection;
+    const daily = { secondsUntilNext: 0, tokens: 100 };
+
+    const open = await render({ connection, fetchFn: serve(200, { ...me, daily }), pathname: '/' });
+    const offline = await render({ fetchFn: serve(200, { ...me, daily }), pathname: '/' });
+    const closed = await render({ connection, fetchFn: serve(200, { ...me, balance: null, casinoEnabled: false, daily: null }), pathname: '/' });
+
+    expect(open.querySelector('[data-testid=daily]')?.textContent).toBe('Claim 100 tokens');
+    expect(offline.querySelector('[data-testid=daily]')).toBeNull();
+    expect(closed.querySelector('[data-testid=daily]')).toBeNull();
+  });
+
+  it('claims through the hub and adds the tokens to the shown balance', async () => {
+    const invoke = vi.fn(async () => Promise.resolve({ awarded: 100, balance: 99_999, daily: { secondsUntilNext: 86_400, tokens: 100 }, status: 'ok' }));
+    const connection = {
+      invoke,
+      onSessionLost: () => () => {},
+      onStatus: () => () => {},
+      start: async () => Promise.resolve(),
+      status: 'idle',
+    } as unknown as CasinoConnection;
+    const root = await render({ connection, fetchFn: serve(200, { ...me, daily: { secondsUntilNext: 0, tokens: 100 } }), pathname: '/' });
+
+    root.querySelector<HTMLButtonElement>('[data-testid=daily]')!.click();
+    await vi.waitFor(() => expect(root.querySelector('[data-testid=balance]')?.textContent).toBe('12,445 tokens'));
+
+    expect(invoke).toHaveBeenCalledWith('ClaimDailyReward');
+  });
+
   it('shows the closed page, with the header, when the casino is closed', async () => {
     const root = await render({ fetchFn: serve(200, { ...me, balance: null, casinoEnabled: false }), pathname: '/' });
 

@@ -109,7 +109,16 @@ public sealed class FakeCasinoRepo : ICasinoRepo
         return Task.FromResult<long?>(user.Tokens);
     }
     public Task<long?> TransferTokens(string fromUserId, string toUserId, long amount, DateTime updatedAt) => throw new NotSupportedException();
-    public Task<long?> ClaimDailyReward(string userId, long reward, DateTime now, DateTime eligibleBefore) => throw new NotSupportedException();
+
+    /// <summary>Like the SQL statement: pays and stamps the claim only when the last one is at or before <paramref name="eligibleBefore"/>.</summary>
+    public Task<long?> ClaimDailyReward(string userId, long reward, DateTime now, DateTime eligibleBefore)
+    {
+        if (!Users.TryGetValue(userId, out var user) || user.LastDailyReward > eligibleBefore)
+            return Task.FromResult<long?>(null);
+        user.Tokens += reward;
+        user.LastDailyReward = now;
+        return Task.FromResult<long?>(user.Tokens);
+    }
     public Task DeleteCasinoUser(string userId) => throw new NotSupportedException();
     public Task ClearAllCasinoUsers() => throw new NotSupportedException();
     public Task<IList<TokenTransaction>> GetUserTransactionHistory(string userId, int limit) => throw new NotSupportedException();

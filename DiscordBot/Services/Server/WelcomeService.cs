@@ -109,9 +109,6 @@ public class WelcomeService
         var socketTextChannel = _client.GetChannel(_settings.Channels.General.Id) as SocketTextChannel;
         await _databaseService.GetOrAddUser(user);
 
-        await _loggingService.LogChannelAndFile(
-            $"User Joined - {user.Mention} - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}`");
-
         // We check if they're already in the welcome list, if they are we don't add them again to avoid double posts
         if (_welcomeNoticeUsers.Count == 0 || !_welcomeNoticeUsers.Exists(u => u.id == user.Id))
         {

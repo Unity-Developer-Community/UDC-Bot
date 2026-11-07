@@ -115,6 +115,9 @@ public class ChannelSettings
     public ChannelInfo BirthdayAnnouncement { get; set; } = null!;
     public ChannelInfo AutoMod { get; set; } = null!;
 
+    /// <summary>Optional: join, leave and name-change cards. Falls back to <see cref="BotAnnouncement"/> when unset.</summary>
+    public ChannelInfo? MemberLog { get; set; }
+
     public ulong ComplaintCategoryId { get; set; }
     public string ComplaintPrefix { get; set; } = string.Empty;
     public ulong ClosedComplaintCategoryId { get; set; }

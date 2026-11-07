@@ -2,6 +2,7 @@ using System.Security.Claims;
 using AspNet.Security.OAuth.Discord;
 using CasinoWeb.Auth;
 using CasinoWeb.Configuration;
+using CasinoWeb.Hubs;
 using DiscordBot.Services.Fun.Casino;
 using DiscordBot.Settings;
 using Microsoft.AspNetCore.Authentication;
@@ -10,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace CasinoWeb.Endpoints;
 
-public sealed record MeResponse(string Id, string Name, string AvatarUrl, long? Balance, bool CasinoEnabled);
+public sealed record MeResponse(string Id, string Name, string AvatarUrl, long? Balance, bool CasinoEnabled, DailyInfo? Daily);
 
 public static class AccountEndpoints
 {
@@ -32,12 +33,14 @@ public static class AccountEndpoints
             var id = user.FindFirstValue(ClaimTypes.NameIdentifier)!;
             var enabled = settings.Casino.Enabled;
             long? balance = enabled ? (await casino.GetOrCreateCasinoUser(id)).Tokens : null;
+            var daily = enabled ? DailyInfo.Create(settings.Casino.DailyRewardTokens, await casino.GetNextDailyRewardTime(id)) : null;
             return Results.Ok(new MeResponse(
                 id,
                 user.FindFirstValue(AuthenticationSetup.DisplayNameClaim) ?? user.FindFirstValue(ClaimTypes.Name) ?? id,
                 DiscordAvatar.Url(id, user.FindFirstValue(DiscordAuthenticationConstants.Claims.AvatarHash)),
                 balance,
-                enabled));
+                enabled,
+                daily));
         }).RequireAuthorization();
 
         // Without a session there is nothing to end, so it succeeds either way. SameSite=Lax already keeps other sites from

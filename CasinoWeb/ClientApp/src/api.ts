@@ -1,9 +1,13 @@
+import type { DailyInfo } from '@/protocol';
+
 export interface Me {
   id: string;
   name: string;
   avatarUrl: string;
   balance: number | null;
   casinoEnabled: boolean;
+  /** Absent while the casino is closed. */
+  daily?: DailyInfo | null;
 }
 
 export type Session

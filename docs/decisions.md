@@ -1,6 +1,6 @@
 # Decisions
 
-Next ID: D5
+Next ID: D6
 
 ## D1 Karma resets run in the bot, not in the database
 
@@ -33,3 +33,11 @@ Every change to `casino_users.tokens` is one `UPDATE ... SET tokens = tokens + @
 Why: two token changes for one player at the same moment (a slots win and a table-game loss, two gifts, two `/daily` claims) each read the same starting balance, and the second write erased the first (#409). The row lock of a single statement serializes them with no application lock to keep in step across services.
 
 Rejected: one per-user lock shared by every token-changing path (fragile: each new path must remember it, and it does not span bot instances); `SlotsService` keeps its per-user in-flight guard only for the hold-offer state and double clicks.
+
+## D5 The web casino announces big wins through a webhook, not through the bot
+
+`SlotsWinAnnouncer` posts a jackpot or rare slots win played on the web to the casino channel through a Discord webhook, with a static picture of the reels. The web casino still never holds the bot token, and big wins are the only thing it posts in Discord.
+
+Why: a webhook needs one secret scoped to one channel and no running bot, so announcements do not depend on the bot being up.
+
+Rejected: a table of web wins that the bot polls and posts (a schema change, and announcements depend on the bot running).

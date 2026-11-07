@@ -24,6 +24,12 @@ if (!builder.Environment.IsDevelopment())
         .Validate(o => !string.IsNullOrWhiteSpace(o.KeysPath), "Casino:KeysPath is required outside Development")
         .ValidateOnStart();
 }
+builder.Services.AddOptions<CasinoHostOptions>()
+    .Validate(
+        o => CasinoHostOptions.IsValidAnnouncementWebhook(o.AnnouncementWebhookUrl, allowEmpty: builder.Environment.IsDevelopment()),
+        // Never repeats the value: it carries the webhook's token.
+        "Casino:AnnouncementWebhookUrl must be a https://discord.com/api/webhooks/<id>/<token> URL (empty is allowed in Development only)")
+    .ValidateOnStart();
 builder.Services.AddOptions<DiscordOAuthOptions>()
     .BindConfiguration(DiscordOAuthOptions.SectionName)
     .Validate(o => !string.IsNullOrWhiteSpace(o.ClientId) && !string.IsNullOrWhiteSpace(o.ClientSecret), "Discord:ClientId and Discord:ClientSecret are required")
@@ -43,6 +49,9 @@ var app = builder.Build();
 
 // A bad settings file stops the start with its reason, not the first player's request.
 app.Services.GetRequiredService<BotSettings>();
+
+if (!app.Services.GetRequiredService<IOptions<CasinoHostOptions>>().Value.AnnouncementsConfigured)
+    app.Logger.LogInformation("Casino:AnnouncementWebhookUrl is not set: big wins are not announced in Discord.");
 
 if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler();

@@ -84,6 +84,7 @@ public class Program
             _services.GetRequiredService<RecruitService>();
             _services.GetRequiredService<BirthdayAnnouncementService>();
             _services.GetRequiredService<AuditLogService>();
+            _services.GetRequiredService<MemberLogService>();
             _services.GetRequiredService<ImageSpamGuardService>();
             _services.GetRequiredService<WelcomeService>();
             _services.GetRequiredService<IntroductionWatcherService>();
@@ -142,6 +143,7 @@ public class Program
             .AddSingleton<DuelService>()
             .AddSingleton<ProfileCardService>()
             .AddSingleton<AuditLogService>()
+            .AddSingleton<MemberLogService>()
             .AddSingleton<BotDeletionRegistry>()
             .AddSingleton<ImageSpamGuardService>()
             .AddSingleton<EmbedParsingService>()

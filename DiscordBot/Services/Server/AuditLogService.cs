@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Globalization;
 using Discord.Net;
 using Discord.Rest;
 using Discord.WebSocket;
@@ -20,6 +19,7 @@ public class AuditLogService
     private int _auditLogWarned;
 
     private readonly IMessageChannel? _botAnnouncementChannel = null!;
+    private readonly ulong _memberLogChannelId;
 
     public AuditLogService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService, BotDeletionRegistry botDeletions)
     {
@@ -32,17 +32,20 @@ public class AuditLogService
         client.MessagesBulkDeleted += EventGuard.Guarded<IReadOnlyCollection<Cacheable<IMessage, ulong>>, Cacheable<IMessageChannel, ulong>>(MessagesBulkDeleted, nameof(MessagesBulkDeleted));
         client.MessageUpdated += EventGuard.Guarded<Cacheable<IMessage, ulong>, SocketMessage, ISocketMessageChannel>(MessageUpdated, nameof(MessageUpdated));
         client.ThreadDeleted += EventGuard.Guarded<Cacheable<SocketThreadChannel, ulong>>(ThreadDeleted, nameof(ThreadDeleted));
-        client.UserLeft += EventGuard.Guarded<SocketGuild, SocketUser>(UserLeft, nameof(UserLeft));
-        client.GuildMemberUpdated += EventGuard.Guarded<Cacheable<SocketGuildUser, ulong>, SocketGuildUser>(GuildMemberUpdated, nameof(GuildMemberUpdated));
 
         if (settings.Channels.BotAnnouncement != null)
             _botAnnouncementChannel = client.GetChannel(settings.Channels.BotAnnouncement.Id) as IMessageChannel;
+        _memberLogChannelId = settings.Channels.MemberLog?.Id ?? 0;
     }
+
+    /// <summary>The bot's own log channels, whose messages are never logged.</summary>
+    private bool IsLogChannel(ulong channelId) =>
+        channelId == _botAnnouncementChannel?.Id || (_memberLogChannelId != 0 && channelId == _memberLogChannelId);
 
     private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
     {
         // Messages removed by the spam guard are already in its report.
-        if (channel.Id == _botAnnouncementChannel?.Id || _botDeletions.Contains(message.Id, DateTimeOffset.UtcNow))
+        if (IsLogChannel(channel.Id) || _botDeletions.Contains(message.Id, DateTimeOffset.UtcNow))
             return;
 
         if (message.HasValue == false)
@@ -67,7 +70,7 @@ public class AuditLogService
 
     private async Task MessagesBulkDeleted(IReadOnlyCollection<Cacheable<IMessage, ulong>> messages, Cacheable<IMessageChannel, ulong> channel)
     {
-        if (channel.Id == _botAnnouncementChannel?.Id)
+        if (IsLogChannel(channel.Id))
             return;
 
         IChannel? cachedChannel = channel.HasValue ? channel.Value : _client.GetChannel(channel.Id);
@@ -123,7 +126,7 @@ public class AuditLogService
 
     private async Task MessageUpdated(Cacheable<IMessage, ulong> before, SocketMessage after, ISocketMessageChannel channel)
     {
-        if (after.Author.IsBot || channel.Id == _botAnnouncementChannel?.Id || channel is not SocketGuildChannel guildChannel)
+        if (after.Author.IsBot || IsLogChannel(channel.Id) || channel is not SocketGuildChannel guildChannel)
             return;
 
         // Never download "before": that returns the edited message and made unfurls look like edits.
@@ -243,36 +246,5 @@ public class AuditLogService
     {
         if (Interlocked.Exchange(ref _auditLogWarned, 1) == 0)
             LoggingService.LogToConsole($"[{nameof(AuditLogService)}] Can't show who deleted threads: {reason}", LogSeverity.Warning);
-    }
-
-    private async Task UserLeft(SocketGuild guild, SocketUser user)
-    {
-        if (user.IsBot) return;
-
-        var guildUser = guild.GetUser(user.Id);
-        if (guildUser?.JoinedAt != null)
-        {
-            var joinDate = guildUser.JoinedAt.Value.Date;
-            var timeStayed = DateTime.Now - joinDate;
-            await _loggingService.LogChannelAndFile(
-                $"User Left - After {(timeStayed.Days > 1 ? Math.Floor((double)timeStayed.Days) + " days" : " ")}" +
-                $" {Math.Floor((double)timeStayed.Hours).ToString(CultureInfo.InvariantCulture)} hours {user.Mention} - `{guildUser.GetPreferredAndUsername()}` - ID : `{user.Id}`");
-        }
-        else
-        {
-            await _loggingService.LogChannelAndFile(
-                $"User Left - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}` - Left at {DateTime.Now}");
-        }
-    }
-
-    private async Task GuildMemberUpdated(Cacheable<SocketGuildUser, ulong> oldUserCached, SocketGuildUser user)
-    {
-        var oldUser = await oldUserCached.GetOrDownloadAsync();
-        if (oldUser.Nickname != user.Nickname)
-        {
-            await _loggingService.LogChannelAndFile(
-                $"User {oldUser.GetUserPreferredName()} changed his " +
-                $"username to {user.GetUserPreferredName()}");
-        }
     }
 }

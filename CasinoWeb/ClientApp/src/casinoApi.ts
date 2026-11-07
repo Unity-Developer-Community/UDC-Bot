@@ -1,4 +1,4 @@
-import type { BlackjackAction, BlackjackPlay, HubErrorCode, HubState, SlotsHold, SlotsPlay } from '@/protocol';
+import type { BlackjackAction, BlackjackPlay, DailyClaim, HubErrorCode, HubState, SlotsHold, SlotsPlay } from '@/protocol';
 
 import { hubErrorCode } from '@/protocol';
 
@@ -32,6 +32,11 @@ export class CasinoApi {
 
   async blackjackDeal(bet: number): Promise<BlackjackPlay> {
     return this.call('BlackjackDeal', bet);
+  }
+
+  /** Claims the daily reward; `notYet` when the last claim, here or in Discord, is too recent. */
+  async claimDailyReward(): Promise<DailyClaim> {
+    return this.call('ClaimDailyReward');
   }
 
   async getState(): Promise<HubState> {

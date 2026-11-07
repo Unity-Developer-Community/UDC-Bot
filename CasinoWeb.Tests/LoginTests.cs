@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Web;
+using CasinoWeb.Hubs;
 
 namespace CasinoWeb.Tests;
 
@@ -122,6 +123,31 @@ public sealed class LoginTests : IDisposable
     }
 
     [Fact]
+    public async Task The_daily_reward_is_available_to_a_new_member()
+    {
+        var browser = _factory.CreateBrowser();
+        await CasinoWebFactory.LogInAsync(browser);
+
+        var me = await CasinoWebFactory.GetMeAsync(browser);
+
+        Assert.Equal(new DailyInfo(100, 0), me.Daily);
+    }
+
+    [Fact]
+    public async Task The_daily_reward_shows_the_seconds_until_the_next_claim()
+    {
+        var browser = _factory.CreateBrowser();
+        await CasinoWebFactory.LogInAsync(browser);
+        await CasinoWebFactory.GetMeAsync(browser); // creates the row
+        _factory.Database.Repo.Users[FakeDiscordHandler.UserId].LastDailyReward = DateTime.UtcNow.AddSeconds(-(86_400 - 3_600));
+
+        var me = await CasinoWebFactory.GetMeAsync(browser);
+
+        Assert.Equal(100, me.Daily!.Tokens);
+        Assert.InRange(me.Daily.SecondsUntilNext, 3_599, 3_600);
+    }
+
+    [Fact]
     public async Task A_closed_casino_reports_it_and_hides_the_balance()
     {
         var browser = _factory.CreateBrowser();
@@ -132,6 +158,7 @@ public sealed class LoginTests : IDisposable
 
         Assert.False(me.CasinoEnabled);
         Assert.Null(me.Balance);
+        Assert.Null(me.Daily);
         Assert.Equal("Ada Lovelace", me.Name);
     }
 
