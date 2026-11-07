@@ -9,15 +9,13 @@ namespace DiscordBot.Services.Moderation;
 /// <summary>
 /// Catches the common scam wave: the same account posting messages with exactly N images
 /// (default 4) in quick succession. The first such message is only remembered; another one in a
-/// different channel within the window deletes every remembered message, times the member out and
-/// posts a report.
+/// different channel within the window deletes every remembered message, times the member out,
+/// posts a report to the log channel and a short pointer to it in the AutoMod channel.
 /// </summary>
 public class ImageSpamGuardService
 {
     private const string ServiceName = "ImageSpamGuard";
     private const string AuditLogReason = "Image spam guard: repeated multi-image posts";
-    // Stay under Discord's default 10 MB upload limit when copying images into the report.
-    private const long MaxCopyBytes = 8 * 1024 * 1024;
 
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
@@ -25,6 +23,7 @@ public class ImageSpamGuardService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ImageSpamGuardSettings _guardSettings;
     private readonly ulong _moderatorRoleId;
+    private readonly ulong _autoModChannelId;
     private readonly ImageSpamTracker _tracker;
 
     public ImageSpamGuardService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService,
@@ -36,6 +35,7 @@ public class ImageSpamGuardService
         _httpClientFactory = httpClientFactory;
         _guardSettings = settings.ImageSpamGuard;
         _moderatorRoleId = settings.Roles.Moderator;
+        _autoModChannelId = settings.Channels.AutoMod?.Id ?? 0;
         _tracker = new ImageSpamTracker(TimeSpan.FromMinutes(Math.Max(1, _guardSettings.WindowMinutes)));
 
         if (!_guardSettings.Enabled)
@@ -43,6 +43,10 @@ public class ImageSpamGuardService
             LoggingService.LogToConsole($"[{ServiceName}] Disabled in settings.", ExtendedLogSeverity.Info);
             return;
         }
+
+        if (_autoModChannelId == 0)
+            LoggingService.LogToConsole($"[{ServiceName}] Channels.AutoMod is not configured: reports won't be pointed to from AutoMod.",
+                ExtendedLogSeverity.Warning);
 
         client.MessageReceived += EventGuard.Guarded<SocketMessage>(MessageReceived, nameof(MessageReceived));
     }
@@ -84,9 +88,10 @@ public class ImageSpamGuardService
     private async Task ActOnSpam(SocketGuildUser member, IReadOnlyCollection<IAttachment> lastAttachments, IReadOnlyList<ImageSpamHit> hits)
     {
         var timeoutResult = await TryTimeout(member);
-        // Copy the images before deleting, since their links stop working once the message is gone.
-        var (files, copyNote) = await CopyImages(lastAttachments);
-        // The copies hold the image bytes in memory: release them however the rest goes.
+        // Copy the image before deleting, since its link stops working once the message is gone.
+        var (copy, copyNote) = await CopyOneImage(lastAttachments);
+        List<FileAttachment> files = copy is { } copied ? [copied] : [];
+        // The copy holds the image bytes in memory: release it however the rest goes.
         try
         {
             var (deleted, failures) = await DeleteHits(hits);
@@ -106,16 +111,19 @@ public class ImageSpamGuardService
                 files.Select(f => $"attachment://{f.FileName}").ToList(),
                 copyNote);
 
+            IUserMessage? reportMessage;
             try
             {
-                await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow), files);
+                reportMessage = await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow), files);
             }
             catch (HttpException e) when (files.Count > 0)
             {
-                // Most likely the upload was too large: send the report without the images.
-                report = report with { CopiedImageUrls = [], CopyNote = $"Couldn't upload the copied images ({e.HttpCode})." };
-                await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow));
+                // Most likely the upload was too large: send the report without the image.
+                report = report with { CopiedImageUrls = [], CopyNote = $"Couldn't upload the copied image ({e.HttpCode})." };
+                reportMessage = await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow));
             }
+
+            await PostAutoModPointer(member, reportMessage);
         }
         finally
         {
@@ -144,40 +152,62 @@ public class ImageSpamGuardService
         }
     }
 
-    private async Task<(List<FileAttachment> Files, string? Note)> CopyImages(IReadOnlyCollection<IAttachment> attachments)
+    private async Task PostAutoModPointer(SocketGuildUser member, IUserMessage? reportMessage)
     {
-        // Choose what fits the upload limit first, so the downloads can run in parallel.
-        var toCopy = new List<IAttachment>();
-        long total = 0;
-        foreach (var attachment in attachments)
+        if (_autoModChannelId == 0)
+            return;
+        if (reportMessage == null)
         {
-            if (total + attachment.Size > MaxCopyBytes)
-                continue;
-            total += attachment.Size;
-            toCopy.Add(attachment);
+            LoggingService.LogToConsole($"[{ServiceName}] No report was posted, so there is nothing to point to from AutoMod.",
+                ExtendedLogSeverity.Warning);
+            return;
+        }
+        // Looked up when needed: the channel cache may not be ready when the service is created.
+        if (_client.GetChannel(_autoModChannelId) is not IMessageChannel autoMod)
+        {
+            LoggingService.LogToConsole($"[{ServiceName}] AutoMod channel {_autoModChannelId} not found.", ExtendedLogSeverity.Warning);
+            return;
         }
 
-        using var http = _httpClientFactory.CreateClient();
-        http.Timeout = TimeSpan.FromSeconds(15);
-        var downloads = await Task.WhenAll(toCopy.Select(a => TryDownload(http, a.Url)));
-
-        var files = new List<FileAttachment>();
-        foreach (var (attachment, bytes) in toCopy.Zip(downloads))
+        try
         {
-            if (bytes == null)
-                continue;
-            var extension = Path.GetExtension(attachment.Filename);
-            if (extension.Length is 0 or > 6)
-                extension = ".png";
-            // FileAttachment.Dispose disposes the stream; ActOnSpam disposes every file.
-            files.Add(new FileAttachment(new MemoryStream(bytes), $"spam-{files.Count + 1}{extension.ToLowerInvariant()}"));
+            await autoMod.SendMessageAsync(
+                $"🚨 Image spam guard triggered for {member.Mention} · [See Details]({reportMessage.GetJumpUrl()})",
+                allowedMentions: AllowedMentions.None);
         }
+        catch (HttpException e)
+        {
+            LoggingService.LogToConsole($"[{ServiceName}] Couldn't post to the AutoMod channel: {(int)e.HttpCode} {e.Reason}".TrimEnd(),
+                ExtendedLogSeverity.Warning);
+        }
+    }
 
-        var skipped = attachments.Count - files.Count;
-        var note = skipped == 0 ? null
-            : files.Count == 0 ? "Couldn't copy the images (too large or no longer available)."
-            : $"{skipped} image{(skipped == 1 ? "" : "s")} not copied (too large or no longer available).";
-        return (files, note);
+    private async Task<(FileAttachment? File, string? Note)> CopyOneImage(IReadOnlyCollection<IAttachment> attachments)
+    {
+        const string failed = "Couldn't copy an image (too large, unsupported or no longer available).";
+        var list = attachments.ToList();
+        if (ImageSpamThumbnail.PickIndex(list.Select(a => (long)a.Size).ToList(), Random.Shared) is not { } index)
+            return (null, failed);
+
+        byte[]? bytes;
+        using (var http = _httpClientFactory.CreateClient())
+        {
+            http.Timeout = TimeSpan.FromSeconds(15);
+            // Attachment.Size is what Discord reported: cap what is actually read too.
+            http.MaxResponseContentBufferSize = ImageSpamThumbnail.MaxSourceBytes;
+            bytes = await TryDownload(http, list[index].Url);
+        }
+        if (bytes == null)
+            return (null, failed);
+
+        // Production has half a CPU: keep the decode off the gateway thread.
+        var thumbnail = await Task.Run(() => ImageSpamThumbnail.TryCreate(bytes));
+        if (thumbnail == null)
+            return (null, failed);
+
+        var note = list.Count > 1 ? $"Showing 1 of {list.Count} images, picked at random and resized." : null;
+        // FileAttachment.Dispose disposes the stream; ActOnSpam disposes it.
+        return (new FileAttachment(new MemoryStream(thumbnail), "spam.jpg"), note);
     }
 
     private static async Task<byte[]?> TryDownload(HttpClient http, string url)

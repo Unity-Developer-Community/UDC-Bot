@@ -429,7 +429,7 @@ public static class AuditLogCards
         if (report.CopiedImageUrls.Count > 0)
         {
             card.AddSeparator()
-                .AddText("-# Images copied from the last message, to check this isn't a false positive:")
+                .AddText("-# One image from the last message, to check this isn't a false positive:")
                 .AddMedia(report.CopiedImageUrls);
         }
         if (report.CopyNote != null)

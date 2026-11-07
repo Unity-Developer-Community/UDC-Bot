@@ -23,6 +23,7 @@
     "GenericHelp": { "desc": "Unity-Help Channel", "id": "0" },
     "Meme": { "desc": "Meme Channel", "id": "0" },
     "BirthdayAnnouncement": { "desc": "Channel for birthday announcements", "id": "0" },
+    "AutoMod": { "desc": "AutoMod channel, shared with Wick and Discord AutoMod", "id": "0" },
     "ComplaintCategoryId": "0",
     "ComplaintPrefix": "Complaint",
     "ClosedComplaintCategoryId": "0",

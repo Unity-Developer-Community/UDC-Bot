@@ -230,5 +230,5 @@ public sealed class RecordingLoggingService : ILoggingService
         return Task.CompletedTask;
     }
 
-    public Task LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null) => Task.CompletedTask;
+    public Task<IUserMessage?> LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null) => Task.FromResult<IUserMessage?>(null);
 }

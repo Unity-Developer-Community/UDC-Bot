@@ -81,6 +81,7 @@ public class BotSettings
 
         if (ImageSpamGuard.Enabled)
         {
+            ValidateChannel(warnings, Channels.AutoMod, nameof(Channels.AutoMod));
             if (ImageSpamGuard.ImageCount < 1)
                 warnings.Add("ImageSpamGuard.ImageCount must be at least 1 — the guard will not act until it is fixed");
             if (ImageSpamGuard.WindowMinutes < 1)
@@ -112,6 +113,8 @@ public class ChannelSettings
     public ChannelInfo Recruitment { get; set; } = null!;
     public ChannelInfo Meme { get; set; } = null!;
     public ChannelInfo BirthdayAnnouncement { get; set; } = null!;
+    public ChannelInfo AutoMod { get; set; } = null!;
+
     /// <summary>Optional: join, leave and name-change cards. Falls back to <see cref="BotAnnouncement"/> when unset.</summary>
     public ChannelInfo? MemberLog { get; set; }
 
