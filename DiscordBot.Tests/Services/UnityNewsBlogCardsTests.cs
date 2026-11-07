@@ -105,12 +105,9 @@ public class UnityNewsBlogCardsTests
     }
 
     [Fact]
-    public void BlogTagNames_BlogTagFirstThenTopicsAndTags_WithoutDuplicates()
+    public void BlogTagNames_AreOnlyTheBlogTag()
     {
-        var page = new BlogPage { Topics = ["XR", "Game design"], Tags = ["xr", "Meta"] };
-
-        Assert.Equal(["Unity Blog", "XR", "Game design", "Meta"], UnityNewsCards.BlogTagNames(page));
-        Assert.Equal(["Unity Blog"], UnityNewsCards.BlogTagNames(BlogPage.Empty));
+        Assert.Equal(["Unity Blog"], UnityNewsCards.BlogTagNames());
     }
 
     [Fact]

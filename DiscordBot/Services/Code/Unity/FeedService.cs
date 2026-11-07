@@ -40,15 +40,6 @@ public class FeedService
 
     private static readonly UnityStream[] ReleaseStreams = [UnityStream.Lts, UnityStream.Supported, UnityStream.Beta, UnityStream.Alpha];
 
-    /// <summary>The forum tag applied to a stream's posts; tags missing from the forum are skipped.</summary>
-    private static string ForumTagName(UnityStream stream) => stream switch
-    {
-        UnityStream.Lts => "New Release",
-        UnityStream.Beta => "Beta Update",
-        UnityStream.Alpha => "Alpha",
-        _ => "Supported",
-    };
-
     #endregion // Release Feed Config
 
     private const ThreadArchiveDuration ForumArchiveDuration = ThreadArchiveDuration.OneWeek;
@@ -83,6 +74,14 @@ public class FeedService
         // Return the feed, empty feed if null to prevent additional checks for null on return
         return feed ??= new SyndicationFeed();
     }
+
+    /// <summary>The forum's tags with these names (case-insensitive); names the forum has no tag for are skipped.</summary>
+    private static ForumTag[] ForumTags(IForumChannel channel, IEnumerable<string> names) => names
+        .Select(name => channel.Tags.FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase)))
+        .OfType<ForumTag>()
+        .DistinctBy(t => t.Id)
+        .Take(MaxForumTags)
+        .ToArray();
 
     #region Feed Handlers
 
@@ -156,13 +155,7 @@ public class FeedService
         var allowedMentions = UnityNewsCards.RoleOnlyMentions(role?.Id);
 
         var card = UnityNewsCards.BlogCard(title, url, description, item.PublishDate, page, role?.Mention);
-        var wanted = UnityNewsCards.BlogTagNames(page);
-        var tags = wanted
-            .Select(name => channel.Tags.FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase)))
-            .OfType<ForumTag>()
-            .DistinctBy(t => t.Id)
-            .Take(MaxForumTags)
-            .ToArray();
+        var tags = ForumTags(channel, UnityNewsCards.BlogTagNames());
 
         await channel.CreatePostAsync(UnityNewsCards.BlogForumTitle(title), ForumArchiveDuration, null, null, null, null,
             allowedMentions, card, flags: MessageFlags.ComponentsV2, tags: tags);
@@ -255,10 +248,10 @@ public class FeedService
         var allowedMentions = UnityNewsCards.RoleOnlyMentions(role?.Id);
 
         var cards = UnityNewsCards.ReleaseCards(summary, role?.Mention);
-        var tag = channel.Tags.Where(t => t.Name == ForumTagName(latest.Stream)).ToArray();
+        var tags = ForumTags(channel, UnityNewsCards.ReleaseTagNames(latest));
 
         var thread = await channel.CreatePostAsync(UnityNewsCards.ForumTitle(latest), ForumArchiveDuration, null, null, null, null,
-            allowedMentions, cards[0], flags: MessageFlags.ComponentsV2, tags: tag);
+            allowedMentions, cards[0], flags: MessageFlags.ComponentsV2, tags: tags);
 
         try
         {

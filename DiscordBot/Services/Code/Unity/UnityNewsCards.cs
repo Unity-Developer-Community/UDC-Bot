@@ -28,8 +28,14 @@ public static class UnityNewsCards
     public static AllowedMentions RoleOnlyMentions(ulong? roleId) =>
         roleId is { } id ? new AllowedMentions { RoleIds = [id] } : AllowedMentions.None;
 
-    /// <summary>Forum post title, for example <c>LTS · 6000.3.28f1</c>.</summary>
-    public static string ForumTitle(UnityRelease release) => AuditCard.Fit(release.Title, MaxForumTitleLength, "…");
+    public const string ReleaseForumTag = "Unity Release";
+    public const string ReleaseTitlePrefix = "Unity Release - ";
+
+    /// <summary>Forum post title, for example <c>Unity Release - LTS · 6000.3.28f1</c>.</summary>
+    public static string ForumTitle(UnityRelease release) => AuditCard.Fit(ReleaseTitlePrefix + release.Title, MaxForumTitleLength, "…");
+
+    /// <summary>The forum tag names of a release post: the release tag and the stream's tag ("LTS", "Supported", "Beta" or "Alpha").</summary>
+    public static IReadOnlyList<string> ReleaseTagNames(UnityRelease release) => [ReleaseForumTag, release.StreamLabel];
 
     /// <summary>
     /// The messages of a release post: the first one opens the forum thread, the others are replies.
@@ -77,8 +83,8 @@ public static class UnityNewsCards
     /// <summary>Forum post title of a blog post.</summary>
     public static string BlogForumTitle(string title) => AuditCard.Fit(BlogTitlePrefix + title.Trim(), MaxForumTitleLength, "…");
 
-    /// <summary>The forum tag names a blog post asks for: the blog tag first, then the page's topics and tags (the forum may not have them all).</summary>
-    public static IReadOnlyList<string> BlogTagNames(BlogPage page) => new[] { BlogForumTag }.Concat(page.Topics).Concat(page.Tags).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    /// <summary>The forum tag names of a blog post.</summary>
+    public static IReadOnlyList<string> BlogTagNames() => [BlogForumTag];
 
     /// <summary>
     /// The message of a blog post. <paramref name="page"/> may be <see cref="BlogPage.Empty"/> (the page could not be read), which gives a card of the

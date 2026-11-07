@@ -92,8 +92,18 @@ public class UnityNewsCardsTests
     [Fact]
     public void ForumTitle_UsesTheShortTitleAndStaysUnderTheLimit()
     {
-        Assert.Equal("LTS · 6000.3.28f1", UnityNewsCards.ForumTitle(UnityNewsFixtures.Release("6000.3.28f1", UnityStream.Lts)));
+        Assert.Equal("Unity Release - LTS · 6000.3.28f1", UnityNewsCards.ForumTitle(UnityNewsFixtures.Release("6000.3.28f1", UnityStream.Lts)));
         Assert.True(UnityNewsCards.ForumTitle(UnityNewsFixtures.Release(new string('9', 200), UnityStream.Lts)).Length <= UnityNewsCards.MaxForumTitleLength);
+    }
+
+    [Theory]
+    [InlineData("6000.3.28f1", UnityStream.Lts, "LTS")]
+    [InlineData("6000.6.8f1", UnityStream.Supported, "Supported")]
+    [InlineData("6000.7.0b8", UnityStream.Beta, "Beta")]
+    [InlineData("7000.0.0a16", UnityStream.Alpha, "Alpha")]
+    public void ReleaseTagNames_AreTheReleaseTagAndTheStreamTag(string version, UnityStream stream, string streamTag)
+    {
+        Assert.Equal(["Unity Release", streamTag], UnityNewsCards.ReleaseTagNames(UnityNewsFixtures.Release(version, stream)));
     }
 
     [Fact]
