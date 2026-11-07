@@ -55,7 +55,7 @@ public sealed class StartupReport
     private readonly TimeSpan _errorDebounce;
     private readonly TimeSpan _memoryFollowUp;
     private readonly TimeProvider _time;
-    private readonly Func<StartupReportCard.MemorySample> _sampleMemory;
+    private readonly Func<MemoryStats> _sampleMemory;
 
     private readonly object _lock = new();
     // Edits run one at a time and render the state as it is when they run, so a late edit can't undo the final one.
@@ -70,8 +70,8 @@ public sealed class StartupReport
     private bool _errorEditScheduled;
     private bool _finalSent;
     private bool _followUpScheduled;
-    private StartupReportCard.MemorySample? _memory;
-    private StartupReportCard.MemorySample? _memoryLater;
+    private MemoryStats? _memory;
+    private MemoryStats? _memoryLater;
     private ulong? _messageId;
     private readonly List<CapturedLine> _lines = [];
     private readonly List<Step> _pending = [];
@@ -79,12 +79,12 @@ public sealed class StartupReport
 
     public StartupReport(DiscordSocketClient client, BotSettings settings)
         : this(new DiscordStartupReportChannel(client, settings), DefaultCap, DefaultErrorDebounce, TimeProvider.System,
-            DefaultMemoryFollowUp, StartupReportCard.MemorySample.Current)
+            DefaultMemoryFollowUp, () => MemoryStats.Capture(client, settings.GuildId))
     {
     }
 
     internal StartupReport(IStartupReportChannel channel, TimeSpan cap, TimeSpan errorDebounce, TimeProvider time,
-        TimeSpan memoryFollowUp, Func<StartupReportCard.MemorySample> sampleMemory)
+        TimeSpan memoryFollowUp, Func<MemoryStats> sampleMemory)
     {
         _channel = channel;
         _cap = cap;

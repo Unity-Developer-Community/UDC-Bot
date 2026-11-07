@@ -20,12 +20,6 @@ public static class StartupReportCard
 
     public sealed record Entry(TimeSpan Offset, ExtendedLogSeverity Severity, string Text);
 
-    /// <summary>Process memory: the working set (what the OS counts, as in a container's usage) and the managed heap.</summary>
-    public sealed record MemorySample(long WorkingSet, long GcHeap)
-    {
-        public static MemorySample Current() => new(Environment.WorkingSet, GC.GetTotalMemory(false));
-    }
-
     /// <param name="FinishedAt">Null while starting.</param>
     /// <param name="Pending">Steps not finished yet: shown while starting, or as a warning when <paramref name="TimedOut"/>.</param>
     /// <param name="Memory">Taken when startup finished.</param>
@@ -37,8 +31,8 @@ public static class StartupReportCard
         IReadOnlyList<Entry> Entries,
         IReadOnlyList<string> Pending,
         bool TimedOut,
-        MemorySample? Memory = null,
-        MemorySample? MemoryLater = null,
+        MemoryStats? Memory = null,
+        MemoryStats? MemoryLater = null,
         DateTimeOffset? MemoryLaterAt = null);
 
     public static MessageComponent Build(State state, int budget = AuditCard.DefaultBudget)
@@ -80,26 +74,30 @@ public static class StartupReportCard
         return card.WithFooter(footer).Build(budget);
     }
 
-    /// <summary><c>Memory: 182 MB (GC heap 64 MB) · 1m later: 190 MB (+8 MB) · GC heap 70 MB (+6 MB)</c>. Empty before startup finishes.</summary>
+    /// <summary>
+    /// <c>Memory: 125 MB (heap 35 MB live, 43 MB committed) · 1m later: 130 MB (+5 MB), heap 36 MB live (+1 MB)</c>,
+    /// then a line of cache sizes from the latest sample. Empty before startup finishes.
+    /// </summary>
     public static string MemoryLine(State state)
     {
         if (state.Memory is not { } first || state.FinishedAt is not { } finishedAt)
             return "";
-        var line = $"Memory: {Megabytes(first.WorkingSet)} (GC heap {Megabytes(first.GcHeap)})";
-        if (state.MemoryLaterAt is not { } laterAt)
-            return line;
-        if (state.MemoryLater is not { } later)
-            return line + $" · measuring again {AuditLogCards.Timestamp(laterAt, 'R')}";
-        return line + $" · {MemberLogCards.StayDuration(laterAt - finishedAt)} later: {Megabytes(later.WorkingSet)} ({Change(later.WorkingSet - first.WorkingSet)})" +
-               $" · GC heap {Megabytes(later.GcHeap)} ({Change(later.GcHeap - first.GcHeap)})";
-    }
-
-    public static string Megabytes(long bytes) => $"{bytes / (1024.0 * 1024.0):0} MB";
-
-    private static string Change(long bytes)
-    {
-        var mb = Math.Round(bytes / (1024.0 * 1024.0));
-        return mb == 0 ? "±0 MB" : $"{mb:+0;-0} MB";
+        var line = $"Memory: {first.MemoryText}";
+        var latest = first;
+        if (state.MemoryLaterAt is { } laterAt)
+        {
+            if (state.MemoryLater is { } later)
+            {
+                line += $" · {MemberLogCards.StayDuration(laterAt - finishedAt)} later: {MemoryStats.Megabytes(later.WorkingSet)} ({MemoryStats.Change(later.WorkingSet - first.WorkingSet)})" +
+                        $", heap {MemoryStats.Megabytes(later.LiveHeap)} live ({MemoryStats.Change(later.LiveHeap - first.LiveHeap)})";
+                latest = later;
+            }
+            else
+            {
+                line += $" · measuring again {AuditLogCards.Timestamp(laterAt, 'R')}";
+            }
+        }
+        return $"{line}\nCache: {latest.CacheText}";
     }
 
     /// <summary><c>+ss.fff</c>, or <c>+m:ss.fff</c> from a minute on.</summary>

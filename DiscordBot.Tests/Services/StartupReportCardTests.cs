@@ -123,7 +123,7 @@ public class StartupReportCardTests
         Assert.Matches(@"… \d+ more lines in the log file", text);
     }
 
-    private static readonly MemorySample Sample = new(180 * 1024 * 1024L, 60 * 1024 * 1024L);
+    private static readonly MemoryStats Sample = new(180L << 20, 35L << 20, 43L << 20, 1234, 5678, 95);
 
     [Fact]
     public void MemoryLine_EmptyWhileStarting()
@@ -136,22 +136,25 @@ public class StartupReportCardTests
     {
         var finished = Start.AddSeconds(10);
         var line = MemoryLine(new State(Start, Start, finished, [], [], false, Sample, null, finished.AddMinutes(1)));
-        Assert.Equal($"Memory: 180 MB (GC heap 60 MB) · measuring again <t:{finished.AddMinutes(1).ToUnixTimeSeconds()}:R>", line);
+        Assert.Equal($"Memory: 180 MB (heap 35 MB live, 43 MB committed) · measuring again <t:{finished.AddMinutes(1).ToUnixTimeSeconds()}:R>\n" +
+                     "Cache: 1,234 members, 5,678 cached messages, 95 channels", line);
     }
 
     [Fact]
     public void MemoryLine_SecondSample_ShowsChange()
     {
         var finished = Start.AddSeconds(10);
-        var later = new MemorySample(190 * 1024 * 1024L, 60 * 1024 * 1024L);
+        var later = new MemoryStats(190L << 20, 35L << 20, 50L << 20, 1235, 1, 96);
         var line = MemoryLine(new State(Start, Start, finished, [], [], false, Sample, later, finished.AddMinutes(1)));
-        Assert.Equal("Memory: 180 MB (GC heap 60 MB) · 1m later: 190 MB (+10 MB) · GC heap 60 MB (±0 MB)", line);
+        Assert.Equal("Memory: 180 MB (heap 35 MB live, 43 MB committed) · 1m later: 190 MB (+10 MB), heap 35 MB live (±0 MB)\n" +
+                     "Cache: 1,235 members, 1 cached message, 96 channels", line);
     }
 
     [Fact]
     public void Build_Finished_ShowsMemoryInHeader()
     {
         var card = Build(new State(Start, Start, Start.AddSeconds(10), [], [], false, Sample));
-        Assert.Contains("Memory: 180 MB (GC heap 60 MB)", Text(card));
+        Assert.Contains("Memory: 180 MB (heap 35 MB live, 43 MB committed)", Text(card));
+        Assert.Contains("Cache: 1,234 members", Text(card));
     }
 }

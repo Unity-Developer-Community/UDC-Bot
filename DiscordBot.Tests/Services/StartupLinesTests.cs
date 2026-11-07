@@ -43,4 +43,12 @@ public class StartupLinesTests
         var line = KarmaResetService.LastResetsLine(weekly, DateTime.MinValue, DateTime.MinValue);
         Assert.Equal($"Last resets: weekly <t:{new DateTimeOffset(weekly).ToUnixTimeSeconds()}:R>, monthly never, yearly never.", line);
     }
+
+    [Fact]
+    public void MemoryLogLine_ShowsUptimeMemoryAndCaches()
+    {
+        var stats = new DiscordBot.Services.Logging.MemoryStats(125L << 20, 35L << 20, 43L << 20, 1, 5678, 95);
+        Assert.Equal("Up 4h: 125 MB (heap 35 MB live, 43 MB committed); 1 member, 5,678 cached messages, 95 channels.",
+            DiscordBot.Services.Logging.MemoryLogService.Line(stats, TimeSpan.FromHours(4)));
+    }
 }

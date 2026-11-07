@@ -100,6 +100,7 @@ public class Program
             _services.GetRequiredService<EveryoneScoldService>();
             _services.GetRequiredService<MikuService>();
             _services.GetRequiredService<KarmaResetService>();
+            _services.GetRequiredService<MemoryLogService>();
 
             // The first slots render loads the art and builds the palette (about 2.7 s): do it now, not on a player's first spin.
             if (_settings.Casino.Enabled)
@@ -181,6 +182,7 @@ public class Program
             .AddSingleton<SlotsRenderer>()
             .AddSingleton<SlotsService>()
             .AddSingleton<KarmaResetService>()
+            .AddSingleton<MemoryLogService>()
             .BuildServiceProvider();
 
     private static void DeserializeSettings()
