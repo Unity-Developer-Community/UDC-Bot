@@ -1,6 +1,6 @@
 # Decisions
 
-Next ID: D8
+Next ID: D9
 
 ## D1 Karma resets run in the bot, not in the database
 
@@ -57,3 +57,11 @@ Rejected: the RSS feeds with the notes link scraped from them (no exact version)
 Why: Discord.Net has no service-lifecycle events (only `Ready`, `Connected` and `Log`), and many services start implicitly: `CommandHandlingService` builds the modules, whose constructors resolve the services they inject. A Prepare/Start interface would touch every service and make that hidden order explicit, with the risk of missing gateway events if subscriptions move later.
 
 Rejected: a Prepare/Start interface on every service; moving to `Microsoft.Extensions.Hosting` now. Hosted services (`IHostedService`/`BackgroundService`) are the idiomatic follow-up, starting with the loop services (Birthday, Reminder, KarmaReset, Welcome, Update, IntroductionWatcher), and would replace the manual cancellation handling in `Program.cs`.
+
+## D8 The bot's GC conserves memory and runs without background collection
+
+`DiscordBot.csproj` sets `System.GC.ConserveMemory` to 5 and `ConcurrentGarbageCollection` to false, so they go into the build's `runtimeconfig.json` for local runs, Docker and Kubernetes alike.
+
+Why: the bot keeps about 35 MB of live objects, but after a spike the GC kept the memory committed. In a container with the production limits (768 MiB, half a CPU), the doc-index download spike left the bot at 532 MiB; with these settings it went back to 366 MiB, because the GC compacts and gives memory back when the heap is fragmented. With that download fixed, they still save about 15 MiB and cap what image renders and later downloads leave behind. At the bot's load, the extra pause time doesn't matter.
+
+Rejected: Server GC (more memory, and the pod has half a CPU); `MALLOC_ARENA_MAX` (its gain could not be told apart from GC timing); `InvariantGlobalization` (at most 8 MB, and it changes culture-sensitive behaviour).
