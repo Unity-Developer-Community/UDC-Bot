@@ -71,6 +71,20 @@ internal static class SlotsWire
     };
 }
 
+/// <param name="Tokens">What one claim pays.</param>
+/// <param name="SecondsUntilNext">Whole seconds until the next claim is possible, rounded up; 0 when it is available now. Seconds rather than a time, so the client's own clock cannot skew the countdown.</param>
+public sealed record DailyInfo(long Tokens, long SecondsUntilNext)
+{
+    public static DailyInfo Create(long tokens, DateTime nextRewardTime) =>
+        new(tokens, Math.Max(0, (long)Math.Ceiling((nextRewardTime - DateTime.UtcNow).TotalSeconds)));
+}
+
+/// <param name="Status"><c>ok</c> when the reward was paid, <c>notYet</c> when the last claim is too recent (from the web or from Discord).</param>
+/// <param name="Awarded">Tokens added by this claim; 0 for <c>notYet</c>.</param>
+/// <param name="Balance">The balance after the claim.</param>
+/// <param name="Daily">The reward amount and the time until the next claim.</param>
+public sealed record DailyClaimDto(string Status, long Awarded, long Balance, DailyInfo Daily);
+
 /// <param name="MinBet">Smallest accepted bet; the balance is the only upper limit, as in Discord.</param>
 /// <param name="Hand">The player's open hand, so a page closed mid-hand resumes it; <c>null</c> when there is none.</param>
 public sealed record BlackjackInfo(long MinBet, BlackjackHandDto? Hand);

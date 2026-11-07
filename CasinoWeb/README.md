@@ -1,6 +1,6 @@
 # CasinoWeb
 
-The web front end of the UDC casino: a separate ASP.NET Core 8 process that signs members in with Discord and plays the casino games against the same PostgreSQL tables as the bot. It reuses the bot's services (`DiscordBot` project reference) and never holds the bot token.
+The web front end of the UDC casino: a separate ASP.NET Core 8 process that signs members in with Discord and plays the casino games against the same PostgreSQL tables as the bot. It reuses the bot's services (`DiscordBot` project reference) and never holds the bot token; its only post in Discord is the big-win announcement, through a webhook.
 
 ## Local setup
 
@@ -15,12 +15,18 @@ The web front end of the UDC casino: a separate ASP.NET Core 8 process that sign
    dotnet user-secrets set Discord:ClientSecret <client secret>
    ```
 
+   Optionally, to see big-win announcements locally, create a webhook on a test channel (channel settings, Integrations, Webhooks) and set it too; without it nothing is announced and the server logs so once at start:
+
+   ```bash
+   dotnet user-secrets set Casino:AnnouncementWebhookUrl <webhook url>
+   ```
+
 4. **Run** two processes, then open `http://localhost:5080`:
    - the server, from `CasinoWeb/`: `dotnet run` (listens on `http://localhost:5081`);
    - the client, from `CasinoWeb/ClientApp/`: `npm install` once, then `npm run dev` (listens on `http://localhost:5080` and proxies the API to the server). The Discord redirect URL, the cookie and the Origin check all use `:5080`, so browse there, not on `:5081`.
    - `GET /login` goes through Discord; a guild member lands back on `/` with a cookie and sees the lobby, anyone else lands on `/access-denied`.
-   - `GET /api/me` answers with the logged-in member's name, avatar and balance (`401` without a login).
-   - The games talk to the SignalR hub `/hub/casino` (`CasinoHub`): `GetState`, `SlotsSpin`, `SlotsToggleHold`, `SlotsRespin`, `BlackjackDeal`, `BlackjackAct`. Every call goes through `CasinoHubFilter`: for game actions the limit of 5 actions per second per player, then the membership recheck (the socket outlives the cookie), then the casino switch. The handshake refuses another site's `Origin`.
+   - `GET /api/me` answers with the logged-in member's name, avatar, balance and daily reward (its amount and the seconds until the next claim) (`401` without a login).
+   - The games talk to the SignalR hub `/hub/casino` (`CasinoHub`): `GetState`, `SlotsSpin`, `SlotsToggleHold`, `SlotsRespin`, `BlackjackDeal`, `BlackjackAct`, `ClaimDailyReward`. Every call goes through `CasinoHubFilter`: for game actions the limit of 5 actions per second per player, then the membership recheck (the socket outlives the cookie), then the casino switch. The handshake refuses another site's `Origin`.
 
 Blackjack (`Games/WebBlackjackService`) keeps each player's open hand in memory, with its bet already taken from the balance. `BlackjackSweeper` stands and settles a hand idle for `Casino.GameTimeoutMinutes` and, on a graceful stop, gives every open bet back. A crash skips both: the log has a `WebBlackjack: reserved …` line per bet and a `settled` or `gave back` line per finished hand, so a bet with neither can be credited with `/admin casino tokens-add`.
 
@@ -35,6 +41,8 @@ The production image is built from the repository root: `docker build -f CasinoW
 | `Casino__PublicOrigin` | The address players use, such as `https://casino.example.com` (no path). OAuth redirect URLs, cookies and the Origin check derive from it. |
 | `Casino__BotSettingsPath` | The bot's `Settings.json`. Default `Settings/Settings.json`. |
 | `Casino__KeysPath` | Folder for the Data Protection keys, so a restart keeps everyone logged in. Empty uses the framework default. The keys are not encrypted at rest: the folder must be private to the process. |
+| `Casino__AnnouncementWebhookUrl` | The Discord webhook (`https://discord.com/api/webhooks/<id>/<token>`) on the channel where members play `/casino`, which announces jackpots and rare slots wins with a picture of the reels. It carries a token: keep it in a secret and out of logs. Required outside Development, where empty turns the announcements off; anything but a Discord webhook address stops the start. |
+| `Casino__AssetsPath` | The bot's `Assets` folder, from which the announcement picture is drawn (`slots/` and `fonts/ConsolasBold.ttf`). Default `Assets`; the image holds a copy, and Development points at `../DiscordBot/Assets`. |
 | `Discord__ClientId`, `Discord__ClientSecret` | The bot's Discord application. |
 
 ## Tests

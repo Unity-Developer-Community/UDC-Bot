@@ -1,0 +1,254 @@
+# The web casino (CasinoWeb/) in the dev environment: a separate process from the bot that signs members in with Discord
+# and uses the same PostgreSQL tables. It reads the bot's Settings.json template (bot-config) with only the database password filled in.
+---
+# Discord OAuth client of the dev bot's application — from the 1Password item "Discord App - Dev" (UDC vault)
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: casino-oauth
+  namespace: udc-bot-dev
+  labels:
+    app.kubernetes.io/name: udc-casino
+    app.kubernetes.io/part-of: udc-bot
+    environment: dev
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: casino-oauth
+  data:
+    - secretKey: client-id
+      remoteRef:
+        key: "Discord App - Dev"
+        property: "Client ID"
+    - secretKey: client-secret
+      remoteRef:
+        key: "Discord App - Dev"
+        property: "Client Secret"
+---
+# Webhook of the dev server's casino channel, for announcing web big wins — from the 1Password item "Casino - Dev" (UDC vault,
+# the item for everything casino-specific). The URL carries the webhook's token: it stays in this secret and out of the logs.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: casino-announcements
+  namespace: udc-bot-dev
+  labels:
+    app.kubernetes.io/name: udc-casino
+    app.kubernetes.io/part-of: udc-bot
+    environment: dev
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: casino-announcements
+  data:
+    - secretKey: webhook-url
+      remoteRef:
+        key: "Casino - Dev"
+        property: "Announcement Webhook URL"
+---
+# Data Protection keys: without them a deploy would log every player out.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: casino-keys
+  namespace: udc-bot-dev
+  labels:
+    app.kubernetes.io/name: udc-casino
+    app.kubernetes.io/part-of: udc-bot
+    environment: dev
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: udc-casino
+  namespace: udc-bot-dev
+  labels:
+    app.kubernetes.io/name: udc-casino
+    app.kubernetes.io/part-of: udc-bot
+    environment: dev
+spec:
+  # One replica: open blackjack hands and slots hold offers live in the process, and the keys volume is ReadWriteOnce.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: udc-casino
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: udc-casino
+        app.kubernetes.io/part-of: udc-bot
+        environment: dev
+    spec:
+      # Longer than the host's 30 s shutdown wait, so open hub connections cannot cut the release of open Blackjack bets short.
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        # The image's `app` user; fsGroup makes the keys volume writable for it.
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: render-config
+          image: alpine:3.20
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              apk add --no-cache gettext >/dev/null
+              # Only the database password: the casino never gets the bot token or the API keys, and the other
+              # placeholders stay as they are in a file the casino does not read.
+              envsubst '${DB_PASSWORD}' < /config-template/Settings.json > /app-settings/Settings.json
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-credentials
+                  key: password
+          volumeMounts:
+            - name: config-template
+              mountPath: /config-template
+              readOnly: true
+            - name: app-settings
+              mountPath: /app-settings
+          securityContext:
+            # apk needs root to install envsubst; the container exits before the casino starts. Group 0 too: apk sets
+            # file groups to root, which fails without CAP_CHOWN when the pod-level runAsGroup (1654) applies.
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        - name: casino
+          image: ghcr.io/unity-developer-community/udc-casino-dev:0c075e1
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: Casino__PublicOrigin
+              value: https://casino.dev.udc.ovh
+            - name: Discord__ClientId
+              valueFrom:
+                secretKeyRef:
+                  name: casino-oauth
+                  key: client-id
+            - name: Discord__ClientSecret
+              valueFrom:
+                secretKeyRef:
+                  name: casino-oauth
+                  key: client-secret
+            - name: Casino__AnnouncementWebhookUrl
+              valueFrom:
+                secretKeyRef:
+                  name: casino-announcements
+                  key: webhook-url
+          volumeMounts:
+            - name: app-settings
+              mountPath: /app/Settings
+              readOnly: true
+            - name: keys
+              mountPath: /keys
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: config-template
+          configMap:
+            name: bot-config
+        - name: app-settings
+          emptyDir: {}
+        - name: keys
+          persistentVolumeClaim:
+            claimName: casino-keys
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: udc-casino
+  namespace: udc-bot-dev
+  labels:
+    app.kubernetes.io/name: udc-casino
+    app.kubernetes.io/part-of: udc-bot
+    environment: dev
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: udc-casino
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: udc-casino
+  namespace: udc-bot-dev
+  labels:
+    app.kubernetes.io/name: udc-casino
+    app.kubernetes.io/part-of: udc-bot
+    environment: dev
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - casino.dev.udc.ovh
+      secretName: casino-dev-tls
+  rules:
+    - host: casino.dev.udc.ovh
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: udc-casino
+                port:
+                  number: 80

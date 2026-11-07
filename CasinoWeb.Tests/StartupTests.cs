@@ -1,5 +1,9 @@
 using CasinoWeb.Configuration;
+using CasinoWeb.Games;
+using CasinoWeb.Logging;
 using DiscordBot.Settings;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CasinoWeb.Tests;
 
@@ -66,4 +70,82 @@ public class StartupTests : IDisposable
     [InlineData("https://casino.example.com/#x", false)]
     public void The_public_origin_must_be_an_origin(string value, bool valid) =>
         Assert.Equal(valid, CasinoHostOptions.IsValid(new CasinoHostOptions { PublicOrigin = value }));
+
+    private const string ValidWebhook = "https://discord.com/api/webhooks/123456789/abc-DEF_123";
+
+    [Theory]
+    [InlineData(ValidWebhook, true)]
+    [InlineData("https://ptb.discord.com/api/webhooks/1/x", true)]
+    [InlineData("https://canary.discord.com/api/webhooks/1/x", true)]
+    [InlineData("https://discordapp.com/api/webhooks/1/x", true)]
+    [InlineData("http://discord.com/api/webhooks/1/x", false)]
+    [InlineData("https://example.com/api/webhooks/1/x", false)]
+    [InlineData("https://discord.com.evil.example/api/webhooks/1/x", false)]
+    [InlineData("https://evil.example@discord.com/api/webhooks/1/x", false)]
+    [InlineData("https://discord.com:8443/api/webhooks/1/x", false)]
+    [InlineData("https://discord.com/api/webhooks/1/x?wait=true", false)]
+    [InlineData("https://discord.com/api/webhooks/1/x#y", false)]
+    [InlineData("https://discord.com/api/webhooks/abc/x", false)]
+    [InlineData("https://discord.com/api/webhooks/1", false)]
+    [InlineData("https://discord.com/api/webhooks/1/x/extra", false)]
+    [InlineData("https://discord.com/api/v10/webhooks/1/x", false)]
+    [InlineData("discord.com/api/webhooks/1/x", false)]
+    public void The_announcement_webhook_must_be_a_discord_webhook_address(string value, bool valid) =>
+        Assert.Equal(valid, CasinoHostOptions.IsValidAnnouncementWebhook(value, allowEmpty: false));
+
+    [Theory]
+    [InlineData(null, true, true)]
+    [InlineData("", true, true)]
+    [InlineData("  ", true, true)]
+    [InlineData(null, false, false)]
+    [InlineData("", false, false)]
+    public void An_empty_announcement_webhook_is_allowed_in_development_only(string? value, bool allowEmpty, bool valid) =>
+        Assert.Equal(valid, CasinoHostOptions.IsValidAnnouncementWebhook(value, allowEmpty));
+
+    [Theory]
+    [InlineData("Production", null)]
+    [InlineData("Production", "")]
+    [InlineData("Production", "http://discord.com/api/webhooks/1/x")]
+    [InlineData("Production", "https://example.com/api/webhooks/1/secret-token-x")]
+    [InlineData("Development", "https://example.com/api/webhooks/1/secret-token-x")]
+    public void The_app_refuses_to_start_without_a_valid_webhook_and_the_message_names_the_setting_not_the_value(string environment, string? url)
+    {
+        using var factory = new CasinoWebFactory { Environment = environment, AnnouncementWebhookUrl = url };
+
+        var failure = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+
+        var message = (failure as OptionsValidationException ?? failure.InnerException as OptionsValidationException)?.Message ?? failure.ToString();
+        Assert.Contains("Casino:AnnouncementWebhookUrl", message);
+        Assert.DoesNotContain("secret-token-x", message);
+    }
+
+    [Fact]
+    public void In_development_without_a_webhook_the_app_starts_and_says_once_that_big_wins_are_not_announced()
+    {
+        using var factory = new CasinoWebFactory { Environment = "Development", AnnouncementWebhookUrl = null };
+
+        using var client = factory.CreateClient();
+
+        Assert.Single(factory.Logs.Lines, line => line.Message.Contains("big wins are not announced", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task The_warm_up_says_when_the_slots_pictures_are_ready_and_reports_missing_art_as_an_error()
+    {
+        var logs = new CapturingLoggerProvider();
+        using var loggers = LoggerFactory.Create(builder => builder.AddProvider(logs));
+        var options = Options.Create(new CasinoHostOptions { AnnouncementWebhookUrl = ValidWebhook });
+        var renderer = new FakeSlotsRenderer();
+
+        using var ready = new SlotsPictureWarmUp(renderer, options, new WebLoggingService(loggers.CreateLogger<WebLoggingService>()));
+        await ready.StartAsync(CancellationToken.None);
+        await logs.WaitForAsync((level, message) => level == LogLevel.Information && message.Contains("slots pictures ready"));
+        await ready.StopAsync(CancellationToken.None);
+
+        renderer.Fail = true;
+        using var broken = new SlotsPictureWarmUp(renderer, options, new WebLoggingService(loggers.CreateLogger<WebLoggingService>()));
+        await broken.StartAsync(CancellationToken.None);
+        var error = await logs.WaitForAsync((level, message) => level == LogLevel.Error);
+        Assert.Contains("without a picture", error);
+    }
 }

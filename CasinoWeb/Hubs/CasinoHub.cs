@@ -11,7 +11,7 @@ namespace CasinoWeb.Hubs;
 /// results. The membership, rate limit and casino switch are applied by <see cref="CasinoHubFilter"/>.
 /// </summary>
 [Authorize]
-public sealed class CasinoHub(SlotsService slots, WebBlackjackService blackjack, CasinoService casino, BotSettings settings) : Hub
+public sealed class CasinoHub(SlotsService slots, SlotsWinAnnouncer announcer, WebBlackjackService blackjack, CasinoService casino, BotSettings settings) : Hub
 {
     private ulong UserId => ulong.TryParse(Context.UserIdentifier, out var id) ? id : throw new HubException(HubErrors.BadUser);
 
@@ -30,7 +30,7 @@ public sealed class CasinoHub(SlotsService slots, WebBlackjackService blackjack,
     }
 
     [GameAction]
-    public async Task<SlotsPlayDto> SlotsSpin(int bet) => SlotsPlayDto.From(await slots.SpinAsync(UserId, bet));
+    public async Task<SlotsPlayDto> SlotsSpin(int bet) => Announced(await slots.SpinAsync(UserId, bet));
 
     /// <summary>The held reels after the flip, or <c>null</c> when the offer is gone or expired.</summary>
     [GameAction]
@@ -38,7 +38,14 @@ public sealed class CasinoHub(SlotsService slots, WebBlackjackService blackjack,
         slots.ToggleHold(UserId, offerId, reel) is { } hold ? SlotsHoldDto.From(hold) : null;
 
     [GameAction]
-    public async Task<SlotsPlayDto> SlotsRespin(long offerId) => SlotsPlayDto.From(await slots.RespinAsync(UserId, offerId));
+    public async Task<SlotsPlayDto> SlotsRespin(long offerId) => Announced(await slots.RespinAsync(UserId, offerId));
+
+    /// <summary>Starts the announcement of a big win in Discord without waiting for it, then converts the play for the browser.</summary>
+    private SlotsPlayDto Announced(SlotsPlay play)
+    {
+        announcer.Announce(UserId, play);
+        return SlotsPlayDto.From(play);
+    }
 
     [GameAction]
     public async Task<BlackjackPlayDto> BlackjackDeal(long bet) => BlackjackPlayDto.From(await blackjack.DealAsync(UserId, bet));
@@ -48,4 +55,15 @@ public sealed class CasinoHub(SlotsService slots, WebBlackjackService blackjack,
     public async Task<BlackjackPlayDto> BlackjackAct(string action) => BlackjackWire.ParseAction(action) is { } parsed
         ? BlackjackPlayDto.From(await blackjack.ActAsync(UserId, parsed))
         : BlackjackPlayDto.From(new BlackjackPlay(BlackjackStatus.NotAllowed));
+
+    /// <summary>The same claim as <c>/casino tokens daily</c>: one statement in the database decides, so a claim from Discord at the same moment pays once.</summary>
+    [GameAction]
+    public async Task<DailyClaimDto> ClaimDailyReward()
+    {
+        var reward = settings.Casino.DailyRewardTokens;
+        var (success, awarded, balance, nextRewardTime) = await casino.TryClaimDailyReward(UserId.ToString());
+        return success
+            ? new DailyClaimDto("ok", awarded, balance, new DailyInfo(reward, settings.Casino.DailyRewardIntervalSeconds))
+            : new DailyClaimDto("notYet", 0, balance, DailyInfo.Create(reward, nextRewardTime));
+    }
 }

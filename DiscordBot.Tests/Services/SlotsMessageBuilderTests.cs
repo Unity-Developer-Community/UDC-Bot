@@ -155,6 +155,32 @@ public class SlotsMessageBuilderTests
         Assert.Contains("/casino slots spin", footer);
     }
 
+    [Fact]
+    public void PublicEmbed_OfTheWebCasino_LinksTheTitleNamesTheSiteAndCarriesThePicture()
+    {
+        var embed = SlotsMessageBuilder.BuildPublicEmbed(Play(Jackpot, 5_000), new Uri("https://casino.example.com"), SlotsMessageBuilder.PictureFileName);
+
+        Assert.Equal("https://casino.example.com/", embed.Url);
+        Assert.Equal("attachment://spin.png", embed.Image?.Url);
+        Assert.Equal("Won on the web casino · play at casino.example.com or with /casino slots spin (1–100 tokens).", embed.Footer?.Text);
+        Assert.Equal(SlotsMessageBuilder.BuildPublicEmbed(Play(Jackpot, 5_000)).Description, embed.Description);
+    }
+
+    [Fact]
+    public void PublicEmbed_OfTheWebCasinoWithoutAPicture_HasNoImage()
+    {
+        var embed = SlotsMessageBuilder.BuildPublicEmbed(Play(Jackpot, 5_000), new Uri("http://localhost:5080"));
+
+        Assert.Null(embed.Image);
+        Assert.Contains("localhost:5080", embed.Footer?.Text);
+    }
+
+    [Fact]
+    public void PublicEmbed_OfTheBot_HasNoLink()
+    {
+        Assert.Null(SlotsMessageBuilder.BuildPublicEmbed(Play(Jackpot, 5_000)).Url);
+    }
+
     #endregion
 
     #region Refusals and info (AC3, AC10)

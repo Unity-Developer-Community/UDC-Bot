@@ -1,5 +1,6 @@
 import type { Session } from '@/api';
 import type { CasinoConnection } from '@/connection';
+import type { DailyClaim } from '@/protocol';
 
 import { fetchSession, logout } from '@/api';
 import { CasinoApi } from '@/casinoApi';
@@ -64,8 +65,19 @@ export async function startApp(root: HTMLElement, deps: AppDeps = {}): Promise<v
       const onLogout = (): void => {
         void logout(fetchFn).then(restart, failure);
       };
-      const header = renderHeader(session.me, onLogout);
       const { connection } = deps;
+      let screen: { addTokens?: (tokens: number) => void; destroy: () => void } | undefined;
+      // The claim button needs the hub, and a closed casino has no daily reward.
+      const api = connection && session.me.casinoEnabled ? new CasinoApi(connection) : undefined;
+      const onClaim = api
+        ? async (): Promise<DailyClaim> => {
+          const claim = await api.claimDailyReward();
+          if (claim.status === 'ok')
+            screen?.addTokens?.(claim.awarded);
+          return claim;
+        }
+        : undefined;
+      const header = renderHeader(session.me, onLogout, { onClaim });
       if (connection) {
         connection.onStatus(header.setStatus);
         header.setStatus(connection.status);
@@ -77,12 +89,10 @@ export async function startApp(root: HTMLElement, deps: AppDeps = {}): Promise<v
         return;
       }
 
-      const api = connection ? new CasinoApi(connection) : undefined;
       const screens: Record<string, typeof renderSlotsScreen | typeof renderBlackjackScreen> = {
         blackjack: renderBlackjackScreen,
         slots: renderSlotsScreen,
       };
-      let screen: { destroy: () => void } | undefined;
       function showLobby(): void {
         screen?.destroy();
         screen = undefined;
