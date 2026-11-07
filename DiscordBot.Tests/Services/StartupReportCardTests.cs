@@ -122,4 +122,36 @@ public class StartupReportCardTests
         Assert.DoesNotContain("info line 59 ", text);
         Assert.Matches(@"… \d+ more lines in the log file", text);
     }
+
+    private static readonly MemorySample Sample = new(180 * 1024 * 1024L, 60 * 1024 * 1024L);
+
+    [Fact]
+    public void MemoryLine_EmptyWhileStarting()
+    {
+        Assert.Equal("", MemoryLine(new State(Start, Start, null, [], [], false, Sample)));
+    }
+
+    [Fact]
+    public void MemoryLine_FirstSample_SaysWhenItMeasuresAgain()
+    {
+        var finished = Start.AddSeconds(10);
+        var line = MemoryLine(new State(Start, Start, finished, [], [], false, Sample, null, finished.AddMinutes(1)));
+        Assert.Equal($"Memory: 180 MB (GC heap 60 MB) · measuring again <t:{finished.AddMinutes(1).ToUnixTimeSeconds()}:R>", line);
+    }
+
+    [Fact]
+    public void MemoryLine_SecondSample_ShowsChange()
+    {
+        var finished = Start.AddSeconds(10);
+        var later = new MemorySample(190 * 1024 * 1024L, 60 * 1024 * 1024L);
+        var line = MemoryLine(new State(Start, Start, finished, [], [], false, Sample, later, finished.AddMinutes(1)));
+        Assert.Equal("Memory: 180 MB (GC heap 60 MB) · 1m later: 190 MB (+10 MB) · GC heap 60 MB (±0 MB)", line);
+    }
+
+    [Fact]
+    public void Build_Finished_ShowsMemoryInHeader()
+    {
+        var card = Build(new State(Start, Start, Start.AddSeconds(10), [], [], false, Sample));
+        Assert.Contains("Memory: 180 MB (GC heap 60 MB)", Text(card));
+    }
 }

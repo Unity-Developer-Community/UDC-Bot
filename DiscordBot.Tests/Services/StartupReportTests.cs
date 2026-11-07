@@ -42,8 +42,10 @@ public class StartupReportTests
         }
     }
 
-    private static StartupReport Report(FakeChannel channel, TimeSpan? cap = null, TimeSpan? debounce = null) =>
-        new(channel, cap ?? TimeSpan.FromMinutes(5), debounce ?? TimeSpan.FromMinutes(5), TimeProvider.System);
+    private static StartupReport Report(FakeChannel channel, TimeSpan? cap = null, TimeSpan? debounce = null,
+        TimeSpan? memoryFollowUp = null, Func<StartupReportCard.MemorySample>? memory = null) =>
+        new(channel, cap ?? TimeSpan.FromMinutes(5), debounce ?? TimeSpan.FromMinutes(5), TimeProvider.System,
+            memoryFollowUp ?? TimeSpan.FromMinutes(5), memory ?? (() => new StartupReportCard.MemorySample(100 << 20, 40 << 20)));
 
     private static void Begin(StartupReport report)
     {
@@ -146,6 +148,22 @@ public class StartupReportTests
         await report.Completed.Task.WaitAsync(Wait);
         Assert.Equal(2, channel.Edits.Count);
         Assert.Contains("❌ Bot started with errors", channel.Edits[1]);
+    }
+
+    [Fact]
+    public async Task MemoryFollowUp_EditsOnceMoreWithSecondSample()
+    {
+        var samples = new Queue<StartupReportCard.MemorySample>([new(100 << 20, 40 << 20), new(112 << 20, 38 << 20)]);
+        var channel = new FakeChannel();
+        var report = Report(channel, memoryFollowUp: TimeSpan.FromMilliseconds(30), memory: samples.Dequeue);
+        Begin(report);
+        report.MarkEagerServicesResolved();
+
+        await report.FollowUpCompleted.Task.WaitAsync(Wait);
+
+        Assert.Equal(2, channel.Edits.Count);
+        Assert.Contains("Memory: 100 MB (GC heap 40 MB) · measuring again", channel.Edits[0]);
+        Assert.Contains("Memory: 100 MB (GC heap 40 MB) · 0s later: 112 MB (+12 MB) · GC heap 38 MB (-2 MB)", channel.Edits[1]);
     }
 
     [Fact]

@@ -26,6 +26,24 @@ public class BotSettings
     public ImageSpamGuardSettings ImageSpamGuard { get; set; } = new();
     public MemberLogSettings MemberLog { get; set; } = new();
 
+    /// <summary>For the startup report: <c>On: casino, birthdays. Off: recruitment.</c></summary>
+    public string FeatureSummary()
+    {
+        var features = new (string Name, bool On)[]
+        {
+            ("casino", Casino.Enabled),
+            ("birthdays", Birthday.Enabled),
+            ("image spam guard", ImageSpamGuard.Enabled),
+            ("introduction watch", IntroductionWatch.Enabled),
+            ("recruitment", Recruitment.Enabled),
+            ("help-thread babysitter", UnityHelp.BabySitterEnabled),
+            ("username cards", MemberLog.UsernameChanges),
+            ("display-name cards", MemberLog.DisplayNameChanges),
+        };
+        static string List(IEnumerable<string> names) => names.Any() ? string.Join(", ", names) : "none";
+        return $"On: {List(features.Where(f => f.On).Select(f => f.Name))}. Off: {List(features.Where(f => !f.On).Select(f => f.Name))}.";
+    }
+
     public (List<string> Errors, List<string> Warnings) Validate()
     {
         var errors = new List<string>();

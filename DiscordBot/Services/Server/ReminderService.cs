@@ -56,11 +56,24 @@ public class ReminderService
         LoadReminders();
         if (_reminders == null)
         {
-            _loggingService.LogAction($"[{ServiceName}] Error: Could not load reminders from file.", ExtendedLogSeverity.Warning);
+            _loggingService.LogAction($"[{ServiceName}] Couldn't load reminders.json: starting with no reminders.", ExtendedLogSeverity.Warning);
             _reminders = new List<ReminderItem>();
+        }
+        else
+        {
+            _loggingService.LogAction($"[{ServiceName}] {PendingLine(_reminders)}", ExtendedLogSeverity.Info);
         }
         IsRunning = true;
         Task.Run(CheckReminders);
+    }
+
+    /// <summary><c>3 pending, next due &lt;t:…:R&gt;.</c></summary>
+    internal static string PendingLine(IReadOnlyCollection<ReminderItem> reminders)
+    {
+        if (reminders.Count == 0)
+            return "No pending reminders.";
+        var next = new DateTimeOffset(reminders.Min(r => r.When));
+        return $"{reminders.Count} pending, next due {AuditLogCards.Timestamp(next, 'R')}.";
     }
 
     // Serialize Reminders to file

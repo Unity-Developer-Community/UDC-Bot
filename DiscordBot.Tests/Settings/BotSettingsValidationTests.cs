@@ -181,4 +181,17 @@ public class BotSettingsValidationTests
         var (_, warnings) = settings.Validate();
         Assert.DoesNotContain(warnings, w => w.Contains("ImageSpamGuard"));
     }
+
+    [Fact]
+    public void FeatureSummary_ListsOnAndOff()
+    {
+        var settings = CreateValid();
+        settings.Casino.Enabled = true;
+        settings.Birthday.Enabled = false;
+
+        var summary = settings.FeatureSummary();
+
+        Assert.StartsWith("On: casino, username cards. Off: birthdays, image spam guard,", summary);
+        Assert.EndsWith("display-name cards.", summary);
+    }
 }

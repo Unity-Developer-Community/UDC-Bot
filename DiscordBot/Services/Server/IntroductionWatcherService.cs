@@ -60,6 +60,8 @@ public class IntroductionWatcherService
         Task.Run(RunAsync);
 
         LoggingService.LogServiceEnabled(ServiceName);
+        _loggingService.LogAction($"[{ServiceName}] Watching <#{channel.Id}>: a new prompt {settings.IntroductionWatch.DelayMinutes} min after the channel goes quiet.",
+            ExtendedLogSeverity.Info);
     }
 
     public static MessageComponent BuildPrompt(ChannelInfo? rulesChannel, ChannelInfo? helpChannel) =>

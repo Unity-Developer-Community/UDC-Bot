@@ -20,15 +20,26 @@ public static class StartupReportCard
 
     public sealed record Entry(TimeSpan Offset, ExtendedLogSeverity Severity, string Text);
 
+    /// <summary>Process memory: the working set (what the OS counts, as in a container's usage) and the managed heap.</summary>
+    public sealed record MemorySample(long WorkingSet, long GcHeap)
+    {
+        public static MemorySample Current() => new(Environment.WorkingSet, GC.GetTotalMemory(false));
+    }
+
     /// <param name="FinishedAt">Null while starting.</param>
     /// <param name="Pending">Steps not finished yet: shown while starting, or as a warning when <paramref name="TimedOut"/>.</param>
+    /// <param name="Memory">Taken when startup finished.</param>
+    /// <param name="MemoryLater">Taken at <paramref name="MemoryLaterAt"/>; null until then.</param>
     public sealed record State(
         DateTimeOffset StartedAt,
         DateTimeOffset ReadyAt,
         DateTimeOffset? FinishedAt,
         IReadOnlyList<Entry> Entries,
         IReadOnlyList<string> Pending,
-        bool TimedOut);
+        bool TimedOut,
+        MemorySample? Memory = null,
+        MemorySample? MemoryLater = null,
+        DateTimeOffset? MemoryLaterAt = null);
 
     public static MessageComponent Build(State state, int budget = AuditCard.DefaultBudget)
     {
@@ -48,6 +59,7 @@ public static class StartupReportCard
         var timedOut = state.TimedOut
             ? $"⚠️ Gave up waiting for: {string.Join(", ", state.Pending)}"
             : "";
+        var memory = MemoryLine(state);
 
         var counts = new List<string> { $"{state.Entries.Count} line{(state.Entries.Count == 1 ? "" : "s")}" };
         if (warnings > 0) counts.Add($"{warnings} warning{(warnings == 1 ? "" : "s")}");
@@ -56,16 +68,38 @@ public static class StartupReportCard
             counts.Add($"waiting for: {string.Join(", ", state.Pending)}");
         var footer = string.Join(" · ", counts);
 
-        var header = $"### {title}\n{times}" + (timedOut.Length > 0 ? $"\n{timedOut}" : "");
+        var header = string.Join('\n', new[] { $"### {title}", times, memory, timedOut }.Where(l => l.Length > 0));
         var room = budget - header.Length - footer.Length - OmittedNoteReserve;
         var (lines, omitted) = FitEntries(state.Entries, room);
         if (omitted > 0)
             footer += $" · … {omitted} more line{(omitted == 1 ? "" : "s")} in the log file";
 
-        var card = new AuditCard(color).WithHeader(title, null, null, times, timedOut);
+        var card = new AuditCard(color).WithHeader(title, null, null, times, memory, timedOut);
         if (lines.Count > 0)
             card.AddSeparator().AddLines(lines);
         return card.WithFooter(footer).Build(budget);
+    }
+
+    /// <summary><c>Memory: 182 MB (GC heap 64 MB) · 1m later: 190 MB (+8 MB) · GC heap 70 MB (+6 MB)</c>. Empty before startup finishes.</summary>
+    public static string MemoryLine(State state)
+    {
+        if (state.Memory is not { } first || state.FinishedAt is not { } finishedAt)
+            return "";
+        var line = $"Memory: {Megabytes(first.WorkingSet)} (GC heap {Megabytes(first.GcHeap)})";
+        if (state.MemoryLaterAt is not { } laterAt)
+            return line;
+        if (state.MemoryLater is not { } later)
+            return line + $" · measuring again {AuditLogCards.Timestamp(laterAt, 'R')}";
+        return line + $" · {MemberLogCards.StayDuration(laterAt - finishedAt)} later: {Megabytes(later.WorkingSet)} ({Change(later.WorkingSet - first.WorkingSet)})" +
+               $" · GC heap {Megabytes(later.GcHeap)} ({Change(later.GcHeap - first.GcHeap)})";
+    }
+
+    public static string Megabytes(long bytes) => $"{bytes / (1024.0 * 1024.0):0} MB";
+
+    private static string Change(long bytes)
+    {
+        var mb = Math.Round(bytes / (1024.0 * 1024.0));
+        return mb == 0 ? "±0 MB" : $"{mb:+0;-0} MB";
     }
 
     /// <summary><c>+ss.fff</c>, or <c>+m:ss.fff</c> from a minute on.</summary>

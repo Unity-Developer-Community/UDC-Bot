@@ -18,12 +18,15 @@ public interface IStartupReportChannel
 /// into one message, posted as "Starting…" on Ready and edited when startup is done: when the Ready
 /// handler has resolved its services and every <see cref="BeginStep"/> is disposed, or after
 /// <see cref="DefaultCap"/>. An error edits it early (debounced). Lines after that post as usual.
-/// If the first message can't be posted, the report turns itself off and the lines go to the channel.
+/// Memory is measured when it finishes and again <see cref="DefaultMemoryFollowUp"/> later, which
+/// edits the card once more. If the first message can't be posted, the report turns itself off and
+/// the lines go to the channel.
 /// </summary>
 public sealed class StartupReport
 {
     public static readonly TimeSpan DefaultCap = TimeSpan.FromSeconds(60);
     public static readonly TimeSpan DefaultErrorDebounce = TimeSpan.FromSeconds(2);
+    public static readonly TimeSpan DefaultMemoryFollowUp = TimeSpan.FromSeconds(60);
 
     private enum Phase { NotStarted, Collecting, Finished, Disabled }
 
@@ -50,7 +53,9 @@ public sealed class StartupReport
     private readonly IStartupReportChannel _channel;
     private readonly TimeSpan _cap;
     private readonly TimeSpan _errorDebounce;
+    private readonly TimeSpan _memoryFollowUp;
     private readonly TimeProvider _time;
+    private readonly Func<StartupReportCard.MemorySample> _sampleMemory;
 
     private readonly object _lock = new();
     // Edits run one at a time and render the state as it is when they run, so a late edit can't undo the final one.
@@ -64,26 +69,36 @@ public sealed class StartupReport
     private bool _eagerServicesResolved;
     private bool _errorEditScheduled;
     private bool _finalSent;
+    private bool _followUpScheduled;
+    private StartupReportCard.MemorySample? _memory;
+    private StartupReportCard.MemorySample? _memoryLater;
     private ulong? _messageId;
     private readonly List<CapturedLine> _lines = [];
     private readonly List<Step> _pending = [];
     private List<string> _pendingAtFinish = [];
 
     public StartupReport(DiscordSocketClient client, BotSettings settings)
-        : this(new DiscordStartupReportChannel(client, settings), DefaultCap, DefaultErrorDebounce, TimeProvider.System)
+        : this(new DiscordStartupReportChannel(client, settings), DefaultCap, DefaultErrorDebounce, TimeProvider.System,
+            DefaultMemoryFollowUp, StartupReportCard.MemorySample.Current)
     {
     }
 
-    internal StartupReport(IStartupReportChannel channel, TimeSpan cap, TimeSpan errorDebounce, TimeProvider time)
+    internal StartupReport(IStartupReportChannel channel, TimeSpan cap, TimeSpan errorDebounce, TimeProvider time,
+        TimeSpan memoryFollowUp, Func<StartupReportCard.MemorySample> sampleMemory)
     {
         _channel = channel;
         _cap = cap;
         _errorDebounce = errorDebounce;
         _time = time;
+        _memoryFollowUp = memoryFollowUp;
+        _sampleMemory = sampleMemory;
     }
 
-    /// <summary>The finishing task, for tests: completes when the final card has been sent (or the report turned off).</summary>
+    /// <summary>For tests: completes when the final card has been sent (or the report turned off).</summary>
     internal TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>For tests: completes when the second memory sample has been shown.</summary>
+    internal TaskCompletionSource FollowUpCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>Starts collecting and posts the "Starting…" card. Only the first call does anything.</summary>
     public void Begin(DateTimeOffset processStart, DateTimeOffset gatewayReady)
@@ -160,6 +175,7 @@ public sealed class StartupReport
             _finishedAt = _time.GetUtcNow();
             _timedOut = timedOut;
             _pendingAtFinish = timedOut ? _pending.Select(s => s.Name).ToList() : [];
+            _memory = _sampleMemory();
         }
         SendAsync().SafeFireAndForget(nameof(StartupReport));
     }
@@ -226,7 +242,9 @@ public sealed class StartupReport
             if (!finished)
                 return;
             // The final edit failed (the message was deleted, say): send the report as a new message.
-            await _channel.PostAsync(card);
+            var newId = await _channel.PostAsync(card);
+            lock (_lock)
+                _messageId = newId;
             MarkFinalSent();
         }
         finally
@@ -253,9 +271,40 @@ public sealed class StartupReport
 
     private void MarkFinalSent()
     {
+        bool scheduleFollowUp;
         lock (_lock)
+        {
             _finalSent = true;
+            scheduleFollowUp = !_followUpScheduled && _messageId != null;
+            _followUpScheduled = true;
+        }
         Completed.TrySetResult();
+        if (scheduleFollowUp)
+            MemoryFollowUpAsync().SafeFireAndForget(nameof(StartupReport));
+    }
+
+    /// <summary>Measures memory again a while after startup, to show whether it settles or keeps growing.</summary>
+    private async Task MemoryFollowUpAsync()
+    {
+        await Task.Delay(_memoryFollowUp, _time);
+        await _sendGate.WaitAsync();
+        try
+        {
+            ulong messageId;
+            lock (_lock)
+            {
+                _memoryLater = _sampleMemory();
+                if (_messageId is not { } id)
+                    return;
+                messageId = id;
+            }
+            await _channel.EditAsync(messageId, Render().Card);
+        }
+        finally
+        {
+            _sendGate.Release();
+            FollowUpCompleted.TrySetResult();
+        }
     }
 
     private (MessageComponent Card, bool Finished) Render()
@@ -268,7 +317,10 @@ public sealed class StartupReport
                 _startedAt, _readyAt, finished ? _finishedAt : null,
                 _lines.Select(l => l.Entry).ToList(),
                 finished ? _pendingAtFinish : _pending.Select(s => s.Name).ToList(),
-                finished && _timedOut);
+                finished && _timedOut,
+                finished ? _memory : null,
+                _memoryLater,
+                finished ? _finishedAt + _memoryFollowUp : null);
         }
         return (StartupReportCard.Build(state), state.FinishedAt != null);
     }

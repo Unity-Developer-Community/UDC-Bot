@@ -82,6 +82,7 @@ public class Program
             // Log bot started to track issues a bit easier
             var logger = _services.GetRequiredService<ILoggingService>();
             logger.Log(LogBehaviour.File, "Bot Started.", ExtendedLogSeverity.Positive);
+            logger.LogAction($"[Settings] {_settings.FeatureSummary()}");
 
             LoggingService.LogToConsole("Bot is connected.", ExtendedLogSeverity.Positive);
 

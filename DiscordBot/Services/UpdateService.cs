@@ -94,9 +94,15 @@ public class UpdateService
         UpdateLoop();
     }
 
+    private static readonly TimeSpan FirstFeedCheckDelay = TimeSpan.FromSeconds(30);
+
     private void UpdateLoop()
     {
         ReadDataFromFile();
+        if (_feedData != null)
+            _loggingService.LogAction($"[{nameof(FeedService)}] " + FeedService.StartupLine(_feedData,
+                _settings.Channels.UnityReleases?.Id ?? 0, _settings.Channels.UnityNews?.Id ?? 0,
+                DateTimeOffset.UtcNow + FirstFeedCheckDelay), ExtendedLogSeverity.Info);
         Task.Run(SaveDataToFile, _token);
         // Task.Run(UpdateUserRanks, _token);
         Task.Run(UpdateDocDatabase, _token);
@@ -205,7 +211,7 @@ public class UpdateService
     {
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(30d), _token);
+            await Task.Delay(FirstFeedCheckDelay, _token);
             while (!_token.IsCancellationRequested)
             {
                 try
