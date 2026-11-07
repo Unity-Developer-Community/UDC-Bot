@@ -75,9 +75,8 @@ public static partial class ReleaseNotesMarkdownParser
         var entries = new List<Bullet>();
         var packages = new List<Bullet>();
 
-        foreach (var rawLine in markdown.Split('\n'))
+        foreach (var line in markdown.Split('\n').Select(l => l.TrimEnd('\r')))
         {
-            var line = rawLine.TrimEnd('\r');
             var heading = HeadingPattern().Match(line);
             if (heading.Success)
             {

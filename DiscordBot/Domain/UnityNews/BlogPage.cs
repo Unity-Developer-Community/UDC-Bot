@@ -202,11 +202,11 @@ public static partial class BlogPageParser
             return null;
 
         var stream = new StringBuilder();
-        foreach (var script in scripts)
+        var pushes = scripts
+            .Select(script => script.InnerText.Trim())
+            .Where(code => code.StartsWith(FlightPrefix, StringComparison.Ordinal));
+        foreach (var code in pushes)
         {
-            var code = script.InnerText.Trim();
-            if (!code.StartsWith(FlightPrefix, StringComparison.Ordinal))
-                continue;
             try
             {
                 var argument = code[FlightPrefix.Length..].TrimEnd(';').TrimEnd();
@@ -276,11 +276,10 @@ public static partial class BlogPageParser
         var words = 0;
         var headings = new List<(int Level, string Text)>();
         var blocks = doc.DocumentNode.SelectNodes("//div[contains(concat(' ', normalize-space(@class), ' '), ' portable-text-base ')]");
-        foreach (var block in blocks ?? Enumerable.Empty<HtmlNode>())
+        // A rich text block inside another one is already counted with its parent.
+        var topBlocks = (blocks ?? Enumerable.Empty<HtmlNode>()).Where(block => !block.Ancestors("div").Any(IsRichText));
+        foreach (var block in topBlocks)
         {
-            // A rich text block inside another one is already counted with its parent.
-            if (block.Ancestors("div").Any(IsRichText))
-                continue;
             words += Regex.Matches(HtmlEntity.DeEntitize(block.InnerText), @"\S+").Count;
             foreach (var heading in block.Descendants().Where(n => n.Name is "h2" or "h3" or "h4" or "h5" or "h6"))
             {
