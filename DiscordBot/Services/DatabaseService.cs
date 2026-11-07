@@ -62,7 +62,7 @@ public class DatabaseService : ICasinoDatabase
 
     public IBadgeRepo? BadgeQuery => CreateBadgeQuery();
 
-    public DatabaseService(ILoggingService logging, BotSettings settings)
+    public DatabaseService(ILoggingService logging, BotSettings settings, StartupReport? startupReport = null)
     {
         PostgreSQLInsightDbProvider.RegisterProvider();
 
@@ -81,8 +81,10 @@ public class DatabaseService : ICasinoDatabase
             return;
         }
 
+        var startupStep = startupReport?.BeginStep("Database");
         Task.Run(async () =>
         {
+            using var _ = startupStep;
             // Test connection, if it fails we create the table and set keys
             try
             {

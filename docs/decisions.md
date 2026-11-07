@@ -1,6 +1,6 @@
 # Decisions
 
-Next ID: D6
+Next ID: D8
 
 ## D1 Karma resets run in the bot, not in the database
 
@@ -49,3 +49,11 @@ Rejected: a table of web wins that the bot polls and posts (a schema change, and
 Why: the RSS items give every beta the same title (`Unity 6000.7.0 Beta`) and no `bN`, so betas were dropped as duplicates, and their description no longer holds release notes; the API gives the exact version, stream, date and notes URL. Beta and Alpha ship several times a week with notes of 300 to 500 KB, so a weekly digest keeps the channel readable without dropping a release.
 
 Rejected: the RSS feeds with the notes link scraped from them (no exact version); one post per release for every stream (noise); pinging every stream (the roles would be muted). The API is public but not formally documented, so a failure logs a warning and the next check retries.
+
+## D7 The startup report collects LoggingService's channel lines; services have no lifecycle interface
+
+`StartupReport` takes every plain line `LoggingService` would post to bot-announcement between Ready and the end of startup and shows them in one edited card. Startup is done when the Ready handler has resolved its services and the steps it waits for (`Commands`, `Database`, `Slots art`) have ended, or after 60 s. Each step is registered with `BeginStep` before its `Task.Run` starts, so a step can't be missed.
+
+Why: Discord.Net has no service-lifecycle events (only `Ready`, `Connected` and `Log`), and many services start implicitly: `CommandHandlingService` builds the modules, whose constructors resolve the services they inject. A Prepare/Start interface would touch every service and make that hidden order explicit, with the risk of missing gateway events if subscriptions move later.
+
+Rejected: a Prepare/Start interface on every service; moving to `Microsoft.Extensions.Hosting` now. Hosted services (`IHostedService`/`BackgroundService`) are the idiomatic follow-up, starting with the loop services (Birthday, Reminder, KarmaReset, Welcome, Update, IntroductionWatcher), and would replace the manual cancellation handling in `Program.cs`.
