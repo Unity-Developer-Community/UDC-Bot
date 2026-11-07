@@ -3,6 +3,7 @@ using System.ServiceModel.Syndication;
 using System.Xml;
 using Discord.WebSocket;
 using DiscordBot.Domain.UnityNews;
+using DiscordBot.Services.Server;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
 
@@ -55,6 +56,28 @@ public class FeedService
         _settings = settings;
         _logging = logging;
         _webClient = webClient;
+    }
+
+    /// <summary>
+    /// What the feeds track, for the startup report: <c>Releases (LTS, Supported, Beta, Alpha) → #releases,
+    /// blog → #news; checks start &lt;t:…:R&gt;. Not seeded yet, so their first check posts nothing: Beta.</c>
+    /// </summary>
+    internal static string StartupLine(FeedData data, ulong releasesChannelId, ulong newsChannelId, DateTimeOffset firstCheck)
+    {
+        static string Channel(ulong id) => id == 0 ? "no channel set" : $"<#{id}>";
+        static string Name(UnityStream stream) => stream == UnityStream.Lts ? "LTS" : stream.ToString();
+
+        var line = $"Releases ({string.Join(", ", ReleaseStreams.Select(Name))}) → {Channel(releasesChannelId)}, " +
+                   $"blog → {Channel(newsChannelId)}; checks start {AuditLogCards.Timestamp(firstCheck, 'R')}.";
+        var unseeded = ReleaseStreams
+            .Where(s => !(data.ReleaseStreams.TryGetValue(s.ToString(), out var state) && state.Seeded))
+            .Select(Name)
+            .ToList();
+        if (!data.BlogSeeded)
+            unseeded.Add("blog");
+        if (unseeded.Count > 0)
+            line += $" Not seeded yet, so their first check posts nothing: {string.Join(", ", unseeded)}.";
+        return line;
     }
 
     private async Task<SyndicationFeed> GetFeedData(string url)

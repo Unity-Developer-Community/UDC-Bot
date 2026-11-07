@@ -72,11 +72,17 @@ public class Program
             });
 
             _services = ConfigureServices();
+
+            // Collects the bot-announcement lines logged while starting into one message, which announces the start.
+            var startupReport = _services.GetRequiredService<StartupReport>();
+            startupReport.Begin(new DateTimeOffset(Process.GetCurrentProcess().StartTime), DateTimeOffset.UtcNow);
+
             _services.GetRequiredService<CommandHandlingService>();
 
-            // Announce, and Log bot started to track issues a bit easier
+            // Log bot started to track issues a bit easier
             var logger = _services.GetRequiredService<ILoggingService>();
-            logger.LogChannelAndFile("Bot Started.", ExtendedLogSeverity.Positive);
+            logger.Log(LogBehaviour.File, "Bot Started.", ExtendedLogSeverity.Positive);
+            logger.LogAction($"[Settings] {_settings.FeatureSummary()}");
 
             LoggingService.LogToConsole("Bot is connected.", ExtendedLogSeverity.Positive);
 
@@ -94,13 +100,15 @@ public class Program
             _services.GetRequiredService<EveryoneScoldService>();
             _services.GetRequiredService<MikuService>();
             _services.GetRequiredService<KarmaResetService>();
+            _services.GetRequiredService<MemoryLogService>();
 
             // The first slots render loads the art and builds the palette (about 2.7 s): do it now, not on a player's first spin.
             if (_settings.Casino.Enabled)
             {
-                _services.GetRequiredService<SlotsRenderer>().WarmUpAsync().SafeFireAndForget(nameof(SlotsRenderer));
+                WarmUpSlots(_services.GetRequiredService<SlotsRenderer>(), startupReport.BeginStep("Slots art")).SafeFireAndForget(nameof(SlotsRenderer));
             }
 
+            startupReport.MarkEagerServicesResolved();
             return Task.CompletedTask;
         };
 
@@ -117,6 +125,12 @@ public class Program
         LoggingService.LogToConsole("Bot stopped.", ExtendedLogSeverity.Positive);
     }
 
+    private static async Task WarmUpSlots(SlotsRenderer renderer, IDisposable startupStep)
+    {
+        using (startupStep)
+            await renderer.WarmUpAsync();
+    }
+
     private IServiceProvider ConfigureServices() =>
         new ServiceCollection()
             .AddHttpClient()
@@ -129,6 +143,7 @@ public class Program
             .AddSingleton(_commandService)
             .AddSingleton(_interactionService)
             .AddSingleton<CommandHandlingService>()
+            .AddSingleton<StartupReport>()
             .AddSingleton<ILoggingService, LoggingService>()
             .AddSingleton<DatabaseService>()
             .AddSingleton<ICasinoDatabase>(sp => sp.GetRequiredService<DatabaseService>())
@@ -167,6 +182,7 @@ public class Program
             .AddSingleton<SlotsRenderer>()
             .AddSingleton<SlotsService>()
             .AddSingleton<KarmaResetService>()
+            .AddSingleton<MemoryLogService>()
             .BuildServiceProvider();
 
     private static void DeserializeSettings()

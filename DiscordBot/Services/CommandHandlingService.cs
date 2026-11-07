@@ -50,7 +50,8 @@ public class CommandHandlingService
         InteractionService interactionService,
         IServiceProvider services,
         BotSettings settings,
-        ILoggingService loggingService
+        ILoggingService loggingService,
+        StartupReport startupReport
     )
     {
         _client = client;
@@ -81,8 +82,10 @@ public class CommandHandlingService
         }
 
         // Initialize the command service
+        var startupStep = startupReport.BeginStep("Commands");
         Task.Run(async () =>
         {
+            using var _ = startupStep;
             try
             {
                 // Discover all of the commands in this assembly and load them.

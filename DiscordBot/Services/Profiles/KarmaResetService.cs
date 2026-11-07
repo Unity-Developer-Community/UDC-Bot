@@ -1,5 +1,6 @@
 using DiscordBot.Settings;
 using Insight.Database;
+using DiscordBot.Services.Server;
 using Npgsql;
 
 namespace DiscordBot.Services.Profiles;
@@ -16,29 +17,36 @@ public class KarmaResetService
     private readonly string _connectionString;
     private readonly CancellationToken _shutdownToken;
 
-    public KarmaResetService(ILoggingService logging, BotSettings settings, CancellationTokenSource cts)
+    private const string ServiceName = nameof(KarmaResetService);
+
+    public KarmaResetService(ILoggingService logging, BotSettings settings, CancellationTokenSource cts, StartupReport startupReport)
     {
         _logging = logging;
         _connectionString = settings.DbConnectionString;
         _shutdownToken = cts.Token;
 
-        Task.Run(RunLoop);
+        var startupStep = startupReport.BeginStep("Karma resets");
+        Task.Run(() => RunLoop(startupStep));
     }
 
-    private async Task RunLoop()
+    private async Task RunLoop(IDisposable startupStep)
     {
-        // Wait for DatabaseService to finish table creation
-        await Task.Delay(TimeSpan.FromSeconds(10), _shutdownToken);
-
-        try
+        using (startupStep)
         {
-            await EnsureMetaTable();
-            await CatchUpMissedResets();
-        }
-        catch (OperationCanceledException) { return; }
-        catch (Exception e)
-        {
-            await _logging.LogChannelAndFile($"KarmaResetService: Failed during startup: {e.Message}", ExtendedLogSeverity.Warning);
+            try
+            {
+                // Wait for DatabaseService to finish table creation
+                await Task.Delay(TimeSpan.FromSeconds(10), _shutdownToken);
+                await EnsureMetaTable();
+                await CatchUpMissedResets();
+                await _logging.LogAction($"[{ServiceName}] {LastResetsLine(await GetLastReset("weekly"), await GetLastReset("monthly"), await GetLastReset("yearly"))}",
+                    ExtendedLogSeverity.Info);
+            }
+            catch (OperationCanceledException) { return; }
+            catch (Exception e)
+            {
+                await _logging.LogChannelAndFile($"[{ServiceName}] Failed during startup: {e.Message}", ExtendedLogSeverity.Warning);
+            }
         }
 
         try
@@ -64,7 +72,7 @@ public class KarmaResetService
         catch (OperationCanceledException) { }
         catch (Exception e)
         {
-            await _logging.LogChannelAndFile($"KarmaResetService: Error during reset check: {e.Message}", ExtendedLogSeverity.Warning);
+            await _logging.LogChannelAndFile($"[{ServiceName}] Error during reset check: {e.Message}", ExtendedLogSeverity.Warning);
         }
     }
 
@@ -121,7 +129,7 @@ public class KarmaResetService
         await c.OpenAsync();
         await c.ExecuteSqlAsync($"UPDATE {UserProps.TableName} SET {column} = 0");
         await c.ExecuteSqlAsync($"UPDATE {MetaTable} SET last_reset = NOW() WHERE period = @period", new { period });
-        await _logging.LogChannelAndFile($"KarmaResetService: Reset {period} karma ({column}).", ExtendedLogSeverity.Positive);
+        await _logging.LogChannelAndFile($"[{ServiceName}] Reset {period} karma ({column}).", ExtendedLogSeverity.Positive);
     }
 
     private async Task<DateTime> GetLastReset(string period)
@@ -132,6 +140,15 @@ public class KarmaResetService
         if (results.Count > 0 && results[0] is IDictionary<string, object> row && row.TryGetValue("last_reset", out var val) && val is DateTime dt)
             return dt;
         return DateTime.MinValue;
+    }
+
+    /// <summary><c>Last resets: weekly &lt;t:…:R&gt;, monthly …, yearly never.</c> Times are UTC.</summary>
+    internal static string LastResetsLine(DateTime weekly, DateTime monthly, DateTime yearly)
+    {
+        static string When(DateTime utc) => utc == DateTime.MinValue
+            ? "never"
+            : AuditLogCards.Timestamp(new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)), 'R');
+        return $"Last resets: weekly {When(weekly)}, monthly {When(monthly)}, yearly {When(yearly)}.";
     }
 
     private static int WeekNumber(DateTime date) =>

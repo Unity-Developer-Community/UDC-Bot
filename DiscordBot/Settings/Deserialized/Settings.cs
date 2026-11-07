@@ -24,6 +24,25 @@ public class BotSettings
     public ApiKeySettings ApiKeys { get; set; } = new();
     public FunCommandSettings FunCommands { get; set; } = new();
     public ImageSpamGuardSettings ImageSpamGuard { get; set; } = new();
+    public MemberLogSettings MemberLog { get; set; } = new();
+
+    /// <summary>For the startup report: <c>On: casino, birthdays. Off: recruitment.</c></summary>
+    public string FeatureSummary()
+    {
+        var features = new (string Name, bool On)[]
+        {
+            ("casino", Casino.Enabled),
+            ("birthdays", Birthday.Enabled),
+            ("image spam guard", ImageSpamGuard.Enabled),
+            ("introduction watch", IntroductionWatch.Enabled),
+            ("recruitment", Recruitment.Enabled),
+            ("help-thread babysitter", UnityHelp.BabySitterEnabled),
+            ("username cards", MemberLog.UsernameChanges),
+            ("display-name cards", MemberLog.DisplayNameChanges),
+        };
+        static string List(IEnumerable<string> names) => names.Any() ? string.Join(", ", names) : "none";
+        return $"On: {List(features.Where(f => f.On).Select(f => f.Name))}. Off: {List(features.Where(f => !f.On).Select(f => f.Name))}.";
+    }
 
     public (List<string> Errors, List<string> Warnings) Validate()
     {
@@ -115,7 +134,7 @@ public class ChannelSettings
     public ChannelInfo BirthdayAnnouncement { get; set; } = null!;
     public ChannelInfo AutoMod { get; set; } = null!;
 
-    /// <summary>Optional: join, leave and name-change cards. Falls back to <see cref="BotAnnouncement"/> when unset.</summary>
+    /// <summary>Optional: join, leave and name-change cards (which name changes: <see cref="MemberLogSettings"/>). Falls back to <see cref="BotAnnouncement"/> when unset.</summary>
     public ChannelInfo? MemberLog { get; set; }
 
     public ulong ComplaintCategoryId { get; set; }
@@ -199,6 +218,15 @@ public class ImageSpamGuardSettings
     /// <summary>A second matching message from the same user within this window triggers the guard.</summary>
     public int WindowMinutes { get; set; } = 15;
     public int TimeoutHours { get; set; } = 24;
+}
+
+/// <summary>Which name-change cards the member log posts. Every name change is still written to the log file.</summary>
+public class MemberLogSettings
+{
+    /// <summary>Username changes. Rare, so worth a card.</summary>
+    public bool UsernameChanges { get; set; } = true;
+    /// <summary>Global display name and server nickname changes, which people make often.</summary>
+    public bool DisplayNameChanges { get; set; } = false;
 }
 
 public class ChannelInfo

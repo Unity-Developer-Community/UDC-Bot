@@ -34,14 +34,14 @@ public class TipService
 
         if (string.IsNullOrEmpty(_settings.ServerRootPath))
         {
-            _loggingService.LogAction($"[{ServiceName}] ServerRootPath not set, service will not run.", ExtendedLogSeverity.Warning);
+            _loggingService.LogAction($"[{ServiceName}] Off: ServerRootPath is not set.", ExtendedLogSeverity.Warning);
             _isRunning = false;
             return;
         }
 
         if (string.IsNullOrEmpty(_settings.UnityHelp.TipImageDirectory))
         {
-            _loggingService.LogAction($"[{ServiceName}] TipImageDirectory not set, service will not run.", ExtendedLogSeverity.Warning);
+            _loggingService.LogAction($"[{ServiceName}] Off: UnityHelp.TipImageDirectory is not set.", ExtendedLogSeverity.Warning);
             _isRunning = false;
             return;
         }
@@ -59,30 +59,33 @@ public class TipService
         var jsonPath = GetTipPath(DatabaseName); ;
         if (!Directory.Exists(_imageDirectory))
         {
-            _loggingService.LogAction($"[{ServiceName}] Tip directory {_imageDirectory} did not exist.", ExtendedLogSeverity.Info);
+            _loggingService.LogAction($"[{ServiceName}] Created the empty tip directory {_imageDirectory}.", ExtendedLogSeverity.Info);
             Directory.CreateDirectory(_imageDirectory);
             File.WriteAllText(jsonPath, "{}");
         }
         else
         {
-            var directorySize = new DirectoryInfo(_imageDirectory).EnumerateFiles("*.*", SearchOption.AllDirectories).Sum(file => file.Length);
-            if (directorySize > _settings.UnityHelp.TipMaxDirectoryFileSize)
-            {
-                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024f:.#} MB, exceeding the limit of {_settings.UnityHelp.TipMaxDirectoryFileSize / 1024 / 1024f:.#} MB, no additional content will be added during this session.", ExtendedLogSeverity.Warning);
-                _readOnly = true;
-            }
-            else
-            {
-                _loggingService.LogAction($"[{ServiceName}] Tip directory size is {directorySize / 1024 / 1024f:.#} MB, within the limit of {_settings.UnityHelp.TipMaxDirectoryFileSize / 1024 / 1024f:.#} MB.", ExtendedLogSeverity.Info);
-                _loggingService.LogAction($"[{ServiceName}] Tip directory contains {new DirectoryInfo(_imageDirectory).EnumerateFiles("*.*", SearchOption.AllDirectories).Count()} files.",
-                    ExtendedLogSeverity.Info);
-            }
-
+            var files = new DirectoryInfo(_imageDirectory).EnumerateFiles("*.*", SearchOption.AllDirectories).ToList();
+            var directorySize = files.Sum(file => file.Length);
+            _readOnly = directorySize > _settings.UnityHelp.TipMaxDirectoryFileSize;
+            _loggingService.LogAction($"[{ServiceName}] {DirectorySummary(files.Count, directorySize, _settings.UnityHelp.TipMaxDirectoryFileSize)}",
+                _readOnly ? ExtendedLogSeverity.Warning : ExtendedLogSeverity.Info);
             var blocking = ReloadTipDatabase();
         }
 
         _isRunning = true;
     }
+
+    /// <summary><c>12 tip files, 3.4 MB of 1024 MB.</c>, or a warning that the limit is reached.</summary>
+    internal static string DirectorySummary(int fileCount, long bytes, long limitBytes)
+    {
+        var files = $"{fileCount} tip file{(fileCount == 1 ? "" : "s")}";
+        return bytes > limitBytes
+            ? $"{files}, {Megabytes(bytes)}, over the {Megabytes(limitBytes)} limit: no new tips can be added this session."
+            : $"{files}, {Megabytes(bytes)} of {Megabytes(limitBytes)}.";
+    }
+
+    private static string Megabytes(long bytes) => $"{bytes / 1024f / 1024f:0.#} MB";
 
     private bool IsValidTipKeyword(string keyword)
     {

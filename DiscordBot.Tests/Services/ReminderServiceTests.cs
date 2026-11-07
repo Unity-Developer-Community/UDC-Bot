@@ -23,4 +23,18 @@ public class ReminderServiceTests
     {
         Assert.False(ReminderService.IsTooFarAway(Now.AddHours(1), Now));
     }
+
+    [Fact]
+    public void PendingLine_NoReminders()
+    {
+        Assert.Equal("No pending reminders.", ReminderService.PendingLine([]));
+    }
+
+    [Fact]
+    public void PendingLine_ShowsCountAndSoonest()
+    {
+        var soonest = Now.AddHours(1);
+        var line = ReminderService.PendingLine([new ReminderItem { When = Now.AddDays(2) }, new ReminderItem { When = soonest }]);
+        Assert.Equal($"2 pending, next due {AuditLogCards.Timestamp(new DateTimeOffset(soonest), 'R')}.", line);
+    }
 }

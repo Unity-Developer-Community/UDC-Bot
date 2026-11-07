@@ -62,7 +62,7 @@ public class DatabaseService : ICasinoDatabase
 
     public IBadgeRepo? BadgeQuery => CreateBadgeQuery();
 
-    public DatabaseService(ILoggingService logging, BotSettings settings)
+    public DatabaseService(ILoggingService logging, BotSettings settings, StartupReport? startupReport = null)
     {
         PostgreSQLInsightDbProvider.RegisterProvider();
 
@@ -81,39 +81,40 @@ public class DatabaseService : ICasinoDatabase
             return;
         }
 
+        var startupStep = startupReport?.BeginStep("Database");
         Task.Run(async () =>
         {
+            using var _ = startupStep;
+            // Counts for the one "Connected" line; null when the table was just created.
+            long? userCount = null, badgeCount = null, casinoUserCount = null;
             // Test connection, if it fails we create the table and set keys
             try
             {
                 var query = Query;
                 if (query == null) return;
-                var userCount = await query.TestConnection();
-                await _logging.LogAction(
-                    $"{ServiceName}: Connected to database successfully. {userCount} users in database.",
-                    ExtendedLogSeverity.Positive);
+                userCount = await query.TestConnection();
 
                 var defaultCityExists = await c.ColumnExists(UserProps.TableName, UserProps.DefaultCity);
                 if (!defaultCityExists)
                 {
                     c.ExecuteSql($"ALTER TABLE {UserProps.TableName} ADD COLUMN {UserProps.DefaultCity} varchar(64) DEFAULT NULL");
-                    await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.DefaultCity}' to table '{UserProps.TableName}'.",
+                    await _logging.LogAction($"[{ServiceName}] Added column '{UserProps.DefaultCity}' to '{UserProps.TableName}'.",
                         ExtendedLogSeverity.Positive);
                 }
                 var birthdayExists = await c.ColumnExists(UserProps.TableName, UserProps.Birthday);
                 if (!birthdayExists)
                 {
                     c.ExecuteSql($"ALTER TABLE {UserProps.TableName} ADD COLUMN {UserProps.Birthday} timestamp DEFAULT NULL");
-                    await _logging.LogAction($"DatabaseService: Added missing column '{UserProps.Birthday}' to table '{UserProps.TableName}'.",
+                    await _logging.LogAction($"[{ServiceName}] Added column '{UserProps.Birthday}' to '{UserProps.TableName}'.",
                         ExtendedLogSeverity.Positive);
                 }
 
                 // Initialize badge tables
-                await InitializeBadgeTables(c);
+                badgeCount = await InitializeBadgeTables(c);
             }
             catch
             {
-                await _logging.LogAction($"DatabaseService: Table '{UserProps.TableName}' does not exist, attempting to generate table.",
+                await _logging.LogAction($"[{ServiceName}] Table '{UserProps.TableName}' is missing, creating it.",
                     ExtendedLogSeverity.LowWarning);
                 try
                 {
@@ -134,12 +135,12 @@ public class DatabaseService : ICasinoDatabase
                 catch (Exception e)
                 {
                     await _logging.LogAction(
-                        $"SQL Exception: Failed to generate table '{UserProps.TableName}'.\nMessage: {e}",
+                        $"[{ServiceName}] Couldn't create table '{UserProps.TableName}'.\n{e}",
                         ExtendedLogSeverity.Critical);
                     c.Close();
                     return;
                 }
-                await _logging.LogAction($"DatabaseService: Table '{UserProps.TableName}' generated without errors.",
+                await _logging.LogAction($"[{ServiceName}] Created table '{UserProps.TableName}'.",
                     ExtendedLogSeverity.Positive);
                 c.Close();
             }
@@ -149,14 +150,11 @@ public class DatabaseService : ICasinoDatabase
             {
                 var casinoQuery = CasinoQuery;
                 if (casinoQuery == null) return;
-                var casinoUserCount = await casinoQuery.TestCasinoConnection();
-                await _logging.LogAction(
-                    $"DatabaseService: Connected to casino tables successfully. {casinoUserCount} casino users in database.",
-                    ExtendedLogSeverity.Positive);
+                casinoUserCount = await casinoQuery.TestCasinoConnection();
             }
             catch
             {
-                await _logging.LogAction($"DatabaseService: Casino tables do not exist, attempting to generate tables.",
+                await _logging.LogAction($"[{ServiceName}] Casino tables are missing, creating them.",
                     ExtendedLogSeverity.LowWarning);
                 try
                 {
@@ -186,15 +184,17 @@ public class DatabaseService : ICasinoDatabase
                 catch (Exception e)
                 {
                     await _logging.LogAction(
-                        $"SQL Exception: Failed to generate casino tables.\nMessage: {e}",
+                        $"[{ServiceName}] Couldn't create the casino tables.\n{e}",
                         ExtendedLogSeverity.Critical);
                     c.Close();
                     return;
                 }
-                await _logging.LogAction($"DatabaseService: Casino tables generated without errors.",
+                await _logging.LogAction($"[{ServiceName}] Created the casino tables.",
                     ExtendedLogSeverity.Positive);
                 c.Close();
             }
+
+            await _logging.LogAction($"[{ServiceName}] {ConnectedSummary(userCount, badgeCount, casinoUserCount)}", ExtendedLogSeverity.Positive);
 
             // Not part of the block above, which only runs when casino_users is missing
             try
@@ -205,7 +205,7 @@ public class DatabaseService : ICasinoDatabase
             catch (Exception e)
             {
                 await _logging.LogAction(
-                    $"SQL Exception: Failed to create the slots jackpot table.\nMessage: {e}",
+                    $"[{ServiceName}] Couldn't create the slots jackpot table.\n{e}",
                     ExtendedLogSeverity.Critical);
             }
         });
@@ -332,42 +332,37 @@ public class DatabaseService : ICasinoDatabase
         return (await query.GetUser(id.ToString()) != null);
     }
 
-    private async Task InitializeBadgeTables(DbConnection c)
+    /// <summary>Creates or upgrades the badge tables. Returns the badge count, or null when the tables were just created.</summary>
+    private async Task<long?> InitializeBadgeTables(DbConnection c)
     {
         try
         {
             // Test badge connection, if it fails we create the tables
             var badgeQuery = BadgeQuery;
-            if (badgeQuery == null) return;
+            if (badgeQuery == null) return null;
 
             var badgeCount = await badgeQuery.TestBadgeConnection();
-            await _logging.LogAction(
-                $"DatabaseService: Connected to badge tables successfully. {badgeCount} badges in database.",
-                ExtendedLogSeverity.Positive);
 
             var isPublicExists = await c.ColumnExists(BadgeProps.TableName, BadgeProps.IsPublic);
             if (!isPublicExists)
             {
-                await _logging.LogAction("DatabaseService: Adding IsPublic column to badges table.",
-                    ExtendedLogSeverity.LowWarning);
                 c.ExecuteSql($"ALTER TABLE {BadgeProps.TableName} ADD COLUMN {BadgeProps.IsPublic} boolean NOT NULL DEFAULT TRUE");
-                await _logging.LogAction("DatabaseService: IsPublic column added successfully.",
+                await _logging.LogAction($"[{ServiceName}] Added column '{BadgeProps.IsPublic}' to '{BadgeProps.TableName}'.",
                     ExtendedLogSeverity.Positive);
             }
 
             var groupKeyExists = await c.ColumnExists(BadgeProps.TableName, BadgeProps.GroupKey);
             if (!groupKeyExists)
             {
-                await _logging.LogAction("DatabaseService: Adding GroupKey column to badges table.",
-                    ExtendedLogSeverity.LowWarning);
                 c.ExecuteSql($"ALTER TABLE {BadgeProps.TableName} ADD COLUMN {BadgeProps.GroupKey} varchar(64) DEFAULT NULL");
-                await _logging.LogAction("DatabaseService: GroupKey column added successfully.",
+                await _logging.LogAction($"[{ServiceName}] Added column '{BadgeProps.GroupKey}' to '{BadgeProps.TableName}'.",
                     ExtendedLogSeverity.Positive);
             }
+            return badgeCount;
         }
         catch
         {
-            await _logging.LogAction($"DatabaseService: Badge tables do not exist, attempting to generate tables.",
+            await _logging.LogAction($"[{ServiceName}] Badge tables are missing, creating them.",
                 ExtendedLogSeverity.LowWarning);
             try
             {
@@ -391,15 +386,27 @@ public class DatabaseService : ICasinoDatabase
                     $"{UserBadgeProps.AwardedBy} varchar(32) NOT NULL, " +
                     $"UNIQUE ({UserBadgeProps.UserID}, {UserBadgeProps.BadgeId}))");
 
-                await _logging.LogAction("DatabaseService: Badge tables generated without errors.",
+                await _logging.LogAction($"[{ServiceName}] Created the badge tables.",
                     ExtendedLogSeverity.Positive);
             }
             catch (Exception e)
             {
                 await _logging.LogAction(
-                    $"SQL Exception: Failed to generate badge tables.\nMessage: {e}",
+                    $"[{ServiceName}] Couldn't create the badge tables.\n{e}",
                     ExtendedLogSeverity.Critical);
             }
+            return null;
         }
+    }
+
+    /// <summary><c>Connected: 5 users, 12 badges, 3 casino users.</c> Tables just created are left out.</summary>
+    internal static string ConnectedSummary(long? users, long? badges, long? casinoUsers)
+    {
+        static string Count(long n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
+        var parts = new List<string>();
+        if (users is { } u) parts.Add(Count(u, "user"));
+        if (badges is { } b) parts.Add(Count(b, "badge"));
+        if (casinoUsers is { } cu) parts.Add(Count(cu, "casino user"));
+        return parts.Count == 0 ? "Connected." : $"Connected: {string.Join(", ", parts)}.";
     }
 }
