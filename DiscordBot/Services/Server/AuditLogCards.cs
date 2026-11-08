@@ -399,7 +399,7 @@ public static class AuditLogCards
 
     public sealed record ImageSpamReport(
         CardUser User,
-        int ImageCount,
+        string Rule,
         int WindowMinutes,
         IReadOnlyList<SpamMessage> Messages,
         int Deleted,
@@ -412,7 +412,7 @@ public static class AuditLogCards
     {
         var card = new AuditCard(SpamGuardColor)
             .WithHeader("🚨 Image spam guard triggered", report.User, null,
-                $"Posted {report.Messages.Count} messages with exactly {report.ImageCount} images within {report.WindowMinutes} minutes.",
+                $"Posted {report.Messages.Count} messages within {report.WindowMinutes} minutes: {report.Rule}.",
                 $"**Timeout:** {report.TimeoutResult}",
                 $"**Deleted:** {report.Deleted} of {report.Messages.Count} messages" +
                 (report.DeleteFailures.Count > 0 ? $" ({string.Join("; ", report.DeleteFailures)})" : ""));

@@ -153,6 +153,10 @@ public class BotSettingsValidationTests
         var (_, warnings) = settings.Validate();
         Assert.DoesNotContain(warnings, w => w.Contains("ImageSpamGuard"));
         Assert.Equal(4, settings.ImageSpamGuard.ImageCount);
+        Assert.Equal(2, settings.ImageSpamGuard.ImageCountChannels);
+        Assert.Equal(4, settings.ImageSpamGuard.SingleImageChannels);
+        Assert.Equal(3, settings.ImageSpamGuard.OtherCountChannels);
+        Assert.Equal(6, settings.ImageSpamGuard.MixedChannels);
         Assert.Equal(15, settings.ImageSpamGuard.WindowMinutes);
         Assert.Equal(24, settings.ImageSpamGuard.TimeoutHours);
     }
@@ -171,6 +175,20 @@ public class BotSettingsValidationTests
         };
         var (_, warnings) = settings.Validate();
         Assert.Contains(warnings, w => w.Contains($"ImageSpamGuard.{expected}"));
+    }
+
+    [Theory]
+    [InlineData(nameof(ImageSpamGuardSettings.ImageCountChannels))]
+    [InlineData(nameof(ImageSpamGuardSettings.SingleImageChannels))]
+    [InlineData(nameof(ImageSpamGuardSettings.OtherCountChannels))]
+    [InlineData(nameof(ImageSpamGuardSettings.MixedChannels))]
+    public void ImageSpamGuard_DisabledThreshold_Warning(string property)
+    {
+        var settings = CreateValid();
+        settings.ImageSpamGuard = new ImageSpamGuardSettings { Enabled = true };
+        typeof(ImageSpamGuardSettings).GetProperty(property)!.SetValue(settings.ImageSpamGuard, 0);
+        var (_, warnings) = settings.Validate();
+        Assert.Contains(warnings, w => w.Contains($"ImageSpamGuard.{property}"));
     }
 
     [Fact]

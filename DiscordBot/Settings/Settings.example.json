@@ -85,6 +85,10 @@
   "ImageSpamGuard": {
     "Enabled": false,
     "ImageCount": 4,
+    "ImageCountChannels": 2,
+    "SingleImageChannels": 4,
+    "OtherCountChannels": 3,
+    "MixedChannels": 6,
     "WindowMinutes": 15,
     "TimeoutHours": 24
   },

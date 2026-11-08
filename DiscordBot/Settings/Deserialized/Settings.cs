@@ -102,7 +102,15 @@ public class BotSettings
         {
             ValidateChannel(warnings, Channels.AutoMod, nameof(Channels.AutoMod));
             if (ImageSpamGuard.ImageCount < 1)
-                warnings.Add("ImageSpamGuard.ImageCount must be at least 1 — the guard will not act until it is fixed");
+                warnings.Add("ImageSpamGuard.ImageCount must be at least 1 — its rule will not act until it is fixed");
+            if (ImageSpamGuard.ImageCountChannels < 1)
+                warnings.Add("ImageSpamGuard.ImageCountChannels must be at least 1 — its rule will not act until it is fixed");
+            if (ImageSpamGuard.SingleImageChannels < 1)
+                warnings.Add("ImageSpamGuard.SingleImageChannels must be at least 1 — its rule will not act until it is fixed");
+            if (ImageSpamGuard.OtherCountChannels < 1)
+                warnings.Add("ImageSpamGuard.OtherCountChannels must be at least 1 — its rule will not act until it is fixed");
+            if (ImageSpamGuard.MixedChannels < 1)
+                warnings.Add("ImageSpamGuard.MixedChannels must be at least 1 — its rule will not act until it is fixed");
             if (ImageSpamGuard.WindowMinutes < 1)
                 warnings.Add("ImageSpamGuard.WindowMinutes must be at least 1");
             if (ImageSpamGuard.TimeoutHours is < 1 or > ImageSpamGuardSettings.MaxTimeoutHours)
@@ -213,9 +221,20 @@ public class ImageSpamGuardSettings
     public const int MaxTimeoutHours = 28 * 24;
 
     public bool Enabled { get; set; } = false;
-    /// <summary>A message counts when it has exactly this many attachments, all images.</summary>
+    /// <summary>
+    /// A message counts when all its attachments are images (at least one). Messages with exactly this many images
+    /// trigger after <see cref="ImageCountChannels"/> distinct channels. Below 1 disables that rule.
+    /// </summary>
     public int ImageCount { get; set; } = 4;
-    /// <summary>A second matching message from the same user within this window triggers the guard.</summary>
+    /// <summary>Distinct channels with <see cref="ImageCount"/>-image messages that trigger the guard. Below 1 disables the rule.</summary>
+    public int ImageCountChannels { get; set; } = 2;
+    /// <summary>Distinct channels with single-image messages that trigger the guard. Below 1 disables the rule.</summary>
+    public int SingleImageChannels { get; set; } = 4;
+    /// <summary>Distinct channels with messages of any other exact image count (2, 3, 5, …) that trigger the guard. Below 1 disables the rule.</summary>
+    public int OtherCountChannels { get; set; } = 3;
+    /// <summary>Distinct channels with image messages of any count that trigger the guard. Below 1 disables the rule.</summary>
+    public int MixedChannels { get; set; } = 6;
+    /// <summary>The rules count messages within this window.</summary>
     public int WindowMinutes { get; set; } = 15;
     public int TimeoutHours { get; set; } = 24;
 }
