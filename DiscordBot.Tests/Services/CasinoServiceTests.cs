@@ -49,7 +49,7 @@ public sealed class CasinoDatabaseFixture : IAsyncLifetime
     {
         public void LogXp(string channel, string user, float baseXp, float bonusXp, float xpReduce, int totalXp) { }
         public Task Log(LogBehaviour behaviour, string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed? embed = null) => Task.CompletedTask;
-        public Task<IUserMessage?> LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null) => Task.FromResult<IUserMessage?>(null);
+        public Task<IUserMessage?> LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null, LogTopic topic = LogTopic.General) => Task.FromResult<IUserMessage?>(null);
     }
 }
 

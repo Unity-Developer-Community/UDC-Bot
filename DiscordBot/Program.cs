@@ -143,6 +143,7 @@ public class Program
             .AddSingleton(_commandService)
             .AddSingleton(_interactionService)
             .AddSingleton<CommandHandlingService>()
+            .AddSingleton<LogChannels>()
             .AddSingleton<StartupReport>()
             .AddSingleton<ILoggingService, LoggingService>()
             .AddSingleton<DatabaseService>()
