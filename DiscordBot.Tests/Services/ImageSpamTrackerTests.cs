@@ -142,11 +142,12 @@ public class ImageSpamTrackerTests
         var tracker = Tracker();
         // At most two channels per count, so no exact-count rule fires first.
         int[] counts = [1, 1, 2, 2, 3, 3];
-        ImageSpamResult? result = null;
-        for (var i = 0; i < counts.Length; i++)
-            result = tracker.Record(7, Hit((ulong)(i + 1), Start.AddSeconds(i), channelId: (ulong)(10 + i), images: counts[i]));
+        var results = counts
+            .Select((count, i) => tracker.Record(7, Hit((ulong)(i + 1), Start.AddSeconds(i), channelId: (ulong)(10 + i), images: count)))
+            .ToList();
+        var result = results[^1];
 
-        Assert.Equal(ImageSpamOutcome.Triggered, result!.Outcome);
+        Assert.Equal(ImageSpamOutcome.Triggered, result.Outcome);
         Assert.Equal(new ImageSpamRule(ImageSpamRuleKind.Mixed, 0, 6), result.Rule);
         Assert.Equal("image posts in 6 different channels", result.Rule!.Description);
         Assert.Equal(6, result.Hits.Count);
