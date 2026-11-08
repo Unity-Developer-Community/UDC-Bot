@@ -101,8 +101,10 @@ public class BotSettings
         if (ImageSpamGuard.Enabled)
         {
             ValidateChannel(warnings, Channels.AutoMod, nameof(Channels.AutoMod));
-            if (ImageSpamGuard.ImageCount < 1)
-                warnings.Add("ImageSpamGuard.ImageCount must be at least 1 — the guard will not act until it is fixed");
+            ValidateSpamRule(warnings, ImageSpamGuard.SingleImage, nameof(ImageSpamGuard.SingleImage));
+            ValidateSpamRule(warnings, ImageSpamGuard.FourImages, nameof(ImageSpamGuard.FourImages));
+            ValidateSpamRule(warnings, ImageSpamGuard.OtherCount, nameof(ImageSpamGuard.OtherCount));
+            ValidateSpamRule(warnings, ImageSpamGuard.Mixed, nameof(ImageSpamGuard.Mixed));
             if (ImageSpamGuard.WindowMinutes < 1)
                 warnings.Add("ImageSpamGuard.WindowMinutes must be at least 1");
             if (ImageSpamGuard.TimeoutHours is < 1 or > ImageSpamGuardSettings.MaxTimeoutHours)
@@ -110,6 +112,12 @@ public class BotSettings
         }
 
         return (errors, warnings);
+    }
+
+    private static void ValidateSpamRule(List<string> warnings, ImageSpamRuleSettings? rule, string name)
+    {
+        if (rule is { Enabled: true, Channels: < 1 })
+            warnings.Add($"ImageSpamGuard.{name}.Channels must be at least 1 — the rule will not act until it is fixed");
     }
 
     private static void ValidateChannel(List<string> warnings, ChannelInfo? channel, string name)
@@ -221,12 +229,29 @@ public class ImageSpamGuardSettings
     /// <summary>Discord timeouts can't be longer than 28 days.</summary>
     public const int MaxTimeoutHours = 28 * 24;
 
+    /// <summary>Turns the whole guard on or off. Each rule below can also be turned off on its own.</summary>
     public bool Enabled { get; set; } = false;
-    /// <summary>A message counts when it has exactly this many attachments, all images.</summary>
-    public int ImageCount { get; set; } = 4;
-    /// <summary>A second matching message from the same user within this window triggers the guard.</summary>
+    // A message counts when all its attachments are images (at least one). Each rule counts the distinct channels
+    // of a member's counted messages within the window; several messages in one channel count once.
+    /// <summary>Messages with exactly one image.</summary>
+    public ImageSpamRuleSettings SingleImage { get; set; } = new() { Channels = 4 };
+    /// <summary>Messages with exactly four images, the usual scam shape.</summary>
+    public ImageSpamRuleSettings FourImages { get; set; } = new() { Channels = 2 };
+    /// <summary>Messages with any other exact image count (2, 3, 5, …), each count on its own.</summary>
+    public ImageSpamRuleSettings OtherCount { get; set; } = new() { Channels = 3 };
+    /// <summary>Messages with any image count together.</summary>
+    public ImageSpamRuleSettings Mixed { get; set; } = new() { Channels = 6 };
+    /// <summary>The rules count messages within this window.</summary>
     public int WindowMinutes { get; set; } = 15;
     public int TimeoutHours { get; set; } = 24;
+}
+
+/// <summary>One image spam rule: it triggers once a member's counted messages span <see cref="Channels"/> distinct channels.</summary>
+public class ImageSpamRuleSettings
+{
+    public bool Enabled { get; set; } = true;
+    /// <summary>Distinct channels that trigger the rule. Below 1, the rule never acts (with a startup warning).</summary>
+    public int Channels { get; set; }
 }
 
 /// <summary>Which name-change cards the member log posts. Every name change is still written to the log file.</summary>
