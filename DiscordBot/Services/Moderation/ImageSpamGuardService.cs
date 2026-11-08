@@ -114,13 +114,13 @@ public class ImageSpamGuardService
             IUserMessage? reportMessage;
             try
             {
-                reportMessage = await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow), files);
+                reportMessage = await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow), files, LogTopic.Moderation);
             }
             catch (HttpException e) when (files.Count > 0)
             {
                 // Most likely the upload was too large: send the report without the image.
                 report = report with { CopiedImageUrls = [], CopyNote = $"Couldn't upload the copied image ({e.HttpCode})." };
-                reportMessage = await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow));
+                reportMessage = await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow), topic: LogTopic.Moderation);
             }
 
             await PostAutoModPointer(member, reportMessage);

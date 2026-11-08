@@ -137,6 +137,15 @@ public class ChannelSettings
     /// <summary>Optional: join, leave and name-change cards (which name changes: <see cref="MemberLogSettings"/>). Falls back to <see cref="BotAnnouncement"/> when unset.</summary>
     public ChannelInfo? MemberLog { get; set; }
 
+    /// <summary>Optional: message edit, delete, bulk delete and thread delete cards. Falls back to <see cref="BotAnnouncement"/> when unset.</summary>
+    public ChannelInfo? MessageAudit { get; set; }
+
+    /// <summary>Optional: the startup report card. Falls back to <see cref="BotAnnouncement"/> when unset.</summary>
+    public ChannelInfo? Startup { get; set; }
+
+    /// <summary>Optional: the full image spam report. Falls back to <see cref="BotAnnouncement"/> when unset.</summary>
+    public ChannelInfo? ModerationLog { get; set; }
+
     public ulong ComplaintCategoryId { get; set; }
     public string ComplaintPrefix { get; set; } = string.Empty;
     public ulong ClosedComplaintCategoryId { get; set; }
