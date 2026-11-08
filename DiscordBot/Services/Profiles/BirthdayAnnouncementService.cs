@@ -38,18 +38,18 @@ public class BirthdayAnnouncementService
 
         if (!_settings.Birthday.Enabled)
         {
-            _loggingService.LogAction($"[{ServiceName}] Birthday announcement service is disabled in settings.", ExtendedLogSeverity.Info);
+            _loggingService.LogAction($"[{ServiceName}] Disabled in settings.", ExtendedLogSeverity.Info);
             return;
         }
 
         if (_settings.Channels.BirthdayAnnouncement?.Id == 0)
         {
-            _loggingService.LogAction($"[{ServiceName}] Birthday announcement channel not configured.", ExtendedLogSeverity.Warning);
+            _loggingService.LogAction($"[{ServiceName}] Off: Channels.BirthdayAnnouncement is not set.", ExtendedLogSeverity.Warning);
             return;
         }
 
         IsRunning = true;
-        _loggingService.LogAction($"[{ServiceName}] Starting birthday announcement service with {_settings.Birthday.CheckIntervalMinutes} minute intervals.", ExtendedLogSeverity.Info);
+        _loggingService.LogAction($"[{ServiceName}] Checking now, then every {_settings.Birthday.CheckIntervalMinutes} min.", ExtendedLogSeverity.Info);
         Task.Run(CheckBirthdaysLoop);
     }
 

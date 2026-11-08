@@ -68,6 +68,7 @@ public class LoggingService : ILoggingService
     private const string ServiceName = "LoggingService";
 
     private readonly ISocketMessageChannel? _logChannel;
+    private readonly StartupReport _startupReport;
 
     // Configuration
     private const long MaxLogSize = 1024 * 1024 * 2; // 2MB
@@ -82,8 +83,9 @@ public class LoggingService : ILoggingService
 
     private DateTime _lastFileCheck;
 
-    public LoggingService(DiscordSocketClient client, BotSettings settings)
+    public LoggingService(DiscordSocketClient client, BotSettings settings, StartupReport startupReport)
     {
+        _startupReport = startupReport;
         _logCommandExecutions = settings.LogCommandExecutions;
 
         // Paths
@@ -125,6 +127,9 @@ public class LoggingService : ILoggingService
     public async Task LogToChannel(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed? embed = null)
     {
         if (_logChannel == null)
+            return;
+        // While starting, plain lines go into the startup report instead.
+        if (embed == null && _startupReport.TryCapture(message, severity))
             return;
         await _logChannel.SendMessageAsync(message, false, embed);
     }

@@ -5,10 +5,15 @@
     <LangVersion>12</LangVersion>
     <Nullable>enable</Nullable>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- The pod has half a CPU and 768 MiB: a background GC thread buys nothing, and see ConserveMemory below. -->
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Azure.Identity" Version="1.21.0" />
-    <PackageReference Include="Insight.Database" Version="8.0.6" />
+    <!-- Compact and give memory back when the heap is fragmented, instead of keeping it after a spike (docs/decisions.md D8). -->
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Insight.Database.Core" Version="8.0.6" />
     <PackageReference Include="Insight.Database.Providers.PostgreSQL" Version="8.0.6" />
     <PackageReference Include="HtmlAgilityPack" Version="1.13.0" />
     <PackageReference Include="Discord.Net" Version="3.20.1" />
