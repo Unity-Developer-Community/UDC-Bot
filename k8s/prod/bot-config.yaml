@@ -33,6 +33,7 @@ data:
                 "GenericHelp": { "desc": "Unity-Help Channel", "id": "1019663870798856212" },
                 "BirthdayAnnouncement": { "desc": "Channel for birthday announcements", "id": "493511024037724180" },
                 "AutoMod": { "desc": "AutoMod channel, shared with Wick and Discord AutoMod", "id": "1018915772413784106" },
+                "MessageAudit": { "desc": "Message edit/delete log", "id": "1568805812275646604" },
                 "ComplaintCategoryId": "520853507851681797",
                 "ComplaintPrefix": "Complaint",
                 "ClosedComplaintCategoryId": "662084543662129175",

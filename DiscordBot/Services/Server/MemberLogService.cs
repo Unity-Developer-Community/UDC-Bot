@@ -22,6 +22,7 @@ public class MemberLogService
     private readonly DiscordSocketClient _client;
     private readonly BotSettings _settings;
     private readonly ILoggingService _loggingService;
+    private readonly LogChannels _logChannels;
 
     private readonly NameChangeTracker _nameChanges = new();
     private readonly SemaphoreSlim _nameChangeLock = new(1, 1);
@@ -30,8 +31,9 @@ public class MemberLogService
     private int _auditLogWarned;
     private int _joinSourceWarned;
 
-    public MemberLogService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService)
+    public MemberLogService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService, LogChannels logChannels)
     {
+        _logChannels = logChannels;
         _client = client;
         _settings = settings;
         _loggingService = loggingService;
@@ -324,12 +326,5 @@ public class MemberLogService
         }
     }
 
-    private IMessageChannel? ResolveChannel()
-    {
-        var memberLogId = _settings.Channels.MemberLog?.Id ?? 0;
-        if (memberLogId != 0 && _client.GetChannel(memberLogId) is IMessageChannel memberLog)
-            return memberLog;
-        var announcementId = _settings.Channels.BotAnnouncement?.Id ?? 0;
-        return announcementId != 0 ? _client.GetChannel(announcementId) as IMessageChannel : null;
-    }
+    private IMessageChannel? ResolveChannel() => _logChannels.Resolve(LogTopic.MemberLog);
 }

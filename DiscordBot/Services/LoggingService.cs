@@ -67,7 +67,7 @@ public class LoggingService : ILoggingService
 {
     private const string ServiceName = "LoggingService";
 
-    private readonly ISocketMessageChannel? _logChannel;
+    private readonly LogChannels _logChannels;
     private readonly StartupReport _startupReport;
 
     // Configuration
@@ -83,8 +83,9 @@ public class LoggingService : ILoggingService
 
     private DateTime _lastFileCheck;
 
-    public LoggingService(DiscordSocketClient client, BotSettings settings, StartupReport startupReport)
+    public LoggingService(BotSettings settings, StartupReport startupReport, LogChannels logChannels)
     {
+        _logChannels = logChannels;
         _startupReport = startupReport;
         _logCommandExecutions = settings.LogCommandExecutions;
 
@@ -99,17 +100,8 @@ public class LoggingService : ILoggingService
             LogToConsole($"[{ServiceName}] Created backup log directory", ExtendedLogSeverity.Info);
         }
 
-        // INIT
         if (settings.Channels.BotAnnouncement == null)
-        {
             LogToConsole($"[{ServiceName}] Error: Logging Channel not set in settings.json", LogSeverity.Error);
-            return;
-        }
-        _logChannel = client.GetChannel(settings.Channels.BotAnnouncement.Id) as ISocketMessageChannel;
-        if (_logChannel == null)
-        {
-            LogToConsole($"[{ServiceName}] Error: Logging Channel {settings.Channels.BotAnnouncement.Id} not found", LogSeverity.Error);
-        }
     }
 
     public async Task Log(LogBehaviour behaviour, string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed? embed = null)
@@ -126,21 +118,21 @@ public class LoggingService : ILoggingService
 
     public async Task LogToChannel(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info, Embed? embed = null)
     {
-        if (_logChannel == null)
+        if (_logChannels.Resolve(LogTopic.General) is not { } logChannel)
             return;
         // While starting, plain lines go into the startup report instead.
         if (embed == null && _startupReport.TryCapture(message, severity))
             return;
-        await _logChannel.SendMessageAsync(message, false, embed);
+        await logChannel.SendMessageAsync(message, false, embed);
     }
 
-    public async Task<IUserMessage?> LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null)
+    public async Task<IUserMessage?> LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null, LogTopic topic = LogTopic.General)
     {
-        if (_logChannel == null)
+        if (_logChannels.Resolve(topic) is not { } logChannel)
             return null;
         if (files is { Count: > 0 })
-            return await _logChannel.SendFilesAsync(files, components: components, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
-        return await _logChannel.SendMessageAsync(components: components, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
+            return await logChannel.SendFilesAsync(files, components: components, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
+        return await logChannel.SendMessageAsync(components: components, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
     }
 
     public async Task LogToFile(string message, ExtendedLogSeverity severity = ExtendedLogSeverity.Info)
@@ -288,7 +280,8 @@ public interface ILoggingService
     /// Files are uploaded with the message so components can show them via <c>attachment://name</c>.
     /// Returns the sent message, or <c>null</c> when there is no log channel.
     /// </summary>
-    Task<IUserMessage?> LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null);
+    /// <param name="topic">Picks the channel: the topic's own channel when configured, else the bot-announcement channel.</param>
+    Task<IUserMessage?> LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null, LogTopic topic = LogTopic.General);
 
     /// <summary>
     /// 'Short hand' for logging to all CURRENT supported behaviours, console, channel and file.

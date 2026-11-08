@@ -113,7 +113,7 @@ public class SlotsServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<IUserMessage?> LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null) => Task.FromResult<IUserMessage?>(null);
+        public Task<IUserMessage?> LogComponentsToChannel(MessageComponent components, IReadOnlyCollection<FileAttachment>? files = null, LogTopic topic = LogTopic.General) => Task.FromResult<IUserMessage?>(null);
     }
 
     private sealed class Fixture

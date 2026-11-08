@@ -18,11 +18,11 @@ public class AuditLogService
     private readonly ConcurrentDictionary<ulong, DateTimeOffset> _uncachedEditsLogged = new();
     private int _auditLogWarned;
 
-    private readonly IMessageChannel? _botAnnouncementChannel = null!;
-    private readonly ulong _memberLogChannelId;
+    private readonly LogChannels _logChannels;
 
-    public AuditLogService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService, BotDeletionRegistry botDeletions)
+    public AuditLogService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService, BotDeletionRegistry botDeletions, LogChannels logChannels)
     {
+        _logChannels = logChannels;
         _botDeletions = botDeletions;
         _loggingService = loggingService;
         _client = client;
@@ -32,15 +32,10 @@ public class AuditLogService
         client.MessagesBulkDeleted += EventGuard.Guarded<IReadOnlyCollection<Cacheable<IMessage, ulong>>, Cacheable<IMessageChannel, ulong>>(MessagesBulkDeleted, nameof(MessagesBulkDeleted));
         client.MessageUpdated += EventGuard.Guarded<Cacheable<IMessage, ulong>, SocketMessage, ISocketMessageChannel>(MessageUpdated, nameof(MessageUpdated));
         client.ThreadDeleted += EventGuard.Guarded<Cacheable<SocketThreadChannel, ulong>>(ThreadDeleted, nameof(ThreadDeleted));
-
-        if (settings.Channels.BotAnnouncement != null)
-            _botAnnouncementChannel = client.GetChannel(settings.Channels.BotAnnouncement.Id) as IMessageChannel;
-        _memberLogChannelId = settings.Channels.MemberLog?.Id ?? 0;
     }
 
     /// <summary>The bot's own log channels, whose messages are never logged.</summary>
-    private bool IsLogChannel(ulong channelId) =>
-        channelId == _botAnnouncementChannel?.Id || (_memberLogChannelId != 0 && channelId == _memberLogChannelId);
+    private bool IsLogChannel(ulong channelId) => _logChannels.IsLogChannel(channelId);
 
     private async Task MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
     {
@@ -56,7 +51,7 @@ public class AuditLogService
                 return;
             var cardChannel = cachedChannel != null ? CardChannel.From(cachedChannel) : new CardChannel(channel.Id, null);
             await _loggingService.LogComponentsToChannel(
-                AuditLogCards.UncachedDeletedMessageCard(message.Id, cardChannel, DateTimeOffset.UtcNow));
+                AuditLogCards.UncachedDeletedMessageCard(message.Id, cardChannel, DateTimeOffset.UtcNow), topic: LogTopic.MessageAudit);
             return;
         }
 
@@ -65,7 +60,7 @@ public class AuditLogService
             return;
 
         var card = AuditLogCards.DeletedMessageCard(ToDeletedMessage(deleted, guildChannel.Guild), DateTimeOffset.UtcNow);
-        await _loggingService.LogComponentsToChannel(card);
+        await _loggingService.LogComponentsToChannel(card, topic: LogTopic.MessageAudit);
     }
 
     private async Task MessagesBulkDeleted(IReadOnlyCollection<Cacheable<IMessage, ulong>> messages, Cacheable<IMessageChannel, ulong> channel)
@@ -93,7 +88,7 @@ public class AuditLogService
 
         var cardChannel = cachedChannel != null ? CardChannel.From(cachedChannel) : new CardChannel(channel.Id, null);
         await _loggingService.LogComponentsToChannel(
-            AuditLogCards.BulkDeletedCard(cardChannel, listed, uncachedCount, DateTimeOffset.UtcNow));
+            AuditLogCards.BulkDeletedCard(cardChannel, listed, uncachedCount, DateTimeOffset.UtcNow), topic: LogTopic.MessageAudit);
     }
 
     private static CardUser AuthorCard(IUser author, IGuild? guild)
@@ -152,7 +147,7 @@ public class AuditLogService
             after.Content,
             decision.Removed,
             decision.Added));
-        await _loggingService.LogComponentsToChannel(card);
+        await _loggingService.LogComponentsToChannel(card, topic: LogTopic.MessageAudit);
     }
 
     private void RememberUncachedEdit(ulong messageId, DateTimeOffset editedAt, DateTimeOffset now)
@@ -214,7 +209,7 @@ public class AuditLogService
             deletedBy != null ? CardUser.From(deletedBy) : null,
             thread != null);
 
-        await _loggingService.LogComponentsToChannel(AuditLogCards.DeletedThreadCard(info, deletedAt));
+        await _loggingService.LogComponentsToChannel(AuditLogCards.DeletedThreadCard(info, deletedAt), topic: LogTopic.MessageAudit);
     }
 
     private async Task<(IUser? DeletedBy, ThreadDeleteAuditLogData? Data)> FindThreadDeleteAudit(SocketGuild guild, ulong threadId)

@@ -77,8 +77,8 @@ public sealed class StartupReport
     private readonly List<Step> _pending = [];
     private List<string> _pendingAtFinish = [];
 
-    public StartupReport(DiscordSocketClient client, BotSettings settings)
-        : this(new DiscordStartupReportChannel(client, settings), DefaultCap, DefaultErrorDebounce, TimeProvider.System,
+    public StartupReport(DiscordSocketClient client, BotSettings settings, LogChannels logChannels)
+        : this(new DiscordStartupReportChannel(logChannels), DefaultCap, DefaultErrorDebounce, TimeProvider.System,
             DefaultMemoryFollowUp, () => MemoryStats.Capture(client, settings.GuildId))
     {
     }
@@ -326,13 +326,12 @@ public sealed class StartupReport
     }
 }
 
-/// <summary>Posts the startup report to bot-announcement, resolved on first use.</summary>
-internal sealed class DiscordStartupReportChannel(DiscordSocketClient client, BotSettings settings) : IStartupReportChannel
+/// <summary>Posts the startup report to the Startup channel (bot-announcement when unset), resolved on first use.</summary>
+internal sealed class DiscordStartupReportChannel(LogChannels logChannels) : IStartupReportChannel
 {
     private IMessageChannel? _channel;
 
-    private IMessageChannel? Channel =>
-        _channel ??= settings.Channels.BotAnnouncement is { Id: not 0 } info ? client.GetChannel(info.Id) as IMessageChannel : null;
+    private IMessageChannel? Channel => _channel ??= logChannels.Resolve(LogTopic.Startup);
 
     public async Task<ulong?> PostAsync(MessageComponent card)
     {
