@@ -1,4 +1,5 @@
 using DiscordBot.Services.Moderation;
+using DiscordBot.Settings;
 
 namespace DiscordBot.Tests.Services;
 
@@ -7,7 +8,7 @@ public class ImageSpamTrackerTests
     private static readonly DateTimeOffset Start = new(2026, 10, 25, 12, 0, 0, TimeSpan.Zero);
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(15);
 
-    private static readonly ImageSpamThresholds Defaults = new(4, 2, 4, 3, 6);
+    private static readonly ImageSpamThresholds Defaults = new(SingleImageChannels: 4, FourImageChannels: 2, OtherCountChannels: 3, MixedChannels: 6);
 
     private static ImageSpamTracker Tracker(ImageSpamThresholds? thresholds = null) => new(Window, thresholds ?? Defaults);
 
@@ -216,7 +217,7 @@ public class ImageSpamTrackerTests
         var noOther = Defaults with { OtherCountChannels = 0 };
         Assert.Equal(ImageSpamOutcome.Recorded, RecordAcrossChannels(Tracker(noOther), images: 2, channels: 5).Outcome);
 
-        var noPrimary = Defaults with { ImageCountChannels = 0 };
+        var noPrimary = Defaults with { FourImageChannels = 0 };
         Assert.Equal(ImageSpamOutcome.Recorded, RecordAcrossChannels(Tracker(noPrimary), images: 4, channels: 5).Outcome);
 
         var noMixed = Defaults with { MixedChannels = 0 };
@@ -229,21 +230,14 @@ public class ImageSpamTrackerTests
     }
 
     [Fact]
-    public void DisabledImageCount_OtherRulesStillApply()
+    public void FromSettings_DisabledOrInvalidRuleIsOff()
     {
-        // ImageCount 0 turns off the primary rule: 4 images fall under the "other count" rule (3 channels).
-        var tracker = Tracker(Defaults with { ImageCount = 0 });
-        Assert.Equal(ImageSpamOutcome.Recorded, RecordAcrossChannels(tracker, images: 4, channels: 2).Outcome);
-        Assert.Equal(ImageSpamOutcome.Triggered, tracker.Record(7, Hit(50, Start, channelId: 50)).Outcome);
-    }
+        var settings = new ImageSpamGuardSettings { Enabled = true };
+        Assert.Equal(Defaults, ImageSpamThresholds.From(settings));
 
-    [Fact]
-    public void ImageCountOne_PrimaryRuleWinsForSingleImages()
-    {
-        var tracker = Tracker(Defaults with { ImageCount = 1 });
-        var result = RecordAcrossChannels(tracker, images: 1, channels: 2);
-        Assert.Equal(ImageSpamOutcome.Triggered, result.Outcome);
-        Assert.Equal(new ImageSpamRule(ImageSpamRuleKind.ExactCount, 1, 2), result.Rule);
+        settings.SingleImage.Enabled = false;
+        settings.Mixed.Channels = 0;
+        Assert.Equal(Defaults with { SingleImageChannels = 0, MixedChannels = 0 }, ImageSpamThresholds.From(settings));
     }
 
     private static AttachmentShape Img(string name, string? type = "image/png") => new(name, type);

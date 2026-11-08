@@ -152,50 +152,64 @@ public class BotSettingsValidationTests
         settings.ImageSpamGuard = new ImageSpamGuardSettings { Enabled = true };
         var (_, warnings) = settings.Validate();
         Assert.DoesNotContain(warnings, w => w.Contains("ImageSpamGuard"));
-        Assert.Equal(4, settings.ImageSpamGuard.ImageCount);
-        Assert.Equal(2, settings.ImageSpamGuard.ImageCountChannels);
-        Assert.Equal(4, settings.ImageSpamGuard.SingleImageChannels);
-        Assert.Equal(3, settings.ImageSpamGuard.OtherCountChannels);
-        Assert.Equal(6, settings.ImageSpamGuard.MixedChannels);
+        Assert.Equal((true, 4), (settings.ImageSpamGuard.SingleImage.Enabled, settings.ImageSpamGuard.SingleImage.Channels));
+        Assert.Equal((true, 2), (settings.ImageSpamGuard.FourImages.Enabled, settings.ImageSpamGuard.FourImages.Channels));
+        Assert.Equal((true, 3), (settings.ImageSpamGuard.OtherCount.Enabled, settings.ImageSpamGuard.OtherCount.Channels));
+        Assert.Equal((true, 6), (settings.ImageSpamGuard.Mixed.Enabled, settings.ImageSpamGuard.Mixed.Channels));
         Assert.Equal(15, settings.ImageSpamGuard.WindowMinutes);
         Assert.Equal(24, settings.ImageSpamGuard.TimeoutHours);
     }
 
     [Theory]
-    [InlineData(0, 15, 24, "ImageCount")]
-    [InlineData(4, 0, 24, "WindowMinutes")]
-    [InlineData(4, 15, 0, "TimeoutHours")]
-    [InlineData(4, 15, 673, "TimeoutHours")]
-    public void ImageSpamGuard_InvalidValues_Warning(int imageCount, int windowMinutes, int timeoutHours, string expected)
+    [InlineData(0, 24, "WindowMinutes")]
+    [InlineData(15, 0, "TimeoutHours")]
+    [InlineData(15, 673, "TimeoutHours")]
+    public void ImageSpamGuard_InvalidValues_Warning(int windowMinutes, int timeoutHours, string expected)
     {
         var settings = CreateValid();
         settings.ImageSpamGuard = new ImageSpamGuardSettings
         {
-            Enabled = true, ImageCount = imageCount, WindowMinutes = windowMinutes, TimeoutHours = timeoutHours
+            Enabled = true, WindowMinutes = windowMinutes, TimeoutHours = timeoutHours
         };
         var (_, warnings) = settings.Validate();
         Assert.Contains(warnings, w => w.Contains($"ImageSpamGuard.{expected}"));
     }
 
     [Theory]
-    [InlineData(nameof(ImageSpamGuardSettings.ImageCountChannels))]
-    [InlineData(nameof(ImageSpamGuardSettings.SingleImageChannels))]
-    [InlineData(nameof(ImageSpamGuardSettings.OtherCountChannels))]
-    [InlineData(nameof(ImageSpamGuardSettings.MixedChannels))]
-    public void ImageSpamGuard_DisabledThreshold_Warning(string property)
+    [InlineData(nameof(ImageSpamGuardSettings.SingleImage))]
+    [InlineData(nameof(ImageSpamGuardSettings.FourImages))]
+    [InlineData(nameof(ImageSpamGuardSettings.OtherCount))]
+    [InlineData(nameof(ImageSpamGuardSettings.Mixed))]
+    public void ImageSpamGuard_EnabledRuleWithoutChannels_Warning(string rule)
     {
         var settings = CreateValid();
         settings.ImageSpamGuard = new ImageSpamGuardSettings { Enabled = true };
-        typeof(ImageSpamGuardSettings).GetProperty(property)!.SetValue(settings.ImageSpamGuard, 0);
+        var ruleSettings = (ImageSpamRuleSettings)typeof(ImageSpamGuardSettings).GetProperty(rule)!.GetValue(settings.ImageSpamGuard)!;
+        ruleSettings.Channels = 0;
         var (_, warnings) = settings.Validate();
-        Assert.Contains(warnings, w => w.Contains($"ImageSpamGuard.{property}"));
+        Assert.Contains(warnings, w => w.Contains($"ImageSpamGuard.{rule}.Channels"));
+
+        ruleSettings.Enabled = false;
+        (_, warnings) = settings.Validate();
+        Assert.DoesNotContain(warnings, w => w.Contains("ImageSpamGuard"));
+    }
+
+    [Fact]
+    public void ImageSpamGuard_PartialRuleJson_KeepsDefaultChannels()
+    {
+        // Newtonsoft fills the existing rule objects, so a config that only turns a rule off keeps its default.
+        var guard = Newtonsoft.Json.JsonConvert.DeserializeObject<ImageSpamGuardSettings>(
+            """{ "Enabled": true, "SingleImage": { "Enabled": false }, "Mixed": { "Channels": 8 } }""")!;
+        Assert.Equal((false, 4), (guard.SingleImage.Enabled, guard.SingleImage.Channels));
+        Assert.Equal((true, 8), (guard.Mixed.Enabled, guard.Mixed.Channels));
+        Assert.Equal((true, 2), (guard.FourImages.Enabled, guard.FourImages.Channels));
     }
 
     [Fact]
     public void ImageSpamGuard_Disabled_InvalidValuesIgnored()
     {
         var settings = CreateValid();
-        settings.ImageSpamGuard = new ImageSpamGuardSettings { Enabled = false, ImageCount = 0 };
+        settings.ImageSpamGuard = new ImageSpamGuardSettings { Enabled = false, WindowMinutes = 0 };
         var (_, warnings) = settings.Validate();
         Assert.DoesNotContain(warnings, w => w.Contains("ImageSpamGuard"));
     }

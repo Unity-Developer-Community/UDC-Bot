@@ -16,25 +16,27 @@ public enum ImageSpamOutcome
 }
 
 /// <summary>
-/// How many distinct channels trigger each rule. A value below 1 disables that rule.
-/// <see cref="ImageCount"/> is the exact count of the primary rule (<see cref="ImageCountChannels"/>); a post with
-/// exactly one image uses <see cref="SingleImageChannels"/>, any other count <see cref="OtherCountChannels"/>.
-/// <see cref="MixedChannels"/> counts image posts of any count.
+/// How many distinct channels trigger each rule; 0 means the rule is off. A post with exactly one image uses
+/// <see cref="SingleImageChannels"/>, exactly <see cref="FourImageCount"/> <see cref="FourImageChannels"/>, any other
+/// count <see cref="OtherCountChannels"/>. <see cref="MixedChannels"/> counts image posts of any count.
 /// </summary>
-public sealed record ImageSpamThresholds(int ImageCount, int ImageCountChannels, int SingleImageChannels, int OtherCountChannels, int MixedChannels)
+public sealed record ImageSpamThresholds(int SingleImageChannels, int FourImageChannels, int OtherCountChannels, int MixedChannels)
 {
-    public static ImageSpamThresholds From(ImageSpamGuardSettings settings) => new(
-        settings.ImageCount, settings.ImageCountChannels, settings.SingleImageChannels, settings.OtherCountChannels, settings.MixedChannels);
+    public const int FourImageCount = 4;
 
-    /// <summary>Distinct channels needed for posts with exactly <paramref name="imageCount"/> images (below 1: disabled).</summary>
-    public int ChannelsFor(int imageCount)
+    public static ImageSpamThresholds From(ImageSpamGuardSettings settings) => new(
+        ChannelsOf(settings.SingleImage), ChannelsOf(settings.FourImages), ChannelsOf(settings.OtherCount), ChannelsOf(settings.Mixed));
+
+    private static int ChannelsOf(ImageSpamRuleSettings? rule) => rule is { Enabled: true, Channels: > 0 } ? rule.Channels : 0;
+
+    /// <summary>Distinct channels needed for posts with exactly <paramref name="imageCount"/> images (0: off).</summary>
+    public int ChannelsFor(int imageCount) => imageCount switch
     {
-        if (imageCount < 1)
-            return 0;
-        if (imageCount == ImageCount)
-            return ImageCountChannels;
-        return imageCount == 1 ? SingleImageChannels : OtherCountChannels;
-    }
+        < 1 => 0,
+        1 => SingleImageChannels,
+        FourImageCount => FourImageChannels,
+        _ => OtherCountChannels,
+    };
 }
 
 public enum ImageSpamRuleKind
