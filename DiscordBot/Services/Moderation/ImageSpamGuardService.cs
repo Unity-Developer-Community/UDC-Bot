@@ -16,6 +16,9 @@ public class ImageSpamGuardService
 {
     private const string ServiceName = "ImageSpamGuard";
     private const string AuditLogReason = "Image spam guard: repeated multi-image posts";
+    private const string SeenReaction = "👀";
+    private const string BannedReaction = "🔨";
+    private const string ReactionLegend = $"-# React {SeenReaction} if you're on it, {BannedReaction} once banned";
 
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
@@ -169,15 +172,29 @@ public class ImageSpamGuardService
             return;
         }
 
+        IUserMessage pointer;
         try
         {
-            await autoMod.SendMessageAsync(
-                $"🚨 Image spam guard triggered for {member.Mention} · [See Details]({reportMessage.GetJumpUrl()})",
+            pointer = await autoMod.SendMessageAsync(
+                $"🚨 Image spam guard triggered for {member.Mention} · [See Details]({reportMessage.GetJumpUrl()})\n{ReactionLegend}",
                 allowedMentions: AllowedMentions.None);
         }
         catch (HttpException e)
         {
             LoggingService.LogToConsole($"[{ServiceName}] Couldn't post to the AutoMod channel: {(int)e.HttpCode} {e.Reason}".TrimEnd(),
+                ExtendedLogSeverity.Warning);
+            return;
+        }
+
+        // The reactions are only markers for moderators; a failure here must not affect anything else.
+        try
+        {
+            await pointer.AddReactionAsync(new Emoji(SeenReaction));
+            await pointer.AddReactionAsync(new Emoji(BannedReaction));
+        }
+        catch (HttpException e)
+        {
+            LoggingService.LogToConsole($"[{ServiceName}] Couldn't add reactions to the AutoMod alert: {(int)e.HttpCode} {e.Reason}".TrimEnd(),
                 ExtendedLogSeverity.Warning);
         }
     }
