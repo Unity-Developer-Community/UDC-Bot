@@ -7,15 +7,15 @@ using DiscordBot.Settings;
 namespace DiscordBot.Services.Moderation;
 
 /// <summary>
-/// Catches the common scam wave: the same account posting messages with exactly N images
-/// (default 4) in quick succession. The first such message is only remembered; another one in a
-/// different channel within the window deletes every remembered message, times the member out,
-/// posts a report to the log channel and a short pointer to it in the AutoMod channel.
+/// Catches the common scam wave: the same account posting messages that are all images across
+/// several channels in quick succession (rules in <see cref="ImageSpamThresholds"/>). Messages below
+/// the thresholds are only remembered; the one that crosses one deletes every remembered message,
+/// times the member out, posts a report to the log channel and a short pointer to it in the AutoMod channel.
 /// </summary>
 public class ImageSpamGuardService
 {
     private const string ServiceName = "ImageSpamGuard";
-    private const string AuditLogReason = "Image spam guard: repeated multi-image posts";
+    private const string AuditLogReason = "Image spam guard: image posts across several channels";
 
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
@@ -36,7 +36,7 @@ public class ImageSpamGuardService
         _guardSettings = settings.ImageSpamGuard;
         _moderatorRoleId = settings.Roles.Moderator;
         _autoModChannelId = settings.Channels.AutoMod?.Id ?? 0;
-        _tracker = new ImageSpamTracker(TimeSpan.FromMinutes(Math.Max(1, _guardSettings.WindowMinutes)));
+        _tracker = new ImageSpamTracker(TimeSpan.FromMinutes(Math.Max(1, _guardSettings.WindowMinutes)), ImageSpamThresholds.From(_guardSettings));
 
         if (!_guardSettings.Enabled)
         {
@@ -61,17 +61,18 @@ public class ImageSpamGuardService
         var forwarded = userMessage.ForwardedMessages?.Select(f => f.Message).FirstOrDefault(m => m != null);
         var attachments = userMessage.Attachments.Count > 0 || forwarded == null ? userMessage.Attachments : forwarded.Attachments;
         var shapes = attachments.Select(a => new AttachmentShape(a.Filename, a.ContentType)).ToList();
-        if (!ImageSpamShape.Matches(shapes, null, _guardSettings.ImageCount))
+        var imageCount = ImageSpamShape.ImageCount(shapes, null);
+        if (imageCount < 1)
             return Task.CompletedTask;
 
         var text = string.IsNullOrWhiteSpace(message.Content) ? forwarded?.Content ?? string.Empty : message.Content;
-        var hit = new ImageSpamHit(message.Channel.Id, message.Id, DateTimeOffset.UtcNow, text, shapes.Select(s => s.Filename).ToList());
+        var hit = new ImageSpamHit(message.Channel.Id, message.Id, DateTimeOffset.UtcNow, text, shapes.Select(s => s.Filename).ToList(), imageCount);
         var result = _tracker.Record(member.Id, hit);
 
         switch (result.Outcome)
         {
             case ImageSpamOutcome.Triggered:
-                ActOnSpam(member, attachments, result.Hits).SafeFireAndForget(ServiceName);
+                ActOnSpam(member, attachments, result.Hits, result.Rule?.Description ?? "image spam").SafeFireAndForget(ServiceName);
                 break;
             case ImageSpamOutcome.AlreadyActioned:
                 DeleteHits(result.Hits).SafeFireAndForget(ServiceName);
@@ -85,7 +86,7 @@ public class ImageSpamGuardService
         || member.GuildPermissions.ManageMessages
         || (_moderatorRoleId != 0 && member.Roles.Any(r => r.Id == _moderatorRoleId));
 
-    private async Task ActOnSpam(SocketGuildUser member, IReadOnlyCollection<IAttachment> lastAttachments, IReadOnlyList<ImageSpamHit> hits)
+    private async Task ActOnSpam(SocketGuildUser member, IReadOnlyCollection<IAttachment> lastAttachments, IReadOnlyList<ImageSpamHit> hits, string ruleDescription)
     {
         var timeoutResult = await TryTimeout(member);
         // Copy the image before deleting, since its link stops working once the message is gone.
@@ -102,7 +103,7 @@ public class ImageSpamGuardService
 
             var report = new AuditLogCards.ImageSpamReport(
                 CardUser.From(member),
-                _guardSettings.ImageCount,
+                ruleDescription,
                 _guardSettings.WindowMinutes,
                 hits.Select(h => new AuditLogCards.SpamMessage(h.ChannelId, h.MessageId, h.Text, h.FileNames)).ToList(),
                 deleted,

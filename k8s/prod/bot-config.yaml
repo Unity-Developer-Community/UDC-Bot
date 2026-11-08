@@ -98,7 +98,10 @@ data:
 
             "ImageSpamGuard": {
                 "Enabled": true,
-                "ImageCount": 4,
+                "SingleImage": { "Enabled": true, "Channels": 4 },
+                "FourImages": { "Enabled": true, "Channels": 2 },
+                "OtherCount": { "Enabled": true, "Channels": 3 },
+                "Mixed": { "Enabled": true, "Channels": 6 },
                 "WindowMinutes": 15,
                 "TimeoutHours": 24
             }
