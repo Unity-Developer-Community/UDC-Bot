@@ -21,6 +21,7 @@
     "BotCommands": { "desc": "Bot-Commands Channel", "id": "0" },
     "UnityNews": { "desc": "Unity News Channel", "id": "0" },
     "UnityReleases": { "desc": "Unity Releases Channel", "id": "0" },
+    "UnityDiscussion": { "desc": "Unity discussion channel: a short card of each blog post", "id": "0" },
     "Rules": { "desc": "Rules Channel", "id": "0" },
     "Recruitment": { "desc": "Channel for job postings", "id": "0" },
     "GenericHelp": { "desc": "Unity-Help Channel", "id": "0" },
@@ -98,5 +99,9 @@
   "MemberLog": {
     "UsernameChanges": true,
     "DisplayNameChanges": false
+  },
+
+  "UnityNews": {
+    "BlogDiscussionCard": true
   }
 }

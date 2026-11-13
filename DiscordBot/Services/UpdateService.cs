@@ -109,6 +109,7 @@ public class UpdateService
         if (_feedData != null)
             _loggingService.LogAction($"[{nameof(FeedService)}] " + FeedService.StartupLine(_feedData,
                 _settings.Channels.UnityReleases?.Id ?? 0, _settings.Channels.UnityNews?.Id ?? 0,
+                _settings.UnityNews.BlogDiscussionCard ? _settings.Channels.UnityDiscussion?.Id ?? 0 : null,
                 DateTimeOffset.UtcNow + FirstFeedCheckDelay), ExtendedLogSeverity.Info);
         Task.Run(SaveDataToFile, _token);
         // Task.Run(UpdateUserRanks, _token);

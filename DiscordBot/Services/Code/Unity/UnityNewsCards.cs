@@ -126,6 +126,32 @@ public static class UnityNewsCards
         return new ComponentBuilderV2().WithContainer(container).Build();
     }
 
+    private const int BlogDiscussionDescriptionLength = 600;
+
+    /// <summary>
+    /// The short card of a blog post for the discussion channel: the title linked to the article, the feed description, up to
+    /// <see cref="BlogPageParser.MaxImages"/> of <paramref name="images"/> and two link buttons, to the article and to <paramref name="forumPostUrl"/>.
+    /// No role mention.
+    /// </summary>
+    public static MessageComponent BlogDiscussionCard(string title, string url, string? description, IReadOnlyList<string> images, string forumPostUrl)
+    {
+        var container = new ContainerBuilder().WithAccentColor(BlogColor);
+        var text = new System.Text.StringBuilder();
+        text.Append("## [").Append(LinkLabel(title, 200)).Append("](").Append(LinkTarget(url)).Append(')');
+        var lede = Collapse(description);
+        if (lede.Length > 0)
+            text.Append('\n').Append(Safe(AuditCard.Fit(lede, BlogDiscussionDescriptionLength, "…")));
+        container.WithTextDisplay(AuditCard.Fit(text.ToString(), 1500));
+
+        if (images.Count > 0)
+            container.WithMediaGallery(images.Take(BlogPageParser.MaxImages).ToList());
+
+        container.WithActionRow(new ActionRowBuilder()
+            .WithButton(ButtonBuilder.CreateLinkButton("Read on unity.com", url))
+            .WithButton(ButtonBuilder.CreateLinkButton("Discuss in unity-news", forumPostUrl)));
+        return new ComponentBuilderV2().WithContainer(container).Build();
+    }
+
     private static string BlogMeta(DateTimeOffset published, BlogPage page)
     {
         var lines = new List<string>();

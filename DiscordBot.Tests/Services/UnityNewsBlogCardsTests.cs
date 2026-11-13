@@ -129,6 +129,56 @@ public class UnityNewsBlogCardsTests
         Assert.True(text.Length <= AuditCard.DiscordTextLimit);
     }
 
+    private const string ForumPostUrl = "https://discord.com/channels/1/2";
+
+    private static MessageComponent DiscussionCard(IReadOnlyList<string> images, string? description = "Klang Games profiles real player-built societies.") =>
+        UnityNewsCards.BlogDiscussionCard("How SEED renders a world", BlogFixtures.ArticleUrl, description, images, ForumPostUrl);
+
+    [Fact]
+    public void BlogDiscussionCard_StartsWithTheTitleLink_AndHasTheDescription_NoRoleOrChapters()
+    {
+        var text = AuditLogCardsTests.Text(DiscussionCard(FullPage.Images));
+
+        Assert.StartsWith("## [How SEED renders a world](https://unity.com/blog/how-seed-renders)", text);
+        Assert.Contains("Klang Games profiles real player-built societies.", text);
+        Assert.DoesNotContain("<@&", text);
+        Assert.DoesNotContain("In this post", text);
+        Assert.DoesNotContain("min read", text);
+    }
+
+    [Fact]
+    public void BlogDiscussionCard_HasTwoLinkButtons()
+    {
+        var buttons = Flatten(DiscussionCard(FullPage.Images).Components).OfType<ButtonComponent>().ToList();
+
+        Assert.Equal(["Read on unity.com", "Discuss in unity-news"], buttons.Select(b => b.Label));
+        Assert.Equal([BlogFixtures.ArticleUrl, ForumPostUrl], buttons.Select(b => b.Url));
+    }
+
+    [Fact]
+    public void BlogDiscussionCard_GalleryHoldsTheImages_AndIsLeftOutWithNone()
+    {
+        var withImages = Flatten(DiscussionCard(FullPage.Images).Components).OfType<MediaGalleryComponent>().ToList();
+        var gallery = Assert.Single(withImages);
+        Assert.Equal(4, gallery.Items.Count);
+
+        var tooMany = Enumerable.Range(1, 6).Select(i => $"https://unity.com/{i}.png").ToList();
+        Assert.Equal(4, Assert.Single(Flatten(DiscussionCard(tooMany).Components).OfType<MediaGalleryComponent>()).Items.Count);
+
+        Assert.Empty(Flatten(DiscussionCard([]).Components).OfType<MediaGalleryComponent>());
+    }
+
+    [Fact]
+    public void BlogDiscussionCard_LongDescription_StaysWithinTheLimit_AndDefusesMentions()
+    {
+        var longText = AuditLogCardsTests.Text(DiscussionCard(FullPage.Images, new string('d', 5000)));
+        Assert.True(longText.Length <= AuditCard.DiscordTextLimit);
+
+        var text = AuditLogCardsTests.Text(DiscussionCard([], "ping @everyone <@123>"));
+        Assert.DoesNotContain("@everyone", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("<@", text, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void BlogTagNames_AreOnlyTheBlogTag()
     {

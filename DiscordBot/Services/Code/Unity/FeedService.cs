@@ -66,15 +66,17 @@ public class FeedService
 
     /// <summary>
     /// What the feeds track, for the startup report: <c>Releases (LTS, Supported, Beta, Alpha) → #releases,
-    /// blog → #news; checks start &lt;t:…:R&gt;. Not seeded yet, so their first check posts nothing: Beta.</c>
+    /// blog → #news, discussion cards → #talk; checks start &lt;t:…:R&gt;. Not seeded yet, so their first check posts nothing: Beta.</c>
+    /// <paramref name="discussionChannelId"/> is null when the blog discussion card is off.
     /// </summary>
-    internal static string StartupLine(FeedData data, ulong releasesChannelId, ulong newsChannelId, DateTimeOffset firstCheck)
+    internal static string StartupLine(FeedData data, ulong releasesChannelId, ulong newsChannelId, ulong? discussionChannelId, DateTimeOffset firstCheck)
     {
         static string Channel(ulong id) => id == 0 ? "no channel set" : $"<#{id}>";
         static string Name(UnityStream stream) => stream == UnityStream.Lts ? "LTS" : stream.ToString();
 
         var line = $"Releases ({string.Join(", ", ReleaseStreams.Select(Name))}) → {Channel(releasesChannelId)}, " +
-                   $"blog → {Channel(newsChannelId)}; checks start {AuditLogCards.Timestamp(firstCheck, 'R')}.";
+                   $"blog → {Channel(newsChannelId)}, " +
+                   $"discussion cards → {(discussionChannelId is { } discussion ? Channel(discussion) : "off")}; checks start {AuditLogCards.Timestamp(firstCheck, 'R')}.";
         var unseeded = ReleaseStreams
             .Where(s => !(data.ReleaseStreams.TryGetValue(s.ToString(), out var state) && state.Seeded))
             .Select(Name)
@@ -144,6 +146,8 @@ public class FeedService
                 return;
             }
 
+            var discussion = await ResolveDiscussionChannel();
+
             foreach (var item in pending)
             {
                 try
@@ -162,11 +166,14 @@ public class FeedService
                         await _logging.LogChannelAndFile($"[{ServiceName}] Could not read the blog page {url} ({fetched.Failure}); posting the card of the feed item alone", ExtendedLogSeverity.Warning);
                     }
 
-                    await PostBlog(channel, item, roleId, fetched.Page);
+                    var thread = await PostBlog(channel, item, roleId, fetched.Page);
                     // Only after the thread exists, so a failed post is retried on the next check.
                     feedData.AddPostedId(item.Id);
                     _blogFailures.Remove(item.Id);
                     _blogPageFailures.Remove(item.Id);
+
+                    if (discussion != null)
+                        await PostDiscussionCard(discussion, item, fetched.Page, thread);
                 }
                 catch (Exception e) when (e is not OperationCanceledException)
                 {
@@ -190,11 +197,14 @@ public class FeedService
 
     private static string BlogUrl(SyndicationItem item) => item.Links.FirstOrDefault()?.Uri?.AbsoluteUri ?? item.Id;
 
-    private async Task PostBlog(IForumChannel channel, SyndicationItem item, ulong? roleId, BlogPage page)
+    private static string? BlogDescription(SyndicationItem item) =>
+        item.Summary == null ? null : global::DiscordBot.Utils.Utils.RemoveHtmlTags(item.Summary.Text);
+
+    private async Task<IThreadChannel> PostBlog(IForumChannel channel, SyndicationItem item, ulong? roleId, BlogPage page)
     {
         var title = item.Title?.Text ?? item.Id;
         var url = BlogUrl(item);
-        var description = item.Summary == null ? null : global::DiscordBot.Utils.Utils.RemoveHtmlTags(item.Summary.Text);
+        var description = BlogDescription(item);
 
         // Blog posts ping the news role.
         var role = roleId is { } id ? _client.GetGuild(_settings.GuildId)?.GetRole(id) : null;
@@ -203,8 +213,41 @@ public class FeedService
         var card = UnityNewsCards.BlogCard(title, url, description, item.PublishDate, page, role?.Mention);
         var tags = ForumTags(channel, UnityNewsCards.BlogTagNames());
 
-        await channel.CreatePostAsync(UnityNewsCards.BlogForumTitle(title), ForumArchiveDuration, null, null, null, null,
+        return await channel.CreatePostAsync(UnityNewsCards.BlogForumTitle(title), ForumArchiveDuration, null, null, null, null,
             allowedMentions, card, flags: MessageFlags.ComponentsV2, tags: tags);
+    }
+
+    /// <summary>The channel for the blog discussion cards; null when the setting is off or the channel isn't there (one warning per check).</summary>
+    private async Task<IMessageChannel?> ResolveDiscussionChannel()
+    {
+        if (!_settings.UnityNews.BlogDiscussionCard)
+            return null;
+
+        var id = _settings.Channels.UnityDiscussion?.Id ?? 0;
+        if (id != 0 && _client.GetChannel(id) is IMessageChannel channel)
+            return channel;
+
+        await _logging.LogAction($"[{ServiceName}] The blog discussion channel {id} was not found; discussion cards are skipped this check", ExtendedLogSeverity.Warning);
+        return null;
+    }
+
+    /// <summary>
+    /// The short card of a blog post in the discussion channel. Posted after the forum post exists; a failure is logged and not retried,
+    /// because the forum post is the record.
+    /// </summary>
+    private async Task PostDiscussionCard(IMessageChannel discussion, SyndicationItem item, BlogPage page, IThreadChannel thread)
+    {
+        var title = item.Title?.Text ?? item.Id;
+        try
+        {
+            var card = UnityNewsCards.BlogDiscussionCard(title, BlogUrl(item), BlogDescription(item), page.Images,
+                $"https://discord.com/channels/{_settings.GuildId}/{thread.Id}");
+            await discussion.SendMessageAsync(components: card, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            await _logging.LogAction($"[{ServiceName}] Could not post the discussion card for '{title}': {e.Message}", ExtendedLogSeverity.Warning);
+        }
     }
 
     /// <summary>
