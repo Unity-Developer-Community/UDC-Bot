@@ -413,4 +413,7 @@ public static class BlogLinks
             .OrderBy(published)
             .Take(max)
             .ToList();
+
+    /// <summary>Whether an item whose article page can't be read is held back for another check (<paramref name="failedAttempts"/> reads have failed so far) instead of posting the feed-only card.</summary>
+    public static bool DeferUnreadablePage(int failedAttempts, int maxAttempts) => failedAttempts < maxAttempts;
 }

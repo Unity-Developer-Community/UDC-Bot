@@ -32,6 +32,12 @@ public class FeedService
 
     private readonly Dictionary<string, int> _blogFailures = new();
 
+    /// <summary>Checks an unreadable article page is waited for (about an hour at one check per 10 minutes) before the feed-only card is posted: the forum post pings a role and can't be upgraded later.</summary>
+    private const int MaxBlogPageAttempts = 6;
+
+    /// <summary>Failed reads of an item's article page, by item id; in memory, like <see cref="_blogFailures"/>.</summary>
+    private readonly Dictionary<string, int> _blogPageFailures = new();
+
     #endregion // Blog Feed Config
 
     #region Release Feed Config
@@ -142,10 +148,25 @@ public class FeedService
             {
                 try
                 {
-                    await PostBlog(channel, item, roleId);
+                    var url = BlogUrl(item);
+                    var fetched = await GetBlogPage(url);
+                    if (fetched.Failure != null)
+                    {
+                        var failedReads = _blogPageFailures.GetValueOrDefault(item.Id);
+                        if (fetched.CanRetry && BlogLinks.DeferUnreadablePage(failedReads, MaxBlogPageAttempts))
+                        {
+                            _blogPageFailures[item.Id] = ++failedReads;
+                            await _logging.LogChannelAndFile($"[{ServiceName}] Could not read the blog page {url} ({fetched.Failure}); attempt {failedReads}/{MaxBlogPageAttempts}, trying again next check", ExtendedLogSeverity.Warning);
+                            continue;
+                        }
+                        await _logging.LogChannelAndFile($"[{ServiceName}] Could not read the blog page {url} ({fetched.Failure}); posting the card of the feed item alone", ExtendedLogSeverity.Warning);
+                    }
+
+                    await PostBlog(channel, item, roleId, fetched.Page);
                     // Only after the thread exists, so a failed post is retried on the next check.
                     feedData.AddPostedId(item.Id);
                     _blogFailures.Remove(item.Id);
+                    _blogPageFailures.Remove(item.Id);
                 }
                 catch (Exception e) when (e is not OperationCanceledException)
                 {
@@ -155,6 +176,7 @@ public class FeedService
                     {
                         feedData.AddPostedId(item.Id);
                         _blogFailures.Remove(item.Id);
+                        _blogPageFailures.Remove(item.Id);
                     }
                     await _logging.LogAction($"[{ServiceName}] Error posting blog '{item.Title?.Text}' (attempt {attempts}): {e}", ExtendedLogSeverity.Error);
                 }
@@ -166,12 +188,13 @@ public class FeedService
         }
     }
 
-    private async Task PostBlog(IForumChannel channel, SyndicationItem item, ulong? roleId)
+    private static string BlogUrl(SyndicationItem item) => item.Links.FirstOrDefault()?.Uri?.AbsoluteUri ?? item.Id;
+
+    private async Task PostBlog(IForumChannel channel, SyndicationItem item, ulong? roleId, BlogPage page)
     {
         var title = item.Title?.Text ?? item.Id;
-        var url = item.Links.FirstOrDefault()?.Uri?.AbsoluteUri ?? item.Id;
+        var url = BlogUrl(item);
         var description = item.Summary == null ? null : global::DiscordBot.Utils.Utils.RemoveHtmlTags(item.Summary.Text);
-        var page = await GetBlogPage(url);
 
         // Blog posts ping the news role.
         var role = roleId is { } id ? _client.GetGuild(_settings.GuildId)?.GetRole(id) : null;
@@ -184,25 +207,33 @@ public class FeedService
             allowedMentions, card, flags: MessageFlags.ComponentsV2, tags: tags);
     }
 
-    /// <summary>The details read from the article page; <see cref="BlogPage.Empty"/> (a card of the feed item alone) when it can't be fetched or read.</summary>
-    private async Task<BlogPage> GetBlogPage(string url)
+    /// <summary>
+    /// The article page read: <see cref="Page"/> holds the details, or <see cref="BlogPage.Empty"/> (a card of the feed item alone) when
+    /// <see cref="Failure"/> says why it couldn't be fetched or read. <see cref="CanRetry"/> is false when another fetch can't help.
+    /// </summary>
+    private sealed record BlogPageResult(BlogPage Page, string? Failure = null, bool CanRetry = true);
+
+    private async Task<BlogPageResult> GetBlogPage(string url)
     {
         try
         {
             // The URL comes from the feed: only fetch pages of unity.com.
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps
                 || (uri.Host != "unity.com" && !uri.Host.EndsWith(".unity.com", StringComparison.Ordinal)))
-                throw new InvalidOperationException("The article is not a unity.com page.");
+                return new BlogPageResult(BlogPage.Empty, "not a unity.com page", CanRetry: false);
 
-            var page = BlogPageParser.Parse(await _webClient.GetContent(url));
-            if (page.IsEmpty)
-                throw new InvalidOperationException("Nothing could be read from the article page.");
-            return page;
+            var html = await _webClient.TryGetContent(url);
+            if (html == null)
+                return new BlogPageResult(BlogPage.Empty, "the request failed or the response was not a success status; see the console log for the HTTP status");
+
+            var page = BlogPageParser.Parse(html);
+            return page.IsEmpty
+                ? new BlogPageResult(BlogPage.Empty, $"nothing could be read from the {html.Length} characters of the page")
+                : new BlogPageResult(page);
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
-            await _logging.LogChannelAndFile($"[{ServiceName}] Could not read the blog page {url}: {e.Message}", ExtendedLogSeverity.Warning);
-            return BlogPage.Empty;
+            return new BlogPageResult(BlogPage.Empty, e.Message);
         }
     }
 

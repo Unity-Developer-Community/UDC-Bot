@@ -7,6 +7,9 @@ namespace DiscordBot.Utils;
 
 public class WebClient : IWebClient
 {
+    /// <summary>Sent with every request: some sites (and bot managers) treat clients without a User-Agent worse.</summary>
+    public const string UserAgent = "UDC-Bot/1.0 (+https://github.com/Unity-Developer-Community/UDC-Bot)";
+
     private readonly IHttpClientFactory _httpClientFactory;
 
     public WebClient(IHttpClientFactory httpClientFactory)
@@ -14,14 +17,22 @@ public class WebClient : IWebClient
         _httpClientFactory = httpClientFactory;
     }
 
+    private HttpClient CreateClient()
+    {
+        var client = _httpClientFactory.CreateClient();
+        client.DefaultRequestHeaders.UserAgent.TryParseAdd(UserAgent);
+        return client;
+    }
+
     /// <summary>
     /// Returns the content of a URL as a string, or an empty string if the request fails.
+    /// The body is returned whatever the HTTP status; <see cref="TryGetContent"/> rejects failed statuses.
     /// </summary>
     public async Task<string> GetContent(string url, CancellationToken cancellationToken = default)
     {
         try
         {
-            using var client = _httpClientFactory.CreateClient();
+            using var client = CreateClient();
             var response = await client.GetAsync(url, cancellationToken);
             return await response.Content.ReadAsStringAsync(cancellationToken);
         }
@@ -33,6 +44,33 @@ public class WebClient : IWebClient
         {
             LoggingService.LogToConsole($"[WebClient] Failed to get content from {url}: {e.Message}", ExtendedLogSeverity.LowWarning);
             return "";
+        }
+    }
+
+    /// <summary>
+    /// Returns the content of a URL, or null if the request fails or the response is not a success (2xx) status.
+    /// </summary>
+    public async Task<string?> TryGetContent(string url, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var client = CreateClient();
+            using var response = await client.GetAsync(url, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                LoggingService.LogToConsole($"[WebClient] {url}: HTTP {(int)response.StatusCode} {response.StatusCode}", ExtendedLogSeverity.LowWarning);
+                return null;
+            }
+            return await response.Content.ReadAsStringAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            LoggingService.LogToConsole($"[WebClient] Failed to get content from {url}: {e.Message}", ExtendedLogSeverity.LowWarning);
+            return null;
         }
     }
 

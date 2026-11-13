@@ -37,6 +37,22 @@ public class BlogPageParserTests
     }
 
     [Fact]
+    public void Parse_NumberedH3Page_WithoutTopicsTagsOrAuthorRole_KeepsTheRest()
+    {
+        var page = BlogPageParser.Parse(BlogFixtures.NumberedH3Page);
+
+        var author = Assert.Single(page.Authors);
+        Assert.Equal("Unity Team", author.Name);
+        Assert.Null(author.Role);
+        Assert.Empty(page.Topics);
+        Assert.Empty(page.Tags);
+        Assert.Equal(5, page.ReadMinutes);
+        Assert.Equal([BlogFixtures.Hero], page.Images.Select(i => i.Split('?')[0]));
+        Assert.Equal(8, page.Chapters.Count);
+        Assert.Equal("1. Step number 1", page.Chapters[0]);
+    }
+
+    [Fact]
     public void Parse_ChaptersAreCapped()
     {
         var headings = string.Concat(Enumerable.Range(1, 12).Select(i => $"<h2>Chapter {i}</h2>"));

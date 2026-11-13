@@ -53,4 +53,14 @@ public class BlogLinksTests
 
         Assert.Empty(pending);
     }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(5, true)]
+    [InlineData(6, false)]
+    [InlineData(7, false)]
+    public void DeferUnreadablePage_DefersBelowTheLimit_ThenPosts(int failedAttempts, bool defer)
+    {
+        Assert.Equal(defer, BlogLinks.DeferUnreadablePage(failedAttempts, 6));
+    }
 }

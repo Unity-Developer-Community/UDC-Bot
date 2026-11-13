@@ -70,6 +70,31 @@ public class UnityNewsBlogCardsTests
     }
 
     [Fact]
+    public void BlogCard_ChaptersAllNumbered_DropTheirOwnNumber_ButStillLinkToTheHeading()
+    {
+        var page = BlogPage.Empty with { Chapters = ["1. One", "2. Two"] };
+
+        var text = AuditLogCardsTests.Text(Card(page));
+
+        Assert.Contains("1. [One](https://unity.com/blog/how-seed-renders#:~:text=", text);
+        Assert.Contains("2. [Two](https://unity.com/blog/how-seed-renders#:~:text=", text);
+        Assert.DoesNotContain("[1. One]", text);
+        // The link still finds the heading with its number.
+        Assert.Contains("text=1.%20One", text);
+    }
+
+    [Fact]
+    public void BlogCard_ChaptersNotAllNumbered_KeepTheirText()
+    {
+        var page = BlogPage.Empty with { Chapters = ["1. One", "Two"] };
+
+        var text = AuditLogCardsTests.Text(Card(page));
+
+        Assert.Contains("1. [1. One](", text);
+        Assert.Contains("2. [Two](", text);
+    }
+
+    [Fact]
     public void BlogCard_NoRoleMeansNoMention()
     {
         Assert.DoesNotContain("<@&", AuditLogCardsTests.Text(Card(FullPage)));

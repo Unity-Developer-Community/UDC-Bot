@@ -112,8 +112,13 @@ public static class UnityNewsCards
         if (page.Chapters.Count >= 2)
         {
             var lines = new List<string> { "**In this post**" };
+            // Headings that carry their own list number ("1. Write…") would read "1. 1. Write…" in the numbered list.
+            var numbered = page.Chapters.All(c => LeadingListNumber.IsMatch(c));
             for (var i = 0; i < page.Chapters.Count; i++)
-                lines.Add($"{i + 1}. [{LinkLabel(page.Chapters[i], BlogChapterLabelLength)}]({LinkTarget(BlogLinks.ChapterUrl(url, page.Chapters[i]))})");
+            {
+                var label = numbered ? LeadingListNumber.Replace(page.Chapters[i], "") : page.Chapters[i];
+                lines.Add($"{i + 1}. [{LinkLabel(label, BlogChapterLabelLength)}]({LinkTarget(BlogLinks.ChapterUrl(url, page.Chapters[i]))})");
+            }
             container.WithTextDisplay(AuditCard.FitLines(lines, BlogChaptersBudget));
         }
 
@@ -146,6 +151,8 @@ public static class UnityNewsCards
             lines.Add("**Tags:** " + string.Join(" · ", page.Tags.Select(t => Safe(t))));
         return string.Join('\n', lines);
     }
+
+    private static readonly System.Text.RegularExpressions.Regex LeadingListNumber = new(@"^\s*\d+[.)]\s+", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private static string Collapse(string? text) => string.IsNullOrWhiteSpace(text) ? "" : System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
 
