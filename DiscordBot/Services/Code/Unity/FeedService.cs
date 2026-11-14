@@ -331,6 +331,51 @@ public class FeedService
         }
     }
 
+    /// <summary>How long the "card is just above" reply to <c>!blog</c> stays.</summary>
+    private static readonly TimeSpan BlogCommandReplyLifetime = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// <c>!blog</c>. In the discussion channel it posts the latest blog card (at once when it is still queued), unless the last card was
+    /// sent under <see cref="BlogDiscussion.RepostCooldown"/> ago or is among the channel's newest messages; then it points to that card.
+    /// Elsewhere, and before any blog post is known, it posts the small pointer card to the news channel.
+    /// </summary>
+    public async Task BlogCommandAsync(FeedData? feedData, IMessageChannel channel)
+    {
+        var latest = feedData?.LatestBlog;
+        if (feedData == null || latest == null || !DiscussionCardsOn || channel.Id != _settings.Channels.UnityDiscussion!.Id)
+        {
+            var pointer = UnityNewsCards.BlogPointerCard(_settings.Channels.UnityNews.Id, latest?.ForumPostUrl, latest?.PostedUtc);
+            await channel.SendMessageAsync(components: pointer, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
+            return;
+        }
+
+        await _discussionGate.WaitAsync();
+        try
+        {
+            // Someone asked for it, so a card still waiting for a quiet channel goes out now.
+            if (feedData.PendingDiscussionCards.Count > 0)
+            {
+                await SendQueuedDiscussionCards(feedData, channel);
+                return;
+            }
+
+            var recent = (await channel.GetMessagesAsync(BlogDiscussion.RepostRecentMessages).FlattenAsync()).Select(m => m.Id);
+            if (BlogDiscussion.RepostAllowed(DateTimeOffset.UtcNow, feedData.LastDiscussionCardUtc, feedData.LastDiscussionCardMessageId, recent))
+            {
+                await SendDiscussionCard(feedData, channel, latest);
+                return;
+            }
+
+            var lastCard = $"https://discord.com/channels/{_settings.GuildId}/{channel.Id}/{feedData.LastDiscussionCardMessageId}";
+            await channel.SendMessageAsync($"The latest blog post was shared {AuditLogCards.Timestamp(feedData.LastDiscussionCardUtc, 'R')}: {lastCard}",
+                allowedMentions: AllowedMentions.None).DeleteAfterSeconds(BlogCommandReplyLifetime.TotalSeconds)!;
+        }
+        finally
+        {
+            _discussionGate.Release();
+        }
+    }
+
     /// <summary>
     /// The article page read: <see cref="Page"/> holds the details, or <see cref="BlogPage.Empty"/> (a card of the feed item alone) when
     /// <see cref="Failure"/> says why it couldn't be fetched or read. <see cref="CanRetry"/> is false when another fetch can't help.

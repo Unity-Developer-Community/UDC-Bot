@@ -30,4 +30,28 @@ public class BlogDiscussionTests
         Assert.True(BlogDiscussion.CardDue(Now, Now - BlogDiscussion.MaxWait, Now.AddMinutes(-1)));
         Assert.False(BlogDiscussion.CardDue(Now, Now - BlogDiscussion.MaxWait + TimeSpan.FromMinutes(1), Now.AddMinutes(-1)));
     }
+
+    [Fact]
+    public void RepostAllowed_NoCardYet_IsAllowed()
+    {
+        Assert.True(BlogDiscussion.RepostAllowed(Now, default, 0, [1, 2, 3]));
+    }
+
+    [Fact]
+    public void RepostAllowed_WithinTheCooldown_IsRefused()
+    {
+        Assert.False(BlogDiscussion.RepostAllowed(Now, Now - BlogDiscussion.RepostCooldown + TimeSpan.FromMinutes(1), 42, []));
+    }
+
+    [Fact]
+    public void RepostAllowed_LastCardStillAmongTheNewestMessages_IsRefused()
+    {
+        Assert.False(BlogDiscussion.RepostAllowed(Now, Now.AddHours(-5), 42, [50, 42, 30]));
+    }
+
+    [Fact]
+    public void RepostAllowed_PastTheCooldownAndScrolledAway_IsAllowed()
+    {
+        Assert.True(BlogDiscussion.RepostAllowed(Now, Now - BlogDiscussion.RepostCooldown, 42, [50, 49, 48]));
+    }
 }

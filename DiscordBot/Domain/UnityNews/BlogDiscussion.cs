@@ -18,4 +18,17 @@ public static class BlogDiscussion
     /// </summary>
     public static bool CardDue(DateTimeOffset now, DateTimeOffset queuedAt, DateTimeOffset? lastHumanMessage) =>
         lastHumanMessage is not { } last || now - last >= IdleTime || now - queuedAt >= MaxWait;
+
+    /// <summary>How long after the last card <c>!blog</c> can post it again.</summary>
+    public static readonly TimeSpan RepostCooldown = TimeSpan.FromMinutes(60);
+
+    /// <summary><c>!blog</c> doesn't post the card again while the last one is among this many of the channel's newest messages.</summary>
+    public const int RepostRecentMessages = 10;
+
+    /// <summary>
+    /// True when <c>!blog</c> may post the latest card again: the last card (<paramref name="lastCardMessageId"/>, 0 when none) was sent at least
+    /// <see cref="RepostCooldown"/> ago and is not among <paramref name="recentMessageIds"/>, the channel's newest messages.
+    /// </summary>
+    public static bool RepostAllowed(DateTimeOffset now, DateTimeOffset lastCardAt, ulong lastCardMessageId, IEnumerable<ulong> recentMessageIds) =>
+        now - lastCardAt >= RepostCooldown && (lastCardMessageId == 0 || !recentMessageIds.Contains(lastCardMessageId));
 }

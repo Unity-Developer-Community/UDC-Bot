@@ -135,6 +135,28 @@ public class UnityNewsBlogCardsTests
         UnityNewsCards.BlogDiscussionCard("How SEED renders a world", BlogFixtures.ArticleUrl, description, images, ForumPostUrl);
 
     [Fact]
+    public void BlogPointerCard_NamesTheNewsChannel_AndLinksTheLatestPost_WithoutImagesOrButtons()
+    {
+        var posted = new DateTimeOffset(2026, 11, 10, 0, 0, 0, TimeSpan.Zero);
+        var card = UnityNewsCards.BlogPointerCard(1142423451383119975, ForumPostUrl, posted);
+        var text = AuditLogCardsTests.Text(card);
+
+        Assert.Contains("<#1142423451383119975>", text);
+        Assert.Contains($"[Latest blog post]({ForumPostUrl}) · <t:{posted.ToUnixTimeSeconds()}:R>", text);
+        Assert.Empty(Flatten(card.Components).OfType<MediaGalleryComponent>());
+        Assert.Empty(Flatten(card.Components).OfType<ButtonComponent>());
+    }
+
+    [Fact]
+    public void BlogPointerCard_NoKnownPost_LeavesTheLinkOut()
+    {
+        var text = AuditLogCardsTests.Text(UnityNewsCards.BlogPointerCard(1142423451383119975, null, null));
+
+        Assert.Contains("<#1142423451383119975>", text);
+        Assert.DoesNotContain("Latest blog post", text);
+    }
+
+    [Fact]
     public void BlogDiscussionCard_StartsWithTheTitleLink_AndHasTheDescription_NoRoleOrChapters()
     {
         var text = AuditLogCardsTests.Text(DiscussionCard(FullPage.Images));

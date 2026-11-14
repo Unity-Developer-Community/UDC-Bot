@@ -152,6 +152,23 @@ public static class UnityNewsCards
         return new ComponentBuilderV2().WithContainer(container).Build();
     }
 
+    /// <summary>
+    /// The small <c>!blog</c> card outside the discussion channel: where blog posts land and, when one is known, a link to the latest
+    /// forum post with when it was posted. No images, so it takes little room.
+    /// </summary>
+    public static MessageComponent BlogPointerCard(ulong newsChannelId, string? latestPostUrl, DateTimeOffset? latestPostedAt)
+    {
+        var text = $"**Unity blog** · new posts from unity.com, with read time and chapters, in <#{newsChannelId}>";
+        if (!string.IsNullOrEmpty(latestPostUrl))
+        {
+            text += $"\n[Latest blog post]({LinkTarget(latestPostUrl)})";
+            if (latestPostedAt is { } posted)
+                text += " · " + AuditLogCards.Timestamp(posted, 'R');
+        }
+        var container = new ContainerBuilder().WithAccentColor(BlogColor).WithTextDisplay(text);
+        return new ComponentBuilderV2().WithContainer(container).Build();
+    }
+
     private static string BlogMeta(DateTimeOffset published, BlogPage page)
     {
         var lines = new List<string>();

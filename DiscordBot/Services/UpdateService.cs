@@ -185,6 +185,9 @@ public class UpdateService
 
     public List<FaqData> GetFaqData() => _faqData;
 
+    /// <summary>The feed state; null if it couldn't be loaded.</summary>
+    public FeedData? GetFeedData() => _feedData;
+
     private string ManualPath => $"{_settings.ServerRootPath}/unitymanual.json";
     private string ApiPath => $"{_settings.ServerRootPath}/unityapi.json";
 
