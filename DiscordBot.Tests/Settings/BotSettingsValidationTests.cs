@@ -24,6 +24,7 @@ public class BotSettingsValidationTests
             GenericHelp = new ChannelInfo { Id = 9 },
             BirthdayAnnouncement = new ChannelInfo { Id = 10 },
             Meme = new ChannelInfo { Id = 11 },
+            UnityDiscussion = new ChannelInfo { Id = 12 },
         }
     };
 
@@ -223,7 +224,41 @@ public class BotSettingsValidationTests
 
         var summary = settings.FeatureSummary();
 
-        Assert.StartsWith("On: casino, username cards. Off: birthdays, image spam guard,", summary);
+        Assert.StartsWith("On: casino, username cards, blog discussion cards. Off: birthdays, image spam guard,", summary);
         Assert.EndsWith("display-name cards.", summary);
+    }
+
+    [Fact]
+    public void BlogDiscussionCard_NoChannel_Warns()
+    {
+        foreach (var channel in new ChannelInfo?[] { null, new ChannelInfo { Id = 0 } })
+        {
+            var settings = CreateValid();
+            settings.Channels.UnityDiscussion = channel;
+            var (errors, warnings) = settings.Validate();
+            Assert.Empty(errors);
+            Assert.Contains(warnings, w => w.Contains("UnityDiscussion is not configured"));
+        }
+    }
+
+    [Fact]
+    public void BlogDiscussionCard_Disabled_NoChannelIsFine()
+    {
+        var settings = CreateValid();
+        settings.Channels.UnityDiscussion = null;
+        settings.UnityNews.BlogDiscussionCard = false;
+
+        var (_, warnings) = settings.Validate();
+
+        Assert.DoesNotContain(warnings, w => w.Contains("UnityDiscussion"));
+        Assert.Contains("blog discussion cards", settings.FeatureSummary().Split("Off:")[1]);
+    }
+
+    [Fact]
+    public void ValidSettings_NoWarnings()
+    {
+        var (_, warnings) = CreateValid().Validate();
+        Assert.DoesNotContain(warnings, w => w.Contains("UnityDiscussion"));
+        Assert.True(new UnityNewsSettings().BlogDiscussionCard);
     }
 }

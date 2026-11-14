@@ -88,7 +88,8 @@ public static class UnityNewsCards
 
     /// <summary>
     /// The message of a blog post. <paramref name="page"/> may be <see cref="BlogPage.Empty"/> (the page could not be read), which gives a card of the
-    /// feed item alone. <paramref name="roleMention"/> (for example <c>&lt;@&amp;123&gt;</c>) is the first line; null adds none.
+    /// feed item alone. <paramref name="roleMention"/> (for example <c>&lt;@&amp;123&gt;</c>) is the first line, and the card gets a
+    /// "Subscribe / Unsubscribe" button for that role; null adds neither.
     /// </summary>
     public static MessageComponent BlogCard(string title, string url, string? description, DateTimeOffset published, BlogPage page, string? roleMention = null)
     {
@@ -112,12 +113,67 @@ public static class UnityNewsCards
         if (page.Chapters.Count >= 2)
         {
             var lines = new List<string> { "**In this post**" };
+            // Headings that carry their own list number ("1. Write…") would read "1. 1. Write…" in the numbered list.
+            var numbered = page.Chapters.All(c => LeadingListNumber.IsMatch(c));
             for (var i = 0; i < page.Chapters.Count; i++)
-                lines.Add($"{i + 1}. [{LinkLabel(page.Chapters[i], BlogChapterLabelLength)}]({LinkTarget(BlogLinks.ChapterUrl(url, page.Chapters[i]))})");
+            {
+                var label = numbered ? LeadingListNumber.Replace(page.Chapters[i], "") : page.Chapters[i];
+                lines.Add($"{i + 1}. [{LinkLabel(label, BlogChapterLabelLength)}]({LinkTarget(BlogLinks.ChapterUrl(url, page.Chapters[i]))})");
+            }
             container.WithTextDisplay(AuditCard.FitLines(lines, BlogChaptersBudget));
         }
 
-        container.WithActionRow(new ActionRowBuilder().WithButton(ButtonBuilder.CreateLinkButton("Read on unity.com", url)));
+        var actions = new ActionRowBuilder().WithButton(ButtonBuilder.CreateLinkButton("Read on unity.com", url));
+        // The button toggles the role the mention pings, so a card without a role has nothing to subscribe to.
+        if (roleMention != null)
+            actions.WithButton("Subscribe / Unsubscribe", SubscribeButtonId, ButtonStyle.Secondary);
+        container.WithActionRow(actions);
+        return new ComponentBuilderV2().WithContainer(container).Build();
+    }
+
+    /// <summary>Custom id of the blog card's button that adds or removes the news role; handled by <c>UnityNewsInteractiveModule</c>.</summary>
+    public const string SubscribeButtonId = "unity-news-subscribe";
+
+    private const int BlogDiscussionDescriptionLength = 600;
+
+    /// <summary>
+    /// The short card of a blog post for the discussion channel: the title linked to the article, the feed description, up to
+    /// <see cref="BlogPageParser.MaxImages"/> of <paramref name="images"/> and two link buttons, to the article and to <paramref name="forumPostUrl"/>.
+    /// No role mention.
+    /// </summary>
+    public static MessageComponent BlogDiscussionCard(string title, string url, string? description, IReadOnlyList<string> images, string forumPostUrl)
+    {
+        var container = new ContainerBuilder().WithAccentColor(BlogColor);
+        var text = new System.Text.StringBuilder();
+        text.Append("## [").Append(LinkLabel(title, 200)).Append("](").Append(LinkTarget(url)).Append(')');
+        var lede = Collapse(description);
+        if (lede.Length > 0)
+            text.Append('\n').Append(Safe(AuditCard.Fit(lede, BlogDiscussionDescriptionLength, "…")));
+        container.WithTextDisplay(AuditCard.Fit(text.ToString(), 1500));
+
+        if (images.Count > 0)
+            container.WithMediaGallery(images.Take(BlogPageParser.MaxImages).ToList());
+
+        container.WithActionRow(new ActionRowBuilder()
+            .WithButton(ButtonBuilder.CreateLinkButton("Read on unity.com", url))
+            .WithButton(ButtonBuilder.CreateLinkButton("Discuss in unity-news", forumPostUrl)));
+        return new ComponentBuilderV2().WithContainer(container).Build();
+    }
+
+    /// <summary>
+    /// The small <c>!blog</c> card outside the discussion channel: where blog posts land and, when one is known, a link to the latest
+    /// forum post with when it was posted. No images, so it takes little room.
+    /// </summary>
+    public static MessageComponent BlogPointerCard(ulong newsChannelId, string? latestPostUrl, DateTimeOffset? latestPostedAt)
+    {
+        var text = $"**Unity blog** · new posts from unity.com, with read time and chapters, in <#{newsChannelId}>";
+        if (!string.IsNullOrEmpty(latestPostUrl))
+        {
+            text += $"\n[Latest blog post]({LinkTarget(latestPostUrl)})";
+            if (latestPostedAt is { } posted)
+                text += " · " + AuditLogCards.Timestamp(posted, 'R');
+        }
+        var container = new ContainerBuilder().WithAccentColor(BlogColor).WithTextDisplay(text);
         return new ComponentBuilderV2().WithContainer(container).Build();
     }
 
@@ -146,6 +202,8 @@ public static class UnityNewsCards
             lines.Add("**Tags:** " + string.Join(" · ", page.Tags.Select(t => Safe(t))));
         return string.Join('\n', lines);
     }
+
+    private static readonly System.Text.RegularExpressions.Regex LeadingListNumber = new(@"^\s*\d+[.)]\s+", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private static string Collapse(string? text) => string.IsNullOrWhiteSpace(text) ? "" : System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim();
 

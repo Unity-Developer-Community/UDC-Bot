@@ -78,4 +78,21 @@ internal static class BlogFixtures
     public static readonly string NoFlightPage = Page("<h2>One</h2><p>" + Words(460) + "</p>", flight: "");
 
     public static readonly string NoMinutesPage = Page("<p>" + Words(920) + "</p>", flight: FlightScript(Header(minutes: null)));
+
+    private static object NumberedHeader() => new Dictionary<string, object?>
+    {
+        ["backButton"] = "$undefined",
+        ["title"] = "How to organize a game project with AI",
+        ["tags"] = "$undefined",
+        ["date"] = "Nov 10, 2026",
+        ["readDuration"] = new { minutes = 5, label = "Min" },
+        ["topics"] = "$undefined",
+        ["authors"] = new[] { new { name = "Unity Team", role = " ", company = " Unity Technologies", avatar = Avatar } },
+        ["heroImage"] = new { src = Hero },
+    };
+
+    /// <summary>The shape of a post that was once posted without details: h3 headings only, all numbered, no topics or tags, a blank author role, no body images.</summary>
+    public static readonly string NumberedH3Page = Page(
+        string.Concat(Enumerable.Range(1, 10).Select(n => $"<h3>{n}. Step number {n}</h3><p>{Words(60)}</p>")) + "<h3>Your turn</h3><p>" + Words(30) + "</p>",
+        flight: FlightScript(NumberedHeader()), authors: ["Unity Team"]);
 }

@@ -70,9 +70,54 @@ public class UnityNewsBlogCardsTests
     }
 
     [Fact]
+    public void BlogCard_ChaptersAllNumbered_DropTheirOwnNumber_ButStillLinkToTheHeading()
+    {
+        var page = BlogPage.Empty with { Chapters = ["1. One", "2. Two"] };
+
+        var text = AuditLogCardsTests.Text(Card(page));
+
+        Assert.Contains("1. [One](https://unity.com/blog/how-seed-renders#:~:text=", text);
+        Assert.Contains("2. [Two](https://unity.com/blog/how-seed-renders#:~:text=", text);
+        Assert.DoesNotContain("[1. One]", text);
+        // The link still finds the heading with its number.
+        Assert.Contains("text=1.%20One", text);
+    }
+
+    [Fact]
+    public void BlogCard_ChaptersNotAllNumbered_KeepTheirText()
+    {
+        var page = BlogPage.Empty with { Chapters = ["1. One", "Two"] };
+
+        var text = AuditLogCardsTests.Text(Card(page));
+
+        Assert.Contains("1. [1. One](", text);
+        Assert.Contains("2. [Two](", text);
+    }
+
+    [Fact]
     public void BlogCard_NoRoleMeansNoMention()
     {
         Assert.DoesNotContain("<@&", AuditLogCardsTests.Text(Card(FullPage)));
+    }
+
+    [Fact]
+    public void BlogCard_WithRole_HasTheSubscribeButton_NextToTheLinkButton()
+    {
+        var buttons = Flatten(Card(FullPage, "<@&123>").Components).OfType<ButtonComponent>().ToList();
+
+        Assert.Equal(2, buttons.Count);
+        Assert.Equal("Read on unity.com", buttons[0].Label);
+        Assert.Equal("Subscribe / Unsubscribe", buttons[1].Label);
+        Assert.Equal(UnityNewsCards.SubscribeButtonId, buttons[1].CustomId);
+        Assert.Null(buttons[1].Url);
+    }
+
+    [Fact]
+    public void BlogCard_WithoutRole_HasNoSubscribeButton()
+    {
+        var buttons = Flatten(Card(FullPage).Components).OfType<ButtonComponent>().ToList();
+
+        Assert.DoesNotContain(buttons, b => b.CustomId == UnityNewsCards.SubscribeButtonId);
     }
 
     [Fact]
@@ -102,6 +147,78 @@ public class UnityNewsBlogCardsTests
         var text = AuditLogCardsTests.Text(Card(page, "<@&123>", new string('d', 3000)));
 
         Assert.True(text.Length <= AuditCard.DiscordTextLimit);
+    }
+
+    private const string ForumPostUrl = "https://discord.com/channels/1/2";
+
+    private static MessageComponent DiscussionCard(IReadOnlyList<string> images, string? description = "Klang Games profiles real player-built societies.") =>
+        UnityNewsCards.BlogDiscussionCard("How SEED renders a world", BlogFixtures.ArticleUrl, description, images, ForumPostUrl);
+
+    [Fact]
+    public void BlogPointerCard_NamesTheNewsChannel_AndLinksTheLatestPost_WithoutImagesOrButtons()
+    {
+        var posted = new DateTimeOffset(2026, 11, 10, 0, 0, 0, TimeSpan.Zero);
+        var card = UnityNewsCards.BlogPointerCard(1142423451383119975, ForumPostUrl, posted);
+        var text = AuditLogCardsTests.Text(card);
+
+        Assert.Contains("<#1142423451383119975>", text);
+        Assert.Contains($"[Latest blog post]({ForumPostUrl}) · <t:{posted.ToUnixTimeSeconds()}:R>", text);
+        Assert.Empty(Flatten(card.Components).OfType<MediaGalleryComponent>());
+        Assert.Empty(Flatten(card.Components).OfType<ButtonComponent>());
+    }
+
+    [Fact]
+    public void BlogPointerCard_NoKnownPost_LeavesTheLinkOut()
+    {
+        var text = AuditLogCardsTests.Text(UnityNewsCards.BlogPointerCard(1142423451383119975, null, null));
+
+        Assert.Contains("<#1142423451383119975>", text);
+        Assert.DoesNotContain("Latest blog post", text);
+    }
+
+    [Fact]
+    public void BlogDiscussionCard_StartsWithTheTitleLink_AndHasTheDescription_NoRoleOrChapters()
+    {
+        var text = AuditLogCardsTests.Text(DiscussionCard(FullPage.Images));
+
+        Assert.StartsWith("## [How SEED renders a world](https://unity.com/blog/how-seed-renders)", text);
+        Assert.Contains("Klang Games profiles real player-built societies.", text);
+        Assert.DoesNotContain("<@&", text);
+        Assert.DoesNotContain("In this post", text);
+        Assert.DoesNotContain("min read", text);
+    }
+
+    [Fact]
+    public void BlogDiscussionCard_HasTwoLinkButtons()
+    {
+        var buttons = Flatten(DiscussionCard(FullPage.Images).Components).OfType<ButtonComponent>().ToList();
+
+        Assert.Equal(["Read on unity.com", "Discuss in unity-news"], buttons.Select(b => b.Label));
+        Assert.Equal([BlogFixtures.ArticleUrl, ForumPostUrl], buttons.Select(b => b.Url));
+    }
+
+    [Fact]
+    public void BlogDiscussionCard_GalleryHoldsTheImages_AndIsLeftOutWithNone()
+    {
+        var withImages = Flatten(DiscussionCard(FullPage.Images).Components).OfType<MediaGalleryComponent>().ToList();
+        var gallery = Assert.Single(withImages);
+        Assert.Equal(4, gallery.Items.Count);
+
+        var tooMany = Enumerable.Range(1, 6).Select(i => $"https://unity.com/{i}.png").ToList();
+        Assert.Equal(4, Assert.Single(Flatten(DiscussionCard(tooMany).Components).OfType<MediaGalleryComponent>()).Items.Count);
+
+        Assert.Empty(Flatten(DiscussionCard([]).Components).OfType<MediaGalleryComponent>());
+    }
+
+    [Fact]
+    public void BlogDiscussionCard_LongDescription_StaysWithinTheLimit_AndDefusesMentions()
+    {
+        var longText = AuditLogCardsTests.Text(DiscussionCard(FullPage.Images, new string('d', 5000)));
+        Assert.True(longText.Length <= AuditCard.DiscordTextLimit);
+
+        var text = AuditLogCardsTests.Text(DiscussionCard([], "ping @everyone <@123>"));
+        Assert.DoesNotContain("@everyone", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("<@", text, StringComparison.Ordinal);
     }
 
     [Fact]

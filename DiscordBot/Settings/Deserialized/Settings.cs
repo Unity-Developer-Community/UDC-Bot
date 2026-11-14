@@ -25,6 +25,7 @@ public class BotSettings
     public FunCommandSettings FunCommands { get; set; } = new();
     public ImageSpamGuardSettings ImageSpamGuard { get; set; } = new();
     public MemberLogSettings MemberLog { get; set; } = new();
+    public UnityNewsSettings UnityNews { get; set; } = new();
 
     /// <summary>For the startup report: <c>On: casino, birthdays. Off: recruitment.</c></summary>
     public string FeatureSummary()
@@ -39,6 +40,7 @@ public class BotSettings
             ("help-thread babysitter", UnityHelp.BabySitterEnabled),
             ("username cards", MemberLog.UsernameChanges),
             ("display-name cards", MemberLog.DisplayNameChanges),
+            ("blog discussion cards", UnityNews.BlogDiscussionCard),
         };
         static string List(IEnumerable<string> names) => names.Any() ? string.Join(", ", names) : "none";
         return $"On: {List(features.Where(f => f.On).Select(f => f.Name))}. Off: {List(features.Where(f => !f.On).Select(f => f.Name))}.";
@@ -71,6 +73,9 @@ public class BotSettings
 
         if (Birthday.Enabled)
             ValidateChannel(warnings, Channels.BirthdayAnnouncement, nameof(Channels.BirthdayAnnouncement));
+
+        if (UnityNews.BlogDiscussionCard && (Channels.UnityDiscussion is null || Channels.UnityDiscussion.Id == 0))
+            warnings.Add("UnityDiscussion is not configured; blog discussion cards are skipped");
 
         if (IntroductionWatch.Enabled && IntroductionWatch.DelayMinutes < 1)
             warnings.Add("IntroductionWatch.DelayMinutes is less than 1 — 1 minute will be used");
@@ -153,6 +158,9 @@ public class ChannelSettings
 
     /// <summary>Optional: the full image spam report. Falls back to <see cref="BotAnnouncement"/> when unset.</summary>
     public ChannelInfo? ModerationLog { get; set; }
+
+    /// <summary>Optional: a short card of each blog post, with a link to its forum post. Needs <see cref="UnityNewsSettings.BlogDiscussionCard"/>.</summary>
+    public ChannelInfo? UnityDiscussion { get; set; }
 
     public ulong ComplaintCategoryId { get; set; }
     public string ComplaintPrefix { get; set; } = string.Empty;
@@ -261,6 +269,12 @@ public class MemberLogSettings
     public bool UsernameChanges { get; set; } = true;
     /// <summary>Global display name and server nickname changes, which people make often.</summary>
     public bool DisplayNameChanges { get; set; } = false;
+}
+
+public class UnityNewsSettings
+{
+    /// <summary>After each blog forum post, a short card in <see cref="ChannelSettings.UnityDiscussion"/>.</summary>
+    public bool BlogDiscussionCard { get; set; } = true;
 }
 
 public class ChannelInfo

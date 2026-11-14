@@ -28,6 +28,7 @@ data:
                 "BotCommands": { "desc": "Bot-Commands Channel", "id": "493512044973260811" },
                 "UnityNews": { "desc": "Unity News Channel", "id": "1142423451383119975" },
                 "UnityReleases": { "desc": "Unity Releases Channel", "id": "1142423451383119975" },
+                "UnityDiscussion": { "desc": "Unity discussion channel", "id": "493511009256996875" },
                 "Rules": { "desc": "The Rules", "id": "519890141805019137" },
                 "Recruitment": { "desc": "Channel for job postings", "id": "1019677109171527750" },
                 "GenericHelp": { "desc": "Unity-Help Channel", "id": "1019663870798856212" },
