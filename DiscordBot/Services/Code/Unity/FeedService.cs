@@ -38,6 +38,9 @@ public class FeedService
     /// <summary>Failed reads of an item's article page, by item id; in memory, like <see cref="_blogFailures"/>.</summary>
     private readonly Dictionary<string, int> _blogPageFailures = new();
 
+    /// <summary>Serializes the changes to the blog card state in <see cref="FeedData"/>.</summary>
+    private readonly SemaphoreSlim _discussionGate = new(1, 1);
+
     #endregion // Blog Feed Config
 
     #region Release Feed Config
@@ -146,8 +149,6 @@ public class FeedService
                 return;
             }
 
-            var discussion = await ResolveDiscussionChannel();
-
             foreach (var item in pending)
             {
                 try
@@ -172,8 +173,7 @@ public class FeedService
                     _blogFailures.Remove(item.Id);
                     _blogPageFailures.Remove(item.Id);
 
-                    if (discussion != null)
-                        await PostDiscussionCard(discussion, item, fetched.Page, thread);
+                    await RecordBlogPost(feedData, item, fetched.Page, thread);
                 }
                 catch (Exception e) when (e is not OperationCanceledException)
                 {
@@ -217,36 +217,117 @@ public class FeedService
             allowedMentions, card, flags: MessageFlags.ComponentsV2, tags: tags);
     }
 
-    /// <summary>The channel for the blog discussion cards; null when the setting is off or the channel isn't there (one warning per check).</summary>
-    private async Task<IMessageChannel?> ResolveDiscussionChannel()
+    /// <summary>True when blog cards go to the discussion channel: the setting is on and a channel is set.</summary>
+    private bool DiscussionCardsOn => _settings.UnityNews.BlogDiscussionCard && (_settings.Channels.UnityDiscussion?.Id ?? 0) != 0;
+
+    /// <summary>
+    /// Remembers a forum post as the latest blog post and, when discussion cards are on, queues its card for
+    /// <see cref="DeliverDiscussionCardsAsync"/>, which waits for the discussion channel to go quiet.
+    /// </summary>
+    private async Task RecordBlogPost(FeedData feedData, SyndicationItem item, BlogPage page, IThreadChannel thread)
     {
-        if (!_settings.UnityNews.BlogDiscussionCard)
-            return null;
+        var card = new BlogCardData
+        {
+            Id = item.Id,
+            Title = item.Title?.Text ?? item.Id,
+            Url = BlogUrl(item),
+            Description = BlogDescription(item),
+            Images = page.Images.ToList(),
+            ForumPostUrl = $"https://discord.com/channels/{_settings.GuildId}/{thread.Id}",
+            PostedUtc = DateTimeOffset.UtcNow,
+        };
 
-        var id = _settings.Channels.UnityDiscussion?.Id ?? 0;
-        if (id != 0 && _client.GetChannel(id) is IMessageChannel channel)
-            return channel;
-
-        await _logging.LogAction($"[{ServiceName}] The blog discussion channel {id} was not found; discussion cards are skipped this check", ExtendedLogSeverity.Warning);
-        return null;
+        await _discussionGate.WaitAsync();
+        try
+        {
+            feedData.LatestBlog = card;
+            if (DiscussionCardsOn)
+                feedData.PendingDiscussionCards.Add(card);
+        }
+        finally
+        {
+            _discussionGate.Release();
+        }
     }
 
     /// <summary>
-    /// The short card of a blog post in the discussion channel. Posted after the forum post exists; a failure is logged and not retried,
-    /// because the forum post is the record.
+    /// Posts the queued blog cards to the discussion channel once no one has talked there for <see cref="BlogDiscussion.IdleTime"/>
+    /// (or a card has waited <see cref="BlogDiscussion.MaxWait"/>), so a card doesn't cut into a conversation. Runs every feed loop.
     /// </summary>
-    private async Task PostDiscussionCard(IMessageChannel discussion, SyndicationItem item, BlogPage page, IThreadChannel thread)
+    public async Task DeliverDiscussionCardsAsync(FeedData feedData)
     {
-        var title = item.Title?.Text ?? item.Id;
+        if (feedData.PendingDiscussionCards.Count == 0)
+            return;
+
+        await _discussionGate.WaitAsync();
         try
         {
-            var card = UnityNewsCards.BlogDiscussionCard(title, BlogUrl(item), BlogDescription(item), page.Images,
-                $"https://discord.com/channels/{_settings.GuildId}/{thread.Id}");
-            await discussion.SendMessageAsync(components: card, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
+            if (feedData.PendingDiscussionCards.Count == 0)
+                return;
+
+            var channel = DiscussionCardsOn ? _client.GetChannel(_settings.Channels.UnityDiscussion!.Id) as IMessageChannel : null;
+            if (channel == null)
+            {
+                await _logging.LogAction($"[{ServiceName}] Blog discussion cards are off or their channel was not found; dropping {feedData.PendingDiscussionCards.Count} queued card(s)", ExtendedLogSeverity.Warning);
+                feedData.PendingDiscussionCards.Clear();
+                return;
+            }
+
+            var queuedAt = feedData.PendingDiscussionCards.Min(c => c.PostedUtc);
+            if (!BlogDiscussion.CardDue(DateTimeOffset.UtcNow, queuedAt, await LastHumanMessageAt(channel)))
+                return;
+
+            await SendQueuedDiscussionCards(feedData, channel);
+        }
+        finally
+        {
+            _discussionGate.Release();
+        }
+    }
+
+    /// <summary>When a human last wrote among the channel's newest messages; null when none did, or the history can't be read (then the card is posted).</summary>
+    private async Task<DateTimeOffset?> LastHumanMessageAt(IMessageChannel channel)
+    {
+        try
+        {
+            var messages = await channel.GetMessagesAsync(BlogDiscussion.HistoryScanLimit).FlattenAsync();
+            return messages.Where(m => !m.Author.IsBot && !m.Author.IsWebhook)
+                .Select(m => (DateTimeOffset?)m.Timestamp)
+                .Max();
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
-            await _logging.LogAction($"[{ServiceName}] Could not post the discussion card for '{title}': {e.Message}", ExtendedLogSeverity.Warning);
+            await _logging.LogAction($"[{ServiceName}] Could not read the discussion channel's history, so the blog card is posted without waiting: {e.Message}", ExtendedLogSeverity.Warning);
+            return null;
+        }
+    }
+
+    /// <summary>Sends every queued card, oldest first, and empties the queue. Call inside <see cref="_discussionGate"/>.</summary>
+    private async Task SendQueuedDiscussionCards(FeedData feedData, IMessageChannel channel)
+    {
+        foreach (var card in feedData.PendingDiscussionCards.ToList())
+        {
+            await SendDiscussionCard(feedData, channel, card);
+            feedData.PendingDiscussionCards.Remove(card);
+        }
+    }
+
+    /// <summary>
+    /// Sends one blog card to the discussion channel and remembers it as the last one. A failure is logged and not retried,
+    /// because the forum post is the record. Call inside <see cref="_discussionGate"/>.
+    /// </summary>
+    private async Task SendDiscussionCard(FeedData feedData, IMessageChannel channel, BlogCardData card)
+    {
+        try
+        {
+            var components = UnityNewsCards.BlogDiscussionCard(card.Title, card.Url, card.Description, card.Images, card.ForumPostUrl);
+            var message = await channel.SendMessageAsync(components: components, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
+            feedData.LastDiscussionCardMessageId = message.Id;
+            feedData.LastDiscussionCardUtc = DateTimeOffset.UtcNow;
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            await _logging.LogAction($"[{ServiceName}] Could not post the discussion card for '{card.Title}': {e.Message}", ExtendedLogSeverity.Warning);
         }
     }
 

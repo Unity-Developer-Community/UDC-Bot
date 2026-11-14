@@ -57,6 +57,16 @@ public class FeedData
     /// <summary>Release post state per stream, keyed by <see cref="UnityStream"/> name.</summary>
     public Dictionary<string, ReleaseStreamState> ReleaseStreams { get; set; }
 
+    /// <summary>The newest blog post made, for <c>!blog</c>; null until the first one after this field was added.</summary>
+    public BlogCardData? LatestBlog { get; set; }
+
+    /// <summary>Blog cards waiting for the discussion channel to go quiet, oldest first.</summary>
+    public List<BlogCardData> PendingDiscussionCards { get; set; } = new();
+
+    /// <summary>The last blog card sent to the discussion channel (0 when none yet), and when (UTC).</summary>
+    public ulong LastDiscussionCardMessageId { get; set; }
+    public DateTimeOffset LastDiscussionCardUtc { get; set; }
+
     /// <summary>Remembers an id as posted and drops the oldest ones beyond <see cref="MaxPostedIds"/>.</summary>
     public void AddPostedId(string id)
     {
@@ -64,6 +74,22 @@ public class FeedData
         if (PostedIds.Count > MaxPostedIds)
             PostedIds.RemoveRange(0, PostedIds.Count - MaxPostedIds);
     }
+}
+
+/// <summary>A posted blog article, as its discussion card and the <c>!blog</c> pointer need it.</summary>
+public class BlogCardData
+{
+    public string Id { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public List<string> Images { get; set; } = new();
+
+    /// <summary>The forum post in the news channel.</summary>
+    public string ForumPostUrl { get; set; } = string.Empty;
+
+    /// <summary>When the forum post was made (UTC).</summary>
+    public DateTimeOffset PostedUtc { get; set; }
 }
 
 //TODO Download all avatars to cache them
@@ -268,6 +294,8 @@ public class UpdateService
 
                             await _feedService.CheckUnityBlogAsync(_feedData);
                         }
+
+                        await _feedService.DeliverDiscussionCardsAsync(_feedData);
                     }
                 }
                 catch (Exception e) when (e is not OperationCanceledException)
