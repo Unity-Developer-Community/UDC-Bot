@@ -101,6 +101,26 @@ public class UnityNewsBlogCardsTests
     }
 
     [Fact]
+    public void BlogCard_WithRole_HasTheSubscribeButton_NextToTheLinkButton()
+    {
+        var buttons = Flatten(Card(FullPage, "<@&123>").Components).OfType<ButtonComponent>().ToList();
+
+        Assert.Equal(2, buttons.Count);
+        Assert.Equal("Read on unity.com", buttons[0].Label);
+        Assert.Equal("Subscribe / Unsubscribe", buttons[1].Label);
+        Assert.Equal(UnityNewsCards.SubscribeButtonId, buttons[1].CustomId);
+        Assert.Null(buttons[1].Url);
+    }
+
+    [Fact]
+    public void BlogCard_WithoutRole_HasNoSubscribeButton()
+    {
+        var buttons = Flatten(Card(FullPage).Components).OfType<ButtonComponent>().ToList();
+
+        Assert.DoesNotContain(buttons, b => b.CustomId == UnityNewsCards.SubscribeButtonId);
+    }
+
+    [Fact]
     public void BlogCard_DefusesMentionsAndBracketsFromThePage()
     {
         var page = new BlogPage { Chapters = ["Hello @everyone [x]", "<@123> two"], Authors = [new BlogAuthor("@here", "<@&5>")] };

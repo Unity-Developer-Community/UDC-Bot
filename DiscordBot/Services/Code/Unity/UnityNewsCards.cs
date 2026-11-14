@@ -88,7 +88,8 @@ public static class UnityNewsCards
 
     /// <summary>
     /// The message of a blog post. <paramref name="page"/> may be <see cref="BlogPage.Empty"/> (the page could not be read), which gives a card of the
-    /// feed item alone. <paramref name="roleMention"/> (for example <c>&lt;@&amp;123&gt;</c>) is the first line; null adds none.
+    /// feed item alone. <paramref name="roleMention"/> (for example <c>&lt;@&amp;123&gt;</c>) is the first line, and the card gets a
+    /// "Subscribe / Unsubscribe" button for that role; null adds neither.
     /// </summary>
     public static MessageComponent BlogCard(string title, string url, string? description, DateTimeOffset published, BlogPage page, string? roleMention = null)
     {
@@ -122,9 +123,16 @@ public static class UnityNewsCards
             container.WithTextDisplay(AuditCard.FitLines(lines, BlogChaptersBudget));
         }
 
-        container.WithActionRow(new ActionRowBuilder().WithButton(ButtonBuilder.CreateLinkButton("Read on unity.com", url)));
+        var actions = new ActionRowBuilder().WithButton(ButtonBuilder.CreateLinkButton("Read on unity.com", url));
+        // The button toggles the role the mention pings, so a card without a role has nothing to subscribe to.
+        if (roleMention != null)
+            actions.WithButton("Subscribe / Unsubscribe", SubscribeButtonId, ButtonStyle.Secondary);
+        container.WithActionRow(actions);
         return new ComponentBuilderV2().WithContainer(container).Build();
     }
+
+    /// <summary>Custom id of the blog card's button that adds or removes the news role; handled by <c>UnityNewsInteractiveModule</c>.</summary>
+    public const string SubscribeButtonId = "unity-news-subscribe";
 
     private const int BlogDiscussionDescriptionLength = 600;
 

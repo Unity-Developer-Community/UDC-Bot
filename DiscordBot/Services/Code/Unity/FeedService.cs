@@ -510,6 +510,34 @@ public class FeedService
 
     #region Public Feed Actions
 
+    /// <summary>
+    /// Adds the blog news role (<see cref="RoleSettings.SubsNews"/>) to a member who lacks it and removes it from one who has it,
+    /// for the "Subscribe / Unsubscribe" button of a blog card. Returns what to tell the member; nothing is posted.
+    /// </summary>
+    public async Task<string> ToggleNewsRoleAsync(IGuildUser user)
+    {
+        var role = _client.GetGuild(_settings.GuildId)?.GetRole(_settings.Roles.SubsNews);
+        if (role == null)
+            return "The blog role isn't set up on this server.";
+
+        try
+        {
+            if (user.RoleIds.Contains(role.Id))
+            {
+                await user.RemoveRoleAsync(role);
+                return $"You're unsubscribed: you won't be pinged for new Unity blog posts (**{role.Name}** removed).";
+            }
+
+            await user.AddRoleAsync(role);
+            return $"You're subscribed: you'll be pinged for new Unity blog posts (**{role.Name}** added).";
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            await _logging.LogAction($"[{ServiceName}] Could not toggle the news role {role.Id} for {user.Id}: {e.Message}", ExtendedLogSeverity.Warning);
+            return "I couldn't change your role. Please try again later or ask a moderator.";
+        }
+    }
+
     /// <summary>Checks every Unity release stream and posts what its schedule says is due.</summary>
     public async Task CheckUnityReleasesAsync(FeedData feedData)
     {
