@@ -103,5 +103,11 @@
 
   "UnityNews": {
     "BlogDiscussionCard": true
+  },
+
+  "AuditLog": {
+    "CommandCleanupBots": [
+      { "Prefix": "w!", "BotId": 536991182035746816 }
+    ]
   }
 }

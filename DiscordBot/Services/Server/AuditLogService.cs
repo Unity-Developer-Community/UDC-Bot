@@ -18,6 +18,11 @@ public class AuditLogService
     private readonly ConcurrentDictionary<ulong, DateTimeOffset> _uncachedEditsLogged = new();
     private int _auditLogWarned;
 
+    // Another bot's audit-log entry can show up a moment after the delete event.
+    private static readonly TimeSpan CleanupAuditDelay = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan CleanupAuditRetryDelay = TimeSpan.FromSeconds(3);
+    private readonly BotCleanupDetector _cleanupDetector = new();
+
     private readonly LogChannels _logChannels;
 
     public AuditLogService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService, BotDeletionRegistry botDeletions, LogChannels logChannels)
@@ -59,8 +64,65 @@ public class AuditLogService
         if (deleted.Author.IsBot || deleted.Channel is not IGuildChannel guildChannel)
             return;
 
-        var card = AuditLogCards.DeletedMessageCard(ToDeletedMessage(deleted, guildChannel.Guild), DateTimeOffset.UtcNow);
+        var deletedAt = DateTimeOffset.UtcNow;
+        var cleanupBot = _settings.AuditLog.EffectiveCommandCleanupBots.FirstOrDefault(b =>
+            b.BotId != 0 && !string.IsNullOrWhiteSpace(b.Prefix) && deleted.Content.StartsWith(b.Prefix, StringComparison.OrdinalIgnoreCase));
+        if (cleanupBot != null && guildChannel.Guild is SocketGuild guild)
+        {
+            // The audit-log check waits a few seconds, so don't hold up the gateway.
+            LogUnlessBotCleanup(deleted, guildChannel, guild, cleanupBot.BotId, deletedAt).SafeFireAndForget(nameof(MessageDeleted));
+            return;
+        }
+
+        await LogDeletedMessage(deleted, guildChannel, deletedAt);
+    }
+
+    private async Task LogDeletedMessage(IMessage deleted, IGuildChannel guildChannel, DateTimeOffset deletedAt)
+    {
+        var card = AuditLogCards.DeletedMessageCard(ToDeletedMessage(deleted, guildChannel.Guild), deletedAt);
         await _loggingService.LogComponentsToChannel(card, topic: LogTopic.MessageAudit);
+    }
+
+    /// <summary>Posts the deleted-message card unless the audit log shows <paramref name="botId"/> deleted it (its own command clean-up).</summary>
+    private async Task LogUnlessBotCleanup(IMessage deleted, IGuildChannel guildChannel, SocketGuild guild, ulong botId, DateTimeOffset deletedAt)
+    {
+        if (await DeletedByBot(guild, botId, deleted.Author.Id, guildChannel.Id))
+            return;
+        await LogDeletedMessage(deleted, guildChannel, deletedAt);
+    }
+
+    private async Task<bool> DeletedByBot(SocketGuild guild, ulong botId, ulong authorId, ulong channelId)
+    {
+        // Without View Audit Log the card is posted as before (the thread-delete check warns about the permission).
+        if (!guild.CurrentUser.GuildPermissions.ViewAuditLog)
+            return false;
+
+        try
+        {
+            await Task.Delay(CleanupAuditDelay);
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                if (attempt > 0)
+                    await Task.Delay(CleanupAuditRetryDelay);
+                var entries = (await guild.GetAuditLogsAsync(10, userId: botId, actionType: ActionType.MessageDeleted).FlattenAsync())
+                    .Where(e => e.Data is MessageDeleteAuditLogData && e.User != null)
+                    .Select(e =>
+                    {
+                        var data = (MessageDeleteAuditLogData)e.Data;
+                        return new BotCleanupDetector.Entry(e.Id, e.User.Id, data.Target?.Id ?? 0, data.ChannelId, data.MessageCount, e.CreatedAt);
+                    })
+                    .ToList();
+                if (_cleanupDetector.TryMatch(botId, authorId, channelId, entries, DateTimeOffset.UtcNow))
+                    return true;
+            }
+            return false;
+        }
+        catch (Exception e)
+        {
+            // Never lose a card over the audit log: post it as if no bot had deleted the message.
+            LoggingService.LogToConsole($"[{nameof(AuditLogService)}] Couldn't check the audit log for a bot clean-up: {e.Message}", LogSeverity.Warning);
+            return false;
+        }
     }
 
     private async Task MessagesBulkDeleted(IReadOnlyCollection<Cacheable<IMessage, ulong>> messages, Cacheable<IMessageChannel, ulong> channel)

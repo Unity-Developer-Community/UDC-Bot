@@ -1,11 +1,13 @@
 using Discord.Commands;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 
 namespace DiscordBot.Modules.Code;
 
 [Group("UserModule"), Alias("")]
 public class CodeTipModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     public CodeCheckService CodeCheckService { get; set; } = null!;
 
     [Command("CodeTip"), Priority(20)]
@@ -16,7 +18,7 @@ public class CodeTipModule : ModuleBase
         var message = user != null ? user.Mention + ", " : "";
         message += "When posting code, format it like so:" + Environment.NewLine;
         message += CodeCheckService.CodeFormattingExample;
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
         await ReplyAsync(message).DeleteAfterSeconds(seconds: 60)!;
     }
 
@@ -24,7 +26,7 @@ public class CodeTipModule : ModuleBase
     [Summary("Stops code formatting reminders.")]
     public async Task DisableCodeTips()
     {
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
         if (!CodeCheckService.CodeReminderCooldown.IsPermanent(Context.User.Id))
         {
             CodeCheckService.CodeReminderCooldown.SetPermanent(Context.User.Id, true);

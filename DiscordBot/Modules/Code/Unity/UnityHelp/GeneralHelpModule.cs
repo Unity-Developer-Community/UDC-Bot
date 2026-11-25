@@ -1,5 +1,6 @@
 using Discord.Commands;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
 using HtmlAgilityPack;
@@ -8,6 +9,7 @@ namespace DiscordBot.Modules.Code.Unity.UnityHelp;
 
 public class GeneralHelpModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     #region Dependency Injection
 
     public BotSettings BotSettings { get; set; } = null!;
@@ -83,6 +85,6 @@ public class GeneralHelpModule : ModuleBase
     private async Task respondFailure(string errorMessage)
     {
         await (ReplyAsync(errorMessage).DeleteAfterSeconds(30) ?? Task.CompletedTask);
-        await (Context.Message?.DeleteAfterSeconds(30) ?? Task.CompletedTask);
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions, TimeSpan.FromSeconds(30));
     }
 }

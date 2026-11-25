@@ -2,6 +2,7 @@ using System.Text;
 using Discord.Commands;
 using Discord.WebSocket;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 using DiscordBot.Attributes;
 
@@ -10,6 +11,7 @@ namespace DiscordBot.Modules.Server;
 [Group("UserModule"), Alias("")]
 public class RulesModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     public WelcomeService WelcomeService { get; set; } = null!;
     public UpdateService UpdateService { get; set; } = null!;
     public Rules Rules { get; set; } = null!;
@@ -19,7 +21,7 @@ public class RulesModule : ModuleBase
     public async Task RulesCommand()
     {
         await RulesCommand(Context.Channel);
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
     }
 
     [Command("Rules"), Priority(99)]
@@ -42,7 +44,7 @@ public class RulesModule : ModuleBase
     {
         var globalRules = Rules.Channel.First(x => x.Id == 0).Content;
         var dm = await Context.User.CreateDMChannelAsync();
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
         if (!await dm.TrySendMessage(globalRules))
         {
             await ReplyAsync("Could not send rules, your DMs are disabled.").DeleteAfterSeconds(seconds: 10)!;
@@ -57,7 +59,7 @@ public class RulesModule : ModuleBase
         {
             await ReplyAsync("Could not send welcome, your DMs are disabled.").DeleteAfterSeconds(seconds: 2)!;
         }
-        await Context.Message.DeleteAfterSeconds(seconds: 4)!;
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions, TimeSpan.FromSeconds(4));
     }
 
     [Command("Channels"), Priority(92)]
@@ -72,7 +74,7 @@ public class RulesModule : ModuleBase
         var dm = await Context.User.CreateDMChannelAsync();
 
         var messages = sb.ToString().MessageSplitToSize();
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
         foreach (var message in messages)
         {
             if (!await dm.TrySendMessage(message))

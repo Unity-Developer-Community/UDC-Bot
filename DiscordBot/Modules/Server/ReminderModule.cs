@@ -1,6 +1,7 @@
 using Discord.Commands;
 using Discord.WebSocket;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 using DiscordBot.Attributes;
 using System.Text.RegularExpressions;
@@ -10,6 +11,7 @@ namespace DiscordBot.Modules.Server;
 [Group("UserModule"), Alias("")]
 public class ReminderModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     #region Dependency Injection
 
     public ReminderService ReminderService { get; set; } = null!;
@@ -141,7 +143,7 @@ public class ReminderModule : ModuleBase
     [Summary("Check user reminders.")]
     public async Task Reminders(IUser user)
     {
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
         var reminders = ReminderService.GetUserReminders(user.Id);
         if (reminders.Count == 0)
         {
@@ -173,7 +175,7 @@ public class ReminderModule : ModuleBase
     [Summary("Clears user reminders.")]
     public async Task RemoveReminders(IUser user, int index = 0)
     {
-        await (Context.Message?.DeleteAfterSeconds(seconds: 1) ?? Task.CompletedTask);
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions, TimeSpan.FromSeconds(1));
         int removedReminders = ReminderService.RemoveReminders(user, index);
         if (removedReminders == 0)
             return;

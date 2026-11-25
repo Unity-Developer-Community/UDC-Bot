@@ -1,6 +1,7 @@
 using Discord.Commands;
 using DiscordBot.Attributes;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 
 // ReSharper disable all UnusedMember.Local
@@ -8,6 +9,7 @@ namespace DiscordBot.Modules.Server;
 
 public class TicketModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     #region Dependency Injection
 
     public CommandHandlingService CommandHandlingService { get; set; } = null!;
@@ -22,7 +24,7 @@ public class TicketModule : ModuleBase
     [Command("Complain"), Alias("complains", "complaint"), Summary("Opens a private channel to complain.")]
     public async Task Complaint()
     {
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
 
         var categoryExist = (await Context.Guild.GetCategoriesAsync()).Any(category => category.Id == Settings.Channels.ComplaintCategoryId);
 
@@ -64,7 +66,7 @@ public class TicketModule : ModuleBase
     [RequireModerator]
     public async Task Close()
     {
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
 
         if (!Context.Channel.Name.StartsWith(Settings.Channels.ComplaintPrefix.ToLower())) return;
 
@@ -96,7 +98,7 @@ public class TicketModule : ModuleBase
     [RequireAdmin]
     private async Task Delete()
     {
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
 
         if (Context.Channel.Name.StartsWith(Settings.Channels.ComplaintPrefix.ToLower()) ||
             Context.Channel.Name.StartsWith(Settings.Channels.ClosedComplaintPrefix.ToLower()))

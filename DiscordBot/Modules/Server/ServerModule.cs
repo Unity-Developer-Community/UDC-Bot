@@ -1,6 +1,7 @@
 using Discord.Commands;
 using DiscordBot.Attributes;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 
 namespace DiscordBot.Modules.Server;
@@ -8,6 +9,7 @@ namespace DiscordBot.Modules.Server;
 [Group("UserModule"), Alias("")]
 public class ServerModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     public CommandHandlingService CommandHandlingService { get; set; } = null!;
     public ServerService ServerService { get; set; } = null!;
     public BotSettings Settings { get; set; } = null!;
@@ -39,7 +41,7 @@ public class ServerModule : ModuleBase
                 await ReplyAsync(message);
             }
         }
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
     }
 
     [Command("Ping"), Priority(98)]
@@ -53,7 +55,7 @@ public class ServerModule : ModuleBase
             m.Content = $"Pong (**{time.TotalMilliseconds}** *ms* / gateway **{ServerService.GetGatewayPing()}** *ms*)");
         await message.DeleteAfterTime(seconds: 10)!;
 
-        await Context.Message.DeleteAfterTime(seconds: 5)!;
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions, TimeSpan.FromSeconds(5));
     }
 
     [Command("Members"), Priority(90)]

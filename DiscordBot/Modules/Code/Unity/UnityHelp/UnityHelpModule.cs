@@ -2,12 +2,14 @@ using Discord.Commands;
 using Discord.WebSocket;
 using DiscordBot.Attributes;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 
 namespace DiscordBot.Modules.Code.Unity.UnityHelp;
 
 public class UnityHelpModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     #region Dependency Injection
 
     public UnityHelpService HelpService { get; set; } = null!;
@@ -22,7 +24,7 @@ public class UnityHelpModule : ModuleBase
         if (!BotSettings.UnityHelp.BabySitterEnabled)
             return;
         if (!IsValidUser() || !IsInHelpChannel())
-            await Context.Message.DeleteAsync();
+            await Context.Message.DeleteCommandMessageAsync(BotDeletions);
         await HelpService.OnUserRequestChannelClose(Context.User, (Context.Channel as SocketThreadChannel)!);
     }
 

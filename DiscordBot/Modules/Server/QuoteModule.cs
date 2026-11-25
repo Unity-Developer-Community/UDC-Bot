@@ -1,12 +1,14 @@
 using System.Text.RegularExpressions;
 using Discord.Commands;
 using DiscordBot.Attributes;
+using DiscordBot.Services.Moderation;
 
 namespace DiscordBot.Modules.Server;
 
 [Group("UserModule"), Alias("")]
 public class QuoteModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     [Command("Quote"), HideFromHelp]
     public async Task QuoteMessageCommand(IMessageChannel channel, ulong messageId)
     {
@@ -38,13 +40,13 @@ public class QuoteModule : ModuleBase
         var message = await channel.GetMessageAsync(messageId);
         if (message == null)
         {
-            await (Context.Message?.DeleteAfterSeconds(seconds: 1) ?? Task.CompletedTask);
+            await Context.Message.DeleteCommandMessageAsync(BotDeletions, TimeSpan.FromSeconds(1));
             await (ReplyAsync("No message with that id found.").DeleteAfterSeconds(seconds: 4) ?? Task.CompletedTask);
             return;
         }
         if (message.Author.IsBot)
         {
-            await (Context.Message?.DeleteAfterSeconds(seconds: 2) ?? Task.CompletedTask);
+            await Context.Message.DeleteCommandMessageAsync(BotDeletions, TimeSpan.FromSeconds(2));
             return;
         }
 
@@ -78,6 +80,6 @@ public class QuoteModule : ModuleBase
         builder.Description = msgContent;
 
         await ReplyAsync(embed: builder.Build());
-        await (Context.Message?.DeleteAfterSeconds(1.0) ?? Task.CompletedTask);
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions, TimeSpan.FromSeconds(1.0));
     }
 }
