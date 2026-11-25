@@ -26,7 +26,18 @@ public static class MemberLogCards
         bool DefaultAvatar = false,
         bool Rejoined = false,
         bool PendingScreening = false,
-        bool QuarantinedUsername = false);
+        bool QuarantinedUsername = false)
+    {
+        /// <summary>A member who joined pending has finished screening since.</summary>
+        public bool ScreeningDone { get; init; }
+        /// <summary>How long screening took, when the bot saw it finish; null when it only noticed later.</summary>
+        public TimeSpan? ScreeningTook { get; init; }
+        /// <summary>Still pending at the re-check <see cref="ScreeningRecheckAfter"/> after joining.</summary>
+        public bool StillPending { get; init; }
+    }
+
+    /// <summary>When a join card is checked again for screening and the join source.</summary>
+    public static readonly TimeSpan ScreeningRecheckAfter = TimeSpan.FromMinutes(5);
 
     /// <summary>Join card. <paramref name="joinSourceLine"/> comes from <see cref="JoinSourceLine"/> once Discord tells us.</summary>
     public static MessageComponent JoinedCard(JoinedMember member, string? joinSourceLine = null)
@@ -40,7 +51,7 @@ public static class MemberLogCards
         if (member.IsBot) flags.Add("Bot");
         if (member.DefaultAvatar) flags.Add("Default avatar");
         if (member.Rejoined) flags.Add("Rejoined");
-        if (member.PendingScreening) flags.Add("Pending screening");
+        if (member.PendingScreening) flags.Add(ScreeningFlag(member));
         if (member.QuarantinedUsername) flags.Add("Quarantined username");
 
         return new AuditCard(JoinedColor)
@@ -50,6 +61,13 @@ public static class MemberLogCards
                 joinSourceLine ?? "")
             .WithFooter($"Joined {AuditLogCards.Timestamp(member.JoinedAt)}")
             .Build();
+    }
+
+    private static string ScreeningFlag(JoinedMember member)
+    {
+        if (member.ScreeningDone)
+            return member.ScreeningTook is { } took ? $"Screening done after {StayDuration(took)}" : "Screening done";
+        return member.StillPending ? $"Pending screening ({ScreeningRecheckAfter.TotalMinutes:0}+ min)" : "Pending screening";
     }
 
     /// <summary>How the member joined, or null when Discord doesn't say.</summary>

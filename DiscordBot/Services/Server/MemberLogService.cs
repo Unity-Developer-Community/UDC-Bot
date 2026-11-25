@@ -24,6 +24,21 @@ public class MemberLogService
     private readonly ILoggingService _loggingService;
     private readonly LogChannels _logChannels;
 
+    // Join cards are edited when screening finishes or the re-check finds something new; kept this long.
+    private static readonly TimeSpan JoinCardTracking = TimeSpan.FromMinutes(15);
+
+    private sealed class JoinCard(IUserMessage message, MemberLogCards.JoinedMember member, DateTimeOffset expires)
+    {
+        public IUserMessage Message { get; } = message;
+        public MemberLogCards.JoinedMember Member { get; set; } = member;
+        public string? SourceLine { get; set; }
+        public DateTimeOffset Expires { get; } = expires;
+    }
+
+    // Guarded by _joinCardLock, which also serialises the edits so two updates can't race.
+    private readonly Dictionary<ulong, JoinCard> _joinCards = new();
+    private readonly SemaphoreSlim _joinCardLock = new(1, 1);
+
     private readonly NameChangeTracker _nameChanges = new();
     private readonly SemaphoreSlim _nameChangeLock = new(1, 1);
 
@@ -71,22 +86,151 @@ public class MemberLogService
             $"User Joined - `{user.GetPreferredAndUsername()}` - ID : `{user.Id}`");
         if (message == null)
             return;
+        await TrackJoinCard(user.Id, message, member);
 
         var sourceLine = await FindJoinSourceLine(user.Guild, user.Id);
-        if (sourceLine == null)
-            return;
+        if (sourceLine != null)
+            await UpdateJoinCard(user.Id, card =>
+            {
+                if (card.SourceLine != null)
+                    return false;
+                card.SourceLine = sourceLine;
+                return true;
+            });
+
+        // Screening often takes a few minutes and members search can lag: look again once.
+        var recheckIn = member.JoinedAt + MemberLogCards.ScreeningRecheckAfter - DateTimeOffset.UtcNow;
+        if (recheckIn > TimeSpan.Zero)
+            await Task.Delay(recheckIn);
+        await RecheckJoin(user.Guild, user.Id);
+    }
+
+    private async Task TrackJoinCard(ulong userId, IUserMessage message, MemberLogCards.JoinedMember member)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await _joinCardLock.WaitAsync();
         try
         {
-            await message.ModifyAsync(m =>
+            foreach (var (id, card) in _joinCards.Where(c => c.Value.Expires <= now).ToList())
+                _joinCards.Remove(id);
+            _joinCards[userId] = new JoinCard(message, member, now + JoinCardTracking);
+        }
+        finally
+        {
+            _joinCardLock.Release();
+        }
+    }
+
+    /// <summary>Applies <paramref name="change"/> to a tracked join card and edits the message when it returns true.</summary>
+    private async Task UpdateJoinCard(ulong userId, Func<JoinCard, bool> change)
+    {
+        await _joinCardLock.WaitAsync();
+        try
+        {
+            if (!_joinCards.TryGetValue(userId, out var card) || card.Expires <= DateTimeOffset.UtcNow || !change(card))
+                return;
+            await card.Message.ModifyAsync(m =>
             {
-                m.Components = MemberLogCards.JoinedCard(member, sourceLine);
+                m.Components = MemberLogCards.JoinedCard(card.Member, card.SourceLine);
                 m.Flags = MessageFlags.ComponentsV2;
                 m.AllowedMentions = AllowedMentions.None;
             });
         }
         catch (Exception e)
         {
-            LoggingService.LogToConsole($"[{nameof(MemberLogService)}] Couldn't add the join source to the join card: {e.Message}", LogSeverity.Warning);
+            LoggingService.LogToConsole($"[{nameof(MemberLogService)}] Couldn't update the join card: {e.Message}", LogSeverity.Warning);
+        }
+        finally
+        {
+            _joinCardLock.Release();
+        }
+    }
+
+    private async Task<JoinCard?> TrackedJoinCard(ulong userId)
+    {
+        await _joinCardLock.WaitAsync();
+        try
+        {
+            return _joinCards.TryGetValue(userId, out var card) && card.Expires > DateTimeOffset.UtcNow ? card : null;
+        }
+        finally
+        {
+            _joinCardLock.Release();
+        }
+    }
+
+    /// <summary>A member whose join card says pending finished screening: show how long it took.</summary>
+    private async Task ScreeningDone(SocketGuildUser member)
+    {
+        var tracked = await TrackedJoinCard(member.Id);
+        if (tracked == null || !tracked.Member.PendingScreening || tracked.Member.ScreeningDone)
+            return;
+
+        var doneAt = DateTimeOffset.UtcNow;
+        var source = tracked.SourceLine == null ? await SearchJoinSourceOnce(member.Guild, member.Id) : null;
+        await UpdateJoinCard(member.Id, card =>
+        {
+            if (card.Member.ScreeningDone)
+                return false;
+            card.Member = card.Member with { ScreeningDone = true, ScreeningTook = doneAt - card.Member.JoinedAt, StillPending = false };
+            card.SourceLine ??= source;
+            return true;
+        });
+    }
+
+    /// <summary>
+    /// <see cref="MemberLogCards.ScreeningRecheckAfter"/> after a join: marks a member still pending (or done, when the
+    /// update event was missed) and searches the join source again if it is still unknown.
+    /// </summary>
+    private async Task RecheckJoin(SocketGuild guild, ulong userId)
+    {
+        var tracked = await TrackedJoinCard(userId);
+        if (tracked == null)
+            return;
+        var member = guild.GetUser(userId);
+        if (member == null)
+            return;
+
+        var source = tracked.SourceLine == null ? await SearchJoinSourceOnce(guild, userId) : null;
+        var pending = member.IsPending == true;
+        await UpdateJoinCard(userId, card =>
+        {
+            var changed = false;
+            if (card.Member.PendingScreening && !card.Member.ScreeningDone)
+            {
+                if (pending && !card.Member.StillPending)
+                {
+                    card.Member = card.Member with { StillPending = true };
+                    changed = true;
+                }
+                else if (!pending)
+                {
+                    card.Member = card.Member with { ScreeningDone = true, StillPending = false };
+                    changed = true;
+                }
+            }
+            if (card.SourceLine == null && source != null)
+            {
+                card.SourceLine = source;
+                changed = true;
+            }
+            return changed;
+        });
+    }
+
+    /// <summary>One members-search lookup of the join source line; null when Discord doesn't say or the search fails.</summary>
+    private async Task<string?> SearchJoinSourceOnce(SocketGuild guild, ulong userId)
+    {
+        try
+        {
+            return await SearchMember(guild, userId) is { } found
+                ? MemberLogCards.JoinSourceLine(found.JoinSourceType, found.SourceInviteCode, found.InviterId)
+                : null;
+        }
+        catch (Exception e)
+        {
+            LoggingService.LogToConsole($"[{nameof(MemberLogService)}] Join source re-check failed: {e.Message}", LogSeverity.Warning);
+            return null;
         }
     }
 
@@ -218,6 +362,10 @@ public class MemberLogService
 
     private async Task GuildMemberUpdated(Cacheable<SocketGuildUser, ulong> before, SocketGuildUser after)
     {
+        // Screening is checked before the "before" guard: the member was often not cached as pending.
+        if (after.IsPending == false && after.Guild.Id == _settings.GuildId)
+            ScreeningDone(after).SafeFireAndForget(nameof(ScreeningDone));
+
         // Never download "before": that returns the current state, so the change would be missed.
         if (!before.HasValue || after.IsBot || after.Guild.Id != _settings.GuildId)
             return;

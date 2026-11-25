@@ -61,6 +61,37 @@ public class MemberLogCardsTests
     }
 
     [Fact]
+    public void JoinedCard_ScreeningDone_ReplacesPendingWithDuration()
+    {
+        var member = Joined(TimeSpan.FromDays(400)) with { PendingScreening = true, ScreeningDone = true, ScreeningTook = TimeSpan.FromSeconds(130) };
+        var text = Text(JoinedCard(member));
+        Assert.Contains("Flags: Screening done after 2m", text);
+        Assert.DoesNotContain("Pending screening", text);
+    }
+
+    [Fact]
+    public void JoinedCard_ScreeningDoneUnknownTime_NoDuration()
+    {
+        var member = Joined(TimeSpan.FromDays(400)) with { PendingScreening = true, ScreeningDone = true };
+        Assert.Contains("Flags: Screening done", Text(JoinedCard(member)));
+        Assert.DoesNotContain("after", Text(JoinedCard(member)));
+    }
+
+    [Fact]
+    public void JoinedCard_StillPendingAtRecheck_SaysHowLong()
+    {
+        var member = Joined(TimeSpan.FromDays(400)) with { PendingScreening = true, StillPending = true };
+        Assert.Contains("Flags: Pending screening (5+ min)", Text(JoinedCard(member)));
+    }
+
+    [Fact]
+    public void JoinedCard_NotPending_ScreeningFieldsIgnored()
+    {
+        var member = Joined(TimeSpan.FromDays(400)) with { ScreeningDone = true, StillPending = true };
+        Assert.DoesNotContain("Flags:", Text(JoinedCard(member)));
+    }
+
+    [Fact]
     public void JoinedCard_WithJoinSource_ShowsLine()
     {
         var line = JoinSourceLine(JoinSourceType.InviteCode, "abc123", 42);
