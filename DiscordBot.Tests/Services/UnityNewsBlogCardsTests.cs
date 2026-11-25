@@ -234,6 +234,42 @@ public class UnityNewsBlogCardsTests
     }
 
     [Fact]
+    public void BlogCard_WithShareKey_HasTheShareButton()
+    {
+        var key = UnityNewsCards.ShareKey("https://unity.com/blog/how-seed-renders");
+        var card = UnityNewsCards.BlogCard("How SEED renders a world", BlogFixtures.ArticleUrl, null, DateTimeOffset.UnixEpoch, FullPage, "<@&123>", key);
+        var buttons = Flatten(card.Components).OfType<ButtonComponent>().ToList();
+
+        Assert.Equal(["Read on unity.com", "Subscribe / Unsubscribe", "Share to #unity-discussion"], buttons.Select(b => b.Label));
+        Assert.Equal(UnityNewsCards.ShareButtonPrefix + key, buttons[2].CustomId);
+    }
+
+    [Fact]
+    public void BlogCard_WithoutShareKey_NoShareButton()
+    {
+        var buttons = Flatten(Card(FullPage, "<@&123>").Components).OfType<ButtonComponent>();
+        Assert.DoesNotContain(buttons, b => b.CustomId?.StartsWith(UnityNewsCards.ShareButtonPrefix) == true);
+    }
+
+    [Fact]
+    public void ShareKey_IsShortStableAndDistinct()
+    {
+        var a = UnityNewsCards.ShareKey("https://unity.com/blog/" + new string('a', 300));
+        Assert.Equal(16, a.Length);
+        Assert.Equal(a, UnityNewsCards.ShareKey("https://unity.com/blog/" + new string('a', 300)));
+        Assert.NotEqual(a, UnityNewsCards.ShareKey("https://unity.com/blog/other"));
+        Assert.True((UnityNewsCards.ShareButtonPrefix + a).Length <= 100);
+    }
+
+    [Fact]
+    public void BlogDiscussionCard_SharedBy_NamesTheMember()
+    {
+        var card = UnityNewsCards.BlogDiscussionCard("How SEED renders a world", BlogFixtures.ArticleUrl, null, FullPage.Images, ForumPostUrl, 42);
+        Assert.Contains("-# Shared by <@42>", AuditLogCardsTests.Text(card));
+        Assert.DoesNotContain("Shared by", AuditLogCardsTests.Text(DiscussionCard(FullPage.Images)));
+    }
+
+    [Fact]
     public void BlogTagNames_AreOnlyTheBlogTag()
     {
         Assert.Equal(["Unity Blog"], UnityNewsCards.BlogTagNames());
