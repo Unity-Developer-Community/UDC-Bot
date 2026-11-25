@@ -31,4 +31,45 @@ public static class BlogDiscussion
     /// </summary>
     public static bool RepostAllowed(DateTimeOffset now, DateTimeOffset lastCardAt, ulong lastCardMessageId, IEnumerable<ulong> recentMessageIds) =>
         now - lastCardAt >= RepostCooldown && (lastCardMessageId == 0 || !recentMessageIds.Contains(lastCardMessageId));
+
+    /// <summary>The least time between two cards in the discussion channel, shared ones included.</summary>
+    public static readonly TimeSpan MinGap = TimeSpan.FromHours(4);
+
+    /// <summary>A queued card this old is dropped: the post has had its day, and anyone could have shared it from the news channel.</summary>
+    public static readonly TimeSpan MaxCardAge = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// The paced delivery of queued cards: <c>Expired</c> are queued at least <see cref="MaxCardAge"/> ago and are dropped; <c>Next</c>
+    /// is the oldest other card when it can go out now, or null. A card waits <see cref="MinGap"/> after the last card
+    /// (<paramref name="lastCardAt"/>, default when none), then for a quiet channel as in <see cref="CardDue"/>, counted from when the gap
+    /// ended or it was queued, whichever is later.
+    /// </summary>
+    public static (IReadOnlyList<T> Expired, T? Next) NextCard<T>(DateTimeOffset now, IEnumerable<T> queue, Func<T, DateTimeOffset> queuedAt,
+        DateTimeOffset lastCardAt, DateTimeOffset? lastHumanMessage) where T : class
+    {
+        var expired = new List<T>();
+        var live = new List<T>();
+        foreach (var card in queue)
+            (now - queuedAt(card) >= MaxCardAge ? expired : live).Add(card);
+
+        var gapEnds = lastCardAt == default ? DateTimeOffset.MinValue : lastCardAt + MinGap;
+        var oldest = live.OrderBy(queuedAt).FirstOrDefault();
+        if (oldest == null || now < gapEnds)
+            return (expired, null);
+
+        var waitingSince = queuedAt(oldest) > gapEnds ? queuedAt(oldest) : gapEnds;
+        return (expired, CardDue(now, waitingSince, lastHumanMessage) ? oldest : null);
+    }
+
+    /// <summary>
+    /// True when the last card (<paramref name="lastCardMessageId"/>, 0 when none) should be deleted as the next one is posted: it is
+    /// among <paramref name="recentMessages"/>, the channel's newest messages, and no human wrote after it, so nobody is talking about it.
+    /// </summary>
+    public static bool ShouldReplace(ulong lastCardMessageId, IEnumerable<(ulong Id, bool Human)> recentMessages)
+    {
+        if (lastCardMessageId == 0)
+            return false;
+        var recent = recentMessages.ToList();
+        return recent.Any(m => m.Id == lastCardMessageId) && !recent.Any(m => m.Human && m.Id > lastCardMessageId);
+    }
 }

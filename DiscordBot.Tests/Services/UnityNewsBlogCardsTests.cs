@@ -181,7 +181,7 @@ public class UnityNewsBlogCardsTests
     {
         var text = AuditLogCardsTests.Text(DiscussionCard(FullPage.Images));
 
-        Assert.StartsWith("## [How SEED renders a world](https://unity.com/blog/how-seed-renders)", text);
+        Assert.StartsWith("### [How SEED renders a world](https://unity.com/blog/how-seed-renders)", text);
         Assert.Contains("Klang Games profiles real player-built societies.", text);
         Assert.DoesNotContain("<@&", text);
         Assert.DoesNotContain("In this post", text);
@@ -198,16 +198,28 @@ public class UnityNewsBlogCardsTests
     }
 
     [Fact]
-    public void BlogDiscussionCard_GalleryHoldsTheImages_AndIsLeftOutWithNone()
+    public void BlogDiscussionCard_FirstImageIsAThumbnail_NoGallery()
     {
-        var withImages = Flatten(DiscussionCard(FullPage.Images).Components).OfType<MediaGalleryComponent>().ToList();
-        var gallery = Assert.Single(withImages);
-        Assert.Equal(4, gallery.Items.Count);
+        var card = DiscussionCard(FullPage.Images);
+        Assert.Empty(Flatten(card.Components).OfType<MediaGalleryComponent>());
+        var section = Assert.Single(Flatten(card.Components).OfType<SectionComponent>());
+        var thumbnail = Assert.IsType<ThumbnailComponent>(section.Accessory);
+        Assert.Equal(FullPage.Images[0], thumbnail.Media.Url);
+    }
 
-        var tooMany = Enumerable.Range(1, 6).Select(i => $"https://unity.com/{i}.png").ToList();
-        Assert.Equal(4, Assert.Single(Flatten(DiscussionCard(tooMany).Components).OfType<MediaGalleryComponent>()).Items.Count);
+    [Fact]
+    public void BlogDiscussionCard_NoImages_PlainText()
+    {
+        var card = DiscussionCard([]);
+        Assert.Empty(Flatten(card.Components).OfType<SectionComponent>());
+        Assert.StartsWith("### [How SEED", AuditLogCardsTests.Text(card));
+    }
 
-        Assert.Empty(Flatten(DiscussionCard([]).Components).OfType<MediaGalleryComponent>());
+    [Fact]
+    public void BlogDiscussionCard_LongDescription_IsShortened()
+    {
+        var text = AuditLogCardsTests.Text(DiscussionCard(FullPage.Images, new string('d', 5000)));
+        Assert.True(text.Length < 450);
     }
 
     [Fact]

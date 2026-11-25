@@ -102,7 +102,11 @@
   },
 
   "UnityNews": {
-    "BlogDiscussionCard": true
+    "BlogDiscussionCard": true,
+    "DiscussionFilter": {
+      "BlockedTopics": ["AI", "AI features", "CLI", "Monetization", "User acquisition", "Advertising", "Ads"],
+      "BlockedTitleWords": ["AI", "vibe code", "vibe coding", "CLI", "LLM", "agentic", "monetization", "monetize", "advertising", "advertisers", "ads", "ad revenue", "user acquisition", "marketing", "marketers"]
+    }
   },
 
   "AuditLog": {

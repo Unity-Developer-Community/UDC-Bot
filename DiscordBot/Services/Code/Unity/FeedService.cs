@@ -3,6 +3,7 @@ using System.ServiceModel.Syndication;
 using System.Xml;
 using Discord.WebSocket;
 using DiscordBot.Domain.UnityNews;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Services.Server;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
@@ -17,6 +18,7 @@ public class FeedService
     private readonly BotSettings _settings;
     private readonly ILoggingService _logging;
     private readonly IWebClient _webClient;
+    private readonly BotDeletionRegistry _botDeletions;
 
     #region Configurable Settings
 
@@ -59,8 +61,9 @@ public class FeedService
 
     #endregion // Configurable Settings
 
-    public FeedService(DiscordSocketClient client, BotSettings settings, ILoggingService logging, IWebClient webClient)
+    public FeedService(DiscordSocketClient client, BotSettings settings, ILoggingService logging, IWebClient webClient, BotDeletionRegistry botDeletions)
     {
+        _botDeletions = botDeletions;
         _client = client;
         _settings = settings;
         _logging = logging;
@@ -221,8 +224,8 @@ public class FeedService
     private bool DiscussionCardsOn => _settings.UnityNews.BlogDiscussionCard && (_settings.Channels.UnityDiscussion?.Id ?? 0) != 0;
 
     /// <summary>
-    /// Remembers a forum post as the latest blog post and, when discussion cards are on, queues its card for
-    /// <see cref="DeliverDiscussionCardsAsync"/>, which waits for the discussion channel to go quiet.
+    /// Remembers a forum post as the latest blog post and, when discussion cards are on and <see cref="BlogDiscussionFilter"/> lets the
+    /// post through, queues its card for <see cref="DeliverDiscussionCardsAsync"/>, which paces the cards.
     /// </summary>
     private async Task RecordBlogPost(FeedData feedData, SyndicationItem item, BlogPage page, IThreadChannel thread)
     {
@@ -237,22 +240,29 @@ public class FeedService
             PostedUtc = DateTimeOffset.UtcNow,
         };
 
+        var filter = _settings.UnityNews.DiscussionFilter;
+        var excludedBy = BlogDiscussionFilter.ExcludedBy(card.Title, page.Topics, page.Tags, filter.EffectiveBlockedTopics, filter.EffectiveBlockedTitleWords);
+
         await _discussionGate.WaitAsync();
         try
         {
             feedData.LatestBlog = card;
-            if (DiscussionCardsOn)
+            if (DiscussionCardsOn && excludedBy == null)
                 feedData.PendingDiscussionCards.Add(card);
         }
         finally
         {
             _discussionGate.Release();
         }
+
+        if (DiscussionCardsOn && excludedBy != null)
+            await _logging.LogAction($"[{ServiceName}] No discussion card for '{card.Title}': {excludedBy}", ExtendedLogSeverity.Info);
     }
 
     /// <summary>
-    /// Posts the queued blog cards to the discussion channel once no one has talked there for <see cref="BlogDiscussion.IdleTime"/>
-    /// (or a card has waited <see cref="BlogDiscussion.MaxWait"/>), so a card doesn't cut into a conversation. Runs every feed loop.
+    /// Posts the next queued blog card to the discussion channel when <see cref="BlogDiscussion.NextCard"/> says so: at least
+    /// <see cref="BlogDiscussion.MinGap"/> after the last card, once the channel is quiet, oldest first, one per run. Cards queued
+    /// <see cref="BlogDiscussion.MaxCardAge"/> ago are dropped. Runs every feed loop.
     /// </summary>
     public async Task DeliverDiscussionCardsAsync(FeedData feedData)
     {
@@ -273,11 +283,23 @@ public class FeedService
                 return;
             }
 
-            var queuedAt = feedData.PendingDiscussionCards.Min(c => c.PostedUtc);
-            if (!BlogDiscussion.CardDue(DateTimeOffset.UtcNow, queuedAt, await LastHumanMessageAt(channel)))
+            // Without the channel's history first: when nothing could go out even in a silent channel, don't read it.
+            var now = DateTimeOffset.UtcNow;
+            var (expired, next) = BlogDiscussion.NextCard(now, feedData.PendingDiscussionCards, c => c.PostedUtc, feedData.LastDiscussionCardUtc, null);
+            foreach (var card in expired)
+            {
+                feedData.PendingDiscussionCards.Remove(card);
+                await _logging.LogAction($"[{ServiceName}] Dropped the discussion card for '{card.Title}': still queued after {BlogDiscussion.MaxCardAge.TotalHours:0} hours", ExtendedLogSeverity.Info);
+            }
+            if (next == null)
                 return;
 
-            await SendQueuedDiscussionCards(feedData, channel);
+            var history = await RecentDiscussionMessages(channel);
+            (_, next) = BlogDiscussion.NextCard(now, feedData.PendingDiscussionCards, c => c.PostedUtc, feedData.LastDiscussionCardUtc, LastHumanMessageAt(history));
+            if (next == null)
+                return;
+
+            await SendDiscussionCard(feedData, channel, next, history);
         }
         finally
         {
@@ -285,15 +307,14 @@ public class FeedService
         }
     }
 
-    /// <summary>When a human last wrote among the channel's newest messages; null when none did, or the history can't be read (then the card is posted).</summary>
-    private async Task<DateTimeOffset?> LastHumanMessageAt(IMessageChannel channel)
+    private static bool IsHuman(IMessage message) => !message.Author.IsBot && !message.Author.IsWebhook;
+
+    /// <summary>The channel's newest messages, or null when they can't be read (then a card is posted without waiting and nothing is replaced).</summary>
+    private async Task<IReadOnlyList<IMessage>?> RecentDiscussionMessages(IMessageChannel channel)
     {
         try
         {
-            var messages = await channel.GetMessagesAsync(BlogDiscussion.HistoryScanLimit).FlattenAsync();
-            return messages.Where(m => !m.Author.IsBot && !m.Author.IsWebhook)
-                .Select(m => (DateTimeOffset?)m.Timestamp)
-                .Max();
+            return (await channel.GetMessagesAsync(BlogDiscussion.HistoryScanLimit).FlattenAsync()).ToList();
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
@@ -302,24 +323,21 @@ public class FeedService
         }
     }
 
-    /// <summary>Sends every queued card, oldest first, and empties the queue. Call inside <see cref="_discussionGate"/>.</summary>
-    private async Task SendQueuedDiscussionCards(FeedData feedData, IMessageChannel channel)
-    {
-        foreach (var card in feedData.PendingDiscussionCards.ToList())
-        {
-            await SendDiscussionCard(feedData, channel, card);
-            feedData.PendingDiscussionCards.Remove(card);
-        }
-    }
+    /// <summary>When a human last wrote among <paramref name="history"/>; null when none did or it couldn't be read.</summary>
+    private static DateTimeOffset? LastHumanMessageAt(IReadOnlyList<IMessage>? history) =>
+        history?.Where(IsHuman).Select(m => (DateTimeOffset?)m.Timestamp).Max();
 
     /// <summary>
-    /// Sends one blog card to the discussion channel and remembers it as the last one. A failure is logged and not retried,
-    /// because the forum post is the record. Call inside <see cref="_discussionGate"/>.
+    /// Sends one blog card to the discussion channel and remembers it as the last one, after deleting the previous card when nobody
+    /// wrote after it (<see cref="BlogDiscussion.ShouldReplace"/>, judged from <paramref name="history"/>). The post leaves the queue.
+    /// A failure is logged and not retried, because the forum post is the record. Call inside <see cref="_discussionGate"/>.
     /// </summary>
-    private async Task SendDiscussionCard(FeedData feedData, IMessageChannel channel, BlogCardData card)
+    private async Task SendDiscussionCard(FeedData feedData, IMessageChannel channel, BlogCardData card, IReadOnlyList<IMessage>? history)
     {
+        feedData.PendingDiscussionCards.RemoveAll(c => c.Id == card.Id);
         try
         {
+            await ReplaceUnansweredCard(feedData, channel, history);
             var components = UnityNewsCards.BlogDiscussionCard(card.Title, card.Url, card.Description, card.Images, card.ForumPostUrl);
             var message = await channel.SendMessageAsync(components: components, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
             feedData.LastDiscussionCardMessageId = message.Id;
@@ -331,13 +349,33 @@ public class FeedService
         }
     }
 
+    /// <summary>Deletes the last card when nobody has written after it, so unanswered cards don't stack up. Never throws.</summary>
+    private async Task ReplaceUnansweredCard(FeedData feedData, IMessageChannel channel, IReadOnlyList<IMessage>? history)
+    {
+        var lastCardId = feedData.LastDiscussionCardMessageId;
+        if (history == null || !BlogDiscussion.ShouldReplace(lastCardId, history.Select(m => (m.Id, IsHuman(m)))))
+            return;
+
+        // The audit log would otherwise post a card for it when it isn't cached.
+        _botDeletions.Register([lastCardId], DateTimeOffset.UtcNow);
+        try
+        {
+            await channel.DeleteMessageAsync(lastCardId);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // Already gone (404) is fine; anything else only means two cards stay.
+            LoggingService.LogToConsole($"[{ServiceName}] Could not delete the unanswered discussion card {lastCardId}: {e.Message}", LogSeverity.Warning);
+        }
+    }
+
     /// <summary>How long the "card is just above" reply to <c>!blog</c> stays.</summary>
     private static readonly TimeSpan BlogCommandReplyLifetime = TimeSpan.FromSeconds(15);
 
     /// <summary>
-    /// <c>!blog</c>. In the discussion channel it posts the latest blog card (at once when it is still queued), unless the last card was
-    /// sent under <see cref="BlogDiscussion.RepostCooldown"/> ago or is among the channel's newest messages; then it points to that card.
-    /// Elsewhere, and before any blog post is known, it posts the small pointer card to the news channel.
+    /// <c>!blog</c>. In the discussion channel it posts the latest blog card (taking it out of the queue if it is waiting there), unless
+    /// the last card was sent under <see cref="BlogDiscussion.RepostCooldown"/> ago or is among the channel's newest messages; then it
+    /// points to that card. Elsewhere, and before any blog post is known, it posts the small pointer card to the news channel.
     /// </summary>
     public async Task BlogCommandAsync(FeedData? feedData, IMessageChannel channel)
     {
@@ -352,17 +390,11 @@ public class FeedService
         await _discussionGate.WaitAsync();
         try
         {
-            // Someone asked for it, so a card still waiting for a quiet channel goes out now.
-            if (feedData.PendingDiscussionCards.Count > 0)
-            {
-                await SendQueuedDiscussionCards(feedData, channel);
-                return;
-            }
-
-            var recent = (await channel.GetMessagesAsync(BlogDiscussion.RepostRecentMessages).FlattenAsync()).Select(m => m.Id);
+            var history = await RecentDiscussionMessages(channel);
+            var recent = (history ?? []).OrderByDescending(m => m.Id).Take(BlogDiscussion.RepostRecentMessages).Select(m => m.Id);
             if (BlogDiscussion.RepostAllowed(DateTimeOffset.UtcNow, feedData.LastDiscussionCardUtc, feedData.LastDiscussionCardMessageId, recent))
             {
-                await SendDiscussionCard(feedData, channel, latest);
+                await SendDiscussionCard(feedData, channel, latest, history);
                 return;
             }
 

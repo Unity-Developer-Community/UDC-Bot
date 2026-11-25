@@ -302,6 +302,21 @@ public class UnityNewsSettings
 {
     /// <summary>After each blog forum post, a short card in <see cref="ChannelSettings.UnityDiscussion"/>.</summary>
     public bool BlogDiscussionCard { get; set; } = true;
+
+    /// <summary>Which blog posts get a discussion card; every post still goes to the news channel.</summary>
+    public BlogDiscussionFilterSettings DiscussionFilter { get; set; } = new();
+}
+
+public class BlogDiscussionFilterSettings
+{
+    /// <summary>Article topics or tags that keep a post out. Null uses <see cref="Domain.UnityNews.BlogDiscussionFilter.DefaultBlockedTopics"/>.</summary>
+    public List<string>? BlockedTopics { get; set; }
+
+    /// <summary>Whole words or phrases in the title that keep a post out. Null uses <see cref="Domain.UnityNews.BlogDiscussionFilter.DefaultBlockedTitleWords"/>.</summary>
+    public List<string>? BlockedTitleWords { get; set; }
+
+    public IReadOnlyList<string> EffectiveBlockedTopics => BlockedTopics ?? Domain.UnityNews.BlogDiscussionFilter.DefaultBlockedTopics;
+    public IReadOnlyList<string> EffectiveBlockedTitleWords => BlockedTitleWords ?? Domain.UnityNews.BlogDiscussionFilter.DefaultBlockedTitleWords;
 }
 
 public class ChannelInfo
