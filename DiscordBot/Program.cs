@@ -70,6 +70,8 @@ public class Program
                 CaseSensitiveCommands = false,
                 DefaultRunMode = RunMode.Async
             });
+            // With RunMode.Async, command exceptions are reported only through this event.
+            _commandService.Log += LoggingService.DiscordNetLogger;
 
             _services = ConfigureServices();
 

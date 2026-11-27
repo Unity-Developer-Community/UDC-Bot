@@ -68,7 +68,10 @@ public class TicketModule : ModuleBase
 
         if (!Context.Channel.Name.StartsWith(Settings.Channels.ComplaintPrefix.ToLower())) return;
 
-        var categoryExist = (await Context.Guild.GetCategoriesAsync()).Any(category => category.Id == Settings.Channels.ClosedComplaintCategoryId);
+        var closedCategoryId = Settings.Channels.ClosedComplaintCategoryId;
+        var categoryExist = (await Context.Guild.GetCategoriesAsync()).Any(category => category.Id == closedCategoryId);
+        var categoryFull = categoryExist && IsCategoryFull(
+            (await Context.Guild.GetChannelsAsync()).Select(c => (c as INestedChannel)?.CategoryId), closedCategoryId);
 
         var currentChannel = await Context.Guild.GetChannelAsync(Context.Channel.Id);
 
@@ -77,16 +80,22 @@ public class TicketModule : ModuleBase
         {
             if (a.TargetType != PermissionTarget.User) continue;
 
-            var user = await Context.Guild.GetUserAsync(a.TargetId);
+            // Not Guild.GetUserAsync: it returns null when the complainant has left the server.
+            var user = await Context.Client.GetUserAsync(a.TargetId);
+            if (user == null) continue;
             await currentChannel.RemovePermissionOverwriteAsync(user);
         }
 
         var newName = Settings.Channels.ClosedComplaintPrefix + currentChannel.Name;
-        await currentChannel.ModifyAsync(x =>
-        {
-            if (categoryExist) x.CategoryId = Settings.Channels.ClosedComplaintCategoryId;
-            x.Name = newName;
-        });
+        // Separate requests: if Discord refuses the move, the rename still happens.
+        await currentChannel.ModifyAsync(x => x.Name = newName);
+
+        if (!categoryExist) return;
+        if (!categoryFull)
+            await currentChannel.ModifyAsync(x => x.CategoryId = closedCategoryId);
+        else
+            await ReplyAsync($"The closed tickets category is full ({MaxChannelsPerCategory} channels), so this ticket stays here. " +
+                             "Delete old closed tickets to make room.");
     }
 
     /// <summary>
@@ -104,6 +113,14 @@ public class TicketModule : ModuleBase
             await Context.Guild.GetChannelAsync(Context.Channel.Id).Result.DeleteAsync();
         }
     }
+
+    /// <summary>
+    ///     Discord refuses to move a channel into a category that already holds this many.
+    /// </summary>
+    internal const int MaxChannelsPerCategory = 50;
+
+    internal static bool IsCategoryFull(IEnumerable<ulong?> channelCategoryIds, ulong categoryId) =>
+        channelCategoryIds.Count(id => id == categoryId) >= MaxChannelsPerCategory;
 
     private string ParseToDiscordChannel(string channelName) => channelName.ToLower().Replace(" ", "-");
 
