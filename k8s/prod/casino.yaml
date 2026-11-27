@@ -139,7 +139,7 @@ spec:
                 - ALL
       containers:
         - name: casino
-          image: ghcr.io/unity-developer-community/udc-casino:83925c2
+          image: ghcr.io/unity-developer-community/udc-casino:1927b3a
           ports:
             - containerPort: 8080
               protocol: TCP
