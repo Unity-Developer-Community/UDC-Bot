@@ -64,8 +64,9 @@ public class ImageSpamAlertService
     private readonly DiscordSocketClient _client;
     private readonly ulong _autoModChannelId;
     private readonly ulong _moderatorRoleId;
-    // Alert messages whose button is being handled, so a second click meanwhile does nothing.
-    private readonly ConcurrentDictionary<ulong, byte> _inProgress = new();
+    // Alert messages whose button is being handled or was handled. A handled alert stays in the set, so a click that
+    // lands before the card loses its buttons does nothing. One entry per alert, and alerts are rare.
+    private readonly ConcurrentDictionary<ulong, byte> _claimed = new();
 
     public ImageSpamAlertService(DiscordSocketClient client, BotSettings settings)
     {
@@ -203,9 +204,10 @@ public class ImageSpamAlertService
             return ImageSpamAlertOutcome.Failed("Only moderators can use these buttons.");
         if (!HasAlertButtons(message.Components))
             return ImageSpamAlertOutcome.Failed("This alert has already been handled.");
-        if (!_inProgress.TryAdd(message.Id, 0))
+        if (!_claimed.TryAdd(message.Id, 0))
             return ImageSpamAlertOutcome.Failed("This alert is already being handled.");
 
+        var handled = false;
         try
         {
             var guild = _client.GetGuild(clicker.GuildId);
@@ -219,6 +221,7 @@ public class ImageSpamAlertService
             LoggingService.LogToConsole($"[{ServiceName}] {action} on {userId} by {clicker.Id}: {result.Text}", ExtendedLogSeverity.Info);
             var now = DateTimeOffset.UtcNow;
             var line = AuditLogCards.ImageSpamClosedLine(action, clicker.Id, result.Text!, now);
+            handled = true;
             return ImageSpamAlertOutcome.Closed(AuditLogCards.ImageSpamClosedCard(message.Components, line));
         }
         catch (HttpException e)
@@ -233,7 +236,9 @@ public class ImageSpamAlertService
         }
         finally
         {
-            _inProgress.TryRemove(message.Id, out _);
+            // A failed action frees the alert for another try; a handled one stays claimed.
+            if (!handled)
+                _claimed.TryRemove(message.Id, out _);
         }
     }
 
