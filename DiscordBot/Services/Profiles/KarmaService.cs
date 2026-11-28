@@ -50,10 +50,7 @@ public class KarmaService
 
     private async Task Thanks(SocketMessage messageParam)
     {
-        var channel = (SocketGuildChannel)messageParam.Channel;
-        var guildId = channel.Guild.Id;
-
-        if (guildId != _settings.GuildId) return;
+        if (messageParam.Channel is not SocketGuildChannel channel || channel.Guild.Id != _settings.GuildId) return;
 
         if (messageParam.Author.IsBot)
             return;

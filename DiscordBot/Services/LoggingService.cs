@@ -158,7 +158,8 @@ public class LoggingService : ILoggingService
     // Logs DiscordNet specific messages, this shouldn't be used for normal logging
     public static Task DiscordNetLogger(LogMessage message)
     {
-        LogToConsole($"{message.Source} | {message.Message}", message.Severity.ToExtended());
+        var text = message.Exception is null ? message.Message : $"{message.Message} {message.Exception}".TrimStart();
+        LogToConsole($"{message.Source} | {text}", message.Severity.ToExtended());
         return Task.CompletedTask;
     }
 
