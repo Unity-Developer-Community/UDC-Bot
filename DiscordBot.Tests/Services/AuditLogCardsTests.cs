@@ -1,4 +1,5 @@
 using Discord;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Services.Server;
 
 namespace DiscordBot.Tests.Services;
@@ -220,5 +221,46 @@ public class AuditLogCardsTests
 
         var gallery = Assert.Single(card.Components.OfType<ContainerComponent>().Single().Components.OfType<MediaGalleryComponent>());
         Assert.Single(gallery.Items);
+    }
+
+    [Fact]
+    public void ImageSpamAlertCard_ShowsHistoryReportLinkAndThreeButtons()
+    {
+        var alert = new AuditLogCards.ImageSpamAlert(
+            User, Now.AddDays(-2), Now.AddDays(-90), "exactly 1 image in 4 channels", 4, 15, "✅ 24 hours",
+            "https://discord.com/channels/1/2/3",
+            ["**Message history**", "No earlier messages"]);
+
+        var card = AuditLogCards.ImageSpamAlertCard(alert);
+        var text = Text(card);
+
+        Assert.True(text.Length <= AuditCard.DiscordTextLimit);
+        Assert.Contains("Image spam guard triggered", text);
+        Assert.Contains($"Joined <t:{Now.AddDays(-2).ToUnixTimeSeconds()}:R>", text);
+        Assert.Contains($"Account created <t:{Now.AddDays(-90).ToUnixTimeSeconds()}:R>", text);
+        Assert.Contains("Posted 4 messages within 15 minutes: exactly 1 image in 4 channels.", text);
+        Assert.Contains("**Timeout:** ✅ 24 hours", text);
+        Assert.Contains("[See full report](https://discord.com/channels/1/2/3)", text);
+        Assert.Contains("No earlier messages", text);
+
+        var container = card.Components.OfType<ContainerComponent>().Single();
+        var buttons = container.Components.OfType<ActionRowComponent>().Single().Components.OfType<ButtonComponent>().ToList();
+        Assert.Equal(
+            [("Ignore", "imgspam:ignore:123456789012345678", ButtonStyle.Secondary),
+             ("Ban", "imgspam:ban:123456789012345678", ButtonStyle.Danger),
+             ("False positive", "imgspam:unmute:123456789012345678", ButtonStyle.Success)],
+            buttons.Select(b => (b.Label, b.CustomId, b.Style)));
+    }
+
+    [Fact]
+    public void ImageSpamAlertCard_WithoutReportOrJoinDate_OmitsThem()
+    {
+        var alert = new AuditLogCards.ImageSpamAlert(User, null, Now.AddDays(-1), "rule", 4, 15, "❌ not timed out", null, ["**Message history**"]);
+
+        var text = Text(AuditLogCards.ImageSpamAlertCard(alert));
+
+        Assert.DoesNotContain("See full report", text);
+        Assert.DoesNotContain("Joined", text);
+        Assert.Contains("Account created", text);
     }
 }

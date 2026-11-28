@@ -1,4 +1,5 @@
 using Discord.WebSocket;
+using DiscordBot.Services.Moderation;
 
 namespace DiscordBot.Services.Server;
 
@@ -42,6 +43,7 @@ public sealed class AuditCard
     private sealed record LinesPart(IReadOnlyList<string> Lines, int MaxLength) : Part;
     private sealed record SeparatorPart : Part;
     private sealed record MediaPart(IReadOnlyList<string> Urls) : Part;
+    private sealed record ActionRowPart(ActionRowBuilder Row) : Part;
 
     private readonly Color _accent;
     private string? _header;
@@ -99,6 +101,13 @@ public sealed class AuditCard
         return this;
     }
 
+    /// <summary>A row of buttons inside the container, after the parts added before it.</summary>
+    public AuditCard AddActionRow(ActionRowBuilder row)
+    {
+        _parts.Add(new ActionRowPart(row));
+        return this;
+    }
+
     public AuditCard WithFooter(string text)
     {
         _footer = string.IsNullOrWhiteSpace(text) ? null : $"-# {text}";
@@ -144,6 +153,9 @@ public sealed class AuditCard
                     break;
                 case MediaPart media:
                     container.WithMediaGallery(media.Urls);
+                    break;
+                case ActionRowPart actions:
+                    container.WithActionRow(actions.Row);
                     break;
             }
         }
@@ -441,5 +453,38 @@ public static class AuditLogCards
             .Build();
 
         static string Fit(string text) => AuditCard.Fit(text, MaxSpamExcerptLength, "…");
+    }
+
+    public sealed record ImageSpamAlert(
+        CardUser User,
+        DateTimeOffset? JoinedAt,
+        DateTimeOffset AccountCreatedAt,
+        string Rule,
+        int MessageCount,
+        int WindowMinutes,
+        string TimeoutResult,
+        string? ReportUrl,
+        IReadOnlyList<string> HistoryLines);
+
+    /// <summary>The AutoMod alert: who, why, their earlier messages, and the three moderator buttons.</summary>
+    public static MessageComponent ImageSpamAlertCard(ImageSpamAlert alert)
+    {
+        var who = alert.JoinedAt is { } joined
+            ? $"Joined {Timestamp(joined, 'R')} · Account created {Timestamp(alert.AccountCreatedAt, 'R')}"
+            : $"Account created {Timestamp(alert.AccountCreatedAt, 'R')}";
+
+        return new AuditCard(SpamGuardColor)
+            .WithHeader("🚨 Image spam guard triggered", alert.User, null,
+                who,
+                $"Posted {alert.MessageCount} messages within {alert.WindowMinutes} minutes: {alert.Rule}.",
+                $"**Timeout:** {alert.TimeoutResult}",
+                alert.ReportUrl != null ? $"[See full report]({alert.ReportUrl})" : "")
+            .AddSeparator()
+            .AddLines(alert.HistoryLines)
+            .AddActionRow(new ActionRowBuilder()
+                .WithButton("Ignore", ImageSpamAlertIds.Build(ImageSpamAlertAction.Ignore, alert.User.Id), ButtonStyle.Secondary)
+                .WithButton("Ban", ImageSpamAlertIds.Build(ImageSpamAlertAction.Ban, alert.User.Id), ButtonStyle.Danger)
+                .WithButton("False positive", ImageSpamAlertIds.Build(ImageSpamAlertAction.Unmute, alert.User.Id), ButtonStyle.Success))
+            .Build();
     }
 }

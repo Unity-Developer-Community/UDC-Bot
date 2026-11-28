@@ -161,6 +161,7 @@ public class Program
             .AddSingleton<AuditLogService>()
             .AddSingleton<MemberLogService>()
             .AddSingleton<BotDeletionRegistry>()
+            .AddSingleton<ImageSpamAlertService>()
             .AddSingleton<ImageSpamGuardService>()
             .AddSingleton<EmbedParsingService>()
             .AddSingleton<FeedService>()
