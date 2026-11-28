@@ -311,7 +311,7 @@ public class FeedService
             if (next == null)
                 return;
 
-            await SendDiscussionCard(feedData, channel, next, history);
+            await SendDiscussionCard(feedData, channel, next, history, dropIfSendFails: true);
         }
         finally
         {
@@ -340,18 +340,20 @@ public class FeedService
         history?.Where(IsHuman).Select(m => (DateTimeOffset?)m.Timestamp).Max();
 
     /// <summary>
-    /// Sends one blog card to the discussion channel and remembers it as the last one, after deleting the previous card when nobody
-    /// wrote after it (<see cref="BlogDiscussion.ShouldReplace"/>, judged from <paramref name="history"/>). The post leaves the queue.
-    /// A failure is logged and not retried, because the forum post is the record. Call inside <see cref="_discussionGate"/>.
+    /// Sends one blog card to the discussion channel and remembers it as the last one, then deletes the previous card when nobody
+    /// wrote after it (<see cref="BlogDiscussion.ShouldReplace"/>, judged from <paramref name="history"/>), so a failed send leaves
+    /// the old card in place. The post leaves the queue once it is sent; when the send fails it stays queued unless
+    /// <paramref name="dropIfSendFails"/> (paced delivery, which must not retry it every loop: the forum post is the record).
+    /// A failure is logged. Call inside <see cref="_discussionGate"/>.
     /// </summary>
     private async Task<IUserMessage?> SendDiscussionCard(FeedData feedData, IMessageChannel channel, BlogCardData card, IReadOnlyList<IMessage>? history,
-        ulong? sharedByUserId = null)
+        ulong? sharedByUserId = null, bool dropIfSendFails = false)
     {
-        feedData.PendingDiscussionCards.RemoveAll(c => c.Id == card.Id);
+        var previousCardId = feedData.LastDiscussionCardMessageId;
+        var replacePrevious = history != null && BlogDiscussion.ShouldReplace(previousCardId, history.Select(m => (m.Id, IsHuman(m))));
         IUserMessage message;
         try
         {
-            await ReplaceUnansweredCard(feedData, channel, history);
             var components = UnityNewsCards.BlogDiscussionCard(card.Title, card.Url, card.Description, card.Images, card.ForumPostUrl, sharedByUserId);
             message = await channel.SendMessageAsync(components: components, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
             feedData.LastDiscussionCardMessageId = message.Id;
@@ -359,9 +361,15 @@ public class FeedService
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
+            if (dropIfSendFails)
+                feedData.PendingDiscussionCards.RemoveAll(c => c.Id == card.Id);
             await _logging.LogAction($"[{ServiceName}] Could not post the discussion card for '{card.Title}': {e.Message}", ExtendedLogSeverity.Warning);
             return null;
         }
+
+        feedData.PendingDiscussionCards.RemoveAll(c => c.Id == card.Id);
+        if (replacePrevious)
+            await DeleteUnansweredCard(channel, previousCardId);
 
         // It is in the discussion channel now, so its forum card no longer offers to share it.
         foreach (var shareable in feedData.ShareableBlogPosts.Where(p => p.Card.Id == card.Id).ToList())
@@ -437,13 +445,11 @@ public class FeedService
     public async Task SweepShareButtonsAsync(FeedData feedData)
     {
         var now = DateTimeOffset.UtcNow;
-        if (!feedData.ShareableBlogPosts.Any(p => !DiscussionCardsOn || now - p.Card.PostedUtc >= BlogDiscussion.MaxCardAge))
-            return;
-
         await _discussionGate.WaitAsync();
         try
         {
-            foreach (var post in feedData.ShareableBlogPosts.Where(p => !DiscussionCardsOn || now - p.Card.PostedUtc >= BlogDiscussion.MaxCardAge).ToList())
+            var expired = feedData.ShareableBlogPosts.Where(p => !DiscussionCardsOn || now - p.Card.PostedUtc >= BlogDiscussion.MaxCardAge).ToList();
+            foreach (var post in expired)
                 await RemoveShareButton(feedData, post);
         }
         finally
@@ -452,13 +458,9 @@ public class FeedService
         }
     }
 
-    /// <summary>Deletes the last card when nobody has written after it, so unanswered cards don't stack up. Never throws.</summary>
-    private async Task ReplaceUnansweredCard(FeedData feedData, IMessageChannel channel, IReadOnlyList<IMessage>? history)
+    /// <summary>Deletes a card nobody has answered, so unanswered cards don't stack up. Never throws.</summary>
+    private async Task DeleteUnansweredCard(IMessageChannel channel, ulong lastCardId)
     {
-        var lastCardId = feedData.LastDiscussionCardMessageId;
-        if (history == null || !BlogDiscussion.ShouldReplace(lastCardId, history.Select(m => (m.Id, IsHuman(m)))))
-            return;
-
         // The audit log would otherwise post a card for it when it isn't cached.
         _botDeletions.Register([lastCardId], DateTimeOffset.UtcNow);
         try
