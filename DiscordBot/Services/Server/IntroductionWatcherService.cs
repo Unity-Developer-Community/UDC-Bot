@@ -156,6 +156,12 @@ public class IntroductionWatcherService
             {
                 LoggingService.LogToConsole($"[{ServiceName}] The old loop did not stop within {RestartWait.TotalSeconds:0} s; starting a new one anyway.", ExtendedLogSeverity.Warning);
             }
+            // A loop that crashed rethrows here, and that is when a restart is needed most. Shutdown stays fatal.
+            catch (Exception e) when (!_shutdownToken.IsCancellationRequested)
+            {
+                RecordError($"Previous loop failed: {e.Message}");
+                LoggingService.LogToConsole($"[{ServiceName}] The old loop had failed ({e.Message}); starting a new one.", ExtendedLogSeverity.Warning);
+            }
 
             _promptId = null;
             _schedule.Clear();
@@ -321,7 +327,7 @@ public class IntroductionWatcherService
             if (retry)
                 _schedule!.Retry(DateTime.UtcNow + RetryDelay);
             var reason = timedOut ? $"timed out after {StepTimeout.TotalMinutes:0} minute(s)" : e.Message;
-            var next = !retryPost ? "trying again later" : retry ? $"retrying in {RetryDelay.TotalMinutes:0} minute(s)" : "not retrying";
+            var next = !retryPost ? "trying again later" : retry ? $"retrying in {RetryDelay.TotalMinutes:0} minute(s)" : $"not retrying now; the next history read (every {SyncInterval.TotalMinutes:0} min) schedules it again";
             RecordError($"Failed to {what}: {reason}");
             await LogWarningAsync($"Failed to {what} ({next}): {reason}");
         }
