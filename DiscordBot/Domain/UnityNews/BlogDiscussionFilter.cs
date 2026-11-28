@@ -36,10 +36,8 @@ public static class BlogDiscussionFilter
                 return $"topic or tag \"{label.Trim()}\"";
         }
 
-        foreach (var word in blockedTitleWords)
+        foreach (var word in blockedTitleWords.Where(w => !string.IsNullOrWhiteSpace(w)))
         {
-            if (string.IsNullOrWhiteSpace(word))
-                continue;
             // Whole words: "ads" must not match "loads", "AI" must not match "said".
             var pattern = $@"(?<![\p{{L}}\p{{N}}]){Regex.Escape(word.Trim())}(?![\p{{L}}\p{{N}}])";
             if (Regex.IsMatch(title, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))

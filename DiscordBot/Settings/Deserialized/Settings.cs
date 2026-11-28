@@ -117,11 +117,8 @@ public class BotSettings
                 warnings.Add($"ImageSpamGuard.TimeoutHours must be between 1 and {ImageSpamGuardSettings.MaxTimeoutHours} (Discord's 28-day limit)");
         }
 
-        foreach (var bot in AuditLog.EffectiveCommandCleanupBots)
-        {
-            if (string.IsNullOrWhiteSpace(bot.Prefix) || bot.BotId == 0)
-                warnings.Add("AuditLog.CommandCleanupBots has an entry without a Prefix or BotId; it is ignored");
-        }
+        if (AuditLog.EffectiveCommandCleanupBots.Any(bot => string.IsNullOrWhiteSpace(bot.Prefix) || bot.BotId == 0))
+            warnings.Add("AuditLog.CommandCleanupBots has an entry without a Prefix or BotId; it is ignored");
 
         return (errors, warnings);
     }
