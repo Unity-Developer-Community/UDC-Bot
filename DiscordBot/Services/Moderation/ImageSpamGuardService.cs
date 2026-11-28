@@ -113,7 +113,8 @@ public class ImageSpamGuardService
                 failures,
                 timeoutResult,
                 files.Select(f => $"attachment://{f.FileName}").ToList(),
-                copyNote);
+                copyNote,
+                _alerts.PostsAlerts);
 
             IUserMessage? reportMessage;
             try

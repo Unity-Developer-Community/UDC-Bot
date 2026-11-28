@@ -418,7 +418,8 @@ public static class AuditLogCards
         IReadOnlyList<string> DeleteFailures,
         string TimeoutResult,
         IReadOnlyList<string> CopiedImageUrls,
-        string? CopyNote);
+        string? CopyNote,
+        bool AlertPosted = false);
 
     public static MessageComponent ImageSpamReportCard(ImageSpamReport report, DateTimeOffset at)
     {
@@ -449,7 +450,9 @@ public static class AuditLogCards
 
         return card
             .WithFooter($"Message IDs: {string.Join(", ", report.Messages.Select(m => m.MessageId))} · {Timestamp(at)} · " +
-                        "If this was a false positive, remove the timeout from the member's profile")
+                        (report.AlertPosted
+                            ? "If this was a false positive, use the False positive button on the AutoMod alert"
+                            : "If this was a false positive, remove the timeout from the member's profile"))
             .Build();
 
         static string Fit(string text) => AuditCard.Fit(text, MaxSpamExcerptLength, "…");
@@ -486,5 +489,38 @@ public static class AuditLogCards
                 .WithButton("Ban", ImageSpamAlertIds.Build(ImageSpamAlertAction.Ban, alert.User.Id), ButtonStyle.Danger)
                 .WithButton("False positive", ImageSpamAlertIds.Build(ImageSpamAlertAction.Unmute, alert.User.Id), ButtonStyle.Success))
             .Build();
+    }
+
+    /// <summary>The line that closes an alert: who clicked what and how it went, e.g. <c>-# 🔨 Ban by @mod · banned · time</c>.</summary>
+    public static string ImageSpamClosedLine(ImageSpamAlertAction action, ulong clickerId, string result, DateTimeOffset at)
+    {
+        var (emoji, name) = action switch
+        {
+            ImageSpamAlertAction.Ban => ("🔨", "Ban"),
+            ImageSpamAlertAction.Unmute => ("✅", "False positive"),
+            _ => ("👀", "Ignore"),
+        };
+        return $"-# {emoji} {name} by <@{clickerId}> · {result} · {Timestamp(at)}";
+    }
+
+    /// <summary>
+    /// The alert after a button was used: rebuilt from the message's own components with every action row
+    /// removed (also inside the container), and the outcome line added at the end of the container.
+    /// </summary>
+    public static MessageComponent ImageSpamClosedCard(IEnumerable<IMessageComponent> components, string outcomeLine)
+    {
+        var rebuilt = components.ToBuilder();
+        var top = rebuilt.Components.Where(c => c is not ActionRowBuilder).ToList();
+        var container = top.OfType<ContainerBuilder>().FirstOrDefault();
+        if (container != null)
+        {
+            container.Components = container.Components.Where(c => c is not ActionRowBuilder).ToList();
+            container.WithTextDisplay(outcomeLine);
+        }
+        else
+        {
+            top.Add(new TextDisplayBuilder(outcomeLine));
+        }
+        return new ComponentBuilderV2(top).Build();
     }
 }

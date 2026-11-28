@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Discord.Net;
 using Discord.WebSocket;
 using DiscordBot.Settings;
@@ -62,12 +63,19 @@ public class ImageSpamAlertService
 
     private readonly DiscordSocketClient _client;
     private readonly ulong _autoModChannelId;
+    private readonly ulong _moderatorRoleId;
+    // Alert messages whose button is being handled, so a second click meanwhile does nothing.
+    private readonly ConcurrentDictionary<ulong, byte> _inProgress = new();
 
     public ImageSpamAlertService(DiscordSocketClient client, BotSettings settings)
     {
         _client = client;
         _autoModChannelId = settings.Channels.AutoMod?.Id ?? 0;
+        _moderatorRoleId = settings.Roles.Moderator;
     }
+
+    /// <summary>Whether an alert is posted for a trigger (the AutoMod channel is set).</summary>
+    public bool PostsAlerts => _autoModChannelId != 0;
 
     /// <summary>
     /// Searches the member's messages from before the spam: those with an id below the oldest spam message, so the
@@ -91,7 +99,8 @@ public class ImageSpamAlertService
             var data = await Search(member.Guild, args, cap.Token);
             if (data.IndexNotYetAvailable)
             {
-                var delay = TimeSpan.FromSeconds(data.RetryAfter ?? DefaultRetryDelay.TotalSeconds);
+                // A 0 means "retry after a short delay", not "now".
+                var delay = data.RetryAfter is > 0 ? TimeSpan.FromSeconds(data.RetryAfter.Value) : DefaultRetryDelay;
                 await Task.Delay(delay > MaxRetryDelay ? MaxRetryDelay : delay, cap.Token);
                 data = await Search(member.Guild, args, cap.Token);
                 if (data.IndexNotYetAvailable)
@@ -159,4 +168,118 @@ public class ImageSpamAlertService
                 ExtendedLogSeverity.Warning);
         }
     }
+
+    /// <summary>Moderators (the Moderator role) and administrators may use the buttons.</summary>
+    public static bool MayAct(bool isAdministrator, IEnumerable<ulong> roleIds, ulong moderatorRoleId) =>
+        isAdministrator || (moderatorRoleId != 0 && roleIds.Contains(moderatorRoleId));
+
+    /// <summary>Whether the message still has alert buttons, that is, no one has acted on it yet.</summary>
+    public static bool HasAlertButtons(IEnumerable<IMessageComponent> components) =>
+        components.Any(c => c switch
+        {
+            ButtonComponent b => b.CustomId?.StartsWith(ImageSpamAlertIds.Prefix + ":", StringComparison.Ordinal) == true,
+            ActionRowComponent row => HasAlertButtons(row.Components),
+            ContainerComponent container => HasAlertButtons(container.Components),
+            _ => false,
+        });
+
+    /// <summary>What the closed card says happened.</summary>
+    public static string ResultText(ImageSpamAlertAction action, bool memberLeft, DateTimeOffset? timedOutUntil, DateTimeOffset now) =>
+        action switch
+        {
+            ImageSpamAlertAction.Ban => "banned",
+            _ when memberLeft => "member has left the server",
+            ImageSpamAlertAction.Unmute => "timeout removed",
+            _ => timedOutUntil is { } until && until > now ? $"left timed out until {AuditLogCards.Timestamp(until)}" : "member is not timed out",
+        };
+
+    /// <summary>
+    /// Runs a button on an alert. On success the result holds the closed card to put on the alert message; on
+    /// failure it holds the error for the moderator, and the buttons stay.
+    /// </summary>
+    public async Task<ImageSpamAlertOutcome> HandleAsync(ImageSpamAlertAction action, ulong userId, IGuildUser clicker, IUserMessage message)
+    {
+        if (!MayAct(clicker.GuildPermissions.Administrator, clicker.RoleIds, _moderatorRoleId))
+            return ImageSpamAlertOutcome.Failed("Only moderators can use these buttons.");
+        if (!HasAlertButtons(message.Components))
+            return ImageSpamAlertOutcome.Failed("This alert has already been handled.");
+        if (!_inProgress.TryAdd(message.Id, 0))
+            return ImageSpamAlertOutcome.Failed("This alert is already being handled.");
+
+        try
+        {
+            var guild = _client.GetGuild(clicker.GuildId);
+            if (guild == null)
+                return ImageSpamAlertOutcome.Failed("I couldn't find the server.");
+
+            var result = await Execute(action, userId, guild, clicker);
+            if (result.Error != null)
+                return ImageSpamAlertOutcome.Failed(result.Error);
+
+            LoggingService.LogToConsole($"[{ServiceName}] {action} on {userId} by {clicker.Id}: {result.Text}", ExtendedLogSeverity.Info);
+            var now = DateTimeOffset.UtcNow;
+            var line = AuditLogCards.ImageSpamClosedLine(action, clicker.Id, result.Text!, now);
+            return ImageSpamAlertOutcome.Closed(AuditLogCards.ImageSpamClosedCard(message.Components, line));
+        }
+        catch (HttpException e)
+        {
+            LoggingService.LogToConsole($"[{ServiceName}] {action} on {userId} failed: {(int)e.HttpCode} {e.Reason}".TrimEnd(), ExtendedLogSeverity.Warning);
+            return ImageSpamAlertOutcome.Failed($"Discord refused: {(int)e.HttpCode} {e.Reason}".TrimEnd());
+        }
+        catch (Exception e)
+        {
+            LoggingService.LogToConsole($"[{ServiceName}] {action} on {userId} failed: {e}", ExtendedLogSeverity.Warning);
+            return ImageSpamAlertOutcome.Failed("Something went wrong, please try again.");
+        }
+        finally
+        {
+            _inProgress.TryRemove(message.Id, out _);
+        }
+    }
+
+    private async Task<(string? Text, string? Error)> Execute(ImageSpamAlertAction action, ulong userId, SocketGuild guild, IGuildUser clicker)
+    {
+        var self = guild.CurrentUser;
+        var member = await FindMember(guild, userId);
+        var now = DateTimeOffset.UtcNow;
+
+        switch (action)
+        {
+            case ImageSpamAlertAction.Ignore:
+                return (ResultText(action, member == null, member?.TimedOutUntil, now), null);
+
+            case ImageSpamAlertAction.Ban:
+                if (!self.GuildPermissions.BanMembers)
+                    return (null, "I'm missing the Ban Members permission.");
+                if (member != null && member.Hierarchy >= self.Hierarchy)
+                    return (null, "The member's top role is not below mine.");
+                // Deletes none of their messages: the guard already removed the spam.
+                await guild.AddBanAsync(userId, 0, $"Image spam guard: banned by {clicker.Username} from the AutoMod alert");
+                return (ResultText(action, member == null, null, now), null);
+
+            case ImageSpamAlertAction.Unmute:
+                if (member == null)
+                    return (ResultText(action, true, null, now), null);
+                if (!self.GuildPermissions.ModerateMembers)
+                    return (null, "I'm missing the Moderate Members permission.");
+                if (member.Hierarchy >= self.Hierarchy)
+                    return (null, "The member's top role is not below mine.");
+                await member.RemoveTimeOutAsync(new RequestOptions { AuditLogReason = $"Image spam guard: false positive, marked by {clicker.Username}" });
+                return (ResultText(action, false, null, now), null);
+
+            default:
+                return (null, "Unknown action.");
+        }
+    }
+
+    /// <summary>The member, or null when they have left (or were never in) the server.</summary>
+    private async Task<IGuildUser?> FindMember(SocketGuild guild, ulong userId) =>
+        guild.GetUser(userId) ?? (IGuildUser?)await _client.Rest.GetGuildUserAsync(guild.Id, userId);
+}
+
+/// <summary>The result of a button: the closed card to show, or an error for the moderator.</summary>
+public sealed record ImageSpamAlertOutcome(MessageComponent? ClosedCard, string? Error)
+{
+    public static ImageSpamAlertOutcome Closed(MessageComponent card) => new(card, null);
+    public static ImageSpamAlertOutcome Failed(string error) => new(null, error);
 }
