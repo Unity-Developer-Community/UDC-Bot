@@ -226,15 +226,14 @@ public class AuditLogCardsTests
     }
 
     [Fact]
-    public void ImageSpamReportCard_WithAnAlert_PointsToTheFalsePositiveButton()
+    public void ImageSpamReportCard_WithAnAlert_PointsToTheFalsePositiveButtonOrTheProfile()
     {
         var report = new AuditLogCards.ImageSpamReport(
             User, "rule", 15, [new AuditLogCards.SpamMessage(10, 1001, "", ["1.png"])], 1, [], "✅ 24 hours", [], null, AlertPosted: true);
 
         var text = Text(AuditLogCards.ImageSpamReportCard(report, Now));
 
-        Assert.Contains("use the False positive button on the AutoMod alert", text);
-        Assert.DoesNotContain("remove the timeout", text);
+        Assert.Contains("use the False positive button on the AutoMod alert, or remove the timeout from the member's profile", text);
     }
 
     [Fact]

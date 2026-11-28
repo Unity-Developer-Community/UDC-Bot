@@ -10,7 +10,10 @@ namespace DiscordBot.Services.Server;
 /// deletions it records that no deleted message has been matched to yet. An entry first seen within
 /// <see cref="FreshEntry"/> of its creation brings all its deletions as credits; an older one only those counted after
 /// it was first seen, so a member deleting their own message never matches an old entry. A message a member deleted
-/// themselves creates no entry at all.
+/// themselves creates no entry at all. A credit left by a deletion that no cleanup card claimed (a message that was
+/// uncached or has no prefix) can absorb the member's own delete of a prefixed message in the same channel within
+/// <see cref="FreshEntry"/>, and that delete then gets no card. This is accepted as rare: another bot must act on that
+/// member in that channel first.
 /// </remarks>
 public sealed class BotCleanupDetector
 {

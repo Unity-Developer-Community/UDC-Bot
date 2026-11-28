@@ -89,8 +89,11 @@ public class ImageSpamGuardService
 
     private async Task ActOnSpam(SocketGuildUser member, IReadOnlyCollection<IAttachment> lastAttachments, IReadOnlyList<ImageSpamHit> hits, string ruleDescription)
     {
-        // Started first and awaited when the alert is posted, so it runs alongside the timeout and the deletes.
-        var history = _alerts.LookupHistory(member, hits);
+        // Started first and awaited when the alert is posted, so it runs alongside the timeout and the deletes. Not
+        // started without an AutoMod channel: no alert is posted then, and the search would be wasted requests.
+        var history = _alerts.PostsAlerts
+            ? _alerts.LookupHistory(member, hits)
+            : Task.FromResult(HistorySearch.Unavailable("no AutoMod channel"));
         var timeoutResult = await TryTimeout(member);
         // Copy the image before deleting, since its link stops working once the message is gone.
         var (copy, copyNote) = await CopyOneImage(lastAttachments);

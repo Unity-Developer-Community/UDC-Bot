@@ -85,4 +85,29 @@ public class ImageSpamAlertTests
         Assert.False(ImageSpamAlertService.MayAct(false, [1, 2], 7));
         Assert.False(ImageSpamAlertService.MayAct(false, [0], 0));
     }
+
+    [Fact]
+    public void Claims_AnAlertIsInProgressUntilHandledAndThenStaysHandled()
+    {
+        var claims = new AlertClaims();
+
+        Assert.Equal(AlertClaim.Claimed, claims.TryClaim(7));
+        Assert.Equal(AlertClaim.InProgress, claims.TryClaim(7));
+        Assert.Equal(AlertClaim.Claimed, claims.TryClaim(8));
+
+        claims.MarkHandled(7);
+
+        Assert.Equal(AlertClaim.Handled, claims.TryClaim(7));
+    }
+
+    [Fact]
+    public void Claims_AFailedActionFreesTheAlertForAnotherTry()
+    {
+        var claims = new AlertClaims();
+        claims.TryClaim(7);
+
+        claims.Release(7);
+
+        Assert.Equal(AlertClaim.Claimed, claims.TryClaim(7));
+    }
 }

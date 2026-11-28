@@ -1,4 +1,5 @@
 using Discord.Interactions;
+using Discord.Net;
 using DiscordBot.Services.Moderation;
 
 namespace DiscordBot.Modules.Server;
@@ -28,12 +29,23 @@ public class ImageSpamAlertInteractiveModule : InteractionModuleBase
         var outcome = await AlertService.HandleAsync(action, userId, clicker, component.Message);
         if (outcome.ClosedCard != null)
         {
-            await ModifyOriginalResponseAsync(m =>
+            try
             {
-                m.Components = outcome.ClosedCard;
-                m.Flags = MessageFlags.ComponentsV2;
-                m.AllowedMentions = AllowedMentions.None;
-            });
+                await ModifyOriginalResponseAsync(m =>
+                {
+                    m.Components = outcome.ClosedCard;
+                    m.Flags = MessageFlags.ComponentsV2;
+                    m.AllowedMentions = AllowedMentions.None;
+                });
+            }
+            catch (Exception e)
+            {
+                // The action went through and the alert stays claimed, so say so rather than leave the moderator guessing.
+                LoggingService.LogToConsole($"[ImageSpamAlert] Couldn't update the alert card: {e}", ExtendedLogSeverity.Warning);
+                var reason = e is HttpException http ? $"{(int)http.HttpCode} {http.Reason}".TrimEnd() : e.Message;
+                await FollowupAsync($"Done ({outcome.ResultText}), but I couldn't update the card: {reason}", ephemeral: true,
+                    allowedMentions: AllowedMentions.None);
+            }
         }
         else
         {

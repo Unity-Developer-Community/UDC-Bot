@@ -451,7 +451,7 @@ public static class AuditLogCards
         return card
             .WithFooter($"Message IDs: {string.Join(", ", report.Messages.Select(m => m.MessageId))} · {Timestamp(at)} · " +
                         (report.AlertPosted
-                            ? "If this was a false positive, use the False positive button on the AutoMod alert"
+                            ? "If this was a false positive, use the False positive button on the AutoMod alert, or remove the timeout from the member's profile"
                             : "If this was a false positive, remove the timeout from the member's profile"))
             .Build();
 
