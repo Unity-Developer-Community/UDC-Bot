@@ -298,4 +298,17 @@ public class ImageSpamTrackerTests
         Assert.False(registry.Contains(3, Start.AddMinutes(1)));
         Assert.False(registry.Contains(1, Start + BotDeletionRegistry.Lifetime));
     }
+
+    [Fact]
+    public void Registry_UnregisterForgetsTheMessage()
+    {
+        var registry = new BotDeletionRegistry();
+        registry.Register([1, 2], Start);
+
+        registry.Unregister(1);
+        registry.Unregister(99);
+
+        Assert.False(registry.Contains(1, Start.AddMinutes(1)));
+        Assert.True(registry.Contains(2, Start.AddMinutes(1)));
+    }
 }

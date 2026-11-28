@@ -89,9 +89,11 @@ public static class UnityNewsCards
     /// <summary>
     /// The message of a blog post. <paramref name="page"/> may be <see cref="BlogPage.Empty"/> (the page could not be read), which gives a card of the
     /// feed item alone. <paramref name="roleMention"/> (for example <c>&lt;@&amp;123&gt;</c>) is the first line, and the card gets a
-    /// "Subscribe / Unsubscribe" button for that role; null adds neither.
+    /// "Subscribe / Unsubscribe" button for that role; null adds neither. <paramref name="shareKey"/> adds the "Share to #unity-discussion"
+    /// button (<see cref="ShareButtonId"/>) for a post that isn't in the discussion channel yet.
     /// </summary>
-    public static MessageComponent BlogCard(string title, string url, string? description, DateTimeOffset published, BlogPage page, string? roleMention = null)
+    public static MessageComponent BlogCard(string title, string url, string? description, DateTimeOffset published, BlogPage page, string? roleMention = null,
+        string? shareKey = null)
     {
         var container = new ContainerBuilder().WithAccentColor(BlogColor);
         var lede = Collapse(description);
@@ -127,6 +129,8 @@ public static class UnityNewsCards
         // The button toggles the role the mention pings, so a card without a role has nothing to subscribe to.
         if (roleMention != null)
             actions.WithButton("Subscribe / Unsubscribe", SubscribeButtonId, ButtonStyle.Secondary);
+        if (shareKey != null)
+            actions.WithButton("Share to #unity-discussion", ShareButtonId(shareKey), ButtonStyle.Secondary);
         container.WithActionRow(actions);
         return new ComponentBuilderV2().WithContainer(container).Build();
     }
@@ -134,25 +138,42 @@ public static class UnityNewsCards
     /// <summary>Custom id of the blog card's button that adds or removes the news role; handled by <c>UnityNewsInteractiveModule</c>.</summary>
     public const string SubscribeButtonId = "unity-news-subscribe";
 
-    private const int BlogDiscussionDescriptionLength = 600;
+    /// <summary>Start of the custom id of the blog card's share button; the rest is <see cref="ShareKey"/>. Handled by <c>UnityNewsInteractiveModule</c>.</summary>
+    public const string ShareButtonPrefix = "unity-news-share:";
+
+    public static string ShareButtonId(string shareKey) => ShareButtonPrefix + shareKey;
+
+    /// <summary>A short, stable key for a blog post (its feed item id can be a long URL), for the share button's custom id.</summary>
+    public static string ShareKey(string postId) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(postId)))[..16].ToLowerInvariant();
+
+    private const int BlogDiscussionDescriptionLength = 300;
 
     /// <summary>
-    /// The short card of a blog post for the discussion channel: the title linked to the article, the feed description, up to
-    /// <see cref="BlogPageParser.MaxImages"/> of <paramref name="images"/> and two link buttons, to the article and to <paramref name="forumPostUrl"/>.
-    /// No role mention.
+    /// The short card of a blog post for the discussion channel, kept small so it doesn't take over the channel: the title linked to
+    /// the article and the feed description beside the first of <paramref name="images"/> as a thumbnail, then two link buttons, to
+    /// the article and to <paramref name="forumPostUrl"/>. No role mention. <paramref name="sharedByUserId"/> adds who shared it from the
+    /// news channel (the message must be sent without allowed mentions).
     /// </summary>
-    public static MessageComponent BlogDiscussionCard(string title, string url, string? description, IReadOnlyList<string> images, string forumPostUrl)
+    public static MessageComponent BlogDiscussionCard(string title, string url, string? description, IReadOnlyList<string> images, string forumPostUrl,
+        ulong? sharedByUserId = null)
     {
         var container = new ContainerBuilder().WithAccentColor(BlogColor);
         var text = new System.Text.StringBuilder();
-        text.Append("## [").Append(LinkLabel(title, 200)).Append("](").Append(LinkTarget(url)).Append(')');
+        text.Append("### [").Append(LinkLabel(title, 200)).Append("](").Append(LinkTarget(url)).Append(')');
         var lede = Collapse(description);
         if (lede.Length > 0)
             text.Append('\n').Append(Safe(AuditCard.Fit(lede, BlogDiscussionDescriptionLength, "…")));
-        container.WithTextDisplay(AuditCard.Fit(text.ToString(), 1500));
+        var body = AuditCard.Fit(text.ToString(), 1000);
+        if (sharedByUserId is { } sharedBy)
+            body += $"\n-# Shared by <@{sharedBy}>";
 
         if (images.Count > 0)
-            container.WithMediaGallery(images.Take(BlogPageParser.MaxImages).ToList());
+            container.WithSection(new SectionBuilder()
+                .AddComponent(new TextDisplayBuilder(body))
+                .WithAccessory(new ThumbnailBuilder(new UnfurledMediaItemProperties(images[0]), null, false, null)));
+        else
+            container.WithTextDisplay(body);
 
         container.WithActionRow(new ActionRowBuilder()
             .WithButton(ButtonBuilder.CreateLinkButton("Read on unity.com", url))

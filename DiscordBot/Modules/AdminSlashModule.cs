@@ -4,6 +4,7 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using DiscordBot.Domain;
 using DiscordBot.Services;
+using DiscordBot.Services.Server;
 using DiscordBot.Settings;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -1350,6 +1351,30 @@ public class AdminSlashModule : InteractionModuleBase
             }
 
             return false;
+        }
+    }
+
+    [Group("intro", "Introductions prompt watcher")]
+    public class IntroAdminCommands : InteractionModuleBase<SocketInteractionContext>
+    {
+        public IntroductionWatcherService IntroductionWatcher { get; set; } = null!;
+        public ILoggingService LoggingService { get; set; } = null!;
+
+        [SlashCommand("status", "Show what the Introductions prompt watcher is doing")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task Status()
+        {
+            await RespondAsync(IntroductionWatcherService.DescribeStatus(IntroductionWatcher.Status), ephemeral: true, allowedMentions: AllowedMentions.None);
+        }
+
+        [SlashCommand("restart", "Restart the Introductions prompt watcher and re-read the channel")]
+        [RequireUserPermission(GuildPermission.Administrator)]
+        public async Task Restart()
+        {
+            await DeferAsync(ephemeral: true);
+            var status = await IntroductionWatcher.RestartAsync();
+            await LoggingService.LogAction($"[IntroductionWatcherService] Restarted by {Context.User.GetUserLoggingString()}.");
+            await FollowupAsync("Restarted.\n" + IntroductionWatcherService.DescribeStatus(status), ephemeral: true, allowedMentions: AllowedMentions.None);
         }
     }
 }

@@ -1,6 +1,7 @@
 using Discord.Commands;
 using DiscordBot.Attributes;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 using Newtonsoft.Json;
 
 namespace DiscordBot.Modules.Utils.Weather;
@@ -10,6 +11,7 @@ namespace DiscordBot.Modules.Utils.Weather;
 [Group("UserModule"), Alias("")]
 public class WeatherModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     #region Dependency Injection
 
     public WeatherService WeatherService { get; set; } = null!;
@@ -29,7 +31,7 @@ public class WeatherModule : ModuleBase
             .WithTitle("Weather Module Help")
             .WithDescription(
                 "If the city isn't correct you will need to include the correct [city codes](https://www.iso.org/obp/ui/#search).\n**Example Usage**: *!Weather Wellington, UK*");
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
         await ReplyAsync(embed: builder.Build()).DeleteAfterSeconds(seconds: 30)!;
     }
 
@@ -362,7 +364,7 @@ public class WeatherModule : ModuleBase
         if (!exists || result is null)
         {
             await ReplyAsync($"Sorry, {uname}, but I couldn't find a city with that name.").DeleteAfterSeconds(30)!;
-            await Context.Message.DeleteAsync();
+            await Context.Message.DeleteCommandMessageAsync(BotDeletions);
             return;
         }
         await UserExtendedService.SetUserDefaultCity(Context.User, result.name);
@@ -378,7 +380,7 @@ public class WeatherModule : ModuleBase
         if (!await UserExtendedService.DoesUserHaveDefaultCity(Context.User))
         {
             await ReplyAsync($"{uname}, you don't have a default city set.").DeleteAfterSeconds(30)!;
-            await Context.Message.DeleteAsync();
+            await Context.Message.DeleteCommandMessageAsync(BotDeletions);
             return;
         }
         await UserExtendedService.RemoveUserDefaultCity(Context.User);

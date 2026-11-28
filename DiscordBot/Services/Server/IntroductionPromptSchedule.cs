@@ -49,9 +49,15 @@ public sealed class IntroductionPromptSchedule
     /// Schedules a retry after a failed post. Does nothing if a <see cref="Touch"/> already set a
     /// due time, so a newer message keeps its own debounce.
     /// </summary>
-    public void Retry(DateTime retryAtUtc)
+    public void Retry(DateTime retryAtUtc) => ScheduleIfIdle(retryAtUtc);
+
+    /// <summary>
+    /// Sets the due time to <paramref name="dueUtc"/> unless one is already set, so a <see cref="Touch"/> from a
+    /// newer message is never overridden. Used to retry a failed post and to catch up from channel history.
+    /// </summary>
+    public void ScheduleIfIdle(DateTime dueUtc)
     {
-        lock (_lock) _dueUtc ??= retryAtUtc;
+        lock (_lock) _dueUtc ??= dueUtc;
     }
 
     public void Clear()

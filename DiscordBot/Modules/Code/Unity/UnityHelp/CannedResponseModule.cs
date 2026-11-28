@@ -1,6 +1,7 @@
 using Discord.Commands;
 using DiscordBot.Attributes;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 using static DiscordBot.Services.Code.Unity.UnityHelp.CannedResponseService;
 
@@ -8,6 +9,7 @@ namespace DiscordBot.Modules.Code.Unity.UnityHelp;
 
 public class CannedResponseModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     #region Dependency Injection
 
     public BotSettings BotSettings { get; set; } = null!;
@@ -23,7 +25,7 @@ public class CannedResponseModule : ModuleBase
 
         var embed = CannedResponseService.GetCannedResponse(type, Context.User);
         if (embed == null) return;
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
 
         await ReplyAsync(string.Empty, false, embed.Build());
     }

@@ -134,4 +134,45 @@ public class FeedDataTests
         Assert.Contains("discussion cards → off;", FeedService.StartupLine(data, 10, 11, null, DateTimeOffset.UtcNow));
         Assert.Contains("discussion cards → no channel set;", FeedService.StartupLine(data, 10, 11, 0, DateTimeOffset.UtcNow));
     }
+
+    [Fact]
+    public void ShareableBlogPost_RoundTripsWithItsPage()
+    {
+        var page = new BlogPage
+        {
+            Headline = "How SEED renders a world",
+            Authors = [new BlogAuthor("Ada", "Engineer")],
+            Published = new DateTimeOffset(2026, 11, 6, 0, 0, 0, TimeSpan.Zero),
+            DeclaredReadMinutes = 7,
+            Topics = ["Game design"],
+            Chapters = ["One", "Two"],
+            Images = ["https://unity.com/a.png"],
+        };
+        var data = new FeedData();
+        data.ShareableBlogPosts.Add(new ShareableBlogPost
+        {
+            Key = "abc", ThreadId = 99, RoleId = 5, Published = page.Published.Value,
+            Card = new BlogCardData { Id = "id", Title = "How SEED renders a world", Images = ["https://unity.com/a.png"] },
+            Page = page,
+        });
+
+        var loaded = Assert.Single(JsonConvert.DeserializeObject<FeedData>(JsonConvert.SerializeObject(data))!.ShareableBlogPosts);
+
+        Assert.Equal("abc", loaded.Key);
+        Assert.Equal(99ul, loaded.ThreadId);
+        Assert.Equal(5ul, loaded.RoleId);
+        Assert.Equal(["https://unity.com/a.png"], loaded.Card.Images);
+        Assert.Equal("Ada", Assert.Single(loaded.Page.Authors).Name);
+        Assert.Equal(7, loaded.Page.ReadMinutes);
+        Assert.Equal(["One", "Two"], loaded.Page.Chapters);
+        Assert.Equal(["https://unity.com/a.png"], loaded.Page.Images);
+        Assert.Equal(page.Published, loaded.Page.Published);
+    }
+
+    [Fact]
+    public void FileWithoutShareablePosts_LoadsEmpty()
+    {
+        var data = JsonConvert.DeserializeObject<FeedData>("""{"PostedIds":["a"],"BlogSeeded":true}""")!;
+        Assert.Empty(data.ShareableBlogPosts);
+    }
 }

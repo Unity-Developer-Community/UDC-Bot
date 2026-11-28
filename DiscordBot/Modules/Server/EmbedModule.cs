@@ -1,6 +1,7 @@
 using Discord.Commands;
 using DiscordBot.Attributes;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 
 // ReSharper disable all UnusedMember.Local
 namespace DiscordBot.Modules.Server;
@@ -8,6 +9,7 @@ namespace DiscordBot.Modules.Server;
 [RequireAdmin]
 public class EmbedModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     public EmbedParsingService EmbedParsingService { get; set; } = null!;
 
     /// <summary>
@@ -17,7 +19,7 @@ public class EmbedModule : ModuleBase
     [Command("embed"), Summary("Generate an embed.")]
     public async Task EmbedCommand(IMessageChannel? channel = null, ulong messageId = 0)
     {
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
         channel ??= Context.Channel;
 
         if (Context.Message.Attachments.Count < 1)
@@ -34,7 +36,7 @@ public class EmbedModule : ModuleBase
     [Command("embed"), Summary("Generate an embed from an URL (hastebin).")]
     public async Task EmbedCommand(string url, IMessageChannel? channel = null, ulong messageId = 0)
     {
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
         channel ??= Context.Channel;
         Discord.Embed? builtEmbed = await TryGetEmbedFromUrl(url);
         if (builtEmbed != null)

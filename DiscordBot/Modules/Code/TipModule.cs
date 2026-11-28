@@ -2,6 +2,7 @@ using System.IO;
 using Discord.Commands;
 using DiscordBot.Attributes;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 
 // ReSharper disable all UnusedMember.Local
@@ -9,6 +10,7 @@ namespace DiscordBot.Modules.Code;
 
 public class TipModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     #region Dependency Injection
 
     public CommandHandlingService CommandHandlingService { get; set; } = null!;
@@ -89,7 +91,7 @@ public class TipModule : ModuleBase
             await ReplyAsync($"-# Tip ID {ids}");
         }
 
-        await Context.Message.DeleteAsync();
+        await Context.Message.DeleteCommandMessageAsync(BotDeletions);
         await TipService.CommitTipDatabase();
     }
 

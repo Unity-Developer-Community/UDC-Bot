@@ -3,6 +3,7 @@ using System.ServiceModel.Syndication;
 using System.Xml;
 using Discord.WebSocket;
 using DiscordBot.Domain.UnityNews;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Services.Server;
 using DiscordBot.Settings;
 using DiscordBot.Utils;
@@ -17,6 +18,7 @@ public class FeedService
     private readonly BotSettings _settings;
     private readonly ILoggingService _logging;
     private readonly IWebClient _webClient;
+    private readonly BotDeletionRegistry _botDeletions;
 
     #region Configurable Settings
 
@@ -59,8 +61,9 @@ public class FeedService
 
     #endregion // Configurable Settings
 
-    public FeedService(DiscordSocketClient client, BotSettings settings, ILoggingService logging, IWebClient webClient)
+    public FeedService(DiscordSocketClient client, BotSettings settings, ILoggingService logging, IWebClient webClient, BotDeletionRegistry botDeletions)
     {
+        _botDeletions = botDeletions;
         _client = client;
         _settings = settings;
         _logging = logging;
@@ -167,13 +170,15 @@ public class FeedService
                         await _logging.LogChannelAndFile($"[{ServiceName}] Could not read the blog page {url} ({fetched.Failure}); posting the card of the feed item alone", ExtendedLogSeverity.Warning);
                     }
 
-                    var thread = await PostBlog(channel, item, roleId, fetched.Page);
+                    var shareKey = DiscussionCardsOn ? UnityNewsCards.ShareKey(item.Id) : null;
+                    var role = BlogRoleId(roleId);
+                    var thread = await PostBlog(channel, item, role, fetched.Page, shareKey);
                     // Only after the thread exists, so a failed post is retried on the next check.
                     feedData.AddPostedId(item.Id);
                     _blogFailures.Remove(item.Id);
                     _blogPageFailures.Remove(item.Id);
 
-                    await RecordBlogPost(feedData, item, fetched.Page, thread);
+                    await RecordBlogPost(feedData, item, fetched.Page, thread, role, shareKey);
                 }
                 catch (Exception e) when (e is not OperationCanceledException)
                 {
@@ -200,17 +205,22 @@ public class FeedService
     private static string? BlogDescription(SyndicationItem item) =>
         item.Summary == null ? null : global::DiscordBot.Utils.Utils.RemoveHtmlTags(item.Summary.Text);
 
-    private async Task<IThreadChannel> PostBlog(IForumChannel channel, SyndicationItem item, ulong? roleId, BlogPage page)
+    /// <summary>The news role's id when the role exists, else null (then the card has no mention and no Subscribe button).</summary>
+    private ulong? BlogRoleId(ulong? roleId) =>
+        roleId is { } id ? _client.GetGuild(_settings.GuildId)?.GetRole(id)?.Id : null;
+
+    private static string? RoleMention(ulong? roleId) => roleId is { } id ? $"<@&{id}>" : null;
+
+    private async Task<IThreadChannel> PostBlog(IForumChannel channel, SyndicationItem item, ulong? roleId, BlogPage page, string? shareKey)
     {
         var title = item.Title?.Text ?? item.Id;
         var url = BlogUrl(item);
         var description = BlogDescription(item);
 
         // Blog posts ping the news role.
-        var role = roleId is { } id ? _client.GetGuild(_settings.GuildId)?.GetRole(id) : null;
-        var allowedMentions = UnityNewsCards.RoleOnlyMentions(role?.Id);
+        var allowedMentions = UnityNewsCards.RoleOnlyMentions(roleId);
 
-        var card = UnityNewsCards.BlogCard(title, url, description, item.PublishDate, page, role?.Mention);
+        var card = UnityNewsCards.BlogCard(title, url, description, item.PublishDate, page, RoleMention(roleId), shareKey);
         var tags = ForumTags(channel, UnityNewsCards.BlogTagNames());
 
         return await channel.CreatePostAsync(UnityNewsCards.BlogForumTitle(title), ForumArchiveDuration, null, null, null, null,
@@ -221,10 +231,10 @@ public class FeedService
     private bool DiscussionCardsOn => _settings.UnityNews.BlogDiscussionCard && (_settings.Channels.UnityDiscussion?.Id ?? 0) != 0;
 
     /// <summary>
-    /// Remembers a forum post as the latest blog post and, when discussion cards are on, queues its card for
-    /// <see cref="DeliverDiscussionCardsAsync"/>, which waits for the discussion channel to go quiet.
+    /// Remembers a forum post as the latest blog post and, when discussion cards are on and <see cref="BlogDiscussionFilter"/> lets the
+    /// post through, queues its card for <see cref="DeliverDiscussionCardsAsync"/>, which paces the cards.
     /// </summary>
-    private async Task RecordBlogPost(FeedData feedData, SyndicationItem item, BlogPage page, IThreadChannel thread)
+    private async Task RecordBlogPost(FeedData feedData, SyndicationItem item, BlogPage page, IThreadChannel thread, ulong? roleId, string? shareKey)
     {
         var card = new BlogCardData
         {
@@ -237,22 +247,34 @@ public class FeedService
             PostedUtc = DateTimeOffset.UtcNow,
         };
 
+        var filter = _settings.UnityNews.DiscussionFilter;
+        var excludedBy = BlogDiscussionFilter.ExcludedBy(card.Title, page.Topics, page.Tags, filter.EffectiveBlockedTopics, filter.EffectiveBlockedTitleWords);
+
         await _discussionGate.WaitAsync();
         try
         {
             feedData.LatestBlog = card;
-            if (DiscussionCardsOn)
+            if (DiscussionCardsOn && excludedBy == null)
                 feedData.PendingDiscussionCards.Add(card);
+            if (shareKey != null)
+                feedData.ShareableBlogPosts.Add(new ShareableBlogPost
+                {
+                    Key = shareKey, ThreadId = thread.Id, RoleId = roleId, Published = item.PublishDate, Card = card, Page = page,
+                });
         }
         finally
         {
             _discussionGate.Release();
         }
+
+        if (DiscussionCardsOn && excludedBy != null)
+            await _logging.LogAction($"[{ServiceName}] No discussion card for '{card.Title}': {excludedBy}", ExtendedLogSeverity.Info);
     }
 
     /// <summary>
-    /// Posts the queued blog cards to the discussion channel once no one has talked there for <see cref="BlogDiscussion.IdleTime"/>
-    /// (or a card has waited <see cref="BlogDiscussion.MaxWait"/>), so a card doesn't cut into a conversation. Runs every feed loop.
+    /// Posts the next queued blog card to the discussion channel when <see cref="BlogDiscussion.NextCard"/> says so: at least
+    /// <see cref="BlogDiscussion.MinGap"/> after the last card, once the channel is quiet, oldest first, one per run. Cards queued
+    /// <see cref="BlogDiscussion.MaxCardAge"/> ago are dropped. Runs every feed loop.
     /// </summary>
     public async Task DeliverDiscussionCardsAsync(FeedData feedData)
     {
@@ -273,11 +295,23 @@ public class FeedService
                 return;
             }
 
-            var queuedAt = feedData.PendingDiscussionCards.Min(c => c.PostedUtc);
-            if (!BlogDiscussion.CardDue(DateTimeOffset.UtcNow, queuedAt, await LastHumanMessageAt(channel)))
+            // Without the channel's history first: when nothing could go out even in a silent channel, don't read it.
+            var now = DateTimeOffset.UtcNow;
+            var (expired, next) = BlogDiscussion.NextCard(now, feedData.PendingDiscussionCards, c => c.PostedUtc, feedData.LastDiscussionCardUtc, null);
+            foreach (var card in expired)
+            {
+                feedData.PendingDiscussionCards.Remove(card);
+                await _logging.LogAction($"[{ServiceName}] Dropped the discussion card for '{card.Title}': still queued after {BlogDiscussion.MaxCardAge.TotalHours:0} hours", ExtendedLogSeverity.Info);
+            }
+            if (next == null)
                 return;
 
-            await SendQueuedDiscussionCards(feedData, channel);
+            var history = await RecentDiscussionMessages(channel);
+            (_, next) = BlogDiscussion.NextCard(now, feedData.PendingDiscussionCards, c => c.PostedUtc, feedData.LastDiscussionCardUtc, LastHumanMessageAt(history));
+            if (next == null)
+                return;
+
+            await SendDiscussionCard(feedData, channel, next, history, dropIfSendFails: true);
         }
         finally
         {
@@ -285,15 +319,14 @@ public class FeedService
         }
     }
 
-    /// <summary>When a human last wrote among the channel's newest messages; null when none did, or the history can't be read (then the card is posted).</summary>
-    private async Task<DateTimeOffset?> LastHumanMessageAt(IMessageChannel channel)
+    private static bool IsHuman(IMessage message) => !message.Author.IsBot && !message.Author.IsWebhook;
+
+    /// <summary>The channel's newest messages, or null when they can't be read (then a card is posted without waiting and nothing is replaced).</summary>
+    private async Task<IReadOnlyList<IMessage>?> RecentDiscussionMessages(IMessageChannel channel)
     {
         try
         {
-            var messages = await channel.GetMessagesAsync(BlogDiscussion.HistoryScanLimit).FlattenAsync();
-            return messages.Where(m => !m.Author.IsBot && !m.Author.IsWebhook)
-                .Select(m => (DateTimeOffset?)m.Timestamp)
-                .Max();
+            return (await channel.GetMessagesAsync(BlogDiscussion.HistoryScanLimit).FlattenAsync()).ToList();
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
@@ -302,32 +335,142 @@ public class FeedService
         }
     }
 
-    /// <summary>Sends every queued card, oldest first, and empties the queue. Call inside <see cref="_discussionGate"/>.</summary>
-    private async Task SendQueuedDiscussionCards(FeedData feedData, IMessageChannel channel)
-    {
-        foreach (var card in feedData.PendingDiscussionCards.ToList())
-        {
-            await SendDiscussionCard(feedData, channel, card);
-            feedData.PendingDiscussionCards.Remove(card);
-        }
-    }
+    /// <summary>When a human last wrote among <paramref name="history"/>; null when none did or it couldn't be read.</summary>
+    private static DateTimeOffset? LastHumanMessageAt(IReadOnlyList<IMessage>? history) =>
+        history?.Where(IsHuman).Select(m => (DateTimeOffset?)m.Timestamp).Max();
 
     /// <summary>
-    /// Sends one blog card to the discussion channel and remembers it as the last one. A failure is logged and not retried,
-    /// because the forum post is the record. Call inside <see cref="_discussionGate"/>.
+    /// Sends one blog card to the discussion channel and remembers it as the last one, then deletes the previous card when nobody
+    /// wrote after it (<see cref="BlogDiscussion.ShouldReplace"/>, judged from <paramref name="history"/>), so a failed send leaves
+    /// the old card in place. The post leaves the queue once it is sent; when the send fails it stays queued unless
+    /// <paramref name="dropIfSendFails"/> (paced delivery, which must not retry it every loop: the forum post is the record).
+    /// A failure is logged. Call inside <see cref="_discussionGate"/>.
     /// </summary>
-    private async Task SendDiscussionCard(FeedData feedData, IMessageChannel channel, BlogCardData card)
+    private async Task<IUserMessage?> SendDiscussionCard(FeedData feedData, IMessageChannel channel, BlogCardData card, IReadOnlyList<IMessage>? history,
+        ulong? sharedByUserId = null, bool dropIfSendFails = false)
     {
+        var previousCardId = feedData.LastDiscussionCardMessageId;
+        var replacePrevious = history != null && BlogDiscussion.ShouldReplace(previousCardId, history.Select(m => (m.Id, IsHuman(m))));
+        IUserMessage message;
         try
         {
-            var components = UnityNewsCards.BlogDiscussionCard(card.Title, card.Url, card.Description, card.Images, card.ForumPostUrl);
-            var message = await channel.SendMessageAsync(components: components, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
+            var components = UnityNewsCards.BlogDiscussionCard(card.Title, card.Url, card.Description, card.Images, card.ForumPostUrl, sharedByUserId);
+            message = await channel.SendMessageAsync(components: components, flags: MessageFlags.ComponentsV2, allowedMentions: AllowedMentions.None);
             feedData.LastDiscussionCardMessageId = message.Id;
             feedData.LastDiscussionCardUtc = DateTimeOffset.UtcNow;
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
+            if (dropIfSendFails)
+                feedData.PendingDiscussionCards.RemoveAll(c => c.Id == card.Id);
             await _logging.LogAction($"[{ServiceName}] Could not post the discussion card for '{card.Title}': {e.Message}", ExtendedLogSeverity.Warning);
+            return null;
+        }
+
+        feedData.PendingDiscussionCards.RemoveAll(c => c.Id == card.Id);
+        if (replacePrevious)
+            await DeleteUnansweredCard(channel, previousCardId);
+
+        // It is in the discussion channel now, so its forum card no longer offers to share it.
+        foreach (var shareable in feedData.ShareableBlogPosts.Where(p => p.Card.Id == card.Id).ToList())
+            await RemoveShareButton(feedData, shareable);
+        return message;
+    }
+
+    /// <summary>Forgets a shareable post and rebuilds its forum card without the share button. Edit failures are logged only. Call inside <see cref="_discussionGate"/>.</summary>
+    private async Task RemoveShareButton(FeedData feedData, ShareableBlogPost post)
+    {
+        feedData.ShareableBlogPosts.Remove(post);
+        try
+        {
+            var thread = _client.GetChannel(post.ThreadId) as IThreadChannel
+                         ?? await _client.Rest.GetChannelAsync(post.ThreadId) as IThreadChannel;
+            if (thread == null)
+                return;
+            var card = UnityNewsCards.BlogCard(post.Card.Title, post.Card.Url, post.Card.Description, post.Published, post.Page, RoleMention(post.RoleId));
+            // A forum post's starter message has the id of the post.
+            await thread.ModifyMessageAsync(post.ThreadId, m =>
+            {
+                m.Components = card;
+                m.Flags = MessageFlags.ComponentsV2;
+                m.AllowedMentions = AllowedMentions.None;
+            });
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            LoggingService.LogToConsole($"[{ServiceName}] Could not remove the share button from the forum card of '{post.Card.Title}': {e.Message}", LogSeverity.Warning);
+        }
+    }
+
+    /// <summary>
+    /// The "Share to #unity-discussion" button of a blog card in the news channel: posts the card to the discussion channel at once,
+    /// noting who shared it, whatever the pacing says. Returns the reply for the member.
+    /// </summary>
+    public async Task<string> ShareBlogAsync(FeedData? feedData, string shareKey, IUser user)
+    {
+        if (feedData == null || !DiscussionCardsOn)
+            return "Sharing blog posts to the discussion channel is turned off.";
+        var discussionId = _settings.Channels.UnityDiscussion!.Id;
+
+        await _discussionGate.WaitAsync();
+        try
+        {
+            var post = feedData.ShareableBlogPosts.FirstOrDefault(p => p.Key == shareKey);
+            if (post == null)
+                return $"This post can't be shared any more: it's already in <#{discussionId}>, or more than a day old.";
+            if (DateTimeOffset.UtcNow - post.Card.PostedUtc >= BlogDiscussion.MaxCardAge)
+            {
+                await RemoveShareButton(feedData, post);
+                return "This post is more than a day old, so it can't be shared any more.";
+            }
+
+            if (_client.GetChannel(discussionId) is not IMessageChannel channel)
+                return "The discussion channel wasn't found.";
+
+            var history = await RecentDiscussionMessages(channel);
+            var message = await SendDiscussionCard(feedData, channel, post.Card, history, user.Id);
+            if (message == null)
+                return "Couldn't post it to the discussion channel. Try again in a little while.";
+
+            await _logging.LogAction($"[{ServiceName}] {user.GetUserLoggingString()} shared '{post.Card.Title}' to the discussion channel.", ExtendedLogSeverity.Info);
+            return $"Shared to <#{discussionId}>: https://discord.com/channels/{_settings.GuildId}/{discussionId}/{message.Id}";
+        }
+        finally
+        {
+            _discussionGate.Release();
+        }
+    }
+
+    /// <summary>Removes the share button from forum cards more than <see cref="BlogDiscussion.MaxCardAge"/> old (or all of them when discussion cards are off). Runs every feed loop.</summary>
+    public async Task SweepShareButtonsAsync(FeedData feedData)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await _discussionGate.WaitAsync();
+        try
+        {
+            var expired = feedData.ShareableBlogPosts.Where(p => !DiscussionCardsOn || now - p.Card.PostedUtc >= BlogDiscussion.MaxCardAge).ToList();
+            foreach (var post in expired)
+                await RemoveShareButton(feedData, post);
+        }
+        finally
+        {
+            _discussionGate.Release();
+        }
+    }
+
+    /// <summary>Deletes a card nobody has answered, so unanswered cards don't stack up. Never throws.</summary>
+    private async Task DeleteUnansweredCard(IMessageChannel channel, ulong lastCardId)
+    {
+        // The audit log would otherwise post a card for it when it isn't cached.
+        _botDeletions.Register([lastCardId], DateTimeOffset.UtcNow);
+        try
+        {
+            await channel.DeleteMessageAsync(lastCardId);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // Already gone (404) is fine; anything else only means two cards stay.
+            LoggingService.LogToConsole($"[{ServiceName}] Could not delete the unanswered discussion card {lastCardId}: {e.Message}", LogSeverity.Warning);
         }
     }
 
@@ -335,9 +478,9 @@ public class FeedService
     private static readonly TimeSpan BlogCommandReplyLifetime = TimeSpan.FromSeconds(15);
 
     /// <summary>
-    /// <c>!blog</c>. In the discussion channel it posts the latest blog card (at once when it is still queued), unless the last card was
-    /// sent under <see cref="BlogDiscussion.RepostCooldown"/> ago or is among the channel's newest messages; then it points to that card.
-    /// Elsewhere, and before any blog post is known, it posts the small pointer card to the news channel.
+    /// <c>!blog</c>. In the discussion channel it posts the latest blog card (taking it out of the queue if it is waiting there), unless
+    /// the last card was sent under <see cref="BlogDiscussion.RepostCooldown"/> ago or is among the channel's newest messages; then it
+    /// points to that card. Elsewhere, and before any blog post is known, it posts the small pointer card to the news channel.
     /// </summary>
     public async Task BlogCommandAsync(FeedData? feedData, IMessageChannel channel)
     {
@@ -352,17 +495,11 @@ public class FeedService
         await _discussionGate.WaitAsync();
         try
         {
-            // Someone asked for it, so a card still waiting for a quiet channel goes out now.
-            if (feedData.PendingDiscussionCards.Count > 0)
-            {
-                await SendQueuedDiscussionCards(feedData, channel);
-                return;
-            }
-
-            var recent = (await channel.GetMessagesAsync(BlogDiscussion.RepostRecentMessages).FlattenAsync()).Select(m => m.Id);
+            var history = await RecentDiscussionMessages(channel);
+            var recent = (history ?? []).OrderByDescending(m => m.Id).Take(BlogDiscussion.RepostRecentMessages).Select(m => m.Id);
             if (BlogDiscussion.RepostAllowed(DateTimeOffset.UtcNow, feedData.LastDiscussionCardUtc, feedData.LastDiscussionCardMessageId, recent))
             {
-                await SendDiscussionCard(feedData, channel, latest);
+                await SendDiscussionCard(feedData, channel, latest, history);
                 return;
             }
 

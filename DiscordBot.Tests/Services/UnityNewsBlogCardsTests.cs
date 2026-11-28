@@ -181,7 +181,7 @@ public class UnityNewsBlogCardsTests
     {
         var text = AuditLogCardsTests.Text(DiscussionCard(FullPage.Images));
 
-        Assert.StartsWith("## [How SEED renders a world](https://unity.com/blog/how-seed-renders)", text);
+        Assert.StartsWith("### [How SEED renders a world](https://unity.com/blog/how-seed-renders)", text);
         Assert.Contains("Klang Games profiles real player-built societies.", text);
         Assert.DoesNotContain("<@&", text);
         Assert.DoesNotContain("In this post", text);
@@ -198,16 +198,28 @@ public class UnityNewsBlogCardsTests
     }
 
     [Fact]
-    public void BlogDiscussionCard_GalleryHoldsTheImages_AndIsLeftOutWithNone()
+    public void BlogDiscussionCard_FirstImageIsAThumbnail_NoGallery()
     {
-        var withImages = Flatten(DiscussionCard(FullPage.Images).Components).OfType<MediaGalleryComponent>().ToList();
-        var gallery = Assert.Single(withImages);
-        Assert.Equal(4, gallery.Items.Count);
+        var card = DiscussionCard(FullPage.Images);
+        Assert.Empty(Flatten(card.Components).OfType<MediaGalleryComponent>());
+        var section = Assert.Single(Flatten(card.Components).OfType<SectionComponent>());
+        var thumbnail = Assert.IsType<ThumbnailComponent>(section.Accessory);
+        Assert.Equal(FullPage.Images[0], thumbnail.Media.Url);
+    }
 
-        var tooMany = Enumerable.Range(1, 6).Select(i => $"https://unity.com/{i}.png").ToList();
-        Assert.Equal(4, Assert.Single(Flatten(DiscussionCard(tooMany).Components).OfType<MediaGalleryComponent>()).Items.Count);
+    [Fact]
+    public void BlogDiscussionCard_NoImages_PlainText()
+    {
+        var card = DiscussionCard([]);
+        Assert.Empty(Flatten(card.Components).OfType<SectionComponent>());
+        Assert.StartsWith("### [How SEED", AuditLogCardsTests.Text(card));
+    }
 
-        Assert.Empty(Flatten(DiscussionCard([]).Components).OfType<MediaGalleryComponent>());
+    [Fact]
+    public void BlogDiscussionCard_LongDescription_IsShortened()
+    {
+        var text = AuditLogCardsTests.Text(DiscussionCard(FullPage.Images, new string('d', 5000)));
+        Assert.True(text.Length < 450);
     }
 
     [Fact]
@@ -219,6 +231,42 @@ public class UnityNewsBlogCardsTests
         var text = AuditLogCardsTests.Text(DiscussionCard([], "ping @everyone <@123>"));
         Assert.DoesNotContain("@everyone", text, StringComparison.Ordinal);
         Assert.DoesNotContain("<@", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BlogCard_WithShareKey_HasTheShareButton()
+    {
+        var key = UnityNewsCards.ShareKey("https://unity.com/blog/how-seed-renders");
+        var card = UnityNewsCards.BlogCard("How SEED renders a world", BlogFixtures.ArticleUrl, null, DateTimeOffset.UnixEpoch, FullPage, "<@&123>", key);
+        var buttons = Flatten(card.Components).OfType<ButtonComponent>().ToList();
+
+        Assert.Equal(["Read on unity.com", "Subscribe / Unsubscribe", "Share to #unity-discussion"], buttons.Select(b => b.Label));
+        Assert.Equal(UnityNewsCards.ShareButtonPrefix + key, buttons[2].CustomId);
+    }
+
+    [Fact]
+    public void BlogCard_WithoutShareKey_NoShareButton()
+    {
+        var buttons = Flatten(Card(FullPage, "<@&123>").Components).OfType<ButtonComponent>();
+        Assert.DoesNotContain(buttons, b => b.CustomId?.StartsWith(UnityNewsCards.ShareButtonPrefix) == true);
+    }
+
+    [Fact]
+    public void ShareKey_IsShortStableAndDistinct()
+    {
+        var a = UnityNewsCards.ShareKey("https://unity.com/blog/" + new string('a', 300));
+        Assert.Equal(16, a.Length);
+        Assert.Equal(a, UnityNewsCards.ShareKey("https://unity.com/blog/" + new string('a', 300)));
+        Assert.NotEqual(a, UnityNewsCards.ShareKey("https://unity.com/blog/other"));
+        Assert.True((UnityNewsCards.ShareButtonPrefix + a).Length <= 100);
+    }
+
+    [Fact]
+    public void BlogDiscussionCard_SharedBy_NamesTheMember()
+    {
+        var card = UnityNewsCards.BlogDiscussionCard("How SEED renders a world", BlogFixtures.ArticleUrl, null, FullPage.Images, ForumPostUrl, 42);
+        Assert.Contains("-# Shared by <@42>", AuditLogCardsTests.Text(card));
+        Assert.DoesNotContain("Shared by", AuditLogCardsTests.Text(DiscussionCard(FullPage.Images)));
     }
 
     [Fact]

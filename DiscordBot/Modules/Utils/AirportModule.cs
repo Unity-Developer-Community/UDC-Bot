@@ -1,5 +1,6 @@
 using Discord.Commands;
 using DiscordBot.Services;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 
 namespace DiscordBot.Modules.Utils;
@@ -8,6 +9,7 @@ namespace DiscordBot.Modules.Utils;
 [Group("UserModule"), Alias("")]
 public class AirportModule : ModuleBase
 {
+    public BotDeletionRegistry BotDeletions { get; set; } = null!;
     #region Dependency Injection
 
     public AirportService AirportService { get; set; } = null!;
@@ -43,7 +45,7 @@ public class AirportModule : ModuleBase
         if (Context.Channel.Id != Settings.Channels.BotCommands.Id && Context.Channel.Id != Settings.Channels.General.Id)
         {
             await (ReplyAsync($"Command can only be used in <#{Settings.Channels.BotCommands.Id}> or <#{Settings.Channels.General.Id}>.").DeleteAfterSeconds(5f) ?? Task.CompletedTask);
-            await (Context.Message.DeleteAfterSeconds(2f) ?? Task.CompletedTask);
+            await Context.Message.DeleteCommandMessageAsync(BotDeletions, TimeSpan.FromSeconds(2));
             return;
         }
 

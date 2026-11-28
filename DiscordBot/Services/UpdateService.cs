@@ -67,6 +67,9 @@ public class FeedData
     public ulong LastDiscussionCardMessageId { get; set; }
     public DateTimeOffset LastDiscussionCardUtc { get; set; }
 
+    /// <summary>Blog posts whose news-channel card has the "Share to #unity-discussion" button: not in the discussion channel yet, under a day old.</summary>
+    public List<ShareableBlogPost> ShareableBlogPosts { get; set; } = new();
+
     /// <summary>Remembers an id as posted and drops the oldest ones beyond <see cref="MaxPostedIds"/>.</summary>
     public void AddPostedId(string id)
     {
@@ -90,6 +93,21 @@ public class BlogCardData
 
     /// <summary>When the forum post was made (UTC).</summary>
     public DateTimeOffset PostedUtc { get; set; }
+}
+
+/// <summary>What is needed to share a blog post to the discussion channel and to rebuild its forum card without the share button.</summary>
+public class ShareableBlogPost
+{
+    /// <summary>The key in the share button's custom id (<see cref="UnityNewsCards.ShareKey"/>).</summary>
+    public string Key { get; set; } = string.Empty;
+
+    /// <summary>The forum post; its starter message has the same id.</summary>
+    public ulong ThreadId { get; set; }
+
+    public ulong? RoleId { get; set; }
+    public DateTimeOffset Published { get; set; }
+    public BlogCardData Card { get; set; } = new();
+    public BlogPage Page { get; set; } = new();
 }
 
 //TODO Download all avatars to cache them
@@ -160,9 +178,17 @@ public class UpdateService
         {
             while (!_token.IsCancellationRequested)
             {
-                await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/botdata.json", _botData);
-                await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/userdata.json", _userData);
-                await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/feeds.json", _feedData);
+                // A failed save (for example a list changing while it is written) is tried again on the next pass.
+                try
+                {
+                    await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/botdata.json", _botData);
+                    await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/userdata.json", _userData);
+                    await SerializeUtil.SerializeFileAsync($"{_settings.ServerRootPath}/feeds.json", _feedData);
+                }
+                catch (Exception e) when (e is not OperationCanceledException)
+                {
+                    LoggingService.LogToConsole($"{ServiceName}: Failed to save data, trying again in 20 seconds: {e.Message}", ExtendedLogSeverity.Warning);
+                }
                 await Task.Delay(TimeSpan.FromSeconds(20d), _token);
             }
         }
@@ -299,6 +325,7 @@ public class UpdateService
                         }
 
                         await _feedService.DeliverDiscussionCardsAsync(_feedData);
+                        await _feedService.SweepShareButtonsAsync(_feedData);
                     }
                 }
                 catch (Exception e) when (e is not OperationCanceledException)

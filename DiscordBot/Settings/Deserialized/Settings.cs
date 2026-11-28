@@ -26,6 +26,7 @@ public class BotSettings
     public ImageSpamGuardSettings ImageSpamGuard { get; set; } = new();
     public MemberLogSettings MemberLog { get; set; } = new();
     public UnityNewsSettings UnityNews { get; set; } = new();
+    public AuditLogSettings AuditLog { get; set; } = new();
 
     /// <summary>For the startup report: <c>On: casino, birthdays. Off: recruitment.</c></summary>
     public string FeatureSummary()
@@ -115,6 +116,9 @@ public class BotSettings
             if (ImageSpamGuard.TimeoutHours is < 1 or > ImageSpamGuardSettings.MaxTimeoutHours)
                 warnings.Add($"ImageSpamGuard.TimeoutHours must be between 1 and {ImageSpamGuardSettings.MaxTimeoutHours} (Discord's 28-day limit)");
         }
+
+        if (AuditLog.EffectiveCommandCleanupBots.Any(bot => string.IsNullOrWhiteSpace(bot.Prefix) || bot.BotId == 0))
+            warnings.Add("AuditLog.CommandCleanupBots has an entry without a Prefix or BotId; it is ignored");
 
         return (errors, warnings);
     }
@@ -271,10 +275,45 @@ public class MemberLogSettings
     public bool DisplayNameChanges { get; set; } = false;
 }
 
+public class AuditLogSettings
+{
+    /// <summary>
+    /// Other bots that delete their own command messages (such as Wick's <c>w!</c>). A deleted message starting with a
+    /// prefix gets no "Message deleted" card when the audit log shows that bot deleted it. Null uses <see cref="DefaultCommandCleanupBots"/>.
+    /// </summary>
+    public List<CommandCleanupBot>? CommandCleanupBots { get; set; }
+
+    public static readonly IReadOnlyList<CommandCleanupBot> DefaultCommandCleanupBots =
+        [new CommandCleanupBot { Prefix = "w!", BotId = 536991182035746816 }];
+
+    public IReadOnlyList<CommandCleanupBot> EffectiveCommandCleanupBots => CommandCleanupBots ?? DefaultCommandCleanupBots;
+}
+
+public class CommandCleanupBot
+{
+    public string Prefix { get; set; } = string.Empty;
+    public ulong BotId { get; set; }
+}
+
 public class UnityNewsSettings
 {
     /// <summary>After each blog forum post, a short card in <see cref="ChannelSettings.UnityDiscussion"/>.</summary>
     public bool BlogDiscussionCard { get; set; } = true;
+
+    /// <summary>Which blog posts get a discussion card; every post still goes to the news channel.</summary>
+    public BlogDiscussionFilterSettings DiscussionFilter { get; set; } = new();
+}
+
+public class BlogDiscussionFilterSettings
+{
+    /// <summary>Article topics or tags that keep a post out. Null uses <see cref="Domain.UnityNews.BlogDiscussionFilter.DefaultBlockedTopics"/>.</summary>
+    public List<string>? BlockedTopics { get; set; }
+
+    /// <summary>Whole words or phrases in the title that keep a post out. Null uses <see cref="Domain.UnityNews.BlogDiscussionFilter.DefaultBlockedTitleWords"/>.</summary>
+    public List<string>? BlockedTitleWords { get; set; }
+
+    public IReadOnlyList<string> EffectiveBlockedTopics => BlockedTopics ?? Domain.UnityNews.BlogDiscussionFilter.DefaultBlockedTopics;
+    public IReadOnlyList<string> EffectiveBlockedTitleWords => BlockedTitleWords ?? Domain.UnityNews.BlogDiscussionFilter.DefaultBlockedTitleWords;
 }
 
 public class ChannelInfo

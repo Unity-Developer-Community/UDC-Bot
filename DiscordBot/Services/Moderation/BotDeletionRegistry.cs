@@ -24,6 +24,9 @@ public sealed class BotDeletionRegistry
         }
     }
 
+    /// <summary>Forgets a message the bot failed to delete, so its deletion by the member is still reported.</summary>
+    public void Unregister(ulong messageId) => _expires.TryRemove(messageId, out _);
+
     public bool Contains(ulong messageId, DateTimeOffset now) =>
         _expires.TryGetValue(messageId, out var expires) && now < expires;
 }

@@ -10,15 +10,13 @@ namespace DiscordBot.Services.Moderation;
 /// Catches the common scam wave: the same account posting messages that are all images across
 /// several channels in quick succession (rules in <see cref="ImageSpamThresholds"/>). Messages below
 /// the thresholds are only remembered; the one that crosses one deletes every remembered message,
-/// times the member out, posts a report to the log channel and a short pointer to it in the AutoMod channel.
+/// times the member out, posts a report to the log channel and an alert card with the member's earlier
+/// messages and moderator buttons in the AutoMod channel (<see cref="ImageSpamAlertService"/>).
 /// </summary>
 public class ImageSpamGuardService
 {
     private const string ServiceName = "ImageSpamGuard";
     private const string AuditLogReason = "Image spam guard: image posts across several channels";
-    private const string SeenReaction = "👀";
-    private const string BannedReaction = "🔨";
-    private const string ReactionLegend = $"-# React {SeenReaction} if you're on it, {BannedReaction} once banned";
 
     private readonly DiscordSocketClient _client;
     private readonly ILoggingService _loggingService;
@@ -26,19 +24,19 @@ public class ImageSpamGuardService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ImageSpamGuardSettings _guardSettings;
     private readonly ulong _moderatorRoleId;
-    private readonly ulong _autoModChannelId;
+    private readonly ImageSpamAlertService _alerts;
     private readonly ImageSpamTracker _tracker;
 
     public ImageSpamGuardService(DiscordSocketClient client, BotSettings settings, ILoggingService loggingService,
-        BotDeletionRegistry deletionRegistry, IHttpClientFactory httpClientFactory)
+        BotDeletionRegistry deletionRegistry, IHttpClientFactory httpClientFactory, ImageSpamAlertService alerts)
     {
         _client = client;
         _loggingService = loggingService;
         _deletionRegistry = deletionRegistry;
         _httpClientFactory = httpClientFactory;
+        _alerts = alerts;
         _guardSettings = settings.ImageSpamGuard;
         _moderatorRoleId = settings.Roles.Moderator;
-        _autoModChannelId = settings.Channels.AutoMod?.Id ?? 0;
         _tracker = new ImageSpamTracker(TimeSpan.FromMinutes(Math.Max(1, _guardSettings.WindowMinutes)), ImageSpamThresholds.From(_guardSettings));
 
         if (!_guardSettings.Enabled)
@@ -47,8 +45,8 @@ public class ImageSpamGuardService
             return;
         }
 
-        if (_autoModChannelId == 0)
-            LoggingService.LogToConsole($"[{ServiceName}] Channels.AutoMod is not configured: reports won't be pointed to from AutoMod.",
+        if ((settings.Channels.AutoMod?.Id ?? 0) == 0)
+            LoggingService.LogToConsole($"[{ServiceName}] Channels.AutoMod is not configured: no alerts will be posted to AutoMod.",
                 ExtendedLogSeverity.Warning);
 
         client.MessageReceived += EventGuard.Guarded<SocketMessage>(MessageReceived, nameof(MessageReceived));
@@ -91,6 +89,11 @@ public class ImageSpamGuardService
 
     private async Task ActOnSpam(SocketGuildUser member, IReadOnlyCollection<IAttachment> lastAttachments, IReadOnlyList<ImageSpamHit> hits, string ruleDescription)
     {
+        // Started first and awaited when the alert is posted, so it runs alongside the timeout and the deletes. Not
+        // started without an AutoMod channel: no alert is posted then, and the search would be wasted requests.
+        var history = _alerts.PostsAlerts
+            ? _alerts.LookupHistory(member, hits)
+            : Task.FromResult(HistorySearch.Unavailable("no AutoMod channel"));
         var timeoutResult = await TryTimeout(member);
         // Copy the image before deleting, since its link stops working once the message is gone.
         var (copy, copyNote) = await CopyOneImage(lastAttachments);
@@ -113,7 +116,8 @@ public class ImageSpamGuardService
                 failures,
                 timeoutResult,
                 files.Select(f => $"attachment://{f.FileName}").ToList(),
-                copyNote);
+                copyNote,
+                _alerts.PostsAlerts);
 
             IUserMessage? reportMessage;
             try
@@ -127,7 +131,7 @@ public class ImageSpamGuardService
                 reportMessage = await _loggingService.LogComponentsToChannel(AuditLogCards.ImageSpamReportCard(report, DateTimeOffset.UtcNow), topic: LogTopic.Moderation);
             }
 
-            await PostAutoModPointer(member, reportMessage);
+            await _alerts.PostAlert(member, ruleDescription, hits.Count, _guardSettings.WindowMinutes, timeoutResult, reportMessage, history);
         }
         finally
         {
@@ -153,50 +157,6 @@ public class ImageSpamGuardService
         catch (HttpException e)
         {
             return $"❌ not timed out: Discord returned {(int)e.HttpCode} {e.Reason}".TrimEnd();
-        }
-    }
-
-    private async Task PostAutoModPointer(SocketGuildUser member, IUserMessage? reportMessage)
-    {
-        if (_autoModChannelId == 0)
-            return;
-        if (reportMessage == null)
-        {
-            LoggingService.LogToConsole($"[{ServiceName}] No report was posted, so there is nothing to point to from AutoMod.",
-                ExtendedLogSeverity.Warning);
-            return;
-        }
-        // Looked up when needed: the channel cache may not be ready when the service is created.
-        if (_client.GetChannel(_autoModChannelId) is not IMessageChannel autoMod)
-        {
-            LoggingService.LogToConsole($"[{ServiceName}] AutoMod channel {_autoModChannelId} not found.", ExtendedLogSeverity.Warning);
-            return;
-        }
-
-        IUserMessage pointer;
-        try
-        {
-            pointer = await autoMod.SendMessageAsync(
-                $"🚨 Image spam guard triggered for {member.Mention} · [See Details]({reportMessage.GetJumpUrl()})\n{ReactionLegend}",
-                allowedMentions: AllowedMentions.None);
-        }
-        catch (HttpException e)
-        {
-            LoggingService.LogToConsole($"[{ServiceName}] Couldn't post to the AutoMod channel: {(int)e.HttpCode} {e.Reason}".TrimEnd(),
-                ExtendedLogSeverity.Warning);
-            return;
-        }
-
-        // The reactions are only markers for moderators; a failure here must not affect anything else.
-        try
-        {
-            await pointer.AddReactionAsync(new Emoji(SeenReaction));
-            await pointer.AddReactionAsync(new Emoji(BannedReaction));
-        }
-        catch (HttpException e)
-        {
-            LoggingService.LogToConsole($"[{ServiceName}] Couldn't add reactions to the AutoMod alert: {(int)e.HttpCode} {e.Reason}".TrimEnd(),
-                ExtendedLogSeverity.Warning);
         }
     }
 

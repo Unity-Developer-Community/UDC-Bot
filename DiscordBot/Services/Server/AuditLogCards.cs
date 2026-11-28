@@ -1,4 +1,5 @@
 using Discord.WebSocket;
+using DiscordBot.Services.Moderation;
 
 namespace DiscordBot.Services.Server;
 
@@ -42,6 +43,7 @@ public sealed class AuditCard
     private sealed record LinesPart(IReadOnlyList<string> Lines, int MaxLength) : Part;
     private sealed record SeparatorPart : Part;
     private sealed record MediaPart(IReadOnlyList<string> Urls) : Part;
+    private sealed record ActionRowPart(ActionRowBuilder Row) : Part;
 
     private readonly Color _accent;
     private string? _header;
@@ -99,6 +101,13 @@ public sealed class AuditCard
         return this;
     }
 
+    /// <summary>A row of buttons inside the container, after the parts added before it.</summary>
+    public AuditCard AddActionRow(ActionRowBuilder row)
+    {
+        _parts.Add(new ActionRowPart(row));
+        return this;
+    }
+
     public AuditCard WithFooter(string text)
     {
         _footer = string.IsNullOrWhiteSpace(text) ? null : $"-# {text}";
@@ -144,6 +153,9 @@ public sealed class AuditCard
                     break;
                 case MediaPart media:
                     container.WithMediaGallery(media.Urls);
+                    break;
+                case ActionRowPart actions:
+                    container.WithActionRow(actions.Row);
                     break;
             }
         }
@@ -406,7 +418,8 @@ public static class AuditLogCards
         IReadOnlyList<string> DeleteFailures,
         string TimeoutResult,
         IReadOnlyList<string> CopiedImageUrls,
-        string? CopyNote);
+        string? CopyNote,
+        bool AlertPosted = false);
 
     public static MessageComponent ImageSpamReportCard(ImageSpamReport report, DateTimeOffset at)
     {
@@ -437,9 +450,77 @@ public static class AuditLogCards
 
         return card
             .WithFooter($"Message IDs: {string.Join(", ", report.Messages.Select(m => m.MessageId))} · {Timestamp(at)} · " +
-                        "If this was a false positive, remove the timeout from the member's profile")
+                        (report.AlertPosted
+                            ? "If this was a false positive, use the False positive button on the AutoMod alert, or remove the timeout from the member's profile"
+                            : "If this was a false positive, remove the timeout from the member's profile"))
             .Build();
 
         static string Fit(string text) => AuditCard.Fit(text, MaxSpamExcerptLength, "…");
+    }
+
+    public sealed record ImageSpamAlert(
+        CardUser User,
+        DateTimeOffset? JoinedAt,
+        DateTimeOffset AccountCreatedAt,
+        string Rule,
+        int MessageCount,
+        int WindowMinutes,
+        string TimeoutResult,
+        string? ReportUrl,
+        IReadOnlyList<string> HistoryLines);
+
+    /// <summary>The AutoMod alert: who, why, their earlier messages, and the three moderator buttons.</summary>
+    public static MessageComponent ImageSpamAlertCard(ImageSpamAlert alert)
+    {
+        var who = alert.JoinedAt is { } joined
+            ? $"Joined {Timestamp(joined, 'R')} · Account created {Timestamp(alert.AccountCreatedAt, 'R')}"
+            : $"Account created {Timestamp(alert.AccountCreatedAt, 'R')}";
+
+        return new AuditCard(SpamGuardColor)
+            .WithHeader("🚨 Image spam guard triggered", alert.User, null,
+                who,
+                $"Posted {alert.MessageCount} messages within {alert.WindowMinutes} minutes: {alert.Rule}.",
+                $"**Timeout:** {alert.TimeoutResult}",
+                alert.ReportUrl != null ? $"[See full report]({alert.ReportUrl})" : "")
+            .AddSeparator()
+            .AddLines(alert.HistoryLines)
+            .AddActionRow(new ActionRowBuilder()
+                .WithButton("Ignore", ImageSpamAlertIds.Build(ImageSpamAlertAction.Ignore, alert.User.Id), ButtonStyle.Secondary)
+                .WithButton("Ban", ImageSpamAlertIds.Build(ImageSpamAlertAction.Ban, alert.User.Id), ButtonStyle.Danger)
+                .WithButton("False positive", ImageSpamAlertIds.Build(ImageSpamAlertAction.Unmute, alert.User.Id), ButtonStyle.Success))
+            .Build();
+    }
+
+    /// <summary>The line that closes an alert: who clicked what and how it went, e.g. <c>-# 🔨 Ban by @mod · banned · time</c>.</summary>
+    public static string ImageSpamClosedLine(ImageSpamAlertAction action, ulong clickerId, string result, DateTimeOffset at)
+    {
+        var (emoji, name) = action switch
+        {
+            ImageSpamAlertAction.Ban => ("🔨", "Ban"),
+            ImageSpamAlertAction.Unmute => ("✅", "False positive"),
+            _ => ("👀", "Ignore"),
+        };
+        return $"-# {emoji} {name} by <@{clickerId}> · {result} · {Timestamp(at)}";
+    }
+
+    /// <summary>
+    /// The alert after a button was used: rebuilt from the message's own components with every action row
+    /// removed (also inside the container), and the outcome line added at the end of the container.
+    /// </summary>
+    public static MessageComponent ImageSpamClosedCard(IEnumerable<IMessageComponent> components, string outcomeLine)
+    {
+        var rebuilt = components.ToBuilder();
+        var top = rebuilt.Components.Where(c => c is not ActionRowBuilder).ToList();
+        var container = top.OfType<ContainerBuilder>().FirstOrDefault();
+        if (container != null)
+        {
+            container.Components = container.Components.Where(c => c is not ActionRowBuilder).ToList();
+            container.WithTextDisplay(outcomeLine);
+        }
+        else
+        {
+            top.Add(new TextDisplayBuilder(outcomeLine));
+        }
+        return new ComponentBuilderV2(top).Build();
     }
 }

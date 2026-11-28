@@ -1,4 +1,5 @@
 using Discord.Commands;
+using DiscordBot.Services.Moderation;
 using DiscordBot.Settings;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,7 +17,8 @@ public class BotCommandChannelAttribute : PreconditionAttribute
             return await Task.FromResult(PreconditionResult.FromSuccess());
         }
 
-        _ = context.Message.DeleteAfterSeconds(seconds: 10);
+        context.Message.DeleteCommandMessageAsync(services.GetRequiredService<BotDeletionRegistry>(), TimeSpan.FromSeconds(10))
+            .SafeFireAndForget(nameof(BotCommandChannelAttribute));
         return await Task.FromResult(PreconditionResult.FromError($"This command can only be used in <#{settings.Channels.BotCommands.Id.ToString()}>."));
     }
 }
